@@ -1,0 +1,2 @@
+# Bidoo
+VCV Rack plugins
