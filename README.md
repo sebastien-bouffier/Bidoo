@@ -14,4 +14,4 @@ For the image resources (all SVG files), any use requires explicit permission of
 
 ## Donate
 
-If you enjoy this module you can support the development by making a donation. Here's the link: [DONATE](paypal.me/sebastienbouffier)
+If you enjoy this module you can support the development by making a donation. Here's the link: [DONATE](https://paypal.me/sebastienbouffier)
