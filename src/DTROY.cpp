@@ -3,6 +3,8 @@
 #include "BidooComponents.hpp"
 #include <ctime>
 
+using namespace std;
+
 struct DTROY : Module {
 	enum ParamIds {
 		CLOCK_PARAM,
@@ -13,6 +15,7 @@ struct DTROY : Module {
 		GATE_TIME_PARAM,
 		ROOT_NOTE_PARAM,
 		SCALE_PARAM,
+		PLAYMODE_PARAM,
 		TRIG_COUNT_PARAM = GATE_TIME_PARAM + 8,
 		TRIG_TYPE_PARAM = TRIG_COUNT_PARAM + 8,
 		TRIG_PITCH_PARAM = TRIG_TYPE_PARAM + 8,
@@ -47,9 +50,10 @@ struct DTROY : Module {
 		RUNNING_LIGHT,
 		RESET_LIGHT,
 		GATE_LIGHT,
-		SLIDE_LIGHTS = GATE_LIGHT + 8,
-		SKIP_LIGHTS = SLIDE_LIGHTS + 8,
-		NUM_LIGHTS = SKIP_LIGHTS + 8
+		STEPS_LIGHTS = GATE_LIGHT + 8,
+		SLIDES_LIGHTS = STEPS_LIGHTS + 8,
+		SKIPS_LIGHTS = SLIDES_LIGHTS + 8,
+		NUM_LIGHTS = SKIPS_LIGHTS + 8
 	};
 	
 	//copied from http://www.grantmuller.com/MidiReference/doc/midiReference/ScaleReference.html
@@ -70,6 +74,44 @@ struct DTROY : Module {
 	int SCALE_PENTATONIC     [5] = {0, 2, 4, 7, 9};
 	int SCALE_PHRYGIAN       [7] = {0, 1, 3, 5, 7, 8, 10};
 	int SCALE_TURKISH        [7] = {0, 1, 3, 5, 7, 10, 11};
+	
+	enum Notes {
+		NOTE_C, 
+		NOTE_C_SHARP,
+		NOTE_D,
+		NOTE_D_SHARP,
+		NOTE_E,
+		NOTE_F,
+		NOTE_F_SHARP,
+		NOTE_G,
+		NOTE_G_SHARP,
+		NOTE_A,
+		NOTE_A_SHARP,
+		NOTE_B,
+		NUM_NOTES
+	};
+	
+	enum Scales {
+		AEOLIAN,
+		BLUES,
+		CHROMATIC,
+		DIATONIC_MINOR,
+		DORIAN,
+		HARMONIC_MINOR,
+		INDIAN,
+		LOCRIAN,
+		LYDIAN,
+		MAJOR,
+		MELODIC_MINOR,
+		MINOR,
+		MIXOLYDIAN,
+		NATURAL_MINOR,
+		PENTATONIC,
+		PHRYGIAN,
+		TURKISH,
+		NONE,
+		NUM_SCALES
+	};
 
 	bool running = true;
 	SchmittTrigger clockTrigger; // for external clock
@@ -78,6 +120,7 @@ struct DTROY : Module {
 	SchmittTrigger resetTrigger;
 	SchmittTrigger slideTriggers[8];
 	SchmittTrigger skipTriggers[8];
+	SchmittTrigger playModeTrigger;
 	float phase = 0.0;
 	int index = 0;
 	int floor = 0;
@@ -87,57 +130,59 @@ struct DTROY : Module {
 	clock_t tCurrent;
 	clock_t tLastTrig;
 	clock_t tPreviousTrig;
-	
+	bool slideState[8] = {0};
+	bool skipState[8] = {0};
+	int playMode = 0; // 0 forward, 1 backward, 2 pingpong, 3 random, 4 brownian
+	int pingPongMem = 0;
+	int countSteps = 0;
 		
-	struct TrigState {
-		float Pitch = 0;
-		int Count = 1;
-		int Type = 3; // 0 Empty 1 One Shot 2 Pulse 3 Full
-		bool Slide = false;
-		bool Skip = false;
-	};
-	
-	TrigState trigs[8];
-	
-	float runningLight = 0.0;
-	float resetLight = 0.0;
-	float stepLights[8] = {};
-	
-	float slideLights[8] = {};
-	float skipLights[8] = {};
-
 	PulseGenerator gatePulse;
 
-	//DTROY() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {}
-	
-	DTROY() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS) {}
+	DTROY() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {}
 	
 	void step() override;
-
+	
+	int numSteps() { return clampi(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 16); }
+	
+	void SetIndexToNextPlayableTrig() { 
+		for (int i = index; ++i < index + 8; ) {
+			if (!skipState[i%8]) {
+				index = i%8;
+				break;
+			}
+		}
+	}
+	
+	void SetIndexToPreviousPlayableTrig() { 
+		for (int i = index; --i >= index - 8; ) {
+			if (!skipState[i + 8 * ( i < 0 ? 1 : 0)]) {
+				index = i + 8 * ( i < 0 ? 1 : 0);
+				break;
+			}
+		}
+	}
+	
 	json_t *toJson() override {
 		json_t *rootJ = json_object();
 
 		// running
 		json_object_set_new(rootJ, "running", json_boolean(running));
 
-		// trigs
-		json_t *trigsJ = json_array();
+		// slides
+		json_t *slidesJ = json_array();
 		for (int i = 0; i < 8; i++) {
-			json_t *trigJ = json_array();
-			json_t *trigJPitch = json_real((float) trigs[i].Pitch);
-			json_array_append_new(trigJ, trigJPitch);
-			json_t *trigJCount = json_integer((int) trigs[i].Count);
-			json_array_append_new(trigJ, trigJCount);
-			json_t *trigJType = json_integer((int) trigs[i].Type);
-			json_array_append_new(trigJ, trigJType);
-			json_t *trigJSlide = json_boolean(trigs[i].Slide);
-			json_array_append_new(trigJ, trigJSlide);
-			json_t *trigJSkip = json_boolean(trigs[i].Skip);
-			json_array_append_new(trigJ, trigJSkip);			
-			
-			json_object_set_new(trigsJ, "trig", trigJ);
+			json_t *slideJ = json_integer((int) slideState[i]);
+			json_array_append_new(slidesJ, slideJ);
 		}
-		json_object_set_new(rootJ, "trigs", trigsJ);
+		json_object_set_new(rootJ, "slides", slidesJ);
+		
+		// skips
+		json_t *skipsJ = json_array();
+		for (int i = 0; i < 8; i++) {
+			json_t *skipJ = json_integer((int) skipState[i]);
+			json_array_append_new(skipsJ, skipJ);
+		}
+		json_object_set_new(rootJ, "skips", skipsJ);
 
 		return rootJ;
 	}
@@ -148,71 +193,61 @@ struct DTROY : Module {
 		if (runningJ)
 			running = json_is_true(runningJ);
 
-		// trigs
-		json_t *trigsJ = json_object_get(rootJ, "trigs");
-		if (trigsJ) {
+		// Slides
+		json_t *slidesJ = json_object_get(rootJ, "slides");
+		if (slidesJ) {
 			for (int i = 0; i < 8; i++) {
-				json_t *trigJ = json_array_get(trigsJ, i);
-				if (trigJ)
-				{
-					trigs[i].Pitch = json_real_value(json_array_get(trigJ, 0));
-					trigs[i].Count = json_integer_value(json_array_get(trigJ, 1));
-					trigs[i].Type = json_integer_value(json_array_get(trigJ, 2));
-					trigs[i].Slide = json_is_true(json_array_get(trigJ, 3));
-					trigs[i].Skip = json_is_true(json_array_get(trigJ, 4));
-				}
-					
+				json_t *slideJ = json_array_get(slidesJ, i);
+				if (slideJ)
+					slideState[i] = json_integer_value(slideJ);
+			}
+		}
+		
+		// Skips
+		json_t *skipsJ = json_object_get(rootJ, "skips");
+		if (skipsJ) {
+			for (int i = 0; i < 8; i++) {
+				json_t *skipJ = json_array_get(skipsJ, i);
+				if (skipJ)
+					skipState[i] = json_integer_value(skipJ);
 			}
 		}
 	}
-
-	void reset() {
-		for (int i = 0; i < 8; i++) {
-			params[DTROY::TRIG_PITCH_PARAM + i].value = 0;
-			params[DTROY::TRIG_COUNT_PARAM + i].value = 0;
-			params[DTROY::TRIG_TYPE_PARAM + i].value = 0;
-			params[DTROY::TRIG_SLIDE_PARAM + i].value = false;
-			params[DTROY::TRIG_SKIP_PARAM + i].value = false;
-		}
-	}
-
+	
 	void randomize() override {
 		for (int i = 0; i < 8; i++) {
-			params[DTROY::TRIG_PITCH_PARAM + i].value = getOneRandomNoteInScale();
-			params[DTROY::TRIG_COUNT_PARAM + i].value = static_cast<int>(std::round(randomf()*7));
-			params[DTROY::TRIG_TYPE_PARAM + i].value = static_cast<int>(std::round(randomf()*3));
-			params[DTROY::TRIG_SLIDE_PARAM + i].value = (randomf() > 0.7);
-			params[DTROY::TRIG_SKIP_PARAM + i].value = (randomf() > 0.8);
+			slideState[i] = (randomf() > 0.8);
+			skipState[i] = (randomf() > 0.85);
 		}
 	}
 	
 	//inspired from  https://github.com/jeremywen/JW-Modules
 	float getOneRandomNoteInScale(){
-		rootNote = clampi(params[ROOT_NOTE_PARAM].value + inputs[ROOT_NOTE_INPUT].value, 0.0, DTROYWidget::NUM_NOTES-1);
-		curScaleVal = clampi(params[SCALE_PARAM].value + inputs[SCALE_INPUT].value, 0.0, DTROYWidget::NUM_SCALES-1);
+		rootNote = clampi(params[ROOT_NOTE_PARAM].value + inputs[ROOT_NOTE_INPUT].value, 0.0, NUM_NOTES-1);
+		curScaleVal = clampi(params[SCALE_PARAM].value + inputs[SCALE_INPUT].value, 0.0, NUM_SCALES-1);
 		int *curScaleArr;
 		int notesInScale = 0;
 		switch(curScaleVal){
-			case DTROYWidget::AEOLIAN:        curScaleArr = SCALE_AEOLIAN;       notesInScale=LENGTHOF(SCALE_AEOLIAN); break;
-			case DTROYWidget::BLUES:          curScaleArr = SCALE_BLUES;         notesInScale=LENGTHOF(SCALE_BLUES); break;
-			case DTROYWidget::CHROMATIC:      curScaleArr = SCALE_CHROMATIC;     notesInScale=LENGTHOF(SCALE_CHROMATIC); break;
-			case DTROYWidget::DIATONIC_MINOR: curScaleArr = SCALE_DIATONIC_MINOR;notesInScale=LENGTHOF(SCALE_DIATONIC_MINOR); break;
-			case DTROYWidget::DORIAN:         curScaleArr = SCALE_DORIAN;        notesInScale=LENGTHOF(SCALE_DORIAN); break;
-			case DTROYWidget::HARMONIC_MINOR: curScaleArr = SCALE_HARMONIC_MINOR;notesInScale=LENGTHOF(SCALE_HARMONIC_MINOR); break;
-			case DTROYWidget::INDIAN:         curScaleArr = SCALE_INDIAN;        notesInScale=LENGTHOF(SCALE_INDIAN); break;
-			case DTROYWidget::LOCRIAN:        curScaleArr = SCALE_LOCRIAN;       notesInScale=LENGTHOF(SCALE_LOCRIAN); break;
-			case DTROYWidget::LYDIAN:         curScaleArr = SCALE_LYDIAN;        notesInScale=LENGTHOF(SCALE_LYDIAN); break;
-			case DTROYWidget::MAJOR:          curScaleArr = SCALE_MAJOR;         notesInScale=LENGTHOF(SCALE_MAJOR); break;
-			case DTROYWidget::MELODIC_MINOR:  curScaleArr = SCALE_MELODIC_MINOR; notesInScale=LENGTHOF(SCALE_MELODIC_MINOR); break;
-			case DTROYWidget::MINOR:          curScaleArr = SCALE_MINOR;         notesInScale=LENGTHOF(SCALE_MINOR); break;
-			case DTROYWidget::MIXOLYDIAN:     curScaleArr = SCALE_MIXOLYDIAN;    notesInScale=LENGTHOF(SCALE_MIXOLYDIAN); break;
-			case DTROYWidget::NATURAL_MINOR:  curScaleArr = SCALE_NATURAL_MINOR; notesInScale=LENGTHOF(SCALE_NATURAL_MINOR); break;
-			case DTROYWidget::PENTATONIC:     curScaleArr = SCALE_PENTATONIC;    notesInScale=LENGTHOF(SCALE_PENTATONIC); break;
-			case DTROYWidget::PHRYGIAN:       curScaleArr = SCALE_PHRYGIAN;      notesInScale=LENGTHOF(SCALE_PHRYGIAN); break;
-			case DTROYWidget::TURKISH:        curScaleArr = SCALE_TURKISH;       notesInScale=LENGTHOF(SCALE_TURKISH); break;
+			case AEOLIAN:        curScaleArr = SCALE_AEOLIAN;       notesInScale=LENGTHOF(SCALE_AEOLIAN); break;
+			case BLUES:          curScaleArr = SCALE_BLUES;         notesInScale=LENGTHOF(SCALE_BLUES); break;
+			case CHROMATIC:      curScaleArr = SCALE_CHROMATIC;     notesInScale=LENGTHOF(SCALE_CHROMATIC); break;
+			case DIATONIC_MINOR: curScaleArr = SCALE_DIATONIC_MINOR;notesInScale=LENGTHOF(SCALE_DIATONIC_MINOR); break;
+			case DORIAN:         curScaleArr = SCALE_DORIAN;        notesInScale=LENGTHOF(SCALE_DORIAN); break;
+			case HARMONIC_MINOR: curScaleArr = SCALE_HARMONIC_MINOR;notesInScale=LENGTHOF(SCALE_HARMONIC_MINOR); break;
+			case INDIAN:         curScaleArr = SCALE_INDIAN;        notesInScale=LENGTHOF(SCALE_INDIAN); break;
+			case LOCRIAN:        curScaleArr = SCALE_LOCRIAN;       notesInScale=LENGTHOF(SCALE_LOCRIAN); break;
+			case LYDIAN:         curScaleArr = SCALE_LYDIAN;        notesInScale=LENGTHOF(SCALE_LYDIAN); break;
+			case MAJOR:          curScaleArr = SCALE_MAJOR;         notesInScale=LENGTHOF(SCALE_MAJOR); break;
+			case MELODIC_MINOR:  curScaleArr = SCALE_MELODIC_MINOR; notesInScale=LENGTHOF(SCALE_MELODIC_MINOR); break;
+			case MINOR:          curScaleArr = SCALE_MINOR;         notesInScale=LENGTHOF(SCALE_MINOR); break;
+			case MIXOLYDIAN:     curScaleArr = SCALE_MIXOLYDIAN;    notesInScale=LENGTHOF(SCALE_MIXOLYDIAN); break;
+			case NATURAL_MINOR:  curScaleArr = SCALE_NATURAL_MINOR; notesInScale=LENGTHOF(SCALE_NATURAL_MINOR); break;
+			case PENTATONIC:     curScaleArr = SCALE_PENTATONIC;    notesInScale=LENGTHOF(SCALE_PENTATONIC); break;
+			case PHRYGIAN:       curScaleArr = SCALE_PHRYGIAN;      notesInScale=LENGTHOF(SCALE_PHRYGIAN); break;
+			case TURKISH:        curScaleArr = SCALE_TURKISH;       notesInScale=LENGTHOF(SCALE_TURKISH); break;
 		}
 
-		if(curScaleVal == DTROYWidget::NONE){
+		if(curScaleVal == NONE){
 			return randomf() * 6.0;
 		} else {
 			float voltsOut = 0;
@@ -225,29 +260,29 @@ struct DTROY : Module {
 	}
 
 	float closestVoltageInScale(float voltsIn){
-		rootNote = clampi(params[ROOT_NOTE_PARAM].value + inputs[ROOT_NOTE_INPUT].value, 0.0, DTROYWidget::NUM_NOTES-1);
-		curScaleVal = clampi(params[SCALE_PARAM].value + inputs[SCALE_INPUT].value, 0.0, DTROYWidget::NUM_SCALES-1);
+		rootNote = clampi(params[ROOT_NOTE_PARAM].value + inputs[ROOT_NOTE_INPUT].value, 0.0, DTROY::NUM_NOTES-1);
+		curScaleVal = clampi(params[SCALE_PARAM].value + inputs[SCALE_INPUT].value, 0.0, DTROY::NUM_SCALES-1);
 		int *curScaleArr;
 		int notesInScale = 0;
 		switch(curScaleVal){
-			case DTROYWidget::AEOLIAN:        curScaleArr = SCALE_AEOLIAN;       notesInScale=LENGTHOF(SCALE_AEOLIAN); break;
-			case DTROYWidget::BLUES:          curScaleArr = SCALE_BLUES;         notesInScale=LENGTHOF(SCALE_BLUES); break;
-			case DTROYWidget::CHROMATIC:      curScaleArr = SCALE_CHROMATIC;     notesInScale=LENGTHOF(SCALE_CHROMATIC); break;
-			case DTROYWidget::DIATONIC_MINOR: curScaleArr = SCALE_DIATONIC_MINOR;notesInScale=LENGTHOF(SCALE_DIATONIC_MINOR); break;
-			case DTROYWidget::DORIAN:         curScaleArr = SCALE_DORIAN;        notesInScale=LENGTHOF(SCALE_DORIAN); break;
-			case DTROYWidget::HARMONIC_MINOR: curScaleArr = SCALE_HARMONIC_MINOR;notesInScale=LENGTHOF(SCALE_HARMONIC_MINOR); break;
-			case DTROYWidget::INDIAN:         curScaleArr = SCALE_INDIAN;        notesInScale=LENGTHOF(SCALE_INDIAN); break;
-			case DTROYWidget::LOCRIAN:        curScaleArr = SCALE_LOCRIAN;       notesInScale=LENGTHOF(SCALE_LOCRIAN); break;
-			case DTROYWidget::LYDIAN:         curScaleArr = SCALE_LYDIAN;        notesInScale=LENGTHOF(SCALE_LYDIAN); break;
-			case DTROYWidget::MAJOR:          curScaleArr = SCALE_MAJOR;         notesInScale=LENGTHOF(SCALE_MAJOR); break;
-			case DTROYWidget::MELODIC_MINOR:  curScaleArr = SCALE_MELODIC_MINOR; notesInScale=LENGTHOF(SCALE_MELODIC_MINOR); break;
-			case DTROYWidget::MINOR:          curScaleArr = SCALE_MINOR;         notesInScale=LENGTHOF(SCALE_MINOR); break;
-			case DTROYWidget::MIXOLYDIAN:     curScaleArr = SCALE_MIXOLYDIAN;    notesInScale=LENGTHOF(SCALE_MIXOLYDIAN); break;
-			case DTROYWidget::NATURAL_MINOR:  curScaleArr = SCALE_NATURAL_MINOR; notesInScale=LENGTHOF(SCALE_NATURAL_MINOR); break;
-			case DTROYWidget::PENTATONIC:     curScaleArr = SCALE_PENTATONIC;    notesInScale=LENGTHOF(SCALE_PENTATONIC); break;
-			case DTROYWidget::PHRYGIAN:       curScaleArr = SCALE_PHRYGIAN;      notesInScale=LENGTHOF(SCALE_PHRYGIAN); break;
-			case DTROYWidget::TURKISH:        curScaleArr = SCALE_TURKISH;       notesInScale=LENGTHOF(SCALE_TURKISH); break;
-			case DTROYWidget::NONE:           return voltsIn;
+			case AEOLIAN:        curScaleArr = SCALE_AEOLIAN;       notesInScale=LENGTHOF(SCALE_AEOLIAN); break;
+			case BLUES:          curScaleArr = SCALE_BLUES;         notesInScale=LENGTHOF(SCALE_BLUES); break;
+			case CHROMATIC:      curScaleArr = SCALE_CHROMATIC;     notesInScale=LENGTHOF(SCALE_CHROMATIC); break;
+			case DIATONIC_MINOR: curScaleArr = SCALE_DIATONIC_MINOR;notesInScale=LENGTHOF(SCALE_DIATONIC_MINOR); break;
+			case DORIAN:         curScaleArr = SCALE_DORIAN;        notesInScale=LENGTHOF(SCALE_DORIAN); break;
+			case HARMONIC_MINOR: curScaleArr = SCALE_HARMONIC_MINOR;notesInScale=LENGTHOF(SCALE_HARMONIC_MINOR); break;
+			case INDIAN:         curScaleArr = SCALE_INDIAN;        notesInScale=LENGTHOF(SCALE_INDIAN); break;
+			case LOCRIAN:        curScaleArr = SCALE_LOCRIAN;       notesInScale=LENGTHOF(SCALE_LOCRIAN); break;
+			case LYDIAN:         curScaleArr = SCALE_LYDIAN;        notesInScale=LENGTHOF(SCALE_LYDIAN); break;
+			case MAJOR:          curScaleArr = SCALE_MAJOR;         notesInScale=LENGTHOF(SCALE_MAJOR); break;
+			case MELODIC_MINOR:  curScaleArr = SCALE_MELODIC_MINOR; notesInScale=LENGTHOF(SCALE_MELODIC_MINOR); break;
+			case MINOR:          curScaleArr = SCALE_MINOR;         notesInScale=LENGTHOF(SCALE_MINOR); break;
+			case MIXOLYDIAN:     curScaleArr = SCALE_MIXOLYDIAN;    notesInScale=LENGTHOF(SCALE_MIXOLYDIAN); break;
+			case NATURAL_MINOR:  curScaleArr = SCALE_NATURAL_MINOR; notesInScale=LENGTHOF(SCALE_NATURAL_MINOR); break;
+			case PENTATONIC:     curScaleArr = SCALE_PENTATONIC;    notesInScale=LENGTHOF(SCALE_PENTATONIC); break;
+			case PHRYGIAN:       curScaleArr = SCALE_PHRYGIAN;      notesInScale=LENGTHOF(SCALE_PHRYGIAN); break;
+			case TURKISH:        curScaleArr = SCALE_TURKISH;       notesInScale=LENGTHOF(SCALE_TURKISH); break;
+			case NONE:           return voltsIn;
 		}
 
 		float closestVal = 10.0;
@@ -272,9 +307,7 @@ void DTROY::step() {
 	if (runningTrigger.process(params[RUN_PARAM].value)) {
 		running = !running;
 	}
-	//lights[RUNNING_LIGHT].value = running ? 1.0 : 0.0;
-	runningLight = running ? 1.0 : 0.0;
-	
+	lights[RUNNING_LIGHT].value = running ? 1.0 : 0.0;
 
 	bool nextStep = false;
 
@@ -287,7 +320,7 @@ void DTROY::step() {
 				phase = float(tCurrent - tLastTrig) / float(tLastTrig - tPreviousTrig);
 			} 
 			else {
-				phase += clockTime / gSampleRate ; //engineGetSampleRate();
+				phase += clockTime / engineGetSampleRate();
 			}
 			// External clock
 			if (clockTrigger.process(inputs[EXT_CLOCK_INPUT].value)) {
@@ -300,7 +333,7 @@ void DTROY::step() {
 		else {
 			// Internal clock
 			float clockTime = powf(2.0, params[CLOCK_PARAM].value + inputs[CLOCK_INPUT].value);
-			phase += clockTime / gSampleRate ; //engineGetSampleRate();
+			phase += clockTime / engineGetSampleRate();
 			if (phase >= 1.0) {
 				phase -= 1.0;
 				nextStep = true;
@@ -312,77 +345,115 @@ void DTROY::step() {
 	if (resetTrigger.process(params[RESET_PARAM].value + inputs[RESET_INPUT].value)) {
 		phase = 0.0;
 		floor = 0;
-		index = 8;
+		countSteps = numSteps();
+		if (playMode == 2) countSteps = 2 * numSteps();
 		nextStep = true;
-		resetLight = 1.0;
+		lights[RESET_LIGHT].value = 1.0;
 	}
 	
 	// Trigs Update
 	for (int i = 0; i < 8; i++) {	
-		trigs[i].Count = params[TRIG_COUNT_PARAM + i].value;	
-		trigs[i].Type = params[TRIG_TYPE_PARAM + i].value;
-		trigs[i].Pitch = params[TRIG_PITCH_PARAM + i].value;
 		if (slideTriggers[i].process(params[TRIG_SLIDE_PARAM + i].value)) {
-			trigs[i].Slide = !trigs[i].Slide;
+			slideState[i] = !slideState[i];
 		}
 		if (skipTriggers[i].process(params[TRIG_SKIP_PARAM + i].value)) {
-			trigs[i].Skip = !trigs[i].Skip;
-		}
+			skipState[i] = !skipState[i];
+		} 
+	}
+	
+	// PlayMode
+	if (playModeTrigger.process(params[PLAYMODE_PARAM].value)) {
+		playMode = (((int)playMode + 1) % 5);
 	}
 
-	// Steps Floors Management
+	// Steps && Floors Management
 	if (nextStep) {
 		// Advance step
-
-		int numSteps = clampi(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 8);
 		
-		if ((index < numSteps) && (floor < trigs[index].Count)) {
+		if (floor < roundf(params[TRIG_COUNT_PARAM + index%8].value - 1)) {
 			floor += 1;
 		}
-		else {
+		else 
+		{
 			floor = 0;
-			index += 1;
-			if (index >= numSteps) {
-				index = 0;
+			countSteps += 1;
+			
+			if (playMode == 0) 
+			{
+				if (countSteps >= numSteps()) 
+				{
+					countSteps = 0;
+					index = -1 ;
+				}
+
+				SetIndexToNextPlayableTrig();
 			}
-			int count = 8;
-			while ((trigs[index].Skip) && (count > 0)) {
-				index = (index + 1)%8;
-				count -=1;;
+			if (playMode == 1) 
+			{
+				if (countSteps >= numSteps()) 
+				{
+					countSteps = 0;
+					index = 9 ;
+				}
+
+				SetIndexToPreviousPlayableTrig();
+			}
+			if (playMode == 2) 
+			{
+				if (countSteps == numSteps()) 
+				{
+					pingPongMem = !pingPongMem;
+				}
+				
+				if (countSteps >= (2 * numSteps() - 2))
+				{ 
+					countSteps = 0;
+					index = -1;
+					pingPongMem = true;
+				}
+				
+				if (pingPongMem)
+					SetIndexToNextPlayableTrig();
+				else
+					SetIndexToPreviousPlayableTrig();
+			}
+			else if (playMode == 3)
+			{
+				index = clampi(randomf()*7,0,7);
+			}
+			else if (playMode == 4)
+			{
+				bool choice = (randomf() > 0.5);
+				if (choice) SetIndexToNextPlayableTrig(); else SetIndexToPreviousPlayableTrig();
 			}
 		}
-		
-		stepLights[index] = 1.0;
+		lights[STEPS_LIGHTS+index%8].value = 1.0;
 		gatePulse.trigger(1e-3);
 	}
 
 	// Lights
 	for (int i = 0; i < 8; i++) {
-		stepLights[i] -= stepLights[i] / lightLambda / gSampleRate ; //engineGetSampleRate();	
-		slideLights[i] = trigs[i].Slide ? true - stepLights[i] : stepLights[i];
-		skipLights[i] = trigs[i].Skip ? true - stepLights[i] : stepLights[i];		
-		/* lights[SLIDE_LIGHTS + i].value = trigs[i].Slide ? true - stepLights[i] : stepLights[i];
-		lights[SKIP_LIGHTS + i].value = trigs[i].Skip ? true - stepLights[i] : stepLights[i]; */
+		lights[STEPS_LIGHTS + i].value -= lights[STEPS_LIGHTS + i].value / lightLambda / engineGetSampleRate();	
+		lights[SLIDES_LIGHTS + i].value = slideState[i] ? 1 - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
+		lights[SKIPS_LIGHTS + i].value = skipState[i] ? 1 - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
 	}
-	resetLight -= resetLight / lightLambda / gSampleRate ; //engineGetSampleRate();
-	
-	//lights[RESET_LIGHT].value = resetLight;
+	lights[RESET_LIGHT].value -= lights[RESET_LIGHT].value / lightLambda / engineGetSampleRate();
 
 	// Caclulate Outputs
-	bool pulse = gatePulse.process(1.0 / gSampleRate); //engineGetSampleRate());
+	bool pulse = gatePulse.process(1.0 / engineGetSampleRate());
 
-	bool gateOn = running && !trigs[index].Skip;
+	bool gateOn = running && !skipState[index%8];
 	if (gateOn){
-		if (trigs[index].Type == 0) {
+		if (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 0) {
 			gateOn = false;
 		}
-		else if (((trigs[index].Type == 1) && (floor == 0)) 
-				|| (trigs[index].Type == 2)
-				|| ((trigs[index].Type == 3) && (floor == (trigs[index].Count)))) {
+		else if (((roundf(params[TRIG_TYPE_PARAM + index%8].value) == 1) && (floor == 0)) 
+				|| (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 2)
+				|| ((roundf(params[TRIG_TYPE_PARAM + index%8].value) == 3) && (floor == roundf(params[TRIG_COUNT_PARAM + index%8].value)))) {
 				float gateCoeff = clampf(params[GATE_TIME_PARAM].value - 0.02 + inputs[GATE_TIME_INPUT].value /10, 0.0, 0.99);
 			gateOn = phase < gateCoeff;
 		}
-		else if (trigs[index].Type == 3) {
+		else if (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 3) {
 			gateOn = true;
 		}
 		else {
@@ -390,11 +461,11 @@ void DTROY::step() {
 		}
 	}
 	
-	pitch = closestVoltageInScale(trigs[index].Pitch);
-	if (trigs[index].Slide) {
+	pitch = closestVoltageInScale(params[TRIG_PITCH_PARAM + index%8].value);
+	if (slideState[index%8]) {
 		if (floor == 0) {
 			float slideCoeff = clampf(params[SLIDE_TIME_PARAM].value - 0.01 + inputs[SLIDE_TIME_INPUT].value /10, -0.1, 0.99);
-			float previousPitch = closestVoltageInScale(trigs[(index + 7)%8].Pitch);
+			float previousPitch = closestVoltageInScale(params[TRIG_PITCH_PARAM + (index%8 + 7)%8].value);
 			pitch = pitch - (1 - powf(phase, slideCoeff)) * (pitch - previousPitch);
 		}
 	}
@@ -402,86 +473,95 @@ void DTROY::step() {
 	// Update Outputs
 	outputs[GATE_OUTPUT].value = gateOn ? 10.0 : 0.0;
 	outputs[PITCH_OUTPUT].value = pitch;
-	outputs[SCALE_OUTPUT].value = clampi(params[SCALE_PARAM].value + inputs[SCALE_INPUT].value, 0.0, DTROYWidget::NUM_SCALES-1);
-	outputs[ROOT_NOTE_OUTPUT].value = clampi(params[ROOT_NOTE_PARAM].value + inputs[ROOT_NOTE_INPUT].value, 0.0, DTROYWidget::NUM_NOTES-1);
-	
-	// Debug outputs
-	/* outputs[INDEX_OUTPUT].value = index;
-	outputs[FLOOR_OUTPUT].value = floor;
-	outputs[PULSE_OUTPUT].value = pulse;
-	outputs[PHASE_OUTPUT].value = phase;
-	outputs[TRIG1COUNT_OUTPUT].value = trigs[0].Count; */
+	outputs[SCALE_OUTPUT].value = clampi(params[SCALE_PARAM].value + inputs[SCALE_INPUT].value, 0.0, DTROY::NUM_SCALES-1);
+	outputs[ROOT_NOTE_OUTPUT].value = clampi(params[ROOT_NOTE_PARAM].value + inputs[ROOT_NOTE_INPUT].value, 0.0, DTROY::NUM_NOTES-1);
 }
 
 struct DTROYDisplay : TransparentWidget {
 	DTROY *module;
 	int frame = 0;
-	std::shared_ptr<Font> font;
+	shared_ptr<Font> font;
 
-	std::string note, scale;
+	string note, scale, steps, playMode;
 
 	DTROYDisplay() {
 		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
 	}
 
-	void drawMessage(NVGcontext *vg, Vec pos, const char *title, std::string line1, std::string line2) {
+	void drawMessage(NVGcontext *vg, Vec pos, string note, string playMode, string steps, string scale) {
 		nvgFontSize(vg, 14);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2);
 		nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xff));
-		nvgText(vg, pos.x + 7, pos.y + 7, line1.c_str(), NULL);
-		nvgText(vg, pos.x + 7, pos.y + 24, line2.c_str(), NULL);
+		nvgText(vg, pos.x + 7, pos.y + 7, note.c_str(), NULL);
+		nvgText(vg, pos.x + 28, pos.y + 7, playMode.c_str(), NULL);
+		nvgText(vg, pos.x + 50, pos.y + 7, steps.c_str(), NULL);		
+		nvgText(vg, pos.x + 7, pos.y + 25, scale.c_str(), NULL);
 	}
 	
-	std::string calculateRootNote(int value) { 
+	string displayRootNote(int value) { 
 		switch(value){
-			case DTROYWidget::NOTE_C:       return "C";
-			case DTROYWidget::NOTE_C_SHARP: return "C#";
-			case DTROYWidget::NOTE_D:       return "D";
-			case DTROYWidget::NOTE_D_SHARP: return "D#";
-			case DTROYWidget::NOTE_E:       return "E";
-			case DTROYWidget::NOTE_F:       return "F";
-			case DTROYWidget::NOTE_F_SHARP: return "F#";
-			case DTROYWidget::NOTE_G:       return "G";
-			case DTROYWidget::NOTE_G_SHARP: return "G#";
-			case DTROYWidget::NOTE_A:       return "A";
-			case DTROYWidget::NOTE_A_SHARP: return "A#";
-			case DTROYWidget::NOTE_B:       return "B";
+			case DTROY::NOTE_C:       return "C";
+			case DTROY::NOTE_C_SHARP: return "C#";
+			case DTROY::NOTE_D:       return "D";
+			case DTROY::NOTE_D_SHARP: return "D#";
+			case DTROY::NOTE_E:       return "E";
+			case DTROY::NOTE_F:       return "F";
+			case DTROY::NOTE_F_SHARP: return "F#";
+			case DTROY::NOTE_G:       return "G";
+			case DTROY::NOTE_G_SHARP: return "G#";
+			case DTROY::NOTE_A:       return "A";
+			case DTROY::NOTE_A_SHARP: return "A#";
+			case DTROY::NOTE_B:       return "B";
 			default: return "";
 		}
 	}
 	
-	std::string calculateScale(int value) { 
+	string displayScale(int value) { 
 		switch(value){
-			case DTROYWidget::AEOLIAN:        return "Aeolian";
-			case DTROYWidget::BLUES:          return "Blues";
-			case DTROYWidget::CHROMATIC:      return "Chromatic";
-			case DTROYWidget::DIATONIC_MINOR: return "Diatonic Minor";
-			case DTROYWidget::DORIAN:         return "Dorian";
-			case DTROYWidget::HARMONIC_MINOR: return "Harmonic Minor";
-			case DTROYWidget::INDIAN:         return "Indian";
-			case DTROYWidget::LOCRIAN:        return "Locrian";
-			case DTROYWidget::LYDIAN:         return "Lydian";
-			case DTROYWidget::MAJOR:          return "Major";
-			case DTROYWidget::MELODIC_MINOR:  return "Melodic Minor";
-			case DTROYWidget::MINOR:          return "Minor";
-			case DTROYWidget::MIXOLYDIAN:     return "Mixolydian";
-			case DTROYWidget::NATURAL_MINOR:  return "Natural Minor";
-			case DTROYWidget::PENTATONIC:     return "Pentatonic";
-			case DTROYWidget::PHRYGIAN:       return "Phrygian";
-			case DTROYWidget::TURKISH:        return "Turkish";
-			case DTROYWidget::NONE:           return "None";
+			case DTROY::AEOLIAN:        return "Aeolian";
+			case DTROY::BLUES:          return "Blues";
+			case DTROY::CHROMATIC:      return "Chromatic";
+			case DTROY::DIATONIC_MINOR: return "Diatonic Minor";
+			case DTROY::DORIAN:         return "Dorian";
+			case DTROY::HARMONIC_MINOR: return "Harmonic Minor";
+			case DTROY::INDIAN:         return "Indian";
+			case DTROY::LOCRIAN:        return "Locrian";
+			case DTROY::LYDIAN:         return "Lydian";
+			case DTROY::MAJOR:          return "Major";
+			case DTROY::MELODIC_MINOR:  return "Melodic Minor";
+			case DTROY::MINOR:          return "Minor";
+			case DTROY::MIXOLYDIAN:     return "Mixolydian";
+			case DTROY::NATURAL_MINOR:  return "Natural Minor";
+			case DTROY::PENTATONIC:     return "Pentatonic";
+			case DTROY::PHRYGIAN:       return "Phrygian";
+			case DTROY::TURKISH:        return "Turkish";
+			case DTROY::NONE:           return "None";
 			default: return "";
 		}
 	}
+	
+	string displayPlayMode(int value) { 
+		switch(value){
+			case 0: return "->";
+			case 1: return "<-";
+			case 2: return "><";
+			case 3: return "-*";
+			case 4: return "-?";
+			default: return "";
+		}
+	}
+	
 
 	void draw(NVGcontext *vg) override {
 		if (++frame >= 4) {
 			frame = 0;
-			note = calculateRootNote(module->rootNote);
-			scale = calculateScale(module->curScaleVal);
+			note = displayRootNote(module->rootNote);
+			steps = "steps: " + to_string(module->numSteps());
+			playMode = displayPlayMode(module->playMode);
+			scale = displayScale(module->curScaleVal);
 		}
-		drawMessage(vg, Vec(0, 20), "X", note, scale);
+		drawMessage(vg, Vec(0, 20), note, playMode, steps, scale);
 	}
 };
 
@@ -511,17 +591,11 @@ DTROYWidget::DTROYWidget() {
 	}
 	
 	addParam(createParam<RoundSmallBlackKnob>(Vec(18, 56), module, DTROY::CLOCK_PARAM, -2.0, 6.0, 2.0));
-	addParam(createParam<LEDButton>(Vec(60, 61-1), module, DTROY::RUN_PARAM, 0.0, 1.0, 0.0));
-	
-	//addChild(createLight<SmallLight<GreenLight>>(Vec(65, 65), module, DTROY::RUNNING_LIGHT));
-	addChild(createValueLight<SmallLight<GreenValueLight>>(Vec(65, 65), &module->runningLight));
-	
-	addParam(createParam<LEDButton>(Vec(99, 61-1), module, DTROY::RESET_PARAM, 0.0, 1.0, 0.0));
-	
-	//addChild(createLight<SmallLight<GreenLight>>(Vec(104, 65), module, DTROY::RESET_LIGHT));
-	addChild(createValueLight<SmallLight<GreenValueLight>>(Vec(104, 65), &module->resetLight));
-	
-	addParam(createParam<RoundSmallBlackSnapKnob>(Vec(132, 56), module, DTROY::STEPS_PARAM, 1.0, 8.0, 8.0));
+	addParam(createParam<LEDButton>(Vec(60, 61-1), module, DTROY::RUN_PARAM, 0.0, 1.0, 0.0));	
+	addChild(createLight<SmallLight<GreenLight>>(Vec(65, 65), module, DTROY::RUNNING_LIGHT));	
+	addParam(createParam<LEDButton>(Vec(99, 61-1), module, DTROY::RESET_PARAM, 0.0, 1.0, 0.0));	
+	addChild(createLight<SmallLight<GreenLight>>(Vec(104, 65), module, DTROY::RESET_LIGHT));
+	addParam(createParam<RoundSmallBlackSnapKnob>(Vec(132, 56), module, DTROY::STEPS_PARAM, 1.0, 16.0, 8.0));
 	
 	static const float portX0[4] = {20, 58, 96, 135};
  	addInput(createInput<PJ301MPort>(Vec(portX0[0], 98), module, DTROY::CLOCK_INPUT));
@@ -529,10 +603,10 @@ DTROYWidget::DTROYWidget() {
 	addInput(createInput<PJ301MPort>(Vec(portX0[2], 98), module, DTROY::RESET_INPUT));
 	addInput(createInput<PJ301MPort>(Vec(portX0[3], 98), module, DTROY::STEPS_INPUT));
 	
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[0]-1, 150), module, DTROY::ROOT_NOTE_PARAM, 0.0, NUM_NOTES-1, 0));
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[1]-1, 150), module, DTROY::SCALE_PARAM, 0.0, NUM_SCALES-1, 0));
+	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[0]-1, 150), module, DTROY::ROOT_NOTE_PARAM, 0.0, DTROY::NUM_NOTES-1 + 0.1, 0));
+	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[1]-1, 150), module, DTROY::SCALE_PARAM, 0.0, DTROY::NUM_SCALES-1 + 0.1, 0));
 		
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[2]-1, 150), module, DTROY::GATE_TIME_PARAM, 0.1, 1.0, 0.2));
+	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[2]-1, 150), module, DTROY::GATE_TIME_PARAM, 0.1, 1.0, 0.5));
 	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[3]-1, 150), module, DTROY::SLIDE_TIME_PARAM	, 0.1, 1.0, 0.2));
 	
 	addInput(createInput<PJ301MPort>(Vec(portX0[0], 192), module, DTROY::ROOT_NOTE_INPUT));
@@ -540,34 +614,23 @@ DTROYWidget::DTROYWidget() {
 	addInput(createInput<PJ301MPort>(Vec(portX0[2], 192), module, DTROY::GATE_TIME_INPUT));
 	addInput(createInput<PJ301MPort>(Vec(portX0[3], 192), module, DTROY::SLIDE_TIME_INPUT));
 	
+	addParam(createParam<CKD6>(Vec(portX0[0], 290), module, DTROY::PLAYMODE_PARAM, 0.0, 4.0, 0.0));
+	
 	static const float portX1[8] = {200, 238, 276, 315, 353, 392, 430, 469};
 
 	for (int i = 0; i < 8; i++) {
-		addParam(createParam<RoundSmallBlackKnob>(Vec(portX1[i]-2, 56), module, DTROY::TRIG_PITCH_PARAM + i, 0.0, 10.0, 0.0));
-		addParam(createParam<CKSS8>(Vec(portX1[i]+2, 110), module, DTROY::TRIG_COUNT_PARAM + i, 0.0, 7.0, 0.0));
-		addParam(createParam<CKSS4>(Vec(portX1[i]+2, 230), module, DTROY::TRIG_TYPE_PARAM + i, 0.0, 3.0, 0.0));
+		addParam(createParam<RoundSmallBlackKnob>(Vec(portX1[i]-2, 56), module, DTROY::TRIG_PITCH_PARAM + i, 0.0, 10.0, 3.0));
+		addParam(createParam<BidooSlidePotLong>(Vec(portX1[i]+2, 110), module, DTROY::TRIG_COUNT_PARAM + i, 1.0, 8.0, 1.0));
+		addParam(createParam<BidooSlidePotShort>(Vec(portX1[i]+2, 230), module, DTROY::TRIG_TYPE_PARAM + i, 0.0, 3.0, 2.0));
 		addParam(createParam<LEDButton>(Vec(portX1[i]+2, 302-1), module, DTROY::TRIG_SLIDE_PARAM + i, 0.0, 1.0, 0.0));
-		
-		//addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+7, 306), module, DTROY::SLIDE_LIGHTS + i));
-		addChild(createValueLight<SmallLight<GreenValueLight>>(Vec(portX1[i]+7, 306), &module->slideLights[i]));
-		
-		addParam(createParam<LEDButton>(Vec(portX1[i]+2, 327-1), module, DTROY::TRIG_SKIP_PARAM + i, 0.0, 1.0, 0.0));
-		
-		//addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+7, 331), module, DTROY::SKIP_LIGHTS + i));
-		addChild(createValueLight<SmallLight<GreenValueLight>>(Vec(portX1[i]+7, 331), &module->skipLights[i]));
-		
-		
+		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+7, 306), module, DTROY::SLIDES_LIGHTS + i));	
+		addParam(createParam<LEDButton>(Vec(portX1[i]+2, 327-1), module, DTROY::TRIG_SKIP_PARAM + i, 0.0, 1.0, 0.0));	
+		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+7, 331), module, DTROY::SKIPS_LIGHTS + i));
 	}
 	
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[1]-1, 331), module, DTROY::GATE_OUTPUT));
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-1, 331), module, DTROY::PITCH_OUTPUT));
-	
-	// Debug outputs
-/*  	addOutput(createOutput<PJ301MPort>(Vec(portX0[0]-1, 220), module, DTROY::INDEX_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(portX0[1]-1, 220), module, DTROY::FLOOR_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-1, 220), module, DTROY::PHASE_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(portX0[3]-1, 220), module, DTROY::PULSE_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(portX0[0]-1, 250), module, DTROY::TRIG1COUNT_OUTPUT));  */
+
 	
 }
 

@@ -1,9 +1,40 @@
 #pragma once
 #include "components.hpp"
+#include <vector>
+#include <jansson.h>
+#include "widgets.hpp"
 
 namespace rack {
+	
+struct BidooSlidePotLong : SVGSlider {
+	BidooSlidePotLong() {
+		snap = true;
+		maxHandlePos = Vec(0, 0);
+		minHandlePos = Vec(0, 83);
+		background->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotLong.svg"));
+		background->wrap();
+		background->box.pos = Vec(0, 0);
+		box.size = background->box.size;
+		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotHandle.svg"));
+		handle->wrap();
+	}
+};	
 
-
+struct BidooSlidePotShort : SVGSlider {
+	BidooSlidePotShort() {
+		snap = true;
+		maxHandlePos = Vec(0, 0);
+		minHandlePos = Vec(0, 35);
+		background->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotShort.svg"));
+		background->wrap();
+		background->box.pos = Vec(0, 0);
+		box.size = background->box.size;
+		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotHandle.svg"));
+		handle->wrap();
+	}
+};	
+	
+	
 struct CKSS8 : SVGSwitch, ToggleSwitch {
 	CKSS8() {
 		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/CKSS8_0.svg")));

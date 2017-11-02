@@ -1,6 +1,9 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com) 
 
+# dTrOY 
+
 dTrOY is a single line sequencer but with nice features inspired by Metropolis hardware sequencer.
+dTrOy = Detroit + Toy ... OK I =>
 
 ![dTrOY](/images/dTrOY.png?raw=true "dTrOY")
 
