@@ -15,7 +15,8 @@ struct DTROY : Module {
 		GATE_TIME_PARAM,
 		ROOT_NOTE_PARAM,
 		SCALE_PARAM,
-		PLAYMODE_PARAM,
+		PLAY_MODE_PARAM,
+		COUNT_MODE_PARAM,
 		TRIG_COUNT_PARAM = GATE_TIME_PARAM + 8,
 		TRIG_TYPE_PARAM = TRIG_COUNT_PARAM + 8,
 		TRIG_PITCH_PARAM = TRIG_TYPE_PARAM + 8,
@@ -121,6 +122,7 @@ struct DTROY : Module {
 	SchmittTrigger slideTriggers[8];
 	SchmittTrigger skipTriggers[8];
 	SchmittTrigger playModeTrigger;
+	SchmittTrigger countModeTrigger;
 	float phase = 0.0;
 	int index = 0;
 	int floor = 0;
@@ -135,7 +137,8 @@ struct DTROY : Module {
 	int playMode = 0; // 0 forward, 1 backward, 2 pingpong, 3 random, 4 brownian
 	int pingPongMem = 0;
 	int countSteps = 0;
-		
+	int countMode = 0; // 0 Skips counted, 1 Skips excluded
+	
 	PulseGenerator gatePulse;
 
 	DTROY() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {}
@@ -144,22 +147,28 @@ struct DTROY : Module {
 	
 	int numSteps() { return clampi(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 16); }
 	
-	void SetIndexToNextPlayableTrig() { 
+	int SetIndexToNextPlayableTrig() { 
+		int count = 0;
 		for (int i = index; ++i < index + 8; ) {
-			if (!skipState[i%8]) {
+			count++;
+			if (!skipState[i%8]) {	
 				index = i%8;
 				break;
 			}
 		}
+		return count - 1;
 	}
 	
-	void SetIndexToPreviousPlayableTrig() { 
+	int SetIndexToPreviousPlayableTrig() { 
+		int count = 0;
 		for (int i = index; --i >= index - 8; ) {
+			count++;
 			if (!skipState[i + 8 * ( i < 0 ? 1 : 0)]) {
 				index = i + 8 * ( i < 0 ? 1 : 0);
 				break;
 			}
 		}
+		return count - 1;
 	}
 	
 	json_t *toJson() override {
@@ -362,8 +371,13 @@ void DTROY::step() {
 	}
 	
 	// PlayMode
-	if (playModeTrigger.process(params[PLAYMODE_PARAM].value)) {
+	if (playModeTrigger.process(params[PLAY_MODE_PARAM].value)) {
 		playMode = (((int)playMode + 1) % 5);
+	}
+	
+	// CountMode
+	if (countModeTrigger.process(params[COUNT_MODE_PARAM].value)) {
+		countMode = !countMode;
 	}
 
 	// Steps && Floors Management
@@ -385,8 +399,10 @@ void DTROY::step() {
 					countSteps = 0;
 					index = -1 ;
 				}
-
-				SetIndexToNextPlayableTrig();
+				if (countMode)
+					countSteps += SetIndexToNextPlayableTrig();
+				else
+					SetIndexToNextPlayableTrig();
 			}
 			if (playMode == 1) 
 			{
@@ -395,16 +411,17 @@ void DTROY::step() {
 					countSteps = 0;
 					index = 9 ;
 				}
-
-				SetIndexToPreviousPlayableTrig();
+				if (countMode)
+					countSteps += SetIndexToPreviousPlayableTrig();
+				else
+					SetIndexToPreviousPlayableTrig();
 			}
 			if (playMode == 2) 
 			{
 				if (countSteps == numSteps()) 
 				{
 					pingPongMem = !pingPongMem;
-				}
-				
+				}	
 				if (countSteps >= (2 * numSteps() - 2))
 				{ 
 					countSteps = 0;
@@ -412,14 +429,24 @@ void DTROY::step() {
 					pingPongMem = true;
 				}
 				
-				if (pingPongMem)
-					SetIndexToNextPlayableTrig();
-				else
-					SetIndexToPreviousPlayableTrig();
+				if (pingPongMem) {
+					if (countMode)
+						countSteps += SetIndexToNextPlayableTrig();
+					else
+						SetIndexToNextPlayableTrig();
+				}
+				else {
+					if (countMode)
+						countSteps += SetIndexToPreviousPlayableTrig();
+					else
+						SetIndexToPreviousPlayableTrig();
+				}
 			}
 			else if (playMode == 3)
 			{
 				index = clampi(randomf()*7,0,7);
+				bool choice = (randomf() > 0.5);
+				if (choice) SetIndexToNextPlayableTrig(); else SetIndexToPreviousPlayableTrig();
 			}
 			else if (playMode == 4)
 			{
@@ -482,21 +509,22 @@ struct DTROYDisplay : TransparentWidget {
 	int frame = 0;
 	shared_ptr<Font> font;
 
-	string note, scale, steps, playMode;
+	string note, scale, steps, playMode, countMode;
 
 	DTROYDisplay() {
 		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
 	}
 
-	void drawMessage(NVGcontext *vg, Vec pos, string note, string playMode, string steps, string scale) {
+	void drawMessage(NVGcontext *vg, Vec pos, string note, string playMode, string countMode, string steps, string scale) {
 		nvgFontSize(vg, 14);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2);
 		nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xff));
-		nvgText(vg, pos.x + 7, pos.y + 7, note.c_str(), NULL);
-		nvgText(vg, pos.x + 28, pos.y + 7, playMode.c_str(), NULL);
-		nvgText(vg, pos.x + 50, pos.y + 7, steps.c_str(), NULL);		
-		nvgText(vg, pos.x + 7, pos.y + 25, scale.c_str(), NULL);
+		nvgText(vg, pos.x + 7, pos.y + 7, playMode.c_str(), NULL);
+		nvgText(vg, pos.x + 40, pos.y + 7, countMode.c_str(), NULL);
+		nvgText(vg, pos.x + 75, pos.y + 7, steps.c_str(), NULL);	
+		nvgText(vg, pos.x + 7, pos.y + 24, note.c_str(), NULL);		
+		nvgText(vg, pos.x + 30, pos.y + 24, scale.c_str(), NULL);
 	}
 	
 	string displayRootNote(int value) { 
@@ -559,9 +587,10 @@ struct DTROYDisplay : TransparentWidget {
 			note = displayRootNote(module->rootNote);
 			steps = "steps: " + to_string(module->numSteps());
 			playMode = displayPlayMode(module->playMode);
+			countMode = module->countMode == 0 ? "( )" : "(S)";
 			scale = displayScale(module->curScaleVal);
 		}
-		drawMessage(vg, Vec(0, 20), note, playMode, steps, scale);
+		drawMessage(vg, Vec(0, 20), note, playMode, countMode, steps, scale);
 	}
 };
 
@@ -585,36 +614,37 @@ DTROYWidget::DTROYWidget() {
 	{
 		DTROYDisplay *display = new DTROYDisplay();
 		display->module = module;
-		display->box.pos = Vec(32, 222);
-		display->box.size = Vec(100, 50);
+		display->box.pos = Vec(20, 259);
+		display->box.size = Vec(150, 50);
 		addChild(display);
 	}
 	
 	addParam(createParam<RoundSmallBlackKnob>(Vec(18, 56), module, DTROY::CLOCK_PARAM, -2.0, 6.0, 2.0));
-	addParam(createParam<LEDButton>(Vec(60, 61-1), module, DTROY::RUN_PARAM, 0.0, 1.0, 0.0));	
-	addChild(createLight<SmallLight<GreenLight>>(Vec(65, 65), module, DTROY::RUNNING_LIGHT));	
+	addParam(createParam<LEDButton>(Vec(61, 61-1), module, DTROY::RUN_PARAM, 0.0, 1.0, 0.0));	
+	addChild(createLight<SmallLight<GreenLight>>(Vec(66, 65), module, DTROY::RUNNING_LIGHT));	
 	addParam(createParam<LEDButton>(Vec(99, 61-1), module, DTROY::RESET_PARAM, 0.0, 1.0, 0.0));	
 	addChild(createLight<SmallLight<GreenLight>>(Vec(104, 65), module, DTROY::RESET_LIGHT));
-	addParam(createParam<RoundSmallBlackSnapKnob>(Vec(132, 56), module, DTROY::STEPS_PARAM, 1.0, 16.0, 8.0));
+	addParam(createParam<RoundSmallBlackSnapKnob>(Vec(133, 56), module, DTROY::STEPS_PARAM, 1.0, 16.0, 8.0));
 	
 	static const float portX0[4] = {20, 58, 96, 135};
- 	addInput(createInput<PJ301MPort>(Vec(portX0[0], 98), module, DTROY::CLOCK_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[1], 98), module, DTROY::EXT_CLOCK_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[2], 98), module, DTROY::RESET_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[3], 98), module, DTROY::STEPS_INPUT));
+ 	addInput(createInput<PJ301MPort>(Vec(portX0[0], 90), module, DTROY::CLOCK_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[1], 90), module, DTROY::EXT_CLOCK_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[2], 90), module, DTROY::RESET_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[3], 90), module, DTROY::STEPS_INPUT));
 	
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[0]-1, 150), module, DTROY::ROOT_NOTE_PARAM, 0.0, DTROY::NUM_NOTES-1 + 0.1, 0));
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[1]-1, 150), module, DTROY::SCALE_PARAM, 0.0, DTROY::NUM_SCALES-1 + 0.1, 0));
+	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[0]-1, 140), module, DTROY::ROOT_NOTE_PARAM, 0.0, DTROY::NUM_NOTES-1 + 0.1, 0));
+	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[1]-1, 140), module, DTROY::SCALE_PARAM, 0.0, DTROY::NUM_SCALES-1 + 0.1, 0));
 		
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[2]-1, 150), module, DTROY::GATE_TIME_PARAM, 0.1, 1.0, 0.5));
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[3]-1, 150), module, DTROY::SLIDE_TIME_PARAM	, 0.1, 1.0, 0.2));
+	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[2]-1, 140), module, DTROY::GATE_TIME_PARAM, 0.1, 1.0, 0.5));
+	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[3]-1, 140), module, DTROY::SLIDE_TIME_PARAM	, 0.1, 1.0, 0.2));
 	
-	addInput(createInput<PJ301MPort>(Vec(portX0[0], 192), module, DTROY::ROOT_NOTE_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[1], 192), module, DTROY::SCALE_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[2], 192), module, DTROY::GATE_TIME_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[3], 192), module, DTROY::SLIDE_TIME_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[0], 180), module, DTROY::ROOT_NOTE_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[1], 180), module, DTROY::SCALE_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[2], 180), module, DTROY::GATE_TIME_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[3], 180), module, DTROY::SLIDE_TIME_INPUT));
 	
-	addParam(createParam<CKD6>(Vec(portX0[0], 290), module, DTROY::PLAYMODE_PARAM, 0.0, 4.0, 0.0));
+	addParam(createParam<CKD6>(Vec(portX0[0]-2, 230), module, DTROY::PLAY_MODE_PARAM, 0.0, 4.0, 0.0));
+	addParam(createParam<CKD6>(Vec(portX0[1]-2, 230), module, DTROY::COUNT_MODE_PARAM, 0.0, 1.0, 0.0));
 	
 	static const float portX1[8] = {200, 238, 276, 315, 353, 392, 430, 469};
 
