@@ -10,12 +10,12 @@ dTrOy = Detroit + Toy ...
 This module is still under development, some bugs have to be fixed, but I think it's already funny enough so I share it with you ... Enjoy !!! 
 
 Features:
-### 8 trigs with pitch, number of pulses, pulse type (gate off, gate on one shot, gate on repeat, gate on), slide and skip parameters
-###	Up to 16 steps pattern
-### 5 play modes : forward, backward, ping-pong, random, random neighbour
-### Scale quantization and root note
-### Sync & reset sequencer
-### All parameters saved
+- 8 trigs with pitch, number of pulses, pulse type (gate off, gate on one shot, gate on repeat, gate on), slide and skip parameters
+- Up to 16 steps pattern
+- 5 play modes : forward, backward, ping-pong, random, random neighbour
+- Scale quantization and root note
+- Sync & reset sequencer
+- All parameters saved
 
 The repository is based on development branch of Rack.
 
