@@ -13,4 +13,3 @@ extern Plugin *plugin;
 struct DTROYWidget : ModuleWidget {
 	DTROYWidget();
 };
-
