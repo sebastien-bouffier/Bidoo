@@ -136,7 +136,7 @@ struct DTROY : Module {
 	
 	vector<int> pattern; 
 		
-	PulseGenerator gatePulse;
+	//PulseGenerator gatePulse;
 
 	DTROY() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
 	
@@ -218,7 +218,7 @@ struct DTROY : Module {
 	
 	string getPattern () {
 		string result = "";
-		for (int i = 0; i<pattern.size(); i++){
+		for (unsigned int i = 0; i<pattern.size(); i++){
 			result = result + " " + std::to_string(pattern.at(i));
 		}
 		return result;
@@ -449,7 +449,7 @@ void DTROY::step() {
 			{
 				countSteps++;
 				
-				if ((countSteps > numSteps()) || (countSteps > pattern.size() - 1))
+				if ((countSteps > numSteps()) || ((unsigned int)countSteps > pattern.size() - 1))
 					countSteps = 0;
 				
 				if (pattern.size() == 0)
@@ -462,7 +462,7 @@ void DTROY::step() {
 			{
 				countSteps++;
 				
-				if ((countSteps > numSteps()) || (countSteps > pattern.size() - 1))
+				if ((countSteps > numSteps()) || ((unsigned int)countSteps > pattern.size() - 1))
 					countSteps = 0;
 				
 				if (pattern.size() == 0)
@@ -474,7 +474,7 @@ void DTROY::step() {
 			{
 				countSteps++;
 				
-				if ((countSteps > 2 * numSteps() - 2 ) || (countSteps > pattern.size() - 1))
+				if ((countSteps > 2 * numSteps() - 2 ) || ((unsigned int)countSteps > pattern.size() - 1))
 					countSteps = 0;
 				
 				if (pattern.size() == 0)
@@ -508,7 +508,7 @@ void DTROY::step() {
 							countSteps=pattern.size()-1;
 						}
 					}
-					else if (countSteps == pattern.size()-1) {
+					else if ((unsigned int)countSteps == pattern.size()-1) {
 						if (b) {
 							countSteps--;
 						}
@@ -530,7 +530,7 @@ void DTROY::step() {
 			}
 		}
 		lights[STEPS_LIGHTS+index%8].value = 1.0;
-		gatePulse.trigger(1e-3);
+		//gatePulse.trigger(1e-3);
 	}
 
 
@@ -543,7 +543,7 @@ void DTROY::step() {
 	lights[RESET_LIGHT].value -= lights[RESET_LIGHT].value / lightLambda / engineGetSampleRate();
 
 	// Caclulate Outputs
-	bool pulse = gatePulse.process(1.0 / engineGetSampleRate());
+	//bool pulse = gatePulse.process(1.0 / engineGetSampleRate());
 
 	bool gateOn = running && !skipState[index%8];
 	if (gateOn){
@@ -699,9 +699,9 @@ DTROYWidget::DTROYWidget() {
 	
 	addParam(createParam<RoundSmallBlackKnob>(Vec(18, 56), module, DTROY::CLOCK_PARAM, -2.0, 6.0, 2.0));
 	addParam(createParam<LEDButton>(Vec(61, 61-1), module, DTROY::RUN_PARAM, 0.0, 1.0, 0.0));	
-	addChild(createLight<SmallLight<GreenLight>>(Vec(66, 65), module, DTROY::RUNNING_LIGHT));	
+	addChild(createLight<SmallLight<GreenLight>>(Vec(67, 66), module, DTROY::RUNNING_LIGHT));	
 	addParam(createParam<LEDButton>(Vec(99, 61-1), module, DTROY::RESET_PARAM, 0.0, 1.0, 0.0));	
-	addChild(createLight<SmallLight<GreenLight>>(Vec(104, 65), module, DTROY::RESET_LIGHT));
+	addChild(createLight<SmallLight<GreenLight>>(Vec(105, 66), module, DTROY::RESET_LIGHT));
 	addParam(createParam<RoundSmallBlackSnapKnob>(Vec(133, 56), module, DTROY::STEPS_PARAM, 1.0, 16.0, 8.0));
 	
 	static const float portX0[4] = {20, 58, 96, 135};
@@ -730,9 +730,9 @@ DTROYWidget::DTROYWidget() {
 		addParam(createParam<BidooSlidePotLong>(Vec(portX1[i]+2, 110), module, DTROY::TRIG_COUNT_PARAM + i, 1.0, 8.0, 1.0));
 		addParam(createParam<BidooSlidePotShort>(Vec(portX1[i]+2, 230), module, DTROY::TRIG_TYPE_PARAM + i, 0.0, 3.0, 2.0));
 		addParam(createParam<LEDButton>(Vec(portX1[i]+2, 302-1), module, DTROY::TRIG_SLIDE_PARAM + i, 0.0, 1.0, 0.0));
-		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+7, 306), module, DTROY::SLIDES_LIGHTS + i));	
+		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+8, 307), module, DTROY::SLIDES_LIGHTS + i));	
 		addParam(createParam<LEDButton>(Vec(portX1[i]+2, 327-1), module, DTROY::TRIG_SKIP_PARAM + i, 0.0, 1.0, 0.0));	
-		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+7, 331), module, DTROY::SKIPS_LIGHTS + i));
+		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+8, 332), module, DTROY::SKIPS_LIGHTS + i));
 	}
 	
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[1]-1, 331), module, DTROY::GATE_OUTPUT));
