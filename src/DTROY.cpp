@@ -119,12 +119,13 @@ struct DTROY : Module {
 	SchmittTrigger playModeTrigger;
 	float phase = 0;
 	int index = 0;
+	int subIndex = 0;
 	bool reStart = true;
 	int floor = 0;
 	int rootNote = 0;
 	int curScaleVal = 0;
 	float pitch = 0;
-	float memPitch = 0;
+	float previousPitch = 0;
 	clock_t tCurrent;
 	clock_t tLastTrig;
 	clock_t tPreviousTrig;
@@ -135,8 +136,8 @@ struct DTROY : Module {
 	int countSteps = 0;
 	
 	vector<int> pattern; 
-		
-	//PulseGenerator gatePulse;
+	vector<int> subPattern;
+	
 
 	DTROY() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
 	
@@ -382,8 +383,7 @@ void DTROY::step() {
 	}
 	
 	// Pattern
-	
-	pattern.clear();
+	vector<int>().swap(pattern);
 	if (playMode == 1)
 	{
 		int count = 0;
@@ -444,6 +444,7 @@ void DTROY::step() {
 		}
 		else 
 		{
+			previousPitch = closestVoltageInScale(params[TRIG_PITCH_PARAM + index%8].value);
 			floor = 0;
 			if (playMode == 0) 
 			{
@@ -497,40 +498,20 @@ void DTROY::step() {
 					index = 0;
 				}
 				else {
-					srand(time(NULL));
-					bool b = rand() & 1;
-					
-					if (countSteps == 0) {
-						if (b) {
-							countSteps++;
-						}
-						else {
-							countSteps=pattern.size()-1;
-						}
-					}
-					else if ((unsigned int)countSteps == pattern.size()-1) {
-						if (b) {
-							countSteps--;
-						}
-						else {
-							countSteps=0;
-						}
+					vector<int>().swap(subPattern);
+					subPattern.push_back(pattern.at(clampi((subIndex-1)+(subIndex <= 0 ? pattern.size() : 0),0,pattern.size()-1)));
+					subPattern.push_back(pattern.at(clampi((subIndex+1)%pattern.size(),0,pattern.size()-1)));
+					index = *select_randomly(subPattern.begin(), subPattern.end());
+					if (index == subPattern.front()) {
+						subIndex = (subIndex-1)+(subIndex <= 0 ? pattern.size() : 0);
 					}
 					else {
-						if (b) {
-							countSteps++;
-						}
-						else {
-							countSteps--;
-						}
-					}					
-					
-					index = pattern.at(clampi(countSteps,0,pattern.size()-1));
+						subIndex = (subIndex+1)%pattern.size();			
+					}
 				}
 			}
 		}
 		lights[STEPS_LIGHTS+index%8].value = 1.0;
-		//gatePulse.trigger(1e-3);
 	}
 
 
@@ -543,8 +524,6 @@ void DTROY::step() {
 	lights[RESET_LIGHT].value -= lights[RESET_LIGHT].value / lightLambda / engineGetSampleRate();
 
 	// Caclulate Outputs
-	//bool pulse = gatePulse.process(1.0 / engineGetSampleRate());
-
 	bool gateOn = running && !skipState[index%8];
 	if (gateOn){
 		if (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 0) {
@@ -568,7 +547,6 @@ void DTROY::step() {
 	if (slideState[index%8]) {
 		if (floor == 0) {
 			float slideCoeff = clampf(params[SLIDE_TIME_PARAM].value - 0.01 + inputs[SLIDE_TIME_INPUT].value /10, -0.1, 0.99);
-			float previousPitch = closestVoltageInScale(params[TRIG_PITCH_PARAM + (index%8 + 7)%8].value);
 			pitch = pitch - (1 - powf(phase, slideCoeff)) * (pitch - previousPitch);
 		}
 	}
