@@ -4,6 +4,7 @@
 #include "../ext/osdialog/osdialog.h"
 #include "AudioFile.h"
 #include <vector>
+#include "cmath"
 
 using namespace std;
 
@@ -31,7 +32,6 @@ struct OUAIVE : Module {
 	AudioFile<double> audioFile;
 	int samplePos = 0;
 	vector<double> displayBuff;
-	         
 
 	SchmittTrigger playTrigger;
 
@@ -77,6 +77,10 @@ struct OUAIVE : Module {
 
 void OUAIVE::loadSample(std::string path) {
 	audioFile.load (path.c_str());
+	vector<double>().swap(displayBuff);
+	for (int i=0; i < audioFile.getNumSamplesPerChannel(); i = i + floor(audioFile.getNumSamplesPerChannel()/130)) {
+		displayBuff.push_back(audioFile.samples[0][i]);
+	}
 }
 
 
@@ -90,12 +94,6 @@ void OUAIVE::step() {
 	
 	if ((play) && (samplePos < audioFile.getNumSamplesPerChannel())) {
 		outputs[OUT_OUTPUT].value = 10 * audioFile.samples[0][samplePos]; // to do stereo management
-		
-		vector<double>().swap(displayBuff);
-		for (int i=samplePos; i < clampi(samplePos + 100, samplePos + 100, audioFile.getNumSamplesPerChannel()); i++) {
-			displayBuff.push_back(audioFile.samples[0][i]);
-		}
-		
 		samplePos++;
 	}
 	else if (samplePos == audioFile.getNumSamplesPerChannel())
@@ -131,7 +129,7 @@ struct OUAIVEDisplay : TransparentWidget {
 		nvgText(vg, 5, 75, std::to_string(module->audioFile.isStereo()).c_str(), NULL);	
 		nvgText(vg, 5, 85, std::to_string(module->outputs[0].value).c_str(), NULL);	
 		
-		// Draw line
+		// Draw ref line
 		nvgStrokeColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
 		{
 			nvgBeginPath(vg);
@@ -141,6 +139,17 @@ struct OUAIVEDisplay : TransparentWidget {
 		}
 		nvgStroke(vg);
 		
+		// Draw play line
+		nvgStrokeColor(vg, nvgRGBA(0x28, 0xb0, 0xf3, 0xc0));
+		{
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, floor(module->samplePos * 130 / module->audioFile.getNumSamplesPerChannel()) , 85);
+			nvgLineTo(vg, floor(module->samplePos * 130 / module->audioFile.getNumSamplesPerChannel()) , 165);
+			nvgClosePath(vg);
+		}
+		nvgStroke(vg);
+		
+		// Draw waveform
 		nvgStrokeColor(vg, nvgRGBA(0xe1, 0x02, 0x78, 0xc0));
 		nvgSave(vg);
 		Rect b = Rect(Vec(0, 85), Vec(130, 80));
@@ -163,8 +172,13 @@ struct OUAIVEDisplay : TransparentWidget {
 		nvgStrokeWidth(vg, 1.5);
 		nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
 		nvgStroke(vg);
+		
+		
+			
 		nvgResetScissor(vg);
 		nvgRestore(vg);
+		
+		
 		
 	}
 };
