@@ -7,7 +7,7 @@ dTrOy = Detroit + Toy ...
 
 ![dTrOY](/images/dTrOY.png?raw=true "dTrOY")
 
-This module is still under development, some bugs have to be fixed, but I think it's already funny enough so I share it with you ... Enjoy !!! 
+This module is still under development, but I think it's already funny enough so I share it with you ... Enjoy !!! 
 
 Features:
 - 8 trigs with pitch, number of pulses, gate mode (off, on one shot, on repeat, on), slide and skip parameters
@@ -16,6 +16,15 @@ Features:
 - Scale quantization and root note
 - Sync & reset sequencer
 - All parameters saved
+
+The repository is based on development branch of Rack.
+
+## OUAIve 
+
+OUAIve is a sample player and that's all. You choose the sample via the menu. You press play or you trig him at your convenience.
+If he is in a good mood, he will remind the sample that you selected.
+
+![OUAIve](/images/OUAIve.png?raw=true "OUAIve")
 
 The repository is based on development branch of Rack.
 

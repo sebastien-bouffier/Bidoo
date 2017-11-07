@@ -13,3 +13,8 @@ extern Plugin *plugin;
 struct DTROYWidget : ModuleWidget {
 	DTROYWidget();
 };
+
+struct OUAIVEWidget : ModuleWidget {
+	OUAIVEWidget();
+	Menu *createContextMenu() override;
+};
