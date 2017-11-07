@@ -32,6 +32,7 @@ struct OUAIVE : Module {
 	int samplePos = 0;
 	vector<double> displayBuff;
 	string fileDesc;
+	bool fileLoaded = false;
 
 	SchmittTrigger playTrigger;
 
@@ -62,6 +63,7 @@ struct OUAIVE : Module {
 
 void OUAIVE::loadSample(std::string path) {
 	if (audioFile.load (path.c_str())) {
+		fileLoaded = true;
 		vector<double>().swap(displayBuff);
 		for (int i=0; i < audioFile.getNumSamplesPerChannel(); i = i + floor(audioFile.getNumSamplesPerChannel()/130)) {
 			displayBuff.push_back(audioFile.samples[0][i]);
@@ -74,6 +76,9 @@ void OUAIVE::loadSample(std::string path) {
 		fileDesc += std::to_string(audioFile.getNumChannels())+ "\n";	
 		fileDesc += std::to_string(audioFile.isMono())+ "\n";	
 		fileDesc += std::to_string(audioFile.isStereo())+ "\n";	
+	}
+	else {
+		fileLoaded = false;
 	}
 }
 
@@ -128,41 +133,43 @@ struct OUAIVEDisplay : TransparentWidget {
 		}
 		nvgStroke(vg);
 		
-		// Draw play line
-		nvgStrokeColor(vg, nvgRGBA(0x28, 0xb0, 0xf3, 0xc0));
-		{
+		if (module->fileLoaded) {
+			// Draw play line
+			nvgStrokeColor(vg, nvgRGBA(0x28, 0xb0, 0xf3, 0xc0));
+			{
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, floor(module->samplePos * 130 / module->audioFile.getNumSamplesPerChannel()) , 85);
+				nvgLineTo(vg, floor(module->samplePos * 130 / module->audioFile.getNumSamplesPerChannel()) , 165);
+				nvgClosePath(vg);
+			}
+			nvgStroke(vg);
+			
+			// Draw waveform
+			nvgStrokeColor(vg, nvgRGBA(0xe1, 0x02, 0x78, 0xc0));
+			nvgSave(vg);
+			Rect b = Rect(Vec(0, 85), Vec(130, 80));
+			nvgScissor(vg, b.pos.x, b.pos.y, b.size.x, b.size.y);
 			nvgBeginPath(vg);
-			nvgMoveTo(vg, floor(module->samplePos * 130 / module->audioFile.getNumSamplesPerChannel()) , 85);
-			nvgLineTo(vg, floor(module->samplePos * 130 / module->audioFile.getNumSamplesPerChannel()) , 165);
-			nvgClosePath(vg);
+			for (unsigned int i = 0; i < module->displayBuff.size(); i++) {
+				float x, y;
+				x = (float)i / (module->displayBuff.size() - 1);
+				y = module->displayBuff[i] / 2.0 + 0.5;
+				Vec p;
+				p.x = b.pos.x + b.size.x * x;
+				p.y = b.pos.y + b.size.y * (1.0 - y);
+				if (i == 0)
+					nvgMoveTo(vg, p.x, p.y);
+				else
+					nvgLineTo(vg, p.x, p.y);
+			}
+			nvgLineCap(vg, NVG_ROUND);
+			nvgMiterLimit(vg, 2.0);
+			nvgStrokeWidth(vg, 1.5);
+			nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
+			nvgStroke(vg);			
+			nvgResetScissor(vg);
+			nvgRestore(vg);	
 		}
-		nvgStroke(vg);
-		
-		// Draw waveform
-		nvgStrokeColor(vg, nvgRGBA(0xe1, 0x02, 0x78, 0xc0));
-		nvgSave(vg);
-		Rect b = Rect(Vec(0, 85), Vec(130, 80));
-		nvgScissor(vg, b.pos.x, b.pos.y, b.size.x, b.size.y);
-		nvgBeginPath(vg);
-		for (unsigned int i = 0; i < module->displayBuff.size(); i++) {
-			float x, y;
-			x = (float)i / (module->displayBuff.size() - 1);
-			y = module->displayBuff[i] / 2.0 + 0.5;
-			Vec p;
-			p.x = b.pos.x + b.size.x * x;
-			p.y = b.pos.y + b.size.y * (1.0 - y);
-			if (i == 0)
-				nvgMoveTo(vg, p.x, p.y);
-			else
-				nvgLineTo(vg, p.x, p.y);
-		}
-		nvgLineCap(vg, NVG_ROUND);
-		nvgMiterLimit(vg, 2.0);
-		nvgStrokeWidth(vg, 1.5);
-		nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
-		nvgStroke(vg);			
-		nvgResetScissor(vg);
-		nvgRestore(vg);	
 	}
 };
 
