@@ -27,19 +27,15 @@ struct OUAIVE : Module {
 	};
 	
 	bool play = false;
-	string fileName;
 	string lastPath;
 	AudioFile<double> audioFile;
 	int samplePos = 0;
 	vector<double> displayBuff;
+	string fileDesc;
 
 	SchmittTrigger playTrigger;
 
-	OUAIVE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-		if (!fileName.empty()) {
-			loadSample(fileName);
-		}
-	}
+	OUAIVE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) { }
 
 	void step() override;
 	
@@ -49,23 +45,12 @@ struct OUAIVE : Module {
 	
 	json_t *toJson() override {
 		json_t *rootJ = json_object();
-
-		// fileName
-		json_object_set_new(rootJ, "fileName", json_string(fileName.c_str()));
-		
 		// lastPath
-		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
-		
+		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));	
 		return rootJ;
 	}
 
 	void fromJson(json_t *rootJ) override {
-		// fileName
-		json_t *fileNameJ = json_object_get(rootJ, "fileName");
-		if (fileNameJ) {
-			fileName = json_string_value(fileNameJ);
-		}
-		
 		// lastPath
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		if (lastPathJ) {
@@ -76,10 +61,19 @@ struct OUAIVE : Module {
 };
 
 void OUAIVE::loadSample(std::string path) {
-	audioFile.load (path.c_str());
-	vector<double>().swap(displayBuff);
-	for (int i=0; i < audioFile.getNumSamplesPerChannel(); i = i + floor(audioFile.getNumSamplesPerChannel()/130)) {
-		displayBuff.push_back(audioFile.samples[0][i]);
+	if (audioFile.load (path.c_str())) {
+		vector<double>().swap(displayBuff);
+		for (int i=0; i < audioFile.getNumSamplesPerChannel(); i = i + floor(audioFile.getNumSamplesPerChannel()/130)) {
+			displayBuff.push_back(audioFile.samples[0][i]);
+		}
+		fileDesc = extractFilename(path)+ "\n";
+		fileDesc += std::to_string(audioFile.getSampleRate())+ "\n";
+		fileDesc += std::to_string(audioFile.getBitDepth())+ " \n";
+		fileDesc += std::to_string(audioFile.getNumSamplesPerChannel())+ "\n";
+		fileDesc += std::to_string(audioFile.getLengthInSeconds())+ "\n";
+		fileDesc += std::to_string(audioFile.getNumChannels())+ "\n";	
+		fileDesc += std::to_string(audioFile.isMono())+ "\n";	
+		fileDesc += std::to_string(audioFile.isStereo())+ "\n";	
 	}
 }
 
@@ -93,7 +87,10 @@ void OUAIVE::step() {
 	}
 	
 	if ((play) && (samplePos < audioFile.getNumSamplesPerChannel())) {
-		outputs[OUT_OUTPUT].value = 10 * audioFile.samples[0][samplePos]; // to do stereo management
+		if (audioFile.getNumChannels() == 1)
+			outputs[OUT_OUTPUT].value = 5 * audioFile.samples[0][samplePos]; 
+		else if (audioFile.getNumChannels() ==2)
+			outputs[OUT_OUTPUT].value = 5 * (audioFile.samples[0][samplePos] + audioFile.samples[1][samplePos]) / 2; 
 		samplePos++;
 	}
 	else if (samplePos == audioFile.getNumSamplesPerChannel())
@@ -119,15 +116,7 @@ struct OUAIVEDisplay : TransparentWidget {
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2);
 		nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xff));	
-		nvgText(vg, 5, 5,  module->fileName.c_str(), NULL);
-		nvgText(vg, 5, 15, std::to_string(module->audioFile.getSampleRate()).c_str(), NULL);
-		nvgText(vg, 5, 25, std::to_string(module->audioFile.getBitDepth()).c_str(), NULL);
-		nvgText(vg, 5, 35, std::to_string(module->audioFile.getNumSamplesPerChannel()).c_str(), NULL);
-		nvgText(vg, 5, 45, std::to_string(module->audioFile.getLengthInSeconds()).c_str(), NULL);
-		nvgText(vg, 5, 55, std::to_string(module->audioFile.getNumChannels()).c_str(), NULL);	
-		nvgText(vg, 5, 65, std::to_string(module->audioFile.isMono()).c_str(), NULL);	
-		nvgText(vg, 5, 75, std::to_string(module->audioFile.isStereo()).c_str(), NULL);	
-		nvgText(vg, 5, 85, std::to_string(module->outputs[0].value).c_str(), NULL);	
+		nvgTextBox(vg, 5, 5,120, module->fileDesc.c_str(), NULL);
 		
 		// Draw ref line
 		nvgStrokeColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
@@ -171,15 +160,9 @@ struct OUAIVEDisplay : TransparentWidget {
 		nvgMiterLimit(vg, 2.0);
 		nvgStrokeWidth(vg, 1.5);
 		nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
-		nvgStroke(vg);
-		
-		
-			
+		nvgStroke(vg);			
 		nvgResetScissor(vg);
-		nvgRestore(vg);
-		
-		
-		
+		nvgRestore(vg);	
 	}
 };
 
@@ -227,7 +210,6 @@ struct OUAIVEItem : MenuItem {
 			ouaive->loadSample(path);
 			ouaive->samplePos = 0;
 			ouaive->lastPath = path;
-			ouaive->fileName = extractFilename(path);
 			free(path);
 		}
 	}
