@@ -2,7 +2,7 @@
 
 <!-- Version and License Badges -->
 ![Version](https://img.shields.io/badge/version-0.5.0-green.svg?style=flat-square) 
-![License](https://img.shields.io/badge/license-BSD 3-blue.svg?style=flat-square) 
+![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square) 
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square) 
 
 ![pack](/images/pack.png?raw=true "pack")
