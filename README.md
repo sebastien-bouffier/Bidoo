@@ -1,6 +1,6 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com) 
 
-![Bidoo's pack](/images/bidoo's pack.png?raw=true "bidoo's pack")
+![pack](/images/pack.png?raw=true "pack")
 
 ## dTrOY 
 
