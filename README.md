@@ -1,5 +1,10 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com) 
 
+<!-- Version and License Badges -->
+![Version](https://img.shields.io/badge/version-0.5.0-green.svg?style=flat-square) 
+![License](https://img.shields.io/badge/license-BSD 3-blue.svg?style=flat-square) 
+![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square) 
+
 ![pack](/images/pack.png?raw=true "pack")
 
 ## dTrOY 
@@ -14,7 +19,7 @@ Features:
 	- first pulse open 10.0V then closed
 	- each pulse open according to gate time setting
 	- fully open
-	- fully open passing Gate 1 input
+	- fully open passing Gate 1 input (you can send gates or audio :) )
 	- fully open passing Gate 2 input
 - Up to 16 steps pattern
 - 5 play modes : forward, backward, ping-pong, random, random neighbour

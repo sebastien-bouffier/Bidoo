@@ -29,7 +29,7 @@
      id="namedview118"
      showgrid="true"
      inkscape:zoom="2.227451"
-     inkscape:cx="278.99736"
+     inkscape:cx="204.24824"
      inkscape:cy="122.40245"
      inkscape:window-x="-8"
      inkscape:window-y="-8"
@@ -89,7 +89,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -801,14 +801,14 @@
   <text
      xml:space="preserve"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#fcfcfc;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     x="26.005373"
+     x="25.767805"
      y="85.80838"
      id="text1103"
      inkscape:transform-center-x="-0.95026408"
      inkscape:transform-center-y="0.059391505"><tspan
        sodipodi:role="line"
        id="tspan1101"
-       x="26.005373"
+       x="25.767805"
        y="85.80838"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#fcfcfc;fill-opacity:1;stroke:#ffffff;stroke-width:0.26458332px;stroke-opacity:1">GATE</tspan></text>
   <rect
@@ -1092,7 +1092,7 @@
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">G2</tspan></text>
   <path
      style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.29104167;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="m 45.043911,71.901924 h 1.852083 v 1.852084 h -1.852083 z"
+     d="m 45.043911,71.783141 h 1.852083 v 1.852084 h -1.852083 z"
      id="rect942-2-8"
      inkscape:connector-curvature="0" />
 </svg>
