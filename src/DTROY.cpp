@@ -35,6 +35,8 @@ struct DTROY : Module {
 		GATE_TIME_INPUT,
 		ROOT_NOTE_INPUT,
 		SCALE_INPUT,
+		EXTGATE1_INPUT,
+		EXTGATE2_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -713,6 +715,8 @@ DTROYWidget::DTROYWidget() {
 		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+8, 332), module, DTROY::SKIPS_LIGHTS + i));
 	}
 	
-	addOutput(createOutput<PJ301MPort>(Vec(portX0[1]-1, 331), module, DTROY::GATE_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-1, 331), module, DTROY::PITCH_OUTPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[0], 331), module, DTROY::EXTGATE1_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[1], 331), module, DTROY::EXTGATE2_INPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-1, 331), module, DTROY::GATE_OUTPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(portX0[3]-1, 331), module, DTROY::PITCH_OUTPUT));
 }

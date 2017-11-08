@@ -117,7 +117,8 @@ struct CHUTEDisplay : TransparentWidget {
 		nvgTextLetterSpacing(vg, -2);
 		nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xff));	
 		
-		int pos = roundl(box.size.y - (box.size.y * (module->altitude / module->altitudeInit)) + 9 * (module->altitude / module->altitudeInit));
+		float altRatio = clampf(module->altitude / module->altitudeInit, 0 , 1);
+		int pos = roundl(box.size.y + altRatio * (9 - box.size.y));
 		
 		nvgText(vg, 5, pos, "☺", NULL);
 	}
