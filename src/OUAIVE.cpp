@@ -87,7 +87,7 @@ void OUAIVE::step() {
  	
 	// Play
 	if (playTrigger.process(params[PLAY_PARAM].value + inputs[TRIG_INPUT].value)) {
-		play = !play;
+		play = true;
 		samplePos = 0;
 	}
 	

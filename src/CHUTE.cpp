@@ -32,15 +32,13 @@ struct CHUTE : Module {
 		NUM_LIGHTS
 	};
 	
-	bool running = true;
-	float phase = 0;
-	float altitude;
-	float altitudeInit;
-	float minAlt;
-	float enery;
-	float speed;
+	bool running = false;
+	float phase = 0.0;
+	float altitude = 0.0;
+	float altitudeInit = 0.0;
+	float minAlt = 0.0;
+	float speed = 0.0;
 	bool desc = false;
-	float speedCoef = 1;
 
 	SchmittTrigger playTrigger;
 	SchmittTrigger gateTypeTrigger;
@@ -66,7 +64,7 @@ void CHUTE::step() {
 	
 	// Altitude calculation
 	if (running) {
-		if (minAlt<0.001) {
+		if (minAlt<0.0001) {
 			running = false;
 			altitude = 0;
 			minAlt = 0;
@@ -79,26 +77,28 @@ void CHUTE::step() {
 				altitude = altitude - (speed * phase);
 				if (altitude <= 0) {
 					desc=false;
-					speedCoef = params[COR_PARAM].value;
-					speed = speed * speedCoef;
+					speed = speed * (params[COR_PARAM].value + + inputs[COR_INPUT].value);
 					altitude = 0;
 				}	
 			}
 			else {
 				speed = speed - (params[GRAVITY_PARAM].value + inputs[GRAVITY_INPUT].value)*phase;
-				altitude = altitude + (speed * phase);
 				if (speed<=0) {
+					speed = 0.0;
 					desc=true;
 					minAlt=min(minAlt,altitude);
 				}	
+				else {
+					altitude = altitude + (speed * phase);
+				}
 			}
 		}
 	}
 	
 	//Calculate output
 	outputs[GATE_OUTPUT].value = running ? desc ? 10.0 : 0.0 : 0.0;
-	outputs[PITCH_OUTPUT].value = 10 * altitude/ altitudeInit;
-	outputs[PITCHSTEP_OUTPUT].value = 10 * minAlt/ altitudeInit;
+	outputs[PITCH_OUTPUT].value = running ? 10 * altitude/ altitudeInit : 0.0;
+	outputs[PITCHSTEP_OUTPUT].value = running ? 10 * minAlt/ altitudeInit : 0.0;
 }
 
 struct CHUTEDisplay : TransparentWidget {
@@ -111,14 +111,15 @@ struct CHUTEDisplay : TransparentWidget {
 	}
 	
 	void draw(NVGcontext *vg) override {
- 		nvgFontSize(vg, 18);
+		frame = 0;
+		nvgFontSize(vg, 18);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2);
 		nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xff));	
 		
-		int pos = box.size.y - roundl(box.size.y * (module->altitude / module->altitudeInit)) + 9 * roundl(module->altitude / module->altitudeInit);
+		int pos = roundl(box.size.y - (box.size.y * (module->altitude / module->altitudeInit)) + 9 * (module->altitude / module->altitudeInit));
 		
-		nvgText(vg, 5, pos, "o", NULL);
+		nvgText(vg, 5, pos, "☺", NULL);
 	}
 };
 
