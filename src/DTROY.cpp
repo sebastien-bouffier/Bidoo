@@ -527,6 +527,7 @@ void DTROY::step() {
 
 	// Caclulate Outputs
 	bool gateOn = running && !skipState[index%8];
+	float gateValue = 0.0;
 	if (gateOn){
 		if (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 0) {
 			gateOn = false;
@@ -536,12 +537,23 @@ void DTROY::step() {
 				|| ((roundf(params[TRIG_TYPE_PARAM + index%8].value) == 3) && (floor == roundf(params[TRIG_COUNT_PARAM + index%8].value)))) {
 				float gateCoeff = clampf(params[GATE_TIME_PARAM].value - 0.02 + inputs[GATE_TIME_INPUT].value /10, 0.0, 0.99);
 			gateOn = phase < gateCoeff;
+			gateValue = 10.0;
 		}
 		else if (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 3) {
 			gateOn = true;
+			gateValue = 10.0;
+		}
+		else if (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 4) {
+			gateOn = true;
+			gateValue = inputs[EXTGATE1_INPUT].value;
+		}
+		else if (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 5) {
+			gateOn = true;
+			gateValue = inputs[EXTGATE2_INPUT].value;
 		}
 		else {
 			gateOn = false;
+			gateValue = 0.0;
 		}
 	}
 	
@@ -554,7 +566,7 @@ void DTROY::step() {
 	}
 			
 	// Update Outputs
-	outputs[GATE_OUTPUT].value = gateOn ? 10.0 : 0.0;
+	outputs[GATE_OUTPUT].value = gateOn ? gateValue : 0.0;
 	outputs[PITCH_OUTPUT].value = pitch;
 }
 
@@ -677,12 +689,12 @@ DTROYWidget::DTROYWidget() {
 		addChild(display);
 	}
 	
-	addParam(createParam<RoundSmallBlackKnob>(Vec(18, 56), module, DTROY::CLOCK_PARAM, -2.0, 6.0, 2.0));
-	addParam(createParam<LEDButton>(Vec(61, 61-1), module, DTROY::RUN_PARAM, 0.0, 1.0, 0.0));	
-	addChild(createLight<SmallLight<GreenLight>>(Vec(67, 66), module, DTROY::RUNNING_LIGHT));	
-	addParam(createParam<LEDButton>(Vec(99, 61-1), module, DTROY::RESET_PARAM, 0.0, 1.0, 0.0));	
-	addChild(createLight<SmallLight<GreenLight>>(Vec(105, 66), module, DTROY::RESET_LIGHT));
-	addParam(createParam<RoundSmallBlackSnapKnob>(Vec(133, 56), module, DTROY::STEPS_PARAM, 1.0, 16.0, 8.0));
+	addParam(createParam<RoundSmallBlackKnob>(Vec(18, 52), module, DTROY::CLOCK_PARAM, -2.0, 6.0, 2.0));
+	addParam(createParam<LEDButton>(Vec(61, 56), module, DTROY::RUN_PARAM, 0.0, 1.0, 0.0));	
+	addChild(createLight<SmallLight<GreenLight>>(Vec(67, 62), module, DTROY::RUNNING_LIGHT));	
+	addParam(createParam<LEDButton>(Vec(99, 56), module, DTROY::RESET_PARAM, 0.0, 1.0, 0.0));	
+	addChild(createLight<SmallLight<GreenLight>>(Vec(105, 62), module, DTROY::RESET_LIGHT));
+	addParam(createParam<RoundSmallBlackSnapKnob>(Vec(133, 52), module, DTROY::STEPS_PARAM, 1.0, 16.0, 8.0));
 	
 	static const float portX0[4] = {20, 58, 96, 135};
  	addInput(createInput<PJ301MPort>(Vec(portX0[0], 90), module, DTROY::CLOCK_INPUT));
@@ -706,13 +718,13 @@ DTROYWidget::DTROYWidget() {
 	static const float portX1[8] = {200, 238, 276, 315, 353, 392, 430, 469};
 
 	for (int i = 0; i < 8; i++) {
-		addParam(createParam<RoundSmallBlackKnob>(Vec(portX1[i]-2, 56), module, DTROY::TRIG_PITCH_PARAM + i, 0.0, 10.0, 3.0));
-		addParam(createParam<BidooSlidePotLong>(Vec(portX1[i]+2, 110), module, DTROY::TRIG_COUNT_PARAM + i, 1.0, 8.0, 1.0));
-		addParam(createParam<BidooSlidePotShort>(Vec(portX1[i]+2, 230), module, DTROY::TRIG_TYPE_PARAM + i, 0.0, 3.0, 2.0));
-		addParam(createParam<LEDButton>(Vec(portX1[i]+2, 302-1), module, DTROY::TRIG_SLIDE_PARAM + i, 0.0, 1.0, 0.0));
-		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+8, 307), module, DTROY::SLIDES_LIGHTS + i));	
-		addParam(createParam<LEDButton>(Vec(portX1[i]+2, 327-1), module, DTROY::TRIG_SKIP_PARAM + i, 0.0, 1.0, 0.0));	
-		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+8, 332), module, DTROY::SKIPS_LIGHTS + i));
+		addParam(createParam<RoundSmallBlackKnob>(Vec(portX1[i]-2, 52), module, DTROY::TRIG_PITCH_PARAM + i, 0.0, 10.0, 3.0));
+		addParam(createParam<BidooSlidePotLong>(Vec(portX1[i]+2, 103), module, DTROY::TRIG_COUNT_PARAM + i, 1.0, 8.0, 1.0));
+		addParam(createParam<BidooSlidePotShort>(Vec(portX1[i]+2, 220), module, DTROY::TRIG_TYPE_PARAM + i, 0.0, 5.0, 2.0));
+		addParam(createParam<LEDButton>(Vec(portX1[i]+2, 313), module, DTROY::TRIG_SLIDE_PARAM + i, 0.0, 1.0, 0.0));
+		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+8, 319), module, DTROY::SLIDES_LIGHTS + i));	
+		addParam(createParam<LEDButton>(Vec(portX1[i]+2, 338), module, DTROY::TRIG_SKIP_PARAM + i, 0.0, 1.0, 0.0));	
+		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+8, 344), module, DTROY::SKIPS_LIGHTS + i));
 	}
 	
 	addInput(createInput<PJ301MPort>(Vec(portX0[0], 331), module, DTROY::EXTGATE1_INPUT));

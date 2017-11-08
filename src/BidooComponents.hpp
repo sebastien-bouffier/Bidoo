@@ -10,7 +10,7 @@ struct BidooSlidePotLong : SVGSlider {
 	BidooSlidePotLong() {
 		snap = true;
 		maxHandlePos = Vec(0, 0);
-		minHandlePos = Vec(0, 83);
+		minHandlePos = Vec(0, 84);
 		background->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotLong.svg"));
 		background->wrap();
 		background->box.pos = Vec(0, 0);
@@ -24,7 +24,7 @@ struct BidooSlidePotShort : SVGSlider {
 	BidooSlidePotShort() {
 		snap = true;
 		maxHandlePos = Vec(0, 0);
-		minHandlePos = Vec(0, 35);
+		minHandlePos = Vec(0, 60);
 		background->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotShort.svg"));
 		background->wrap();
 		background->box.pos = Vec(0, 0);

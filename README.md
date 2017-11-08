@@ -8,7 +8,14 @@ dTrOY is a single line sequencer but with nice features inspired by Metropolis h
 dTrOy = Detroit + Toy ... 
 
 Features:
-- 8 trigs with pitch, number of pulses, gate mode (off, on one shot, on repeat, on), slide and skip parameters
+- 8 trigs with pitch, number of pulses, slide and skip parameters
+- Each trig has its own gate mode : 
+	- closed 0.0V on pulses
+	- first pulse open 10.0V then closed
+	- each pulse open according to gate time setting
+	- fully open
+	- fully open passing Gate 1 input
+	- fully open passing Gate 2 input
 - Up to 16 steps pattern
 - 5 play modes : forward, backward, ping-pong, random, random neighbour
 - Scale quantization and root note
