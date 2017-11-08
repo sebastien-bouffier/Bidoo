@@ -28,6 +28,17 @@ If he is in a good mood, he will remind the sample that you selected.
 
 The repository is based on development branch of Rack.
 
+## ChUTE 
+
+ChUTE is a space trigger based on the free fall and bouncing of an object. 
+You can change the starting altitude, the gravity in between the moon's one and neptune's one. Earth is the default. 
+And you can adjust the C.O.R. meaning the coefficient of restitution
+Outputs provide a gate based on downside movments, the relative tension regarding the altitude ALT and TOP which exposes the tops of the rebounds.
+
+![ChUTE](/images/ChUTE.png?raw=true "ChUTE")
+
+The repository is based on development branch of Rack.
+
 ## License
 
 The license is a BSD 3-Clause with the addition that any commercial use requires explicit permission of the author. That applies for the source code.

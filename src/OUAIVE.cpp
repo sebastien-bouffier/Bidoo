@@ -114,9 +114,6 @@ struct OUAIVEDisplay : TransparentWidget {
 	}
 	
 	void draw(NVGcontext *vg) override {
-		if (++frame >= 4) {
-			frame = 0;
-		}
 		nvgFontSize(vg, 12);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2);

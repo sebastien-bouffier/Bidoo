@@ -18,3 +18,7 @@ struct OUAIVEWidget : ModuleWidget {
 	OUAIVEWidget();
 	Menu *createContextMenu() override;
 };
+
+struct CHUTEWidget : ModuleWidget {
+	CHUTEWidget();
+};

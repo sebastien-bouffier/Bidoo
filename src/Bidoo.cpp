@@ -11,4 +11,5 @@ void init(rack::Plugin *p) {
 #endif 
 	p->addModel(createModel<DTROYWidget>("Bidoo", "Bidoo", "DTROY", "DTROY sequencer"));
 	p->addModel(createModel<OUAIVEWidget>("Bidoo", "Bidoo", "OUAIVE", "OUAIVE player"));
+	p->addModel(createModel<CHUTEWidget>("Bidoo", "Bidoo", "CHUTE", "CHUTE trigger"));
 }		
