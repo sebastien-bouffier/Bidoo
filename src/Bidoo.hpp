@@ -1,5 +1,4 @@
 #include "rack.hpp"
-#include "cmath"
 
 using namespace rack;
 
@@ -11,7 +10,9 @@ extern Plugin *plugin;
 ////////////////////
 
 struct DTROYWidget : ModuleWidget {
+	ParamWidget *scaleParam;
 	DTROYWidget();
+	void step() override;
 };
 
 struct OUAIVEWidget : ModuleWidget {
