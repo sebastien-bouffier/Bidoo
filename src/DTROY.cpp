@@ -309,9 +309,10 @@ struct DTROY : Module {
 	int playMode = 0; // 0 forward, 1 backward, 2 pingpong, 3 random, 4 brownian
 	int countMode = 0; // 0 steps, 1 pulses
 	int patternNumber = 0;
-	int previousPattern = -1;
+	bool updateWidget = false;
 
-	Pattern p[16];
+	//Pattern p[16];
+	Pattern p;
 
 	DTROY() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
 
@@ -319,7 +320,7 @@ struct DTROY : Module {
 		std::vector<Param> pulses(&params[TRIG_COUNT_PARAM],&params[TRIG_COUNT_PARAM + 8]);
 		std::vector<Param> pitches(&params[TRIG_PITCH_PARAM],&params[TRIG_PITCH_PARAM + 8]);
 		std::vector<Param> types(&params[TRIG_TYPE_PARAM],&params[TRIG_TYPE_PARAM + 8]);
-		p[patternNumber].Update(playMode, countMode, numSteps(), params[GATE_TIME_PARAM].value,params[SLIDE_TIME_PARAM].value, rootNote, curScaleVal, skipState, slideState, pulses, pitches, types);
+		p.Update(playMode, countMode, numSteps(), params[GATE_TIME_PARAM].value,params[SLIDE_TIME_PARAM].value, rootNote, curScaleVal, skipState, slideState, pulses, pitches, types);
 	}
 
 	void step() override;
@@ -336,33 +337,33 @@ struct DTROY : Module {
 		json_object_set_new(rootJ, "patternNumber", json_integer(patternNumber));
 
 		// Patterns
-		json_t *patternsJ = json_array();
-		for (int i = 0; i < 16; i++) {
-			json_t *patternJ =  json_object();
-			json_array_append_new(patternsJ, patternJ);
-			json_object_set_new(patternJ, "playMode", json_integer(p[i].playMode));
-			json_object_set_new(patternJ, "countMode", json_integer(p[i].countMode));
-			json_object_set_new(patternJ, "numberOfSteps", json_integer(p[i].numberOfSteps));
-			json_object_set_new(patternJ, "rootNote", json_integer(p[i].rootNote));
-			json_object_set_new(patternJ, "scale", json_integer(p[i].scale));
-			json_object_set_new(patternJ, "gateTime", json_real(p[i].gateTime));
-			json_object_set_new(patternJ, "slide", json_real(p[i].slide));
-
-			json_t *stepsJ = json_array();
-			for (int j = 0; j < 16; j++) {
-				json_t *stepJ =  json_object();
-				json_array_append_new(stepsJ, stepJ);
-				json_object_set_new(stepJ, "index", json_integer(p[i].steps[j].index));
-				json_object_set_new(stepJ, "number", json_integer(p[i].steps[j].number));
-				json_object_set_new(stepJ, "skip", json_boolean(p[i].steps[j].skip));
-				json_object_set_new(stepJ, "slide", json_boolean(p[i].steps[j].slide));
-				json_object_set_new(stepJ, "pulses", json_integer(p[i].steps[j].pulses));
-				json_object_set_new(stepJ, "pitch", json_real(p[i].steps[j].pitch));
-				json_object_set_new(stepJ, "type", json_integer(p[i].steps[j].type));
-			}
-			json_object_set_new(patternsJ, "steps", stepsJ);
-		}
-		json_object_set_new(rootJ, "patterns", patternsJ);
+		// json_t *patternsJ = json_array();
+		// for (int i = 0; i < 16; i++) {
+		// 	json_t *patternJ =  json_object();
+		// 	json_array_append_new(patternsJ, patternJ);
+		// 	json_object_set_new(patternJ, "playMode", json_integer(p[i].playMode));
+		// 	json_object_set_new(patternJ, "countMode", json_integer(p[i].countMode));
+		// 	json_object_set_new(patternJ, "numberOfSteps", json_integer(p[i].numberOfSteps));
+		// 	json_object_set_new(patternJ, "rootNote", json_integer(p[i].rootNote));
+		// 	json_object_set_new(patternJ, "scale", json_integer(p[i].scale));
+		// 	json_object_set_new(patternJ, "gateTime", json_real(p[i].gateTime));
+		// 	json_object_set_new(patternJ, "slide", json_real(p[i].slide));
+    //
+		// 	json_t *stepsJ = json_array();
+		// 	for (int j = 0; j < 16; j++) {
+		// 		json_t *stepJ =  json_object();
+		// 		json_array_append_new(stepsJ, stepJ);
+		// 		json_object_set_new(stepJ, "index", json_integer(p[i].steps[j].index));
+		// 		json_object_set_new(stepJ, "number", json_integer(p[i].steps[j].number));
+		// 		json_object_set_new(stepJ, "skip", json_boolean(p[i].steps[j].skip));
+		// 		json_object_set_new(stepJ, "slide", json_boolean(p[i].steps[j].slide));
+		// 		json_object_set_new(stepJ, "pulses", json_integer(p[i].steps[j].pulses));
+		// 		json_object_set_new(stepJ, "pitch", json_real(p[i].steps[j].pitch));
+		// 		json_object_set_new(stepJ, "type", json_integer(p[i].steps[j].type));
+		// 	}
+		// 	json_object_set_new(patternsJ, "steps", stepsJ);
+		// }
+		// json_object_set_new(rootJ, "patterns", patternsJ);
 
 		return rootJ;
 	}
@@ -378,65 +379,65 @@ struct DTROY : Module {
 		if (patternNumberJ)
 			playMode = json_integer_value(patternNumberJ);
 
-		json_t *patternsJ = json_object_get(rootJ, "patterns");
-		if (patternsJ) {
-			for (int i = 0; i < 16; i++) {
-				json_t *patternJ = json_array_get(patternsJ, i);
-				if (patternJ) {
-					json_t *playModeJ = json_object_get(patternJ, "playMode");
-					if (playModeJ)
-						p[i].playMode = json_integer_value(playModeJ);
-					json_t *countModeJ = json_object_get(patternJ, "countMode");
-					if (countModeJ)
-						p[i].countMode = json_integer_value(countModeJ);
-					json_t *numberOfStepsJ = json_object_get(patternJ, "numberOfSteps");
-					if (numberOfStepsJ)
-						p[i].numberOfSteps = json_integer_value(numberOfStepsJ);
-					json_t *rootNoteJ = json_object_get(patternJ, "rootNote");
-					if (rootNoteJ)
-						p[i].rootNote = json_integer_value(rootNoteJ);
-					json_t *scaleJ = json_object_get(patternJ, "scale");
-					if (scaleJ)
-						p[i].scale = json_integer_value(scaleJ);
-					json_t *gateTimeJ = json_object_get(patternJ, "gateTime");
-					if (gateTimeJ)
-						p[i].gateTime = json_real_value(gateTimeJ);
-					json_t *slideJ = json_object_get(patternJ, "slide");
-					if (slideJ)
-						p[i].slide = json_real_value(slideJ);
-
-					json_t *stepsJ = json_object_get(rootJ, "steps");
-					if (stepsJ) {
-						for (int j = 0; j < 16; j++) {
-							json_t *stepJ = json_array_get(stepsJ, j);
-							if (stepJ) {
-								json_t *indexJ = json_object_get(stepJ, "index");
-								if (indexJ)
-									p[i].steps[j].index = json_integer_value(indexJ);
-								json_t *numberJ = json_object_get(stepJ, "number");
-								if (numberJ)
-									p[i].steps[j].number = json_integer_value(numberJ);
-								json_t *skipJ = json_object_get(stepJ, "skip");
-								if (skipJ)
-									p[i].steps[j].skip = json_integer_value(indexJ);
-								json_t *slideJ = json_object_get(stepJ, "slide");
-								if (slideJ)
-									p[i].steps[j].slide = json_integer_value(slideJ);
-								json_t *pulsesJ = json_object_get(stepJ, "pulses");
-								if (pulsesJ)
-									p[i].steps[j].pulses = json_integer_value(pulsesJ);
-								json_t *pitchJ = json_object_get(stepJ, "pitch");
-								if (pitchJ)
-									p[i].steps[j].pitch = json_real_value(pitchJ);
-								json_t *typeJ = json_object_get(stepJ, "type");
-								if (pulsesJ)
-									p[i].steps[j].type = json_integer_value(typeJ);
-							}
-						}
-					}
-				}
-			}
-		}
+		// json_t *patternsJ = json_object_get(rootJ, "patterns");
+		// if (patternsJ) {
+		// 	for (int i = 0; i < 16; i++) {
+		// 		json_t *patternJ = json_array_get(patternsJ, i);
+		// 		if (patternJ) {
+		// 			json_t *playModeJ = json_object_get(patternJ, "playMode");
+		// 			if (playModeJ)
+		// 				p[i].playMode = json_integer_value(playModeJ);
+		// 			json_t *countModeJ = json_object_get(patternJ, "countMode");
+		// 			if (countModeJ)
+		// 				p[i].countMode = json_integer_value(countModeJ);
+		// 			json_t *numberOfStepsJ = json_object_get(patternJ, "numberOfSteps");
+		// 			if (numberOfStepsJ)
+		// 				p[i].numberOfSteps = json_integer_value(numberOfStepsJ);
+		// 			json_t *rootNoteJ = json_object_get(patternJ, "rootNote");
+		// 			if (rootNoteJ)
+		// 				p[i].rootNote = json_integer_value(rootNoteJ);
+		// 			json_t *scaleJ = json_object_get(patternJ, "scale");
+		// 			if (scaleJ)
+		// 				p[i].scale = json_integer_value(scaleJ);
+		// 			json_t *gateTimeJ = json_object_get(patternJ, "gateTime");
+		// 			if (gateTimeJ)
+		// 				p[i].gateTime = json_real_value(gateTimeJ);
+		// 			json_t *slideJ = json_object_get(patternJ, "slide");
+		// 			if (slideJ)
+		// 				p[i].slide = json_real_value(slideJ);
+    //
+		// 			json_t *stepsJ = json_object_get(rootJ, "steps");
+		// 			if (stepsJ) {
+		// 				for (int j = 0; j < 16; j++) {
+		// 					json_t *stepJ = json_array_get(stepsJ, j);
+		// 					if (stepJ) {
+		// 						json_t *indexJ = json_object_get(stepJ, "index");
+		// 						if (indexJ)
+		// 							p[i].steps[j].index = json_integer_value(indexJ);
+		// 						json_t *numberJ = json_object_get(stepJ, "number");
+		// 						if (numberJ)
+		// 							p[i].steps[j].number = json_integer_value(numberJ);
+		// 						json_t *skipJ = json_object_get(stepJ, "skip");
+		// 						if (skipJ)
+		// 							p[i].steps[j].skip = json_is_true(indexJ);
+		// 						json_t *slideJ = json_object_get(stepJ, "slide");
+		// 						if (slideJ)
+		// 							p[i].steps[j].slide = json_is_true(slideJ);
+		// 						json_t *pulsesJ = json_object_get(stepJ, "pulses");
+		// 						if (pulsesJ)
+		// 							p[i].steps[j].pulses = json_integer_value(pulsesJ);
+		// 						json_t *pitchJ = json_object_get(stepJ, "pitch");
+		// 						if (pitchJ)
+		// 							p[i].steps[j].pitch = json_real_value(pitchJ);
+		// 						json_t *typeJ = json_object_get(stepJ, "type");
+		// 						if (pulsesJ)
+		// 							p[i].steps[j].type = json_integer_value(typeJ);
+		// 					}
+		// 				}
+		// 			}
+		// 		}
+		// 	}
+		// }
 	}
 
 	void randomize() override {
@@ -449,14 +450,6 @@ struct DTROY : Module {
 	// pattern utilities
 
 	int numSteps() { return clampi(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 16); }
-
-	string getPattern () {
-		string result = "";
-		for (unsigned int i = 0; i<p[patternNumber].steps.size(); i++){
-			result = result + " " + std::to_string(p[patternNumber].steps.at(i).index);
-		}
-		return result;
-	}
 
 	// Quantization inspired from  https://github.com/jeremywen/JW-Modules
 
@@ -607,15 +600,18 @@ void DTROY::step() {
 	}
 
 	// Pattern
-	previousPattern = patternNumber;
-	patternNumber = params[PATTERN_PARAM].value + inputs[PATTERN_INPUT].value;
+	// int previousPattern = patternNumber;
+	// patternNumber = params[PATTERN_PARAM].value + inputs[PATTERN_INPUT].value;
+	// if (previousPattern != patternNumber) {
+	// 	updateWidget = true;
+	// }
 	UpdatePattern();
 
 	// Steps && Pulses Management
 	if (nextStep) {
 		// Advance step
 		previousPitch = closestVoltageInScale(params[TRIG_PITCH_PARAM + index%8].value);
-		auto nextStep = p[patternNumber].GetNextStep(reStart);
+		auto nextStep = p.GetNextStep(reStart);
 		index = std::get<0>(nextStep);
 		pulse = std::get<1>(nextStep);
 		if (reStart) { reStart = false; }
@@ -631,7 +627,7 @@ void DTROY::step() {
 	lights[RESET_LIGHT].value -= lights[RESET_LIGHT].value / lightLambda / engineGetSampleRate();
 
 	// Caclulate Outputs
-	bool gateOn = running && !skipState[index%8];
+	bool gateOn = running && (skipState[index%8] != 't');
 	float gateValue = 0.0;
 	if (gateOn){
 		if (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 0) {
@@ -824,8 +820,8 @@ DTROYWidget::DTROYWidget() {
 
 	addParam(createParam<CKD6>(Vec(portX0[0]-1, 230), module, DTROY::PLAY_MODE_PARAM, 0.0, 4.0, 0));
 	addParam(createParam<CKD6>(Vec(portX0[1]-1, 230), module, DTROY::COUNT_MODE_PARAM, 0.0, 4.0, 0));
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[2]-1, 230-1), module, DTROY::PATTERN_PARAM, 0.0, 15.0, 0.0));
-	addInput(createInput<PJ301MPort>(Vec(portX0[3], 230), module, DTROY::PATTERN_INPUT));
+	// addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[2]-1, 230-1), module, DTROY::PATTERN_PARAM, 0.0, 15.0, 0.0));
+	// addInput(createInput<PJ301MPort>(Vec(portX0[3], 230), module, DTROY::PATTERN_INPUT));
 
 	static const float portX1[8] = {200, 238, 276, 315, 353, 392, 430, 469};
 
@@ -848,9 +844,10 @@ DTROYWidget::DTROYWidget() {
 void DTROYWidget::step() {
 	DTROY *module = dynamic_cast<DTROY*>(this->module);
 
-	if (module->previousPattern != module->patternNumber) {
-		scaleParam->visible = (module->patternNumber == 0);
-	}
+	// if (module->updateWidget) {
+	// 	scaleParam->value = module->p[module->patternNumber].scale;
+	// 	module->updateWidget = false;
+	// }
 
 	ModuleWidget::step();
 }
