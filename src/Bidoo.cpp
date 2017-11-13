@@ -9,7 +9,7 @@ void init(rack::Plugin *p) {
 #ifdef VERSION
 	p->version = TOSTRING(VERSION);
 #endif
-	p->addModel(createModel<DTROYWidget>("Bidoo", "DTROY", "DTROY sequencer"));
-	p->addModel(createModel<OUAIVEWidget>("Bidoo", "OUAIVE", "OUAIVE player"));
-	p->addModel(createModel<CHUTEWidget>("Bidoo", "CHUTE", "CHUTE trigger"));
+	p->addModel(createModel<DTROYWidget>("Bidoo", "DTROY", "DTROY sequencer", SEQUENCER_TAG));
+	p->addModel(createModel<OUAIVEWidget>("Bidoo", "OUAIVE", "OUAIVE player", SAMPLER_TAG));
+	p->addModel(createModel<CHUTEWidget>("Bidoo", "CHUTE", "CHUTE trigger", SEQUENCER_TAG));
 }

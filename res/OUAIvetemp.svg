@@ -28,9 +28,9 @@
      inkscape:window-height="1017"
      id="namedview118"
      showgrid="true"
-     inkscape:zoom="1.5750457"
-     inkscape:cx="-12.780032"
-     inkscape:cy="167.42312"
+     inkscape:zoom="2.227451"
+     inkscape:cx="1.2024188"
+     inkscape:cy="92.205837"
      inkscape:window-x="-8"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
@@ -581,43 +581,43 @@
        inkscape:connector-curvature="0" />
   </g>
   <rect
-     style="fill:#867b79;fill-opacity:1;stroke:#0c0100;stroke-width:0.65985918;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     style="fill:#000000;fill-opacity:1;stroke:#0c0100;stroke-width:0.65985918;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
      id="rect1084-9-8"
      width="8.2020817"
      height="11.944309"
-     x="8.9958391"
+     x="2.220783"
      y="80.433327"
      ry="1.9907196" />
   <text
      xml:space="preserve"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#fcfcfc;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     x="10.445952"
+     x="3.6708975"
      y="83.162544"
      id="text1103"
      inkscape:transform-center-x="-0.95026408"
      inkscape:transform-center-y="0.059391505"><tspan
        sodipodi:role="line"
        id="tspan1101"
-       x="10.445952"
+       x="3.6708975"
        y="83.162544"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#fcfcfc;fill-opacity:1;stroke:#ffffff;stroke-width:0.26458332px;stroke-opacity:1">TRIG</tspan></text>
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#fcfcfc;fill-opacity:1;stroke:#ffffff;stroke-width:0.26458332px;stroke-opacity:1">GATE</tspan></text>
   <rect
      style="fill:#ff1e00;fill-opacity:1;stroke:#ff1e00;stroke-width:0.65985918;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
      id="rect1084-9"
      width="8.2020836"
      height="11.944309"
-     x="19.049994"
+     x="25.374784"
      y="80.395309"
      ry="1.9907196" />
   <text
      xml:space="preserve"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#fcfcfc;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     x="21.213617"
+     x="27.538408"
      y="83.162544"
      id="text1103-7"><tspan
        sodipodi:role="line"
        id="tspan1101-6"
-       x="21.213617"
+       x="27.538408"
        y="83.162544"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#fcfcfc;fill-opacity:1;stroke:#ffffff;stroke-width:0.26458332px;stroke-opacity:1">OUT</tspan></text>
   <text
@@ -681,4 +681,25 @@
          height="304.19095"
          x="181.82332"
          y="40" /></flowRegion><flowPara
-       id="flowPara1015" /></flowRoot></svg>
+       id="flowPara1015" /></flowRoot>  <rect
+     style="fill:#000000;fill-opacity:1;stroke:#0c0100;stroke-width:0.65985918;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     id="rect1084-9-8-6"
+     width="8.2020817"
+     height="11.944309"
+     x="13.892402"
+     y="80.433327"
+     ry="1.9907196" />
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#fcfcfc;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="16.01446"
+     y="83.162552"
+     id="text1103-2"
+     inkscape:transform-center-x="-0.95026408"
+     inkscape:transform-center-y="0.059391505"><tspan
+       sodipodi:role="line"
+       id="tspan1101-5"
+       x="16.01446"
+       y="83.162552"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#fcfcfc;fill-opacity:1;stroke:#ffffff;stroke-width:0.26458332px;stroke-opacity:1">POS</tspan></text>
+</svg>

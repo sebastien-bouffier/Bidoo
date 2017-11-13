@@ -12,10 +12,12 @@ using namespace std;
 struct OUAIVE : Module {
 	enum ParamIds {
 		PLAY_PARAM,
-		NUM_PARAMS 
+		POS_PARAM,
+		NUM_PARAMS
 	};
 	enum InputIds {
-		TRIG_INPUT,
+		GATE_INPUT,
+		POS_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -25,7 +27,7 @@ struct OUAIVE : Module {
 	enum LightIds {
 		NUM_LIGHTS
 	};
-	
+
 	bool play = false;
 	string lastPath;
 	AudioFile<double> audioFile;
@@ -39,15 +41,15 @@ struct OUAIVE : Module {
 	OUAIVE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) { }
 
 	void step() override;
-	
+
 	void loadSample(std::string path);
-	
+
 	// persistence
-	
+
 	json_t *toJson() override {
 		json_t *rootJ = json_object();
 		// lastPath
-		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));	
+		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
 		return rootJ;
 	}
 
@@ -65,7 +67,7 @@ void OUAIVE::loadSample(std::string path) {
 	if (audioFile.load (path.c_str())) {
 		fileLoaded = true;
 		vector<double>().swap(displayBuff);
-		for (int i=0; i < audioFile.getNumSamplesPerChannel(); i = i + floor(audioFile.getNumSamplesPerChannel()/130)) {
+		for (int i=0; i < audioFile.getNumSamplesPerChannel(); i = i + floor(audioFile.getNumSamplesPerChannel()/125)) {
 			displayBuff.push_back(audioFile.samples[0][i]);
 		}
 		fileDesc = extractFilename(path)+ "\n";
@@ -73,9 +75,8 @@ void OUAIVE::loadSample(std::string path) {
 		fileDesc += std::to_string(audioFile.getBitDepth())+ " \n";
 		fileDesc += std::to_string(audioFile.getNumSamplesPerChannel())+ "\n";
 		fileDesc += std::to_string(audioFile.getLengthInSeconds())+ "\n";
-		fileDesc += std::to_string(audioFile.getNumChannels())+ "\n";	
-		fileDesc += std::to_string(audioFile.isMono())+ "\n";	
-		fileDesc += std::to_string(audioFile.isStereo())+ "\n";	
+		fileDesc += std::to_string(audioFile.getNumChannels())+ "\n";
+		fileDesc += audioFile.isStereo() ? "S" : "M";
 	}
 	else {
 		fileLoaded = false;
@@ -84,22 +85,22 @@ void OUAIVE::loadSample(std::string path) {
 
 
 void OUAIVE::step() {
- 	
+
 	// Play
-	if (playTrigger.process(params[PLAY_PARAM].value + inputs[TRIG_INPUT].value)) {
+	if (playTrigger.process(params[PLAY_PARAM].value + inputs[GATE_INPUT].value)) {
 		play = true;
-		samplePos = 0;
+		samplePos = clampi((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
 	}
-	
+
 	if ((play) && (samplePos < audioFile.getNumSamplesPerChannel())) {
 		if (audioFile.getNumChannels() == 1)
-			outputs[OUT_OUTPUT].value = 5 * audioFile.samples[0][samplePos]; 
+			outputs[OUT_OUTPUT].value = 5 * audioFile.samples[0][samplePos];
 		else if (audioFile.getNumChannels() ==2)
-			outputs[OUT_OUTPUT].value = 5 * (audioFile.samples[0][samplePos] + audioFile.samples[1][samplePos]) / 2; 
+			outputs[OUT_OUTPUT].value = 5 * (audioFile.samples[0][samplePos] + audioFile.samples[1][samplePos]) / 2;
 		samplePos++;
 	}
 	else if (samplePos == audioFile.getNumSamplesPerChannel())
-	{ 
+	{
 		play = false;
 	}
 }
@@ -112,14 +113,14 @@ struct OUAIVEDisplay : TransparentWidget {
 	OUAIVEDisplay() {
 		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
 	}
-	
+
 	void draw(NVGcontext *vg) override {
 		nvgFontSize(vg, 12);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2);
-		nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xff));	
+		nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xff));
 		nvgTextBox(vg, 5, 5,120, module->fileDesc.c_str(), NULL);
-		
+
 		// Draw ref line
 		nvgStrokeColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
 		{
@@ -129,22 +130,22 @@ struct OUAIVEDisplay : TransparentWidget {
 			nvgClosePath(vg);
 		}
 		nvgStroke(vg);
-		
+
 		if (module->fileLoaded) {
 			// Draw play line
 			nvgStrokeColor(vg, nvgRGBA(0x28, 0xb0, 0xf3, 0xc0));
 			{
 				nvgBeginPath(vg);
-				nvgMoveTo(vg, floor(module->samplePos * 130 / module->audioFile.getNumSamplesPerChannel()) , 85);
-				nvgLineTo(vg, floor(module->samplePos * 130 / module->audioFile.getNumSamplesPerChannel()) , 165);
+				nvgMoveTo(vg, (int)(module->samplePos * 125 / module->audioFile.getNumSamplesPerChannel()) , 85);
+				nvgLineTo(vg, (int)(module->samplePos * 125 / module->audioFile.getNumSamplesPerChannel()) , 165);
 				nvgClosePath(vg);
 			}
 			nvgStroke(vg);
-			
+
 			// Draw waveform
 			nvgStrokeColor(vg, nvgRGBA(0xe1, 0x02, 0x78, 0xc0));
 			nvgSave(vg);
-			Rect b = Rect(Vec(0, 85), Vec(130, 80));
+			Rect b = Rect(Vec(0, 85), Vec(125, 80));
 			nvgScissor(vg, b.pos.x, b.pos.y, b.size.x, b.size.y);
 			nvgBeginPath(vg);
 			for (unsigned int i = 0; i < module->displayBuff.size(); i++) {
@@ -163,9 +164,9 @@ struct OUAIVEDisplay : TransparentWidget {
 			nvgMiterLimit(vg, 2.0);
 			nvgStrokeWidth(vg, 1.5);
 			nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
-			nvgStroke(vg);			
+			nvgStroke(vg);
 			nvgResetScissor(vg);
-			nvgRestore(vg);	
+			nvgRestore(vg);
 		}
 	}
 };
@@ -186,7 +187,7 @@ OUAIVEWidget::OUAIVEWidget() {
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
 	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
-	
+
 	{
 		OUAIVEDisplay *display = new OUAIVEDisplay();
 		display->module = module;
@@ -194,19 +195,20 @@ OUAIVEWidget::OUAIVEWidget() {
 		display->box.size = Vec(130, 250);
 		addChild(display);
 	}
-		
-	static const float portX0[4] = {20, 58, 96, 135};
-	
-	addParam(createParam<CKD6>(Vec(portX0[1]-5, 244), module, OUAIVE::PLAY_PARAM, 0.0, 4.0, 0.0));
-		
-	addInput(createInput<PJ301MPort>(Vec(portX0[1]-21, 321), module, OUAIVE::TRIG_INPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-21, 321), module, OUAIVE::OUT_OUTPUT));
+
+	static const float portX0[4] = {34, 67, 101};
+
+	addParam(createParam<CKD6>(Vec(portX0[1]-15, 244), module, OUAIVE::PLAY_PARAM, 0.0, 4.0, 0.0));
+
+	addInput(createInput<PJ301MPort>(Vec(portX0[0]-22, 321), module, OUAIVE::GATE_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[1]-11, 321), module, OUAIVE::POS_INPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-2, 321), module, OUAIVE::OUT_OUTPUT));
 }
 
 struct OUAIVEItem : MenuItem {
 	OUAIVE *ouaive;
 	void onAction(EventAction &e) override {
-		
+
 		std::string dir = ouaive->lastPath.empty() ? assetLocal("") : extractDirectory(ouaive->lastPath);
 		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
 		if (path) {
@@ -223,7 +225,7 @@ Menu *OUAIVEWidget::createContextMenu() {
 	Menu *menu = ModuleWidget::createContextMenu();
 
 	MenuLabel *spacerLabel = new MenuLabel();
-	menu->pushChild(spacerLabel);
+	menu->addChild(spacerLabel);
 
 	OUAIVE *ouaive = dynamic_cast<OUAIVE*>(module);
 	assert(ouaive);
@@ -231,7 +233,7 @@ Menu *OUAIVEWidget::createContextMenu() {
 	OUAIVEItem *sampleItem = new OUAIVEItem();
 	sampleItem->text = "Load sample";
 	sampleItem->ouaive = ouaive;
-	menu->pushChild(sampleItem);
+	menu->addChild(sampleItem);
 
 	return menu;
 }
