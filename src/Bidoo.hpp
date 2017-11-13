@@ -12,7 +12,7 @@ extern Plugin *plugin;
 struct DTROYWidget : ModuleWidget {
 	ParamWidget *scaleParam;
 	DTROYWidget();
-	void step() override;
+	//void step() override;
 };
 
 struct OUAIVEWidget : ModuleWidget {

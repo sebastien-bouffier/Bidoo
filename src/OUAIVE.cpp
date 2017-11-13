@@ -12,7 +12,7 @@ using namespace std;
 struct OUAIVE : Module {
 	enum ParamIds {
 		PLAY_PARAM,
-		POS_PARAM,
+		TRIG_MODE_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -35,8 +35,10 @@ struct OUAIVE : Module {
 	vector<double> displayBuff;
 	string fileDesc;
 	bool fileLoaded = false;
+	int trigMode = 0; // 0 trig 1 gate
 
 	SchmittTrigger playTrigger;
+	SchmittTrigger trigModeTrigger;
 
 	OUAIVE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) { }
 
@@ -71,12 +73,8 @@ void OUAIVE::loadSample(std::string path) {
 			displayBuff.push_back(audioFile.samples[0][i]);
 		}
 		fileDesc = extractFilename(path)+ "\n";
-		fileDesc += std::to_string(audioFile.getSampleRate())+ "\n";
-		fileDesc += std::to_string(audioFile.getBitDepth())+ " \n";
-		fileDesc += std::to_string(audioFile.getNumSamplesPerChannel())+ "\n";
-		fileDesc += std::to_string(audioFile.getLengthInSeconds())+ "\n";
-		fileDesc += std::to_string(audioFile.getNumChannels())+ "\n";
-		fileDesc += audioFile.isStereo() ? "S" : "M";
+		fileDesc += std::to_string(audioFile.getSampleRate()) + " Hz " + std::to_string(audioFile.getBitDepth()) + " bit\n";
+		fileDesc += std::to_string(roundf(audioFile.getLengthInSeconds() * 100) / 100) + " s\n";
 	}
 	else {
 		fileLoaded = false;
@@ -85,23 +83,32 @@ void OUAIVE::loadSample(std::string path) {
 
 
 void OUAIVE::step() {
-
 	// Play
-	if (playTrigger.process(params[PLAY_PARAM].value + inputs[GATE_INPUT].value)) {
-		play = true;
-		samplePos = clampi((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
-	}
+	if (fileLoaded) {
+		if (trigModeTrigger.process(params[TRIG_MODE_PARAM].value)) {
+			trigMode = (((int)trigMode + 1) % 2);
+		}
 
-	if ((play) && (samplePos < audioFile.getNumSamplesPerChannel())) {
-		if (audioFile.getNumChannels() == 1)
-			outputs[OUT_OUTPUT].value = 5 * audioFile.samples[0][samplePos];
-		else if (audioFile.getNumChannels() ==2)
-			outputs[OUT_OUTPUT].value = 5 * (audioFile.samples[0][samplePos] + audioFile.samples[1][samplePos]) / 2;
-		samplePos++;
-	}
-	else if (samplePos == audioFile.getNumSamplesPerChannel())
-	{
-		play = false;
+		if (playTrigger.process(params[PLAY_PARAM].value + inputs[GATE_INPUT].value)) {
+			if (trigMode == 0) {
+				play = true;
+			}	else if (trigMode == 1) {
+				play = !play;
+			}
+			samplePos = clampi((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
+		}
+
+		if ((play) && (samplePos < audioFile.getNumSamplesPerChannel())) {
+			if (audioFile.getNumChannels() == 1)
+				outputs[OUT_OUTPUT].value = 5 * audioFile.samples[0][samplePos];
+			else if (audioFile.getNumChannels() ==2)
+				outputs[OUT_OUTPUT].value = 5 * (audioFile.samples[0][samplePos] + audioFile.samples[1][samplePos]) / 2;
+			samplePos++;
+		}
+		else if (samplePos == audioFile.getNumSamplesPerChannel())
+		{
+			play = false;
+		}
 	}
 }
 
@@ -120,6 +127,12 @@ struct OUAIVEDisplay : TransparentWidget {
 		nvgTextLetterSpacing(vg, -2);
 		nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xff));
 		nvgTextBox(vg, 5, 5,120, module->fileDesc.c_str(), NULL);
+
+		nvgFontSize(vg, 14);
+		nvgFontFaceId(vg, font->handle);
+		nvgTextLetterSpacing(vg, -2);
+		nvgFillColor(vg, nvgRGBA(75, 199, 75, 0xff));
+		nvgTextBox(vg, 5, 43,120, module->trigMode == 0 ? "TRIG MODE" : "GATE MODE", NULL);
 
 		// Draw ref line
 		nvgStrokeColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
@@ -198,7 +211,8 @@ OUAIVEWidget::OUAIVEWidget() {
 
 	static const float portX0[4] = {34, 67, 101};
 
-	addParam(createParam<CKD6>(Vec(portX0[1]-15, 244), module, OUAIVE::PLAY_PARAM, 0.0, 4.0, 0.0));
+	addParam(createParam<CKD6>(Vec(portX0[1]-15, 225), module, OUAIVE::PLAY_PARAM, 0.0, 4.0, 0.0));
+	addParam(createParam<CKD6>(Vec(portX0[1]-15, 260), module, OUAIVE::TRIG_MODE_PARAM, 0.0, 1.0, 0.0));
 
 	addInput(createInput<PJ301MPort>(Vec(portX0[0]-22, 321), module, OUAIVE::GATE_INPUT));
 	addInput(createInput<PJ301MPort>(Vec(portX0[1]-11, 321), module, OUAIVE::POS_INPUT));
@@ -213,6 +227,7 @@ struct OUAIVEItem : MenuItem {
 		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
 		if (path) {
 			ouaive->play = false;
+			ouaive->fileLoaded = false;
 			ouaive->loadSample(path);
 			ouaive->samplePos = 0;
 			ouaive->lastPath = path;

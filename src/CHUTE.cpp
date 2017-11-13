@@ -13,7 +13,7 @@ struct CHUTE : Module {
 		GRAVITY_PARAM,
 		COR_PARAM,
 		RUN_PARAM,
-		NUM_PARAMS 
+		NUM_PARAMS
 	};
 	enum InputIds {
 		TRIG_INPUT,
@@ -31,7 +31,7 @@ struct CHUTE : Module {
 	enum LightIds {
 		NUM_LIGHTS
 	};
-	
+
 	bool running = false;
 	float phase = 0.0;
 	float altitude = 0.0;
@@ -46,12 +46,12 @@ struct CHUTE : Module {
 	CHUTE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) { }
 
 	void step() override;
-	
+
 };
 
 
 void CHUTE::step() {
- 	
+
 	// Running
 	if (playTrigger.process(params[RUN_PARAM].value + inputs[TRIG_INPUT].value)) {
 		running = true;
@@ -61,7 +61,7 @@ void CHUTE::step() {
 		minAlt = altitude;
 		speed = 0;
 	}
-	
+
 	// Altitude calculation
 	if (running) {
 		if (minAlt<0.0001) {
@@ -79,7 +79,7 @@ void CHUTE::step() {
 					desc=false;
 					speed = speed * (params[COR_PARAM].value + + inputs[COR_INPUT].value);
 					altitude = 0;
-				}	
+				}
 			}
 			else {
 				speed = speed - (params[GRAVITY_PARAM].value + inputs[GRAVITY_INPUT].value)*phase;
@@ -87,14 +87,14 @@ void CHUTE::step() {
 					speed = 0.0;
 					desc=true;
 					minAlt=min(minAlt,altitude);
-				}	
+				}
 				else {
 					altitude = altitude + (speed * phase);
 				}
 			}
 		}
 	}
-	
+
 	//Calculate output
 	outputs[GATE_OUTPUT].value = running ? desc ? 10.0 : 0.0 : 0.0;
 	outputs[PITCH_OUTPUT].value = running ? 10 * altitude/ altitudeInit : 0.0;
@@ -109,18 +109,18 @@ struct CHUTEDisplay : TransparentWidget {
 	CHUTEDisplay() {
 		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
 	}
-	
+
 	void draw(NVGcontext *vg) override {
 		frame = 0;
 		nvgFontSize(vg, 18);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2);
-		nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xff));	
-		
+		nvgFillColor(vg, nvgRGBA(0xdd, 0x5a, 0xd, 0xc0));
+
 		float altRatio = clampf(module->altitude / module->altitudeInit, 0 , 1);
 		int pos = roundl(box.size.y + altRatio * (9 - box.size.y));
-		
-		nvgText(vg, 5, pos, "☺", NULL);
+
+		nvgText(vg, 5, pos, "☻", NULL);
 	}
 };
 
@@ -140,7 +140,7 @@ CHUTEWidget::CHUTEWidget() {
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
 	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
-	
+
 	{
 		CHUTEDisplay *display = new CHUTEDisplay();
 		display->module = module;
@@ -148,7 +148,7 @@ CHUTEWidget::CHUTEWidget() {
 		display->box.size = Vec(40, 180);
 		addChild(display);
 	}
-	
+
 	static const float portX[2] = {20, 60};
 	static const float portY[3] = {52, 116, 178};
  	addInput(createInput<PJ301MPort>(Vec(portX[0], portY[0]), module, CHUTE::ALTITUDE_INPUT));
@@ -157,10 +157,10 @@ CHUTEWidget::CHUTEWidget() {
 	addParam(createParam<RoundSmallBlackKnob>(Vec(portX[1], portY[1]-2), module, CHUTE::GRAVITY_PARAM, 1.622, 11.15, 9.798)); // between the Moon and Neptune
 	addInput(createInput<PJ301MPort>(Vec(portX[0], portY[2]), module, CHUTE::COR_INPUT));
 	addParam(createParam<RoundSmallBlackKnob>(Vec(portX[1], portY[2]-2), module, CHUTE::COR_PARAM, 0, 1, 0.69)); // 0 inelastic, 1 perfect elastic, 0.69 glass
-	
-	addParam(createParam<CKD6>(Vec(50, 269), module, CHUTE::RUN_PARAM, 0.0, 1.0, 0.0));	
+
+	addParam(createParam<CKD6>(Vec(50, 269), module, CHUTE::RUN_PARAM, 0.0, 1.0, 0.0));
 	addInput(createInput<PJ301MPort>(Vec(11, 270), module, CHUTE::TRIG_INPUT));
-	
+
 	addOutput(createOutput<PJ301MPort>(Vec(11, 320), module, CHUTE::GATE_OUTPUT));
 	addOutput(createOutput<PJ301MPort>(Vec(54, 320), module, CHUTE::PITCH_OUTPUT));
 	addOutput(createOutput<PJ301MPort>(Vec(96, 320), module, CHUTE::PITCHSTEP_OUTPUT));

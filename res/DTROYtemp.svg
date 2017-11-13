@@ -29,9 +29,9 @@
      inkscape:window-height="1017"
      id="namedview118"
      showgrid="true"
-     inkscape:zoom="2.227451"
-     inkscape:cx="54.750001"
-     inkscape:cy="187.49928"
+     inkscape:zoom="1.1137255"
+     inkscape:cx="-24.296585"
+     inkscape:cy="138.84774"
      inkscape:window-x="-8"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
@@ -102,7 +102,7 @@
        x2="39.534536"
        y2="63.499998"
        gradientUnits="userSpaceOnUse"
-       gradientTransform="translate(-35.868789,8.4959174)" />
+       gradientTransform="translate(-25.810738,8.195239)" />
   </defs>
   <metadata
      id="metadata12550">
@@ -1141,24 +1141,24 @@
        y="58.431725"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">PATTERN</tspan></text>
   <rect
-     style="fill:#ffaca1;fill-opacity:1;stroke:none;stroke-width:0.56682819;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     style="fill:#ffaca1;fill-opacity:1;stroke:none;stroke-width:0.49002588;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
      id="rect1084-9-4"
-     width="7.0036573"
-     height="10.321924"
-     x="68.811203"
-     y="-2.6465878"
-     ry="1.7203219"
-     transform="matrix(0.49937863,0.86638385,-0.87607793,0.48216954,0,0)" />
+     width="5.5620732"
+     height="9.7136831"
+     x="72.882256"
+     y="10.007627"
+     ry="1.6189483"
+     transform="matrix(0.62880807,0.77756055,-0.93093521,0.36518439,0,0)" />
   <text
      xml:space="preserve"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:url(#linearGradient1024);fill-opacity:1;stroke:#ffffff;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     x="-5.4417071"
-     y="73.318825"
+     x="4.6163445"
+     y="73.018143"
      id="text1016"
-     transform="rotate(-29.352757)"><tspan
+     transform="rotate(-21.224973)"><tspan
        sodipodi:role="line"
        id="tspan1014"
-       x="-5.4417071"
-       y="73.318825"
+       x="4.6163445"
+       y="73.018143"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.17499995px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:url(#linearGradient1024);fill-opacity:1;stroke:#ffffff;stroke-width:0.26458332px;stroke-opacity:1">TO DO</tspan></text>
 </svg>

@@ -320,7 +320,9 @@ struct DTROY : Module {
 		std::vector<Param> pulses(&params[TRIG_COUNT_PARAM],&params[TRIG_COUNT_PARAM + 8]);
 		std::vector<Param> pitches(&params[TRIG_PITCH_PARAM],&params[TRIG_PITCH_PARAM + 8]);
 		std::vector<Param> types(&params[TRIG_TYPE_PARAM],&params[TRIG_TYPE_PARAM + 8]);
-		p.Update(playMode, countMode, numSteps(), params[GATE_TIME_PARAM].value,params[SLIDE_TIME_PARAM].value, rootNote, curScaleVal, skipState, slideState, pulses, pitches, types);
+		std::vector<char> skipes(&skipState[0],&skipState[7]);
+		std::vector<char> slides(&slideState[0],&slideState[7]);
+		p.Update(playMode, countMode, numSteps(), params[GATE_TIME_PARAM].value, params[SLIDE_TIME_PARAM].value, rootNote, curScaleVal, skipes, slides, pulses, pitches, types);
 	}
 
 	void step() override;
@@ -659,7 +661,7 @@ void DTROY::step() {
 	}
 
 	pitch = closestVoltageInScale(params[TRIG_PITCH_PARAM + index%8].value);
-	if (slideState[index%8]) {
+	if (slideState[index%8] == 't') {
 		if (pulse == 0) {
 			float slideCoeff = clampf(params[SLIDE_TIME_PARAM].value - 0.01 + inputs[SLIDE_TIME_INPUT].value /10, -0.1, 0.99);
 			pitch = pitch - (1 - powf(phase, slideCoeff)) * (pitch - previousPitch);
@@ -841,13 +843,13 @@ DTROYWidget::DTROYWidget() {
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[3]-1, 331), module, DTROY::PITCH_OUTPUT));
 }
 
-void DTROYWidget::step() {
-	DTROY *module = dynamic_cast<DTROY*>(this->module);
-
-	// if (module->updateWidget) {
-	// 	scaleParam->value = module->p[module->patternNumber].scale;
-	// 	module->updateWidget = false;
-	// }
-
-	ModuleWidget::step();
-}
+// void DTROYWidget::step() {
+// 	DTROY *module = dynamic_cast<DTROY*>(this->module);
+//
+// 	// if (module->updateWidget) {
+// 	// 	scaleParam->value = module->p[module->patternNumber].scale;
+// 	// 	module->updateWidget = false;
+// 	// }
+//
+// 	ModuleWidget::step();
+// }

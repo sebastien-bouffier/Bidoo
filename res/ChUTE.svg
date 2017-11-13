@@ -456,9 +456,9 @@
        id="rect103" />
   </g>
   <path
-     id="rect1084-9-8"
-     d="M 2.2132668,80.659851 H 10.415349 V 92.60416 H 2.2132668 Z"
-     style="fill:#000000;fill-opacity:1;stroke:#0c0100;stroke-width:0.6598708;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+     id="rect1084-9-8-9-1-3-3"
+     d="m 3.1314889,80.632812 h 6.5384558 c 0.4608243,0 0.8318133,0.370989 0.8318133,0.831813 v 10.280684 c 0,0.460824 -0.370989,0.831813 -0.8318133,0.831813 H 3.1314889 c -0.4608244,0 -0.831813,-0.370989 -0.831813,-0.831813 V 81.464625 c 0,-0.460824 0.3709886,-0.831813 0.831813,-0.831813 z"
+     style="fill:#000000;fill-opacity:1;stroke:#0c0100;stroke-width:0.6598708;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <g
      id="text1103-7"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#fcfcfc;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -564,7 +564,7 @@
   <path
      id="rect1084-9-8-2-9-8-4"
      d="M 2.8800516,8.5957832 H 25.917553 c 0.749163,0 1.35228,0.603117 1.35228,1.3522803 V 20.482938 c 0,0.749163 -0.603117,1.35228 -1.35228,1.35228 H 2.8800516 c -0.7491633,0 -1.3522802,-0.603117 -1.3522802,-1.35228 V 9.9480635 c 0,-0.7491633 0.6031169,-1.3522803 1.3522802,-1.3522803 z"
-     style="fill:#696969;fill-opacity:1;stroke:#696969;stroke-width:1.23075819;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+     style="fill:#f79d5c;fill-opacity:1;stroke:#f79d5c;stroke-width:1.23075819;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <g
      id="text986-69-9-7"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#fafafa;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -605,7 +605,7 @@
   <path
      id="rect1084-9-8-2-9-8"
      d="M 2.9346453,25.029335 H 25.972146 c 0.749164,0 1.352281,0.603117 1.352281,1.35228 V 36.91649 c 0,0.749163 -0.603117,1.35228 -1.352281,1.35228 H 2.9346453 c -0.7491633,0 -1.3522803,-0.603117 -1.3522803,-1.35228 V 26.381615 c 0,-0.749163 0.603117,-1.35228 1.3522803,-1.35228 z"
-     style="fill:#696969;fill-opacity:1;stroke:#696969;stroke-width:1.23075819;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+     style="fill:#f52f57;fill-opacity:1;stroke:#f52f57;stroke-width:1.23075819;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <g
      id="text986-69-9-7-0"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#fafafa;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -642,7 +642,7 @@
   <path
      id="rect1084-9-8-2-9"
      d="M 2.9346455,41.698101 H 25.972145 c 0.749163,0 1.35228,0.603117 1.35228,1.35228 v 10.534875 c 0,0.749163 -0.603117,1.35228 -1.35228,1.35228 H 2.9346455 c -0.7491632,0 -1.3522802,-0.603117 -1.3522802,-1.35228 V 43.050381 c 0,-0.749163 0.603117,-1.35228 1.3522802,-1.35228 z"
-     style="fill:#696969;fill-opacity:1;stroke:#696969;stroke-width:1.23075819;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+     style="fill:#a20021;fill-opacity:1;stroke:#a20021;stroke-width:1.23075819;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <g
      id="text986-69-9-7-8"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#fafafa;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -693,9 +693,9 @@
        d="m 22.380028,42.338844 h 0.352778 l 0.694531,1.693609 v -1.693609 h 0.268718 v 2.057411 h -0.352778 l -0.694531,-1.693608 v 1.693608 h -0.268718 z" />
   </g>
   <path
-     id="rect1084-9-8-9"
-     d="m 13.422367,80.659851 h 8.202082 V 92.60416 h -8.202082 z"
-     style="fill:#000000;fill-opacity:1;stroke:#0c0100;stroke-width:0.6598708;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+     id="rect1084-9-8-9-1-3"
+     d="m 14.449178,80.632812 h 6.538456 c 0.460824,0 0.831813,0.370989 0.831813,0.831813 v 10.280684 c 0,0.460824 -0.370989,0.831813 -0.831813,0.831813 h -6.538456 c -0.460825,0 -0.831813,-0.370989 -0.831813,-0.831813 V 81.464625 c 0,-0.460824 0.370988,-0.831813 0.831813,-0.831813 z"
+     style="fill:#000000;fill-opacity:1;stroke:#0c0100;stroke-width:0.6598708;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <g
      id="text1103-7-7"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#fcfcfc;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -715,8 +715,8 @@
   </g>
   <path
      id="rect1084-9-8-9-1"
-     d="m 24.70285,80.659851 h 8.202082 V 92.60416 H 24.70285 Z"
-     style="fill:#000000;fill-opacity:1;stroke:#0c0100;stroke-width:0.6598708;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+     d="m 25.534663,80.659851 h 6.538456 c 0.460824,0 0.831813,0.370989 0.831813,0.831813 v 10.280683 c 0,0.460825 -0.370989,0.831813 -0.831813,0.831813 h -6.538456 c -0.460824,0 -0.831813,-0.370988 -0.831813,-0.831813 V 81.491664 c 0,-0.460824 0.370989,-0.831813 0.831813,-0.831813 z"
+     style="fill:#000000;fill-opacity:1;stroke:#0c0100;stroke-width:0.6598708;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <g
      id="text1103-7-7-6"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#fcfcfc;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
