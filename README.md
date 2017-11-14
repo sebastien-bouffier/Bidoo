@@ -32,8 +32,9 @@ Features:
 
 OUAIve is a sample player and that's all. You choose the sample via the menu. You press play or you trig him at your convenience.
 If he is in a good mood, he will remind the sample that you selected.
-Last addition to OUAIve, you can chose in between Trig mode where each cycle of CV will launch the sample i.e. Start/Start and Gate mode for a Start/Stop behavior.
-On top of that you can control via CV the starting point of the sample with "POS". 
+Last addition to OUAIve, you can chose in between "TRIG MODE" and "GATE MODE".
+In "TRIG MODE" each impulse on the "GATE/TRIG" input will launch the sample from the "POS" position.
+In "GATE MODE" when the "GATE/TRIG" input receives more than 0V the player reads the sample at "POS" waiting for you to move "POS" in the sample allowing pitch changes and other things. 
 
 
 ## ChUTE

@@ -89,12 +89,11 @@ void OUAIVE::step() {
 			trigMode = (((int)trigMode + 1) % 2);
 		}
 
-		if (playTrigger.process(params[PLAY_PARAM].value + inputs[GATE_INPUT].value)) {
-			if (trigMode == 0) {
-				play = true;
-			}	else if (trigMode == 1) {
-				play = !play;
-			}
+		if ((trigMode == 0) && (playTrigger.process(params[PLAY_PARAM].value + inputs[GATE_INPUT].value))) {
+			play = true;
+			samplePos = clampi((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
+		}	else if (trigMode == 1) {
+			play = (inputs[GATE_INPUT].value > 0);
 			samplePos = clampi((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
 		}
 
