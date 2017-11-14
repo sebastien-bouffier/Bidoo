@@ -45,7 +45,8 @@ Outputs provide a gate based on downside movements, the relative tension regardi
 
 ## dUKe
 
-dUKe is a simple 4 x CV controller. Yo can choose between -5V/+5V or 0V/10V and set the MAX and MIN for each slider. If used CV will add signal on top of the slider.
+dUKe is a simple but very efficient 4 x CV controller. Yo can choose between -5V/+5V or 0V/10V and set the MAX and MIN for each slider. If used CV will add signal on top of the slider.
+Two nice buttons allow you to jump to both extremities of the 4 sliders at the same time. 
 
 ## vOId
 

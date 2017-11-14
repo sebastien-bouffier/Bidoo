@@ -29,5 +29,6 @@ struct VOIDWidget : ModuleWidget {
 };
 
 struct DUKEWidget : ModuleWidget {
+	ParamWidget *sliders[4];
 	DUKEWidget();
 };

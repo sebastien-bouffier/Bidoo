@@ -1,13 +1,15 @@
 #include "Bidoo.hpp"
 #include "BidooComponents.hpp"
-
+#include "dsp/digital.hpp"
 
 using namespace std;
 
 struct DUKE : Module {
 	enum ParamIds {
 		SLIDER_PARAM,
-		MIN_PARAM = SLIDER_PARAM + 4,
+		ADONF_PARAM,
+		NADA_PARAM,
+		MIN_PARAM = NADA_PARAM + 4,
 		MAX_PARAM = MIN_PARAM + 4,
 		TYPE_PARAM = MAX_PARAM + 4,
 		NUM_PARAMS = TYPE_PARAM + 4,
@@ -38,6 +40,27 @@ void DUKE::step() {
 	}
 }
 
+struct DUKECKD6 : CKD6 {
+	void onChange(EventChange &e) override {
+		DUKEWidget *parent = dynamic_cast<DUKEWidget*>(this->parent);
+		DUKE *module = dynamic_cast<DUKE*>(this->module);
+		if (parent && module) {
+			if (this->paramId == DUKE::ADONF_PARAM) {
+				for (int i = 0; i < 4 ; i++) {
+					parent->sliders[i]->setValue(10);
+					module->params[DUKE::SLIDER_PARAM + i].value = 10;
+				}
+			} else if (this->paramId == DUKE::NADA_PARAM) {
+				for (int i = 0; i < 4 ; i++) {
+					parent->sliders[i]->setValue(0);
+					module->params[DUKE::SLIDER_PARAM + i].value = 0;
+				}
+			}
+		}
+		CKD6::onChange(e);
+	}
+};
+
 DUKEWidget::DUKEWidget() {
 	DUKE *module = new DUKE();
 	setModule(module);
@@ -55,14 +78,17 @@ DUKEWidget::DUKEWidget() {
 	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
 
+	static const float portX0[4] = {36, 70, 105, 140};
 
-	static const float portX0[4] = {29, 67, 105, 140};
+	addParam(createParam<DUKECKD6>(Vec(portX0[0]-29, 190), module, DUKE::ADONF_PARAM, 0.0, 1.0, 0.0));
+	addParam(createParam<DUKECKD6>(Vec(portX0[0]-29, 230), module, DUKE::NADA_PARAM, 0.0, 1.0, 0.0));
 
 	for (int i = 0; i < 4; i++) {
 		addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[i]-1, 52), module, DUKE::MAX_PARAM + i, 0.0, 10.0, 10));
 		addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[i]-1, 95), module, DUKE::MIN_PARAM + i, 0.0, 10.0, 0));
 		addParam(createParam<CKSS>(Vec(portX0[i]+6, 139), module, DUKE::TYPE_PARAM + i, 0.0, 1.0, 0.0));
-		addParam(createParam<BidooLongSlider>(Vec(portX0[i]+4, 176), module, DUKE::SLIDER_PARAM + i, 0.0, 10.0, 0));
+		sliders[i] = createParam<BidooLongSlider>(Vec(portX0[i]+4, 176), module, DUKE::SLIDER_PARAM + i, 0.0, 10.0, 0);
+		addParam(sliders[i]);
 		addInput(createInput<PJ301MPort>(Vec(portX0[i]+1, 284), module, DUKE::SLIDER_INPUT + i));
 		addOutput(createOutput<PJ301MPort>(Vec(portX0[i]+1, 323), module, DUKE::CV_OUTPUT + i));
 	}
