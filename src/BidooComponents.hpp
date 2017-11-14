@@ -5,7 +5,7 @@
 #include "widgets.hpp"
 
 namespace rack {
-	
+
 struct BidooSlidePotLong : SVGSlider {
 	BidooSlidePotLong() {
 		snap = true;
@@ -18,7 +18,7 @@ struct BidooSlidePotLong : SVGSlider {
 		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotHandle.svg"));
 		handle->wrap();
 	}
-};	
+};
 
 struct BidooSlidePotShort : SVGSlider {
 	BidooSlidePotShort() {
@@ -32,9 +32,22 @@ struct BidooSlidePotShort : SVGSlider {
 		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotHandle.svg"));
 		handle->wrap();
 	}
-};	
-	
-	
+};
+
+struct BidooLongSlider : SVGSlider {
+	BidooLongSlider() {
+		maxHandlePos = Vec(0, 0);
+		minHandlePos = Vec(0, 84);
+		background->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooLongSlider.svg"));
+		background->wrap();
+		background->box.pos = Vec(0, 0);
+		box.size = background->box.size;
+		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooLongSLiderHandle.svg"));
+		handle->wrap();
+	}
+};
+
+
 struct CKSS8 : SVGSwitch, ToggleSwitch {
 	CKSS8() {
 		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/CKSS8_0.svg")));

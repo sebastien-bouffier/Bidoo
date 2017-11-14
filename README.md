@@ -26,7 +26,6 @@ Features:
 - 2 count modes : steps and pulses
 - Scale quantization and root note
 - Sync & reset sequencer
-- All parameters saved
 
 ## OUAIve
 
@@ -34,15 +33,23 @@ OUAIve is a sample player and that's all. You choose the sample via the menu. Yo
 If he is in a good mood, he will remind the sample that you selected.
 Last addition to OUAIve, you can chose in between "TRIG MODE" and "GATE MODE".
 In "TRIG MODE" each impulse on the "GATE/TRIG" input will launch the sample from the "POS" position.
-In "GATE MODE" when the "GATE/TRIG" input receives more than 0V the player reads the sample at "POS" waiting for you to move "POS" in the sample allowing pitch changes and other things. 
+In "GATE MODE" when the "GATE/TRIG" input receives more than 0V the player reads the sample at "POS" waiting for you to move "POS" in the sample allowing pitch changes and other things.
 
 
 ## ChUTE
 
 ChUTE is a space/strange trigger based on the free fall and bouncing of an object.
-You can change the drop altitude between 10cm and 3m, the gravity in between the moon's one and neptune's one. Earth is the default.
+You can change the drop altitude between 10cm and 3m, the gravity in between the Moon's one and Neptune's one. Earth is the default.
 And you can adjust the C.O.R. meaning the coefficient of restitution.
 Outputs provide a gate based on downside movements, the relative tension regarding the altitude ALT and TOP which exposes the tops of the rebounds.
+
+## dUKe
+
+dUKe is a simple 4 x CV controller. Yo can choose between -5V/+5V or 0V/10V and set the MAX and MIN for each slider. If used CV will add signal on top of the slider.
+
+## vOId
+
+vOId is the ultimate mastering tool for Rack. Once plugged in your Rack you gonna sound FAAAAT. Picture is taken from a very good LP of TERA MELOS.
 
 The repository is based on development branch of Rack.
 

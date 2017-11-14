@@ -23,3 +23,11 @@ struct OUAIVEWidget : ModuleWidget {
 struct CHUTEWidget : ModuleWidget {
 	CHUTEWidget();
 };
+
+struct VOIDWidget : ModuleWidget {
+	VOIDWidget();
+};
+
+struct DUKEWidget : ModuleWidget {
+	DUKEWidget();
+};
