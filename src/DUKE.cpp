@@ -63,7 +63,7 @@ DUKEWidget::DUKEWidget() {
 		addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[i]-1, 95), module, DUKE::MIN_PARAM + i, 0.0, 10.0, 0));
 		addParam(createParam<CKSS>(Vec(portX0[i]+6, 139), module, DUKE::TYPE_PARAM + i, 0.0, 1.0, 0.0));
 		addParam(createParam<BidooLongSlider>(Vec(portX0[i]+4, 176), module, DUKE::SLIDER_PARAM + i, 0.0, 10.0, 0));
-		addInput(createInput<PJ301MPort>(Vec(portX0[i]+1, 284), module, DUKE::SLIDER_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(portX0[i]+1, 323), module, DUKE::CV_OUTPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX0[i]+1, 284), module, DUKE::SLIDER_INPUT + i));
+		addOutput(createOutput<PJ301MPort>(Vec(portX0[i]+1, 323), module, DUKE::CV_OUTPUT + i));
 	}
 }
