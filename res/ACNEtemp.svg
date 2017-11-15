@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:osb="http://www.openswatchbook.org/uri/2009/osb"
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   id="svg12553"
+   version="1.1"
+   viewBox="0 0 134.9375 100.54166"
+   height="380"
+   width="510"
+   sodipodi:docname="ACNEtemp.svg"
+   inkscape:version="0.92.2 (5c3e80d, 2017-08-06)">
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="1920"
+     inkscape:window-height="1017"
+     id="namedview118"
+     showgrid="true"
+     inkscape:zoom="1.4142136"
+     inkscape:cx="197.51457"
+     inkscape:cy="285.14384"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg12553"
+     showguides="false">
+    <inkscape:grid
+       type="xygrid"
+       id="grid929" />
+  </sodipodi:namedview>
+  <defs
+     id="defs12547">
+    <linearGradient
+       id="linearGradient4708"
+       osb:paint="solid">
+      <stop
+         style="stop-color:#ececec;stop-opacity:1;"
+         offset="0"
+         id="stop4706" />
+    </linearGradient>
+    <filter
+       style="color-interpolation-filters:sRGB"
+       inkscape:label="Opacity"
+       id="filter4696">
+      <feColorMatrix
+         in="SourceGraphic"
+         values="0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 "
+         result="colormatrix"
+         id="feColorMatrix4692" />
+      <feBlend
+         in2="BackgroundImage"
+         mode="multiply"
+         result="fbSourceGraphic"
+         id="feBlend4694" />
+      <feColorMatrix
+         result="fbSourceGraphicAlpha"
+         in="fbSourceGraphic"
+         values="0 0 0 -1 0 0 0 0 -1 0 0 0 0 -1 0 0 0 0 1 0"
+         id="feColorMatrix4762" />
+      <feColorMatrix
+         id="feColorMatrix4764"
+         values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 5 -1 "
+         result="colormatrix"
+         in="fbSourceGraphic" />
+      <feComposite
+         in2="colormatrix"
+         id="feComposite4766"
+         operator="arithmetic"
+         k2="0.3"
+         result="composite"
+         k1="0"
+         k3="0"
+         k4="0" />
+    </filter>
+  </defs>
+  <metadata
+     id="metadata12550">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     transform="matrix(1.1317985,0,0,1.0012215,-30.14433,-161.56849)"
+     id="layer1">
+    <path
+       style="fill:#e6e6e6;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.32258889"
+       d="M 26.616839,161.37987 H 145.85344 v 100.3961 H 26.616839 Z m 0,0"
+       id="path33453"
+       inkscape:connector-curvature="0" />
+  </g>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333311px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="61.742973"
+     y="98.964874"
+     id="text977"
+     inkscape:transform-center-x="-1.5441791"
+     inkscape:transform-center-y="0.35634903"><tspan
+       sodipodi:role="line"
+       id="tspan975"
+       x="61.742973"
+       y="98.964874"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333311px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">bId°°</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333311px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="61.544533"
+     y="5.6675167"
+     id="text977-5"><tspan
+       sodipodi:role="line"
+       id="tspan975-3"
+       x="61.544533"
+       y="5.6675167"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333311px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">ACnE</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="69.335617"
+     y="97.895828"
+     id="text4860"><tspan
+       sodipodi:role="line"
+       id="tspan4858"
+       x="69.335617"
+       y="100.54166"
+       style="stroke-width:0.26458332px" /></text>
+  <flowRoot
+     xml:space="preserve"
+     id="flowRoot1009"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.66666698px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"><flowRegion
+       id="flowRegion1011"><rect
+         id="rect1013"
+         width="428.17667"
+         height="304.19095"
+         x="181.82332"
+         y="40" /></flowRegion><flowPara
+       id="flowPara1015" /></flowRoot>  <rect
+     style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.61016226;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     id="rect832"
+     width="111.12499"
+     height="8.3755121"
+     x="8.4666662"
+     y="85.064034" />
+  <rect
+     style="opacity:1;fill:#ff2323;fill-opacity:1;fill-rule:evenodd;stroke:#ff2323;stroke-width:0.53631431;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     id="rect834"
+     width="7.3617721"
+     height="56.978771"
+     x="124.45459"
+     y="23.8125" />
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="66.873482"
+     y="15.641865"
+     id="text838"><tspan
+       sodipodi:role="line"
+       id="tspan836"
+       x="66.873482"
+       y="15.641865"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52777767px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">SNAPSHOTS</tspan></text>
+  <path
+     style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.39327911;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     id="path840"
+     sodipodi:type="arc"
+     sodipodi:cx="8.5044146"
+     sodipodi:cy="89.251099"
+     sodipodi:rx="3.9726901"
+     sodipodi:ry="4.1895089"
+     sodipodi:start="0"
+     sodipodi:end="6.2657105"
+     d="M 12.477105,89.251099 A 3.9726901,4.1895089 0 0 1 8.52177,93.440568 3.9726901,4.1895089 0 0 1 4.5318761,89.287704 3.9726901,4.1895089 0 0 1 8.4523496,85.06195 3.9726901,4.1895089 0 0 1 12.476498,89.177891"
+     sodipodi:open="true" />
+  <path
+     style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.39238551;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     id="path840-1"
+     sodipodi:type="arc"
+     sodipodi:cx="119.61774"
+     sodipodi:cy="89.234299"
+     sodipodi:rx="3.9726901"
+     sodipodi:ry="4.1704979"
+     sodipodi:start="0"
+     sodipodi:end="6.2657105"
+     d="m 123.59043,89.234299 a 3.9726901,4.1704979 0 0 1 -3.95534,4.170458 3.9726901,4.1704979 0 0 1 -3.98989,-4.134019 3.9726901,4.1704979 0 0 1 3.92047,-4.206579 3.9726901,4.1704979 0 0 1 4.02415,4.097265"
+     sodipodi:open="true" />
+  <path
+     style="opacity:1;fill:#ff2323;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.39283001;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     id="path840-1-3"
+     sodipodi:type="arc"
+     sodipodi:cx="128.13612"
+     sodipodi:cy="81.091408"
+     sodipodi:rx="3.9788914"
+     sodipodi:ry="4.1734309"
+     sodipodi:start="0"
+     sodipodi:end="6.2657105"
+     d="m 132.11502,81.091408 a 3.9788914,4.1734309 0 0 1 -3.96151,4.173391 3.9788914,4.1734309 0 0 1 -3.99613,-4.136927 3.9788914,4.1734309 0 0 1 3.9266,-4.209537 3.9788914,4.1734309 0 0 1 4.03043,4.100147"
+     sodipodi:open="true" />
+  <rect
+     style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.63230985;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     id="rect853"
+     width="15.217211"
+     height="4.8041344"
+     x="116.94582"
+     y="88.635414" />
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="126.73541"
+     y="92.00885"
+     id="text857"><tspan
+       sodipodi:role="line"
+       id="tspan855"
+       x="126.73541"
+       y="92.00885"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52777767px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px">IN</tspan></text>
+  <path
+     style="opacity:1;fill:#ff2323;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.39139959;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     id="path840-1-3-9"
+     sodipodi:type="arc"
+     sodipodi:cx="128.13499"
+     sodipodi:cy="23.599274"
+     sodipodi:rx="3.9499676"
+     sodipodi:ry="4.1734309"
+     sodipodi:start="0"
+     sodipodi:end="6.2657105"
+     d="m 132.08496,23.599274 a 3.9499676,4.1734309 0 0 1 -3.93271,4.173391 3.9499676,4.1734309 0 0 1 -3.96707,-4.136927 3.9499676,4.1734309 0 0 1 3.89805,-4.209537 3.9499676,4.1734309 0 0 1 4.00113,4.100146"
+     sodipodi:open="true" />
+  <rect
+     style="opacity:1;fill:#ff2323;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.76737809;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     id="rect843"
+     width="4.2918029"
+     height="13.229165"
+     x="127.79375"
+     y="11.90625" />
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="-18.751307"
+     y="130.9314"
+     id="text847"
+     transform="rotate(-90.478013)"><tspan
+       sodipodi:role="line"
+       id="tspan845"
+       x="-18.751307"
+       y="130.9314"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52777767px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px">OUT</tspan></text>
+</svg>

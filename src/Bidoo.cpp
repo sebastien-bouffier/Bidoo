@@ -14,4 +14,5 @@ void init(rack::Plugin *p) {
 	p->addModel(createModel<CHUTEWidget>("Bidoo", "ChUTE", "ChUTE trigger", SEQUENCER_TAG));
 	p->addModel(createModel<DUKEWidget>("Bidoo", "dUKe", "dUKe controller", CONTROLLER_TAG));
 	p->addModel(createModel<VOIDWidget>("Bidoo", "vOId", "vOId machine", BLANK_TAG));
+	p->addModel(createModel<ACNEWidget>("Bidoo", "ACnE", "ACnE mixer", MIXER_TAG));
 }

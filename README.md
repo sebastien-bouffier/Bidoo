@@ -46,7 +46,11 @@ Outputs provide a gate based on downside movements, the relative tension regardi
 ## dUKe
 
 dUKe is a simple but very efficient 4 x CV controller. Yo can choose between -5V/+5V or 0V/10V and set the MAX and MIN for each slider. If used CV will add signal on top of the slider.
-Two nice buttons allow you to jump to both extremities of the 4 sliders at the same time. 
+Two nice buttons allow you to jump to both extremities of the 4 sliders at the same time.
+
+## ACnE
+
+ACnE is a very simple and compact patch bay/mixer. 18 in x 8 out. For a faster patching, reset is still the right click on knobs but with ACnE center click set them to their maximum value. You have 4 snapshots or scenes or I don't know how you will call them, but it is cool to be able to change the mix and the patching between modules at the same time. 
 
 ## vOId
 
