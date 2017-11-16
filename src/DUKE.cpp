@@ -41,7 +41,7 @@ void DUKE::step() {
 }
 
 struct DUKECKD6 : CKD6 {
-	void onChange(EventChange &e) override {
+	void onMouseDown(EventMouseDown &e) override {
 		DUKEWidget *parent = dynamic_cast<DUKEWidget*>(this->parent);
 		DUKE *module = dynamic_cast<DUKE*>(this->module);
 		if (parent && module) {
@@ -57,7 +57,7 @@ struct DUKECKD6 : CKD6 {
 				}
 			}
 		}
-		CKD6::onChange(e);
+		CKD6::onMouseDown(e);
 	}
 };
 

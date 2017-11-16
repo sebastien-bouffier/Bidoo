@@ -1,11 +1,12 @@
 #include "Bidoo.hpp"
 #include "BidooComponents.hpp"
-
+#include "dsp/digital.hpp"
 
 using namespace std;
 
 struct ACNE : Module {
 	enum ParamIds {
+	  COPY_PARAM,
 		SNAPSHOT_PARAMS,
 		FADERS_PARAMS = SNAPSHOT_PARAMS + ACNE_NB_SNAPSHOTS,
 		NUM_PARAMS = FADERS_PARAMS + (ACNE_NB_SNAPSHOTS * ACNE_NB_TRACKS * ACNE_NB_OUTS)
@@ -19,11 +20,14 @@ struct ACNE : Module {
 		NUM_OUTPUTS = TRACKS_OUTPUTS + ACNE_NB_OUTS
 	};
 	enum LightIds {
+		COPY_LIGHT,
 		SNAPSHOT_LIGHTS,
 		NUM_LIGHTS = SNAPSHOT_LIGHTS + ACNE_NB_SNAPSHOTS
 	};
 
 	int currentSnapshot = 0;
+	int copySnapshot = 0;
+	bool copyState = false;
 
 	ACNE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
 
@@ -46,9 +50,11 @@ void ACNE::step() {
 			outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value / nbActiveTracks;
 		}
 	}
+
 	for (int i = 0 ; i < ACNE_NB_SNAPSHOTS ; i++ ) {
-		lights[SNAPSHOT_LIGHTS+i].value = i == currentSnapshot;
+		lights[SNAPSHOT_LIGHTS+i].value = (i == currentSnapshot);
 	}
+	lights[COPY_LIGHT].value = (copyState == true) ? 1 : 0;
 }
 
 struct ACNETrimPot : Trimpot {
@@ -89,17 +95,38 @@ struct ACNETrimPot : Trimpot {
 };
 
 struct ACNECKD6 : CKD6 {
-	void onChange(EventChange &e) override {
+	void onMouseDown(EventMouseDown &e) override {
 		ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
 		ACNE *module = dynamic_cast<ACNE*>(this->module);
 		if (parent && module) {
-			parent->UpdateSnapshot(this->paramId);
+			parent->UpdateSnapshot(this->paramId - ACNE::SNAPSHOT_PARAMS);
 			for (int i = 0 ; i < ACNE_NB_SNAPSHOTS; i++) {
 				module->params[ACNE::SNAPSHOT_PARAMS + i].value = ACNE::SNAPSHOT_PARAMS + i == this->paramId ? 1 : 0;
-				module->currentSnapshot = this->paramId;
+				module->currentSnapshot = this->paramId - ACNE::SNAPSHOT_PARAMS;
 			}
 		}
-		CKD6::onChange(e);
+		CKD6::onMouseDown(e);
+	}
+};
+
+struct ACNECOPYPASTECKD6 : CKD6 {
+	void onMouseDown(EventMouseDown &e) override {
+		ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
+		ACNE *module = dynamic_cast<ACNE*>(this->module);
+		if (parent && module) {
+			if (!module->copyState) {
+				module->copySnapshot = this->paramId;
+				module->copyState = true;
+			} else if ((module->copyState) && (module->copySnapshot != module->currentSnapshot)) {
+				for (int i = 0; i < ACNE_NB_OUTS; i++) {
+					for (int j = 0; j < ACNE_NB_TRACKS; j++) {
+							parent->faders[module->currentSnapshot][i][j]->setValue(parent->faders[module->copySnapshot][i][j]->value);
+					}
+				}
+				module->copyState = false;
+			}
+		}
+		CKD6::onMouseDown(e);
 	}
 };
 
@@ -123,6 +150,9 @@ ACNEWidget::ACNEWidget() {
 	static const float portX0[35] = {20,34,48,62,76,90,104,118,132,146,160,174,188,202,216,230,244,258,272,286,300,314,328,342,356,370,384,398,412,426,440,454,468,482,496};
 	static const float portY0[10] = {80,111,142,173,204,235,266,297,328,359};
 
+	addParam(createParam<ACNECOPYPASTECKD6>(Vec(portX0[1]-5, 42), module, ACNE::COPY_PARAM, 0, 1, 0.0));
+	addChild(createLight<SmallLight<GreenLight>>(Vec(portX0[1]+6, 31), module, ACNE::COPY_LIGHT));
+
 	for (int i = 0 ; i < ACNE_NB_SNAPSHOTS ; i++) {
 		addParam(createParam<ACNECKD6>(Vec(portX0[3*i+21]-5, 42), module, ACNE::SNAPSHOT_PARAMS + i, 0.0, 1.0, 0.0));
 		addChild(createLight<SmallLight<GreenLight>>(Vec(portX0[3*i+21]+6, 31), module, ACNE::SNAPSHOT_LIGHTS + i));
@@ -144,8 +174,8 @@ ACNEWidget::ACNEWidget() {
 			}
 		}
 	}
-
-	UpdateSnapshot(ACNE::SNAPSHOT_PARAMS);
+	module->currentSnapshot = 0;
+	UpdateSnapshot(module->currentSnapshot);
 }
 
 void ACNEWidget::UpdateSnapshot(int snapshot) {
