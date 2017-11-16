@@ -115,7 +115,7 @@ struct ACNECOPYPASTECKD6 : CKD6 {
 		ACNE *module = dynamic_cast<ACNE*>(this->module);
 		if (parent && module) {
 			if (!module->copyState) {
-				module->copySnapshot = this->paramId;
+				module->copySnapshot = module->currentSnapshot;
 				module->copyState = true;
 			} else if ((module->copyState) && (module->copySnapshot != module->currentSnapshot)) {
 				for (int i = 0; i < ACNE_NB_OUTS; i++) {
