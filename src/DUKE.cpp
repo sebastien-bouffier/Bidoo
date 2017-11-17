@@ -7,7 +7,7 @@ using namespace std;
 struct DUKE : Module {
 	enum ParamIds {
 		SLIDER_PARAM,
-		ADONF_PARAM,
+		ADONF_PARAM = SLIDER_PARAM + 4,
 		NADA_PARAM,
 		MIN_PARAM = NADA_PARAM + 4,
 		MAX_PARAM = MIN_PARAM + 4,

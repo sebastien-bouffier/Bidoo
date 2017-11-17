@@ -39,16 +39,12 @@ void ACNE::step() {
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
 		outputs[TRACKS_OUTPUTS + i].value = 0;
-		int nbActiveTracks = 0 ;
 		for (int j = 0; j < ACNE_NB_TRACKS; j ++) {
 			if (inputs[TRACKS_INPUTS + j].active) {
-				outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value + params[currentSnapshot * (ACNE_NB_TRACKS * ACNE_NB_OUTS) + FADERS_PARAMS + j + i * ACNE_NB_TRACKS].value * inputs[TRACKS_INPUTS + j].value / 10;
-				nbActiveTracks++;
+				outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value + (params[currentSnapshot * (ACNE_NB_TRACKS * ACNE_NB_OUTS) + FADERS_PARAMS + j + i * ACNE_NB_TRACKS].value / 10) * inputs[TRACKS_INPUTS + j].value / 32768.0f;
 			}
 		}
-		if (nbActiveTracks>0) {
-			outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value / nbActiveTracks;
-		}
+		outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value * 32768.0f;
 	}
 
 	for (int i = 0 ; i < ACNE_NB_SNAPSHOTS ; i++ ) {
