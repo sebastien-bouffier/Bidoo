@@ -3,8 +3,32 @@
 #include <vector>
 #include <jansson.h>
 #include "widgets.hpp"
+#include <iostream>
+
+using namespace std;
+//#include "../../../ext/nanosvg/src/nanosvg.h"
 
 namespace rack {
+
+struct BidooColoredKnob : RoundKnob {
+	BidooColoredKnob() {
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlackKnobBidoo.svg")));
+		box.size = Vec(28, 28);
+	}
+
+	void draw(NVGcontext *vg) override {
+		for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
+			std::string str(shape->id);
+			if (str == "bidooKnob") {
+				shape->fill.color = (((unsigned int)value*25) | ((unsigned int)0 << 8) | ((unsigned int)value*10 << 16));
+				shape->fill.color |= (unsigned int)(255) << 24;
+			}
+		}
+		RoundKnob::draw(vg);
+	};
+};
+
+//path38955
 
 struct BidooSlidePotLong : SVGSlider {
 	BidooSlidePotLong() {
@@ -42,7 +66,7 @@ struct BidooLongSlider : SVGSlider {
 		background->wrap();
 		background->box.pos = Vec(0, 0);
 		box.size = background->box.size;
-		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooLongSLiderHandle.svg"));
+		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooLongSliderHandle.svg"));
 		handle->wrap();
 	}
 };

@@ -5,11 +5,35 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    width="18"
    height="12"
    viewBox="0 0 4.7624999 3.175"
    version="1.1"
-   id="svg3728">
+   id="svg3728"
+   sodipodi:docname="bidooLongSLiderHandle.svg"
+   inkscape:version="0.92.2 (5c3e80d, 2017-08-06)">
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="1920"
+     inkscape:window-height="1017"
+     id="namedview7"
+     showgrid="false"
+     inkscape:zoom="15.777778"
+     inkscape:cx="9"
+     inkscape:cy="6"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg3728" />
   <defs
      id="defs3722" />
   <metadata
@@ -25,7 +49,7 @@
     </rdf:RDF>
   </metadata>
   <path
-     style="fill:#f60404;fill-opacity:1;stroke:#f60404;stroke-width:0.12773016;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.12773016;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
      d="M 0.06549303,0.06729695 H 4.699018 V 3.1095076 H 0.06549303 Z"
      id="rect973" />
   <path

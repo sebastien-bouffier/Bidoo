@@ -39,7 +39,7 @@ In "GATE MODE" when the "GATE/TRIG" input receives more than 0V the player reads
 ## ChUTE
 
 ChUTE is a space/strange trigger based on the free fall and bouncing of an object.
-You can change the drop altitude between 10cm and 3m, the gravity in between the Moon's one and Neptune's one. Earth is the default.
+You can change the drop altitude between 1cm and 3m, the gravity in between the Moon's one and Neptune's one. Earth is the default.
 And you can adjust the C.O.R. meaning the coefficient of restitution.
 Outputs provide a gate based on downside movements, the relative tension regarding the altitude ALT and TOP which exposes the tops of the rebounds.
 
@@ -50,7 +50,14 @@ Two nice buttons allow you to jump to both extremities of the 4 sliders at the s
 
 ## ACnE
 
-ACnE is a very simple and compact patch bay/mixer. 16 in x 8 out. For a faster patching, reset is still the right click on knobs but with ACnE center click set them to their maximum value. You have 4 snapshots or scenes or I don't know how you will call them, but it is nice to be able to change the mix and the patching between modules at the same time. A copy/paste function allows you to quickly initialize your snapshots.
+ACnE is a very simple and compact patch bay/mixer. 16 in x 8 out.
+For a faster patching, reset is still the right click on knobs but with ACnE center click set them to their maximum value.
+You have 4 snapshots or scenes or I don't know how you will call them, but it is nice to be able to change the mix and the patching between modules at the same time.
+A copy/paste function allows you to quickly initialize your snapshots.
+
+## MOiRE
+
+Just 16 scenes of 16 CV controllers and a fader to morph between them.
 
 ## vOId
 

@@ -115,12 +115,12 @@ struct CHUTEDisplay : TransparentWidget {
 		nvgFontSize(vg, 18);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2);
-		nvgFillColor(vg, nvgRGBA(0xdd, 0x5a, 0xd, 0xc0));
+		nvgFillColor(vg, nvgRGBA(0x00, 0x00, 0x00, 0xff));
 
 		float altRatio = clampf(module->altitude / module->altitudeInit, 0 , 1);
 		int pos = roundl(box.size.y + altRatio * (9 - box.size.y));
 
-		nvgText(vg, 5, pos, "☻", NULL);
+		nvgText(vg, 6, pos, "☻", NULL);
 	}
 };
 
@@ -152,7 +152,7 @@ CHUTEWidget::CHUTEWidget() {
 	static const float portX[2] = {20, 60};
 	static const float portY[3] = {52, 116, 178};
  	addInput(createInput<PJ301MPort>(Vec(portX[0], portY[0]), module, CHUTE::ALTITUDE_INPUT));
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX[1], portY[0]-2), module, CHUTE::ALTITUDE_PARAM, 0.1, 3, 1));
+	addParam(createParam<RoundSmallBlackKnob>(Vec(portX[1], portY[0]-2), module, CHUTE::ALTITUDE_PARAM, 0.01, 3, 1));
 	addInput(createInput<PJ301MPort>(Vec(portX[0], portY[1]), module, CHUTE::GRAVITY_INPUT));
 	addParam(createParam<RoundSmallBlackKnob>(Vec(portX[1], portY[1]-2), module, CHUTE::GRAVITY_PARAM, 1.622, 11.15, 9.798)); // between the Moon and Neptune
 	addInput(createInput<PJ301MPort>(Vec(portX[0], portY[2]), module, CHUTE::COR_INPUT));

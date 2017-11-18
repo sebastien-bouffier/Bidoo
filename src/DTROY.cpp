@@ -314,7 +314,9 @@ struct DTROY : Module {
 	//Pattern p[16];
 	Pattern p;
 
-	DTROY() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
+	DTROY() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
+		UpdatePattern();
+	}
 
 	void UpdatePattern() {
 		std::vector<Param> pulses(&params[TRIG_COUNT_PARAM],&params[TRIG_COUNT_PARAM + 8]);
@@ -337,6 +339,17 @@ struct DTROY : Module {
 
 		// Pattern Number
 		json_object_set_new(rootJ, "patternNumber", json_integer(patternNumber));
+
+		json_t *trigsJ = json_array();
+		for (int i = 0; i < 8; i++) {
+			json_t *trigJ = json_array();
+			json_t *trigJSlide = json_boolean(slideState[i] == 't');
+			json_array_append_new(trigJ, trigJSlide);
+			json_t *trigJSkip = json_boolean(skipState[i] == 't');
+			json_array_append_new(trigJ, trigJSkip);
+			json_array_append_new(trigsJ, trigJ);
+		}
+		json_object_set_new(rootJ, "trigs", trigsJ);
 
 		// Patterns
 		// json_t *patternsJ = json_array();
@@ -381,6 +394,19 @@ struct DTROY : Module {
 		if (patternNumberJ)
 			playMode = json_integer_value(patternNumberJ);
 
+
+		json_t *trigsJ = json_object_get(rootJ, "trigs");
+		if (trigsJ) {
+			for (int i = 0; i < 8; i++) {
+				json_t *trigJ = json_array_get(trigsJ, i);
+				if (trigJ)
+				{
+					slideState[i] = json_is_true(json_array_get(trigJ, 0)) ? 't' : 'f';
+					skipState[i] = json_is_true(json_array_get(trigJ, 1)) ? 't' : 'f';
+				}
+
+			}
+		}
 		// json_t *patternsJ = json_object_get(rootJ, "patterns");
 		// if (patternsJ) {
 		// 	for (int i = 0; i < 16; i++) {

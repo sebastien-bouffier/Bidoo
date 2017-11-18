@@ -41,3 +41,9 @@ struct ACNEWidget : ModuleWidget {
 	void UpdateSnapshot(int snapshot);
 	ACNEWidget();
 };
+
+struct MOIREWidget : ModuleWidget {
+	ParamWidget *controls[16];
+	ParamWidget *slider;
+	MOIREWidget();
+};
