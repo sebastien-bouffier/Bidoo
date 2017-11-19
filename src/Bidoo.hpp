@@ -4,7 +4,7 @@ using namespace rack;
 
 const int ACNE_NB_TRACKS = 16;
 const int ACNE_NB_OUTS = 8;
-const int ACNE_NB_SNAPSHOTS = 4;
+const int ACNE_NB_SNAPSHOTS = 16;
 
 extern Plugin *plugin;
 
@@ -39,6 +39,7 @@ struct DUKEWidget : ModuleWidget {
 struct ACNEWidget : ModuleWidget {
 	ParamWidget *faders[ACNE_NB_OUTS][ACNE_NB_TRACKS];
 	void UpdateSnapshot(int snapshot);
+	void step() override;
 	ACNEWidget();
 };
 

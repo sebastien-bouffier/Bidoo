@@ -52,8 +52,8 @@ Two nice buttons allow you to jump to both extremities of the 4 sliders at the s
 
 ACnE is a very simple and compact patch bay/mixer. 16 in x 8 out.
 For a faster patching, reset is still the right click on knobs but with ACnE center click set them to their maximum value.
-You have 4 snapshots or scenes or I don't know how you will call them, but it is nice to be able to change the mix and the patching between modules at the same time.
-A copy/paste function allows you to quickly initialize your snapshots.
+You have 16 scenes you can choose from and a copy/paste function that allows you to quickly initialize them.
+Mute on all outs and Mute and Solo on all inputs. Main outs have a dedicated volume control.
 
 ## MOiRE
 

@@ -41,8 +41,13 @@ struct BidooColoredTrimpot : RoundKnob {
 		for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
 			std::string str(shape->id);
 			if (str == "bidooTrimPot") {
-				shape->fill.color = (((unsigned int)value*25) | ((unsigned int)0 << 8) | ((unsigned int)value*10 << 16));
-				shape->fill.color |= (unsigned int)(255) << 24;
+				if (value == 0) {
+					shape->fill.color = (((unsigned int)128) | ((unsigned int)128 << 8) | ((unsigned int)128 << 16));
+					shape->fill.color |= (unsigned int)(120) << 24;
+				} else {
+					shape->fill.color = (((unsigned int)255) | (((unsigned int)(205 - (value *15)))<< 8) | ((unsigned int)10 << 16));
+					shape->fill.color |= ((unsigned int)255) << 24;
+				}
 			}
 		}
 		RoundKnob::draw(vg);
@@ -118,5 +123,12 @@ struct CKSS4 : SVGSwitch, ToggleSwitch {
 	}
 };
 
+struct TinyPJ301MPort : SVGPort {
+	TinyPJ301MPort() {
+		background->svg = SVG::load(assetPlugin(plugin, "res/TinyPJ301M.svg"));
+		background->wrap();
+		box.size = background->box.size;
+	}
+};
 
 } // namespace rack

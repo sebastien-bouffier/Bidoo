@@ -351,35 +351,6 @@ struct DTROY : Module {
 		}
 		json_object_set_new(rootJ, "trigs", trigsJ);
 
-		// Patterns
-		// json_t *patternsJ = json_array();
-		// for (int i = 0; i < 16; i++) {
-		// 	json_t *patternJ =  json_object();
-		// 	json_array_append_new(patternsJ, patternJ);
-		// 	json_object_set_new(patternJ, "playMode", json_integer(p[i].playMode));
-		// 	json_object_set_new(patternJ, "countMode", json_integer(p[i].countMode));
-		// 	json_object_set_new(patternJ, "numberOfSteps", json_integer(p[i].numberOfSteps));
-		// 	json_object_set_new(patternJ, "rootNote", json_integer(p[i].rootNote));
-		// 	json_object_set_new(patternJ, "scale", json_integer(p[i].scale));
-		// 	json_object_set_new(patternJ, "gateTime", json_real(p[i].gateTime));
-		// 	json_object_set_new(patternJ, "slide", json_real(p[i].slide));
-    //
-		// 	json_t *stepsJ = json_array();
-		// 	for (int j = 0; j < 16; j++) {
-		// 		json_t *stepJ =  json_object();
-		// 		json_array_append_new(stepsJ, stepJ);
-		// 		json_object_set_new(stepJ, "index", json_integer(p[i].steps[j].index));
-		// 		json_object_set_new(stepJ, "number", json_integer(p[i].steps[j].number));
-		// 		json_object_set_new(stepJ, "skip", json_boolean(p[i].steps[j].skip));
-		// 		json_object_set_new(stepJ, "slide", json_boolean(p[i].steps[j].slide));
-		// 		json_object_set_new(stepJ, "pulses", json_integer(p[i].steps[j].pulses));
-		// 		json_object_set_new(stepJ, "pitch", json_real(p[i].steps[j].pitch));
-		// 		json_object_set_new(stepJ, "type", json_integer(p[i].steps[j].type));
-		// 	}
-		// 	json_object_set_new(patternsJ, "steps", stepsJ);
-		// }
-		// json_object_set_new(rootJ, "patterns", patternsJ);
-
 		return rootJ;
 	}
 
@@ -407,65 +378,6 @@ struct DTROY : Module {
 
 			}
 		}
-		// json_t *patternsJ = json_object_get(rootJ, "patterns");
-		// if (patternsJ) {
-		// 	for (int i = 0; i < 16; i++) {
-		// 		json_t *patternJ = json_array_get(patternsJ, i);
-		// 		if (patternJ) {
-		// 			json_t *playModeJ = json_object_get(patternJ, "playMode");
-		// 			if (playModeJ)
-		// 				p[i].playMode = json_integer_value(playModeJ);
-		// 			json_t *countModeJ = json_object_get(patternJ, "countMode");
-		// 			if (countModeJ)
-		// 				p[i].countMode = json_integer_value(countModeJ);
-		// 			json_t *numberOfStepsJ = json_object_get(patternJ, "numberOfSteps");
-		// 			if (numberOfStepsJ)
-		// 				p[i].numberOfSteps = json_integer_value(numberOfStepsJ);
-		// 			json_t *rootNoteJ = json_object_get(patternJ, "rootNote");
-		// 			if (rootNoteJ)
-		// 				p[i].rootNote = json_integer_value(rootNoteJ);
-		// 			json_t *scaleJ = json_object_get(patternJ, "scale");
-		// 			if (scaleJ)
-		// 				p[i].scale = json_integer_value(scaleJ);
-		// 			json_t *gateTimeJ = json_object_get(patternJ, "gateTime");
-		// 			if (gateTimeJ)
-		// 				p[i].gateTime = json_real_value(gateTimeJ);
-		// 			json_t *slideJ = json_object_get(patternJ, "slide");
-		// 			if (slideJ)
-		// 				p[i].slide = json_real_value(slideJ);
-    //
-		// 			json_t *stepsJ = json_object_get(rootJ, "steps");
-		// 			if (stepsJ) {
-		// 				for (int j = 0; j < 16; j++) {
-		// 					json_t *stepJ = json_array_get(stepsJ, j);
-		// 					if (stepJ) {
-		// 						json_t *indexJ = json_object_get(stepJ, "index");
-		// 						if (indexJ)
-		// 							p[i].steps[j].index = json_integer_value(indexJ);
-		// 						json_t *numberJ = json_object_get(stepJ, "number");
-		// 						if (numberJ)
-		// 							p[i].steps[j].number = json_integer_value(numberJ);
-		// 						json_t *skipJ = json_object_get(stepJ, "skip");
-		// 						if (skipJ)
-		// 							p[i].steps[j].skip = json_is_true(indexJ);
-		// 						json_t *slideJ = json_object_get(stepJ, "slide");
-		// 						if (slideJ)
-		// 							p[i].steps[j].slide = json_is_true(slideJ);
-		// 						json_t *pulsesJ = json_object_get(stepJ, "pulses");
-		// 						if (pulsesJ)
-		// 							p[i].steps[j].pulses = json_integer_value(pulsesJ);
-		// 						json_t *pitchJ = json_object_get(stepJ, "pitch");
-		// 						if (pitchJ)
-		// 							p[i].steps[j].pitch = json_real_value(pitchJ);
-		// 						json_t *typeJ = json_object_get(stepJ, "type");
-		// 						if (pulsesJ)
-		// 							p[i].steps[j].type = json_integer_value(typeJ);
-		// 					}
-		// 				}
-		// 			}
-		// 		}
-		// 	}
-		// }
 	}
 
 	void randomize() override {
@@ -628,11 +540,6 @@ void DTROY::step() {
 	}
 
 	// Pattern
-	// int previousPattern = patternNumber;
-	// patternNumber = params[PATTERN_PARAM].value + inputs[PATTERN_INPUT].value;
-	// if (previousPattern != patternNumber) {
-	// 	updateWidget = true;
-	// }
 	UpdatePattern();
 
 	// Steps && Pulses Management
@@ -722,9 +629,6 @@ struct DTROYDisplay : TransparentWidget {
 		nvgText(vg, pos.x + 40, pos.y + 7, steps.c_str(), NULL);
 		nvgText(vg, pos.x + 8, pos.y + 23, note.c_str(), NULL);
 		nvgText(vg, pos.x + 30, pos.y + 23, scale.c_str(), NULL);
-		/* nvgFillColor(vg, nvgRGBA(0x00, 0x00, 0x00, 0xff));
-		nvgTextLetterSpacing(vg, 0);
-		nvgText(vg,180, 105, pattern.c_str(), NULL); */
 	}
 
 	string displayRootNote(int value) {
@@ -789,7 +693,6 @@ struct DTROYDisplay : TransparentWidget {
 			playMode = displayPlayMode(module->playMode);
 			scale = displayScale(module->curScaleVal);
 			pattern = "P" + to_string(module->patternNumber + 1);
-			//pattern = module->getPattern();
 		}
 		drawMessage(vg, Vec(0, 20), note, playMode, pattern, steps, scale);
 	}
@@ -848,8 +751,6 @@ DTROYWidget::DTROYWidget() {
 
 	addParam(createParam<CKD6>(Vec(portX0[0]-1, 230), module, DTROY::PLAY_MODE_PARAM, 0.0, 4.0, 0));
 	addParam(createParam<CKD6>(Vec(portX0[1]-1, 230), module, DTROY::COUNT_MODE_PARAM, 0.0, 4.0, 0));
-	// addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[2]-1, 230-1), module, DTROY::PATTERN_PARAM, 0.0, 15.0, 0.0));
-	// addInput(createInput<PJ301MPort>(Vec(portX0[3], 230), module, DTROY::PATTERN_INPUT));
 
 	static const float portX1[8] = {200, 238, 276, 315, 353, 392, 430, 469};
 
@@ -868,14 +769,3 @@ DTROYWidget::DTROYWidget() {
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-1, 331), module, DTROY::GATE_OUTPUT));
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[3]-1, 331), module, DTROY::PITCH_OUTPUT));
 }
-
-// void DTROYWidget::step() {
-// 	DTROY *module = dynamic_cast<DTROY*>(this->module);
-//
-// 	// if (module->updateWidget) {
-// 	// 	scaleParam->value = module->p[module->patternNumber].scale;
-// 	// 	module->updateWidget = false;
-// 	// }
-//
-// 	ModuleWidget::step();
-// }
