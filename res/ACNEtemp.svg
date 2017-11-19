@@ -29,8 +29,8 @@
      id="namedview118"
      showgrid="true"
      inkscape:zoom="1.4142136"
-     inkscape:cx="149.18161"
-     inkscape:cy="339.17842"
+     inkscape:cx="72.978744"
+     inkscape:cy="73.014684"
      inkscape:window-x="-8"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
@@ -151,67 +151,45 @@
          height="304.19095"
          x="181.82332"
          y="40" /></flowRegion><flowPara
-       id="flowPara1015" /></flowRoot>  <rect
+       id="flowPara1015" /></flowRoot>  <path
+     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.25678149px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     d="M 10.847712,79.961956 C 6.6145831,79.915093 6.6145831,79.915093 6.6145831,79.915093"
+     id="path862"
+     inkscape:connector-curvature="0" />
+  <path
+     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26497149px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     d="m 5.0022836,78.052081 -0.00829,-2.116382"
+     id="path864"
+     inkscape:connector-curvature="0" />
+  <rect
      style="opacity:1;fill:#e90000;fill-opacity:1;fill-rule:evenodd;stroke:#e90000;stroke-width:0.84190416;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
      id="rect860"
      width="3.175"
      height="3.9687498"
-     x="3.198386"
+     x="3.4298966"
      y="78.052078" />
-  <text
-     xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;"
-     x="3.7215931"
-     y="81.553909"
-     id="text860"><tspan
-       sodipodi:role="line"
-       id="tspan858"
-       x="3.7215931"
-       y="81.553909"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93888855px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px;fill:#ffffff;fill-opacity:1;">M</tspan></text>
   <path
-     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.23145843px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     d="M 10.583129,79.961956 C 7.1437498,79.915093 7.1437498,79.915093 7.1437498,79.915093"
-     id="path862"
-     inkscape:connector-curvature="0" />
-  <path
-     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.22029582px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     d="m 4.7707606,77.402784 -0.00826,-1.467371"
-     id="path864"
+     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.25653997px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     d="M 10.847916,85.650457 C 6.6145831,85.603684 6.6145831,85.603684 6.6145831,85.603684"
+     id="path862-7"
      inkscape:connector-curvature="0" />
   <rect
      style="opacity:1;fill:#328d2a;fill-opacity:1;fill-rule:evenodd;stroke:#328d2a;stroke-width:0.84190416;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
      id="rect860-4"
      width="3.175"
      height="3.9687498"
-     x="3.175"
+     x="3.4065106"
      y="83.612755" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;"
-     x="3.7215931"
-     y="87.110161"
-     id="text860-5"><tspan
-       sodipodi:role="line"
-       id="tspan858-9"
-       x="3.7215931"
-       y="87.110161"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93888855px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px;fill:#ffffff;fill-opacity:1;">S</tspan></text>
-  <path
-     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.231242px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     d="M 10.583333,85.650457 C 7.1437498,85.603684 7.1437498,85.603684 7.1437498,85.603684"
-     id="path862-7"
-     inkscape:connector-curvature="0" />
-  <text
-     xml:space="preserve"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     x="12.188256"
-     y="7.9996867"
+     x="22.771591"
+     y="7.9335408"
      id="text860-6"><tspan
        sodipodi:role="line"
        id="tspan858-3"
-       x="12.188256"
-       y="7.9996867"
+       x="22.771591"
+       y="7.9335408"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52777767px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">COPY/PASTE</tspan></text>
   <text
      xml:space="preserve"
@@ -225,15 +203,16 @@
        y="11.174685"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52777767px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">SNAPSHOTS</tspan></text>
   <path
-     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     d="M 51.593747,10.054166 H 13.493749 v 2.645833"
+     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.28832301px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     d="M 58.737498,10.054166 H 13.493749 v 2.645833"
      id="path935"
      inkscape:connector-curvature="0" />
   <path
-     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     d="M 11.906249,7.9374996 8.4666662,11.377083"
+     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.35602447px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     d="m 8.4666662,11.377083 4.7624998,-4.4979166 9.260417,0"
      id="path937"
-     inkscape:connector-curvature="0" />
+     inkscape:connector-curvature="0"
+     sodipodi:nodetypes="ccc" />
   <path
      style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.27889535px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
      d="M 74.08333,10.054166 H 120.65 V 12.7"
@@ -242,19 +221,20 @@
   <text
      xml:space="preserve"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     x="112.26698"
-     y="7.9996877"
+     x="101.1545"
+     y="7.9335418"
      id="text860-6-2"><tspan
        sodipodi:role="line"
        id="tspan858-3-2"
-       x="112.26698"
-       y="7.9996877"
+       x="101.1545"
+       y="7.9335418"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52777767px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">VOLUME</tspan></text>
   <path
-     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.27542919px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     d="m 121.69777,7.9269431 3.56892,3.5922999"
+     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.36608723px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     d="M 125.26669,11.285382 120.38541,6.8791664 H 111.125"
      id="path937-7"
-     inkscape:connector-curvature="0" />
+     inkscape:connector-curvature="0"
+     sodipodi:nodetypes="ccc" />
   <path
      style="fill:none;fill-rule:evenodd;stroke:#a60000;stroke-width:0.52440415;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
      d="M 129.56553,20.108333 V 18.256249"
@@ -268,8 +248,8 @@
      x="126.45391"
      y="34.131248" />
   <path
-     style="fill:#a60000;fill-opacity:1;fill-rule:evenodd;stroke:#a60000;stroke-width:0.27971673;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="M 126.61089,32.509225 V 20.108033 h 5.83053 v 12.683036 0.281847 h -5.83053 z"
+     style="fill:#a60000;fill-opacity:1;fill-rule:evenodd;stroke:#a60000;stroke-width:0.67837203;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     d="M 126.79935,32.41584 V 20.002425 h 5.42387 v 12.695536 0.282125 h -5.42387 z"
      id="path978"
      inkscape:connector-curvature="0" />
   <rect
@@ -302,4 +282,26 @@
        x="127.0332"
        y="93.245674"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93888855px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px">IN</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="3.9531038"
+     y="81.553909"
+     id="text860"><tspan
+       sodipodi:role="line"
+       id="tspan858"
+       x="3.9531038"
+       y="81.553909"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93888855px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px">M</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="3.9531038"
+     y="87.110161"
+     id="text860-5"><tspan
+       sodipodi:role="line"
+       id="tspan858-9"
+       x="3.9531038"
+       y="87.110161"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93888855px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px">S</tspan></text>
 </svg>

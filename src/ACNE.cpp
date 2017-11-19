@@ -251,7 +251,7 @@ ACNEWidget::ACNEWidget() {
 	addParam(createParam<ACNECOPYPASTECKD6>(Vec(7, 39), module, ACNE::COPY_PARAM, 0, 1, 0.0));
 	addChild(createLight<SmallLight<GreenLight>>(Vec(18, 28), module, ACNE::COPY_LIGHT));
 
-	addInput(createInput<TinyPJ301MPort>(Vec(200, 30), module, ACNE::SNAPSHOT_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(58, 30), module, ACNE::SNAPSHOT_INPUT));
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
 		addOutput(createOutput<TinyPJ301MPort>(Vec(482, 79+i*27), module, ACNE::TRACKS_OUTPUTS + i));
