@@ -37,7 +37,7 @@ struct DUKEWidget : ModuleWidget {
 };
 
 struct ACNEWidget : ModuleWidget {
-	ParamWidget *faders[ACNE_NB_SNAPSHOTS][ACNE_NB_OUTS][ACNE_NB_TRACKS];
+	ParamWidget *faders[ACNE_NB_OUTS][ACNE_NB_TRACKS];
 	void UpdateSnapshot(int snapshot);
 	ACNEWidget();
 };

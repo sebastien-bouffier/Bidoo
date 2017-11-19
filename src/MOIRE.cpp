@@ -28,7 +28,7 @@ struct MOIRE : Module {
 		NUM_LIGHTS
 	};
 
-	float scenes[16][16] = {0};
+	float scenes[16][16] = {{0}};
 	int currentScene = 0;
 	int  targetScene = 0;
 	float currentValues[16] = {0};

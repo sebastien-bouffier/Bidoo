@@ -28,7 +28,27 @@ struct BidooColoredKnob : RoundKnob {
 	};
 };
 
-//path38955
+
+struct BidooColoredTrimpot : RoundKnob {
+	BidooColoredTrimpot() {
+		box.size = Vec(17, 17);
+		minAngle = -0.75*M_PI;
+		maxAngle = 0.75*M_PI;
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/TrimpotBidoo.svg")));
+	}
+
+	void draw(NVGcontext *vg) override {
+		for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
+			std::string str(shape->id);
+			if (str == "bidooTrimPot") {
+				shape->fill.color = (((unsigned int)value*25) | ((unsigned int)0 << 8) | ((unsigned int)value*10 << 16));
+				shape->fill.color |= (unsigned int)(255) << 24;
+			}
+		}
+		RoundKnob::draw(vg);
+	};
+};
+
 
 struct BidooSlidePotLong : SVGSlider {
 	BidooSlidePotLong() {

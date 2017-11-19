@@ -9,7 +9,7 @@ struct ACNE : Module {
 	  COPY_PARAM,
 		SNAPSHOT_PARAMS,
 		FADERS_PARAMS = SNAPSHOT_PARAMS + ACNE_NB_SNAPSHOTS,
-		NUM_PARAMS = FADERS_PARAMS + (ACNE_NB_SNAPSHOTS * ACNE_NB_TRACKS * ACNE_NB_OUTS)
+		NUM_PARAMS = FADERS_PARAMS + (ACNE_NB_TRACKS * ACNE_NB_OUTS)
 	};
 	enum InputIds {
 		TRACKS_INPUTS,
@@ -28,12 +28,56 @@ struct ACNE : Module {
 	int currentSnapshot = 0;
 	int copySnapshot = 0;
 	bool copyState = false;
+	float snapshots[ACNE_NB_SNAPSHOTS][ACNE_NB_OUTS][ACNE_NB_TRACKS] = {{{0}}};
 
 	ACNE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
 
 	void step() override;
-};
 
+	json_t *toJson() override {
+		json_t *rootJ = json_object();
+		// scenes
+		json_t *snapShotsJ = json_array();
+		for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
+			json_t *snapshotJ = json_array();
+			for (int j = 0; j < ACNE_NB_OUTS; j++) {
+				json_t *outJ = json_array();
+				for (int k = 0 ; k < ACNE_NB_TRACKS; k ++) {
+					json_t *controlJ = json_real(snapshots[i][j][k]);
+					json_array_append_new(outJ, controlJ);
+				}
+				json_array_append_new(snapshotJ, outJ);
+			}
+			json_array_append_new(snapShotsJ, snapshotJ);
+		}
+		json_object_set_new(rootJ, "snapshots", snapShotsJ);
+
+		return rootJ;
+	}
+
+	void fromJson(json_t *rootJ) override {
+		// scenes
+		json_t *snapShotsJ = json_object_get(rootJ, "snapshots");
+		if (snapShotsJ) {
+			for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
+				json_t *snapshotJ = json_array_get(snapShotsJ, i);
+				if (snapshotJ) {
+					for (int j = 0; j < ACNE_NB_OUTS; j++) {
+						json_t *outJ = json_array_get(snapshotJ, j);
+						if (outJ) {
+							for (int k = 0; k < ACNE_NB_TRACKS; k++) {
+								json_t *inJ = json_array_get(outJ, k);
+								if (inJ) {
+									snapshots[i][j][k] = json_real_value(inJ);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+};
 
 void ACNE::step() {
 
@@ -41,7 +85,7 @@ void ACNE::step() {
 		outputs[TRACKS_OUTPUTS + i].value = 0;
 		for (int j = 0; j < ACNE_NB_TRACKS; j ++) {
 			if (inputs[TRACKS_INPUTS + j].active) {
-				outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value + (params[currentSnapshot * (ACNE_NB_TRACKS * ACNE_NB_OUTS) + FADERS_PARAMS + j + i * ACNE_NB_TRACKS].value / 10) * inputs[TRACKS_INPUTS + j].value / 32768.0f;
+				outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value + (snapshots[currentSnapshot][i][j] / 10) * inputs[TRACKS_INPUTS + j].value / 32768.0f;
 			}
 		}
 		outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value * 32768.0f;
@@ -53,38 +97,25 @@ void ACNE::step() {
 	lights[COPY_LIGHT].value = (copyState == true) ? 1 : 0;
 }
 
-struct ACNETrimPot : Trimpot {
-	ACNETrimPot() {
-		box.size = Vec(17, 17);
-		minAngle = -0.75*M_PI;
-		maxAngle = 0.75*M_PI;
-		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/ACNETrimpot.svg")));
-	}
+struct ACNETrimPot : BidooColoredTrimpot {
 	void onChange(EventChange &e) override {
-		ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
-		ACNE *module = dynamic_cast<ACNE*>(this->module);
-		if (parent && module) {
-			if ((this->value > 0) && (this->value < 5))  {
-				setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/ACNETrimpot05.svg")));
-			} else if ((this->value >= 5) && (this->value <10))  {
-				setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/ACNETrimpot510.svg")));
-			} else if (this->value == 10)  {
-				setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/ACNETrimpotON.svg")));
-			} else {
-				setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/ACNETrimpot.svg")));
+			ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
+			ACNE *module = dynamic_cast<ACNE*>(this->module);
+			if (parent && module) {
+				module->snapshots[module->currentSnapshot][(int)((this->paramId - ACNE::FADERS_PARAMS)/ACNE_NB_TRACKS)][(this->paramId - ACNE::FADERS_PARAMS)%ACNE_NB_TRACKS] = value;
 			}
-		}
-		Trimpot::onChange(e);
+			BidooColoredTrimpot::onChange(e);
 	}
 
 	virtual void onMouseDown(EventMouseDown &e) override {
-		Trimpot::onMouseDown(e);
+		BidooColoredTrimpot::onMouseDown(e);
 		ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
 		ACNE *module = dynamic_cast<ACNE*>(this->module);
 		if (parent && module) {
 			if (e.button == 2) {
 				this->setValue(10);
-				module->params[this->paramId].value = 10;
+				module->snapshots[module->currentSnapshot][(int)((this->paramId - ACNE::FADERS_PARAMS)/ACNE_NB_TRACKS)][(this->paramId - ACNE::FADERS_PARAMS)%ACNE_NB_TRACKS] = 10;
+				// module->params[this->paramId].value = 10;
 			}
 		}
 	}
@@ -95,10 +126,10 @@ struct ACNECKD6 : CKD6 {
 		ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
 		ACNE *module = dynamic_cast<ACNE*>(this->module);
 		if (parent && module) {
-			parent->UpdateSnapshot(this->paramId - ACNE::SNAPSHOT_PARAMS);
+			module->currentSnapshot = this->paramId - ACNE::SNAPSHOT_PARAMS;
+			parent->UpdateSnapshot(module->currentSnapshot);
 			for (int i = 0 ; i < ACNE_NB_SNAPSHOTS; i++) {
 				module->params[ACNE::SNAPSHOT_PARAMS + i].value = ACNE::SNAPSHOT_PARAMS + i == this->paramId ? 1 : 0;
-				module->currentSnapshot = this->paramId - ACNE::SNAPSHOT_PARAMS;
 			}
 		}
 		CKD6::onMouseDown(e);
@@ -116,9 +147,10 @@ struct ACNECOPYPASTECKD6 : CKD6 {
 			} else if ((module->copyState) && (module->copySnapshot != module->currentSnapshot)) {
 				for (int i = 0; i < ACNE_NB_OUTS; i++) {
 					for (int j = 0; j < ACNE_NB_TRACKS; j++) {
-							parent->faders[module->currentSnapshot][i][j]->setValue(parent->faders[module->copySnapshot][i][j]->value);
+						module->snapshots[module->currentSnapshot][i][j] = module->snapshots[module->copySnapshot][i][j];
 					}
 				}
+				parent->UpdateSnapshot(module->currentSnapshot);
 				module->copyState = false;
 			}
 		}
@@ -162,12 +194,10 @@ ACNEWidget::ACNEWidget() {
 		addInput(createInput<PJ301MPort>(Vec(portX0[i*2], 325), module, ACNE::TRACKS_INPUTS + i));
 	}
 
-	for (int s = 0 ; s < ACNE_NB_SNAPSHOTS; s++ ) {
-		for (int i = 0; i < ACNE_NB_OUTS; i++) {
-			for (int j = 0; j < ACNE_NB_TRACKS; j++) {
-					faders[s][i][j] = createParam<ACNETrimPot>(Vec(portX0[j*2]+3, portY0[i]), module, ACNE::FADERS_PARAMS + j + i * (ACNE_NB_TRACKS) + s * (ACNE_NB_TRACKS * ACNE_NB_OUTS), 0.0, 10, 0);
-					addParam(faders[s][i][j]);
-			}
+	for (int i = 0; i < ACNE_NB_OUTS; i++) {
+		for (int j = 0; j < ACNE_NB_TRACKS; j++) {
+				faders[i][j] = createParam<ACNETrimPot>(Vec(portX0[j*2]+3, portY0[i]), module, ACNE::FADERS_PARAMS + j + i * (ACNE_NB_TRACKS), 0.0, 10, 0);
+				addParam(faders[i][j]);
 		}
 	}
 	module->currentSnapshot = 0;
@@ -175,11 +205,10 @@ ACNEWidget::ACNEWidget() {
 }
 
 void ACNEWidget::UpdateSnapshot(int snapshot) {
-	for (int s = 0 ; s < ACNE_NB_SNAPSHOTS; s++ ) {
-		for (int i = 0; i < ACNE_NB_OUTS; i++) {
-			for (int j = 0; j < ACNE_NB_TRACKS; j++) {
-					faders[s][i][j]->visible = (s == snapshot);
-			}
+	ACNE *module = dynamic_cast<ACNE*>(this->module);
+	for (int i = 0; i < ACNE_NB_OUTS; i++) {
+		for (int j = 0; j < ACNE_NB_TRACKS; j++) {
+				faders[i][j]->setValue(module->snapshots[snapshot][i][j]);
 		}
 	}
 }
