@@ -38,7 +38,7 @@ Features:
 - GATE Mode :
 	- free control on play head
 - SLICE Mode :
-	- up to 128 slices CV controlled (I know 128 is a little bit too much but can lead to produce interesting sounds)
+	- up to 128 slices CV controlled (I know 128 is a little bit too much but can lead to produce strange sounds)
 	- 3 slice play modes => forward, backward and repeat. CV controlled
 	- sample play rate CV controlled x0.5 to bla bla bla ...
 	- slice index selection follows trigs but can be overridden by "POS"
