@@ -6,7 +6,6 @@
 #include <iostream>
 
 using namespace std;
-//#include "../../../ext/nanosvg/src/nanosvg.h"
 
 namespace rack {
 
@@ -130,5 +129,6 @@ struct TinyPJ301MPort : SVGPort {
 		box.size = background->box.size;
 	}
 };
+
 
 } // namespace rack

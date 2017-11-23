@@ -29,12 +29,19 @@ Features:
 
 ## OUAIve
 
-OUAIve is a sample player and that's all. You choose the sample via the menu. You press play or you trig him at your convenience.
-If he is in a good mood, he will remind the sample that you selected.
-Last addition to OUAIve, you can chose in between "TRIG MODE" and "GATE MODE".
-In "TRIG MODE" each impulse on the "GATE/TRIG" input will launch the sample from the "POS" position.
-In "GATE MODE" when the "GATE/TRIG" input receives more than 0V the player reads the sample at "POS" waiting for you to move "POS" in the sample allowing pitch changes and other things.
+OUAIve is no more a simple sample player ...
 
+Features:
+- TRIG Mode :
+	- sample start position CV controlled
+	- sample play rate CV controlled x0.5 to x10. No time stretching just vinyl like speed change
+- GATE Mode :
+	- free control on play head
+- SLICE Mode :
+	- up to 128 slices CV controlled (I know 128 is a little bit too much but can lead to produce interesting sounds)
+	- 3 slice play modes => forward, backward and repeat. CV controlled
+	- sample play rate CV controlled x0.5 to bla bla bla ...
+	- slice index selection follows trigs but can be overridden by "POS"
 
 ## ChUTE
 
