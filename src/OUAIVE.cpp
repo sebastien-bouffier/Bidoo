@@ -112,14 +112,17 @@ void OUAIVE::step() {
 			trigMode = (((int)trigMode + 1) % 3);
 		}
 
-		if (readModeTrigger.process(params[READ_MODE_PARAM].value + inputs[READ_MODE_INPUT].value)) {
+
+		if (inputs[READ_MODE_INPUT].active) {
+			readMode = round(rescalef(inputs[READ_MODE_INPUT].value, 0,10,0,2));
+		} else if (readModeTrigger.process(params[READ_MODE_PARAM].value + inputs[READ_MODE_INPUT].value)) {
 			readMode = (((int)readMode + 1) % 3);
 		}
 
 		nbSlices = clampi(roundl(params[NB_SLICES_PARAM].value + inputs[NB_SLICES_INPUT].value), 1, 128);
 		sliceLength = clampi(audioFile.getNumSamplesPerChannel() / nbSlices, 1, audioFile.getNumSamplesPerChannel());
-
 		speed = clampf(params[SPEED_PARAM].value + inputs[SPEED_INPUT].value, 0.5, 10);
+		
 		if (speed < 1) {
 			speed = 0.5;
 			stringstream stream;
@@ -343,7 +346,7 @@ OUAIVEWidget::OUAIVEWidget() {
 
 	addParam(createParam<CKD6>(Vec(portX0[0]-25, 215), module, OUAIVE::TRIG_MODE_PARAM, 0.0, 2.0, 0.0));
 
-	addParam(createParam<CKD6>(Vec(portX0[1]-14, 215), module, OUAIVE::READ_MODE_PARAM, 0.0, 3.0, 0.0));
+	addParam(createParam<CKD6>(Vec(portX0[1]-14, 215), module, OUAIVE::READ_MODE_PARAM, 0.0, 2.0, 0.0));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 222), module, OUAIVE::READ_MODE_INPUT));
 
 	addParam(createParam<Trimpot>(Vec(portX0[1]-9, 250), module, OUAIVE::NB_SLICES_PARAM, 1.0, 128.01, 1.0));
