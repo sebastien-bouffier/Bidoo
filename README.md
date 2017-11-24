@@ -64,7 +64,10 @@ Mute on all outputs, Mute and Solo on all inputs. Main outputs have a dedicated 
 
 ## MOiRE
 
-Just 16 scenes of 16 CV controllers and a fader to morph between them.
+Just 16 scenes of 16 CV controllers and a fader to morph between them. All outputs can be switched -5v/+5v and 0v/10v.
+Last addition, each control can be switched between two modes:
+- Morph the value of the control will be rescaled all along fader movements
+- Target the value of the control will be updated only when the fader reaches the highest value
 
 ## vOId
 
