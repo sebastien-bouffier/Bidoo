@@ -38,8 +38,7 @@ struct OUAIVE : Module {
 	bool play = false;
 	string lastPath;
 	AudioFile<double> audioFile;
-	int samplePos = 0;
-	float floatingSamplePos = 0;
+	float samplePos = 0;
 	vector<double> displayBuff;
 	string fileDesc;
 	bool fileLoaded = false;
@@ -122,33 +121,21 @@ void OUAIVE::step() {
 		nbSlices = clampi(roundl(params[NB_SLICES_PARAM].value + inputs[NB_SLICES_INPUT].value), 1, 128);
 		sliceLength = clampi(audioFile.getNumSamplesPerChannel() / nbSlices, 1, audioFile.getNumSamplesPerChannel());
 		speed = clampf(params[SPEED_PARAM].value + inputs[SPEED_INPUT].value, 0.5, 10);
-		
-		if (speed < 1) {
-			speed = 0.5;
-			stringstream stream;
-			stream << fixed << setprecision(1) << speed;
-			string s = stream.str();
-			displaySpeed = "x" + s;
-		}
-		else {
-			speed=round(speed);
-			stringstream stream;
-			stream << fixed << setprecision(0) << speed;
-			string s = stream.str();
-			displaySpeed = "x" + s;
-		}
+		stringstream stream;
+		stream << fixed << setprecision(1) << speed;
+		string s = stream.str();
+		displaySpeed = "x" + s;
+
 
 
 		if ((trigMode == 0) && (playTrigger.process(inputs[GATE_INPUT].value))) {
 			play = true;
 			displayParams = "TRIG";
 			samplePos = clampi((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
-			floatingSamplePos = samplePos;
 		}	else if (trigMode == 1) {
 			displayParams = "GATE";
 			play = (inputs[GATE_INPUT].value > 0);
 			samplePos = clampi((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
-			floatingSamplePos = samplePos;
 		} else if ((trigMode == 2) && (playTrigger.process(inputs[GATE_INPUT].value))) {
 			play = true;
 			displayParams = "SLICE ";
@@ -160,44 +147,34 @@ void OUAIVE::step() {
 			if (readMode == 0) {
 				displayReadMode = "►";
 				samplePos = clampi(sliceIndex*sliceLength, 0 , audioFile.getNumSamplesPerChannel());
-				floatingSamplePos = samplePos;
 			} else if (readMode == 2) {
 				displayReadMode = "►►";
 				samplePos = clampi(sliceIndex*sliceLength, 0 , audioFile.getNumSamplesPerChannel());
-				floatingSamplePos = samplePos;
 			}
 			else {
 				displayReadMode = "◄";
 				samplePos = clampi((sliceIndex + 1) * sliceLength - 1, 0 , audioFile.getNumSamplesPerChannel());
-				floatingSamplePos = samplePos;
 			}
-
 		}
 
 		if ((play) && (samplePos>=0) && (samplePos < audioFile.getNumSamplesPerChannel())) {
 			//calulate outputs
 			if (audioFile.getNumChannels() == 1)
-				outputs[OUT_OUTPUT].value = 5 * audioFile.samples[0][samplePos];
+				outputs[OUT_OUTPUT].value = 5 * audioFile.samples[0][floor(samplePos)];
 			else if (audioFile.getNumChannels() ==2)
-				outputs[OUT_OUTPUT].value = 5 * (audioFile.samples[0][samplePos] + audioFile.samples[1][samplePos]) / 2;
+				outputs[OUT_OUTPUT].value = 5 * (audioFile.samples[0][floor(samplePos)] + audioFile.samples[1][floor(samplePos)]) / 2;
 
 			//shift samplePos
 			if (trigMode == 0) {
-				floatingSamplePos = floatingSamplePos + speed;
-				if (floatingSamplePos == floor(floatingSamplePos))
-					samplePos = floatingSamplePos;
+					samplePos = samplePos + speed;
 			}
 			else if (trigMode == 2)
 			{
 				if (readMode != 1) {
-					floatingSamplePos = floatingSamplePos + speed;
-					if (floatingSamplePos == floor(floatingSamplePos))
-						samplePos = floatingSamplePos;
+					samplePos = samplePos + speed;
 				}
 				else {
-					floatingSamplePos = floatingSamplePos - speed;
-					if (floatingSamplePos == floor(floatingSamplePos))
-						samplePos = floatingSamplePos;
+					samplePos = samplePos - speed;
 				}
 
 				//update diplay slices
@@ -212,7 +189,6 @@ void OUAIVE::step() {
 
 				if ((readMode == 2) && ((samplePos >= (sliceIndex+1) * sliceLength) || (samplePos >= audioFile.getNumSamplesPerChannel()))) {
 					samplePos = clampi(sliceIndex*sliceLength, 0 , audioFile.getNumSamplesPerChannel());
-					floatingSamplePos = samplePos;
 				}
 			}
 		}
@@ -246,7 +222,7 @@ struct OUAIVEDisplay : TransparentWidget {
 		nvgFillColor(vg, nvgRGBA(75, 199, 75, 0xff));
 		nvgTextBox(vg, 5, 55,40, module->displayParams.c_str(), NULL);
 		if (module->trigMode != 1)
-			nvgTextBox(vg, 97, 55,30, module->displaySpeed.c_str(), NULL);
+			nvgTextBox(vg, 95, 55,30, module->displaySpeed.c_str(), NULL);
 
 		if (module->trigMode == 2) {
 			nvgTextBox(vg, 45, 55,20, module->displayReadMode.c_str(), NULL);
@@ -352,7 +328,7 @@ OUAIVEWidget::OUAIVEWidget() {
 	addParam(createParam<Trimpot>(Vec(portX0[1]-9, 250), module, OUAIVE::NB_SLICES_PARAM, 1.0, 128.01, 1.0));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 252), module, OUAIVE::NB_SLICES_INPUT));
 
-	addParam(createParam<Trimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, 0.5, 10, 1.0));
+	addParam(createParam<Trimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, 0.5, 5, 1.0));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 277), module, OUAIVE::SPEED_INPUT));
 
 
