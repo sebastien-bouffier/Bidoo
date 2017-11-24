@@ -1,5 +1,6 @@
 #include "Bidoo.hpp"
 #include "BidooComponents.hpp"
+#include "dsp/digital.hpp"
 #include <sstream>
 #include <iomanip>
 
@@ -14,7 +15,8 @@ struct MOIRE : Module {
 		NADA_PARAM,
 		SAVE_PARAM,
 		VOLTAGE_PARAM,
-		CONTROLS_PARAMS,
+		TYPE_PARAMS,
+		CONTROLS_PARAMS = TYPE_PARAMS + 16,
 		NUM_PARAMS = CONTROLS_PARAMS + 16
 	};
 	enum InputIds {
@@ -25,13 +27,17 @@ struct MOIRE : Module {
 		NUM_OUTPUTS = CV_OUTPUTS + 16
 	};
 	enum LightIds {
-		NUM_LIGHTS
+		TYPE_LIGHTS,
+		NUM_LIGHTS = TYPE_LIGHTS + 16
 	};
 
 	float scenes[16][16] = {{0}};
 	int currentScene = 0;
 	int  targetScene = 0;
 	float currentValues[16] = {0};
+	int controlsTypes[16] = {0};
+
+	SchmittTrigger typeTriggers[16];
 
 	MOIRE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
 
@@ -78,6 +84,13 @@ void MOIRE::step() {
 	currentScene = (int)params[CURRENTSCENE_PARAM].value;
 	targetScene = (int)params[TARGETSCENE_PARAM].value;
 
+	for (int i = 0; i < 16; i++) {
+		if (typeTriggers[i].process(params[TYPE_PARAMS + i].value)) {
+			controlsTypes[i] = controlsTypes[i] == 0 ? 1 : 0;
+			lights[TYPE_LIGHTS + i].value = controlsTypes[i];
+		}
+	}
+
 	for (int i = 0 ; i < 16; i++) {
 		outputs[CV_OUTPUTS + i].value = params[CONTROLS_PARAMS + i].value - 5 * params[VOLTAGE_PARAM].value;
 	}
@@ -111,7 +124,17 @@ struct MOIRELongSlider : BidooLongSlider {
 		MOIRE *module = dynamic_cast<MOIRE*>(this->module);
 		if (parent && module) {
 			for (int i = 0; i < 16; i++) {
-				parent->controls[i]->setValue((module->scenes[module->targetScene][i] - module->scenes[module->currentScene][i])*this->value/10 + module->scenes[module->currentScene][i]);
+				if (module->controlsTypes[i] == 0) {
+					parent->controls[i]->setValue(rescalef(this->value,0,10,module->scenes[module->currentScene][i],module->scenes[module->targetScene][i])); //  (module->scenes[module->targetScene][i] - module->scenes[module->currentScene][i])*this->value/10 + module->scenes[module->currentScene][i]);
+				} else {
+					if (value == 10) {
+						parent->controls[i]->setValue(module->scenes[module->targetScene][i]);
+					}
+					else {
+						parent->controls[i]->setValue(module->scenes[module->currentScene][i]);
+					}
+				}
+
 			}
 		}
 		BidooLongSlider::onChange(e);
@@ -188,6 +211,8 @@ MOIREWidget::MOIREWidget() {
 	for (int i = 0; i < 16; i++) {
 		controls[i] = createParam<BidooColoredKnob>(Vec(portX0[i%4+5], portY0[int(i/4) + 2]), module, MOIRE::CONTROLS_PARAMS + i, 0.0, 10, 0);
 		addParam(controls[i]);
+		addParam(createParam<MiniLEDButton>(Vec(portX0[i%4+5]+24, portY0[int(i/4) + 2]+24), module, MOIRE::TYPE_PARAMS + i, 0.0, 1.0,  0));
+		addChild(createLight<SmallLight<RedLight>>(Vec(portX0[i%4+5]+24, portY0[int(i/4) + 2]+25), module, MOIRE::TYPE_LIGHTS + i));
 		addOutput(createOutput<PJ301MPort>(Vec(portX0[i%4+5]+2, portY0[int(i/4) + 7]), module, MOIRE::CV_OUTPUTS + i));
 	}
 };

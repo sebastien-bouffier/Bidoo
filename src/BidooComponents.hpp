@@ -130,5 +130,13 @@ struct TinyPJ301MPort : SVGPort {
 	}
 };
 
+struct MiniLEDButton : SVGSwitch, MomentarySwitch {
+	MiniLEDButton() {
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/miniLEDButton.svg")));
+		sw->wrap();
+		box.size = sw->box.size;
+	}
+};
+
 
 } // namespace rack
