@@ -328,7 +328,7 @@ OUAIVEWidget::OUAIVEWidget() {
 	addParam(createParam<Trimpot>(Vec(portX0[1]-9, 250), module, OUAIVE::NB_SLICES_PARAM, 1.0, 128.01, 1.0));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 252), module, OUAIVE::NB_SLICES_INPUT));
 
-	addParam(createParam<Trimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, 0.5, 5, 1.0));
+	addParam(createParam<Trimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, 0.5, 10, 1.0));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 277), module, OUAIVE::SPEED_INPUT));
 
 

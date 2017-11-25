@@ -15,7 +15,7 @@ extern Plugin *plugin;
 struct DTROYWidget : ModuleWidget {
 	ParamWidget *scaleParam;
 	DTROYWidget();
-	//void step() override;
+	Menu *createContextMenu() override;
 };
 
 struct OUAIVEWidget : ModuleWidget {

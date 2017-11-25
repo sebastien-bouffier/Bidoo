@@ -381,9 +381,20 @@ struct DTROY : Module {
 	}
 
 	void randomize() override {
+		randomizeSlidesSkips();
+	}
+
+	void randomizeSlidesSkips() {
 		for (int i = 0; i < 8; i++) {
 			slideState[i] = (randomf() > 0.8) ? 't' : 'f';
 			skipState[i] = (randomf() > 0.85) ? 't' : 'f';
+		}
+	}
+
+	void reset() override {
+		for (int i = 0; i < 8; i++) {
+			slideState[i] = 'f';
+			skipState[i] = 'f';
 		}
 	}
 
@@ -768,4 +779,85 @@ DTROYWidget::DTROYWidget() {
 	addInput(createInput<PJ301MPort>(Vec(portX0[1], 331), module, DTROY::EXTGATE2_INPUT));
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-1, 331), module, DTROY::GATE_OUTPUT));
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[3]-1, 331), module, DTROY::PITCH_OUTPUT));
+}
+
+struct DTROYRandPitchItem : MenuItem {
+	DTROYWidget *dtroyWidget;
+
+	void onAction(EventAction &e) override {
+		for (int i = 0; i<8; i++){
+			int index = DTROY::TRIG_PITCH_PARAM + i;
+			auto it = std::find_if(dtroyWidget->params.begin(), dtroyWidget->params.end(), [&index](const ParamWidget* m) -> bool { return m->paramId == index; });
+			if (it != dtroyWidget->params.end())
+			{
+				auto index = std::distance(dtroyWidget->params.begin(), it);
+				dtroyWidget->params[index]->randomize();
+			}
+		}
+
+	}
+};
+
+struct DTROYRandGatesItem : MenuItem {
+	DTROYWidget *dtroyWidget;
+
+	void onAction(EventAction &e) override {
+		for (int i = 0; i<8; i++){
+			int index = DTROY::TRIG_COUNT_PARAM + i;
+			auto it = std::find_if(dtroyWidget->params.begin(), dtroyWidget->params.end(), [&index](const ParamWidget* m) -> bool { return m->paramId == index; });
+			if (it != dtroyWidget->params.end())
+			{
+				auto index = std::distance(dtroyWidget->params.begin(), it);
+				dtroyWidget->params[index]->randomize();
+			}
+		}
+
+		for (int i = 0; i<8; i++){
+			int index = DTROY::TRIG_TYPE_PARAM + i;
+			auto it = std::find_if(dtroyWidget->params.begin(), dtroyWidget->params.end(), [&index](const ParamWidget* m) -> bool { return m->paramId == index; });
+			if (it != dtroyWidget->params.end())
+			{
+				auto index = std::distance(dtroyWidget->params.begin(), it);
+				dtroyWidget->params[index]->randomize();
+			}
+		}
+	}
+};
+
+struct DTROYRandSlideSkipItem : MenuItem {
+	DTROY *dtroyModule;
+
+	void onAction(EventAction &e) override {
+		dtroyModule->randomizeSlidesSkips();
+	}
+};
+
+Menu *DTROYWidget::createContextMenu() {
+	Menu *menu = ModuleWidget::createContextMenu();
+
+	MenuLabel *spacerLabel = new MenuLabel();
+	menu->addChild(spacerLabel);
+
+	DTROYWidget *dtroyWidget = dynamic_cast<DTROYWidget*>(this);
+	assert(dtroyWidget);
+
+	DTROY *dtroyModule = dynamic_cast<DTROY*>(module);
+	assert(dtroyModule);
+
+	DTROYRandPitchItem *randomizePitchItem = new DTROYRandPitchItem();
+	randomizePitchItem->text = "Randomize pitch";
+	randomizePitchItem->dtroyWidget = dtroyWidget;
+	menu->addChild(randomizePitchItem);
+
+	DTROYRandGatesItem *randomizeGatesItem = new DTROYRandGatesItem();
+	randomizeGatesItem->text = "Randomize gates";
+	randomizeGatesItem->dtroyWidget = dtroyWidget;
+	menu->addChild(randomizeGatesItem);
+
+	DTROYRandSlideSkipItem *randomizeSlideSkipItem = new DTROYRandSlideSkipItem();
+	randomizeSlideSkipItem->text = "Randomize slides and skips";
+	randomizeSlideSkipItem->dtroyModule = dtroyModule;
+	menu->addChild(randomizeSlideSkipItem);
+
+	return menu;
 }
