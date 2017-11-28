@@ -46,5 +46,6 @@ struct ACNEWidget : ModuleWidget {
 struct MOIREWidget : ModuleWidget {
 	ParamWidget *controls[16];
 	ParamWidget *slider;
+	void step() override;
 	MOIREWidget();
 };

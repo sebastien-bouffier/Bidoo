@@ -66,6 +66,10 @@ struct BidooSlidePotLong : SVGSlider {
 		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotHandle.svg"));
 		handle->wrap();
 	}
+
+	void randomize() override {
+  	setValue(roundf(rescalef(randomf(), 0.0, 1.0, minValue, maxValue)));
+  }
 };
 
 struct BidooSlidePotShort : SVGSlider {
@@ -80,6 +84,10 @@ struct BidooSlidePotShort : SVGSlider {
 		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotHandle.svg"));
 		handle->wrap();
 	}
+
+	void randomize() override {
+  	setValue(roundf(rescalef(randomf(), 0.0, 1.0, minValue, maxValue)));
+  }
 };
 
 struct BidooLongSlider : SVGSlider {

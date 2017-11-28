@@ -20,6 +20,9 @@ struct MOIRE : Module {
 		NUM_PARAMS = CONTROLS_PARAMS + 16
 	};
 	enum InputIds {
+		TARGETSCENE_INPUT,
+		CURRENTSCENE_INPUT,
+		MORPH_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -47,6 +50,7 @@ struct MOIRE : Module {
 		json_t *rootJ = json_object();
 		// scenes
 		json_t *scenesJ = json_array();
+		json_t *typesJ = json_array();
 		for (int i = 0; i < 16; i++) {
 			json_t *sceneJ = json_array();
 			for (int j = 0; j < 16; j++) {
@@ -54,8 +58,12 @@ struct MOIRE : Module {
 				json_array_append_new(sceneJ, controlJ);
 			}
 			json_array_append_new(scenesJ, sceneJ);
+
+			json_t *typeJ = json_integer(controlsTypes[i]);
+			json_array_append_new(typesJ, typeJ);
 		}
 		json_object_set_new(rootJ, "scenes", scenesJ);
+		json_object_set_new(rootJ, "types", typesJ);
 
 		return rootJ;
 	}
@@ -76,23 +84,42 @@ struct MOIRE : Module {
 				}
 			}
 		}
+
+		//controlTypes
+		json_t *typesJ = json_object_get(rootJ, "types");
+		if (typesJ) {
+			for (int i = 0; i < 16; i++) {
+				json_t *typeJ = json_array_get(typesJ, i);
+				if (typeJ) {
+					controlsTypes[i] = json_integer_value(typeJ);
+				}
+			}
+		}
 	}
 };
 
 
 void MOIRE::step() {
-	currentScene = (int)params[CURRENTSCENE_PARAM].value;
-	targetScene = (int)params[TARGETSCENE_PARAM].value;
+
+	if (inputs[TARGETSCENE_INPUT].active)
+		targetScene = clampf(floor(inputs[TARGETSCENE_INPUT].value) * 1.51,0,15.1);
+	else
+		targetScene = floor(params[TARGETSCENE_PARAM].value);
+
+	if (inputs[CURRENTSCENE_INPUT].active)
+		currentScene = clampf(floor(inputs[CURRENTSCENE_INPUT].value) * 1.51,0,15.1);
+	else
+		currentScene = floor(params[CURRENTSCENE_PARAM].value);
 
 	for (int i = 0; i < 16; i++) {
 		if (typeTriggers[i].process(params[TYPE_PARAMS + i].value)) {
 			controlsTypes[i] = controlsTypes[i] == 0 ? 1 : 0;
-			lights[TYPE_LIGHTS + i].value = controlsTypes[i];
 		}
+		lights[TYPE_LIGHTS + i].value = controlsTypes[i];
 	}
 
 	for (int i = 0 ; i < 16; i++) {
-		outputs[CV_OUTPUTS + i].value = params[CONTROLS_PARAMS + i].value - 5 * params[VOLTAGE_PARAM].value;
+		outputs[CV_OUTPUTS + i].value =  params[CONTROLS_PARAMS + i].value - 5 * params[VOLTAGE_PARAM].value;
 	}
 }
 
@@ -125,9 +152,9 @@ struct MOIRELongSlider : BidooLongSlider {
 		if (parent && module) {
 			for (int i = 0; i < 16; i++) {
 				if (module->controlsTypes[i] == 0) {
-					parent->controls[i]->setValue(rescalef(this->value,0,10,module->scenes[module->currentScene][i],module->scenes[module->targetScene][i])); //  (module->scenes[module->targetScene][i] - module->scenes[module->currentScene][i])*this->value/10 + module->scenes[module->currentScene][i]);
+					parent->controls[i]->setValue(rescalef(this->value,0,10,module->scenes[module->currentScene][i],module->scenes[module->targetScene][i]));
 				} else {
-					if (value == 10) {
+					if (value >= 9.99) {
 						parent->controls[i]->setValue(module->scenes[module->targetScene][i]);
 					}
 					else {
@@ -203,6 +230,10 @@ MOIREWidget::MOIREWidget() {
 	addParam(createParam<MOIRECKD6>(Vec(portX0[0]-5, portY0[3]-3), module, MOIRE::ADONF_PARAM, 0.0, 1.0, 0.0));
 	addParam(createParam<MOIRECKD6>(Vec(portX0[0]-5, portY0[4]+5), module, MOIRE::NADA_PARAM, 0.0, 1.0, 0.0));
 
+	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[0]+21), module, MOIRE::TARGETSCENE_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[7]-6), module, MOIRE::CURRENTSCENE_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+34, portY0[7]-6), module, MOIRE::MORPH_INPUT));
+
 	slider = createParam<MOIRELongSlider>(Vec(portX0[0]+32, portY0[2]+12), module, MOIRE::MORPH_PARAM, 0.0, 10.0, 0);
 	addParam(slider);
 
@@ -216,3 +247,11 @@ MOIREWidget::MOIREWidget() {
 		addOutput(createOutput<PJ301MPort>(Vec(portX0[i%4+5]+2, portY0[int(i/4) + 7]), module, MOIRE::CV_OUTPUTS + i));
 	}
 };
+
+void MOIREWidget::step() {
+	MOIRE *module = dynamic_cast<MOIRE*>(this->module);
+	if (module->inputs[MOIRE::MORPH_INPUT].active) {
+		slider->setValue(module->inputs[MOIRE::MORPH_INPUT].value);
+	}
+	ModuleWidget::step();
+}
