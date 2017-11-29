@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.5.0-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.5.3-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -64,10 +64,12 @@ Mute on all outputs, Mute and Solo on all inputs. Main outputs have a dedicated 
 
 ## MOiRE
 
-Just 16 scenes of 16 CV controllers and a fader to morph between them. All outputs can be switched -5v/+5v and 0v/10v.
-Last addition, each control can be switched between two modes:
+Just 16 scenes of 16 CV controllers and a fader to morph between them. All outputs can be switched between -5v/+5v and 0v/10v.
+Last addition, CV control of Fader and scenes.
+Each control can be switched between two modes:
 - Morph the value of the control will be rescaled all along fader movements
 - Target the value of the control will be updated only when the fader reaches the highest value
+
 
 ## vOId
 

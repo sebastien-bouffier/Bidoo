@@ -40,6 +40,8 @@ struct MOIRE : Module {
 	float currentValues[16] = {0};
 	int controlsTypes[16] = {0};
 
+	BidooColoredKnob *knobs[16];
+
 	SchmittTrigger typeTriggers[16];
 
 	MOIRE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
@@ -100,14 +102,13 @@ struct MOIRE : Module {
 
 
 void MOIRE::step() {
-
 	if (inputs[TARGETSCENE_INPUT].active)
-		targetScene = clampf(floor(inputs[TARGETSCENE_INPUT].value) * 1.51,0,15.1);
+		targetScene = clampf(floor(inputs[TARGETSCENE_INPUT].value) * 1.61,0,15);
 	else
 		targetScene = floor(params[TARGETSCENE_PARAM].value);
 
 	if (inputs[CURRENTSCENE_INPUT].active)
-		currentScene = clampf(floor(inputs[CURRENTSCENE_INPUT].value) * 1.51,0,15.1);
+		currentScene = clampf(floor(inputs[CURRENTSCENE_INPUT].value) * 1.61,0,15);
 	else
 		currentScene = floor(params[CURRENTSCENE_PARAM].value);
 
@@ -118,8 +119,23 @@ void MOIRE::step() {
 		lights[TYPE_LIGHTS + i].value = controlsTypes[i];
 	}
 
+	float coeff = inputs[MORPH_INPUT].active ? inputs[MORPH_INPUT].value/10 : params[MORPH_PARAM].value;
 	for (int i = 0 ; i < 16; i++) {
-		outputs[CV_OUTPUTS + i].value =  params[CONTROLS_PARAMS + i].value - 5 * params[VOLTAGE_PARAM].value;
+		if (knobs[i]->focused)
+			currentValues[i] =  params[CONTROLS_PARAMS + i].value;
+		else {
+			if (controlsTypes[i] == 0) {
+				currentValues[i] = rescalef(coeff,0,1,scenes[currentScene][i],scenes[targetScene][i]);
+			} else {
+				if (coeff >= 0.999) {
+					currentValues[i] = scenes[targetScene][i];
+				}
+				else {
+					currentValues[i] = scenes[currentScene][i];
+				}
+			}
+		}
+		outputs[CV_OUTPUTS + i].value = currentValues[i] - 5 * params[VOLTAGE_PARAM].value;
 	}
 }
 
@@ -129,11 +145,9 @@ struct MOIRECKD6 : CKD6 {
 		MOIRE *module = dynamic_cast<MOIRE*>(this->module);
 		if (parent && module) {
 			if (this->paramId == MOIRE::ADONF_PARAM) {
-				parent->slider->setValue(10);
-				module->params[MOIRE::MORPH_PARAM].value = 10;
+				parent->slider->setValue(1);
 			} else if (this->paramId == MOIRE::NADA_PARAM) {
 				parent->slider->setValue(0);
-				module->params[MOIRE::MORPH_PARAM].value = 0;
 			}
 			else if (this->paramId == MOIRE::SAVE_PARAM) {
 				for (int i = 0 ; i < 16; i++) {
@@ -142,29 +156,6 @@ struct MOIRECKD6 : CKD6 {
 			}
 		}
 		CKD6::onMouseDown(e);
-	}
-};
-
-struct MOIRELongSlider : BidooLongSlider {
-	void onChange(EventChange &e) override {
-		MOIREWidget *parent = dynamic_cast<MOIREWidget*>(this->parent);
-		MOIRE *module = dynamic_cast<MOIRE*>(this->module);
-		if (parent && module) {
-			for (int i = 0; i < 16; i++) {
-				if (module->controlsTypes[i] == 0) {
-					parent->controls[i]->setValue(rescalef(this->value,0,10,module->scenes[module->currentScene][i],module->scenes[module->targetScene][i]));
-				} else {
-					if (value >= 9.99) {
-						parent->controls[i]->setValue(module->scenes[module->targetScene][i]);
-					}
-					else {
-						parent->controls[i]->setValue(module->scenes[module->currentScene][i]);
-					}
-				}
-
-			}
-		}
-		BidooLongSlider::onChange(e);
 	}
 };
 
@@ -234,13 +225,14 @@ MOIREWidget::MOIREWidget() {
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[7]-6), module, MOIRE::CURRENTSCENE_INPUT));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+34, portY0[7]-6), module, MOIRE::MORPH_INPUT));
 
-	slider = createParam<MOIRELongSlider>(Vec(portX0[0]+32, portY0[2]+12), module, MOIRE::MORPH_PARAM, 0.0, 10.0, 0);
+	slider = createParam<BidooLongSlider>(Vec(portX0[0]+32, portY0[2]+12), module, MOIRE::MORPH_PARAM, 0, 1, 0);
 	addParam(slider);
 
 	addParam(createParam<CKSS>(Vec(40, 279), module, MOIRE::VOLTAGE_PARAM, 0.0, 1.0, 0.0));
 
 	for (int i = 0; i < 16; i++) {
 		controls[i] = createParam<BidooColoredKnob>(Vec(portX0[i%4+5], portY0[int(i/4) + 2]), module, MOIRE::CONTROLS_PARAMS + i, 0.0, 10, 0);
+		module->knobs[i]= dynamic_cast<BidooColoredKnob*>(controls[i]);
 		addParam(controls[i]);
 		addParam(createParam<MiniLEDButton>(Vec(portX0[i%4+5]+24, portY0[int(i/4) + 2]+24), module, MOIRE::TYPE_PARAMS + i, 0.0, 1.0,  0));
 		addChild(createLight<SmallLight<RedLight>>(Vec(portX0[i%4+5]+24, portY0[int(i/4) + 2]+25), module, MOIRE::TYPE_LIGHTS + i));
@@ -250,8 +242,14 @@ MOIREWidget::MOIREWidget() {
 
 void MOIREWidget::step() {
 	MOIRE *module = dynamic_cast<MOIRE*>(this->module);
-	if (module->inputs[MOIRE::MORPH_INPUT].active) {
-		slider->setValue(module->inputs[MOIRE::MORPH_INPUT].value);
+	if (module->inputs[MOIRE::MORPH_INPUT].active)
+		slider->setValue(module->inputs[MOIRE::MORPH_INPUT].value/10);
+
+	for (int i = 0; i < 16; i++) {
+		BidooColoredKnob* control = dynamic_cast<BidooColoredKnob*>(controls[i]);
+		if (control && !control->focused)
+			control->setValueNoEngine(module->currentValues[i]);
 	}
+
 	ModuleWidget::step();
 }

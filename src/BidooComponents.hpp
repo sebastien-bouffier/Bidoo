@@ -10,21 +10,53 @@ using namespace std;
 namespace rack {
 
 struct BidooColoredKnob : RoundKnob {
+	bool focused = false;
+
 	BidooColoredKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlackKnobBidoo.svg")));
 		box.size = Vec(28, 28);
 	}
 
 	void draw(NVGcontext *vg) override {
-		for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
-			std::string str(shape->id);
-			if (str == "bidooKnob") {
-				shape->fill.color = (((unsigned int)value*25) | ((unsigned int)0 << 8) | ((unsigned int)value*10 << 16));
-				shape->fill.color |= (unsigned int)(255) << 24;
+			for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
+				std::string str(shape->id);
+				if (str == "bidooKnob") {
+					shape->fill.color = (((unsigned int)value*25) | ((unsigned int)0 << 8) | ((unsigned int)value*10 << 16));
+					shape->fill.color |= (unsigned int)(255) << 24;
+				}
 			}
-		}
 		RoundKnob::draw(vg);
 	};
+
+	void setValueNoEngine(float value) {
+		this->value = clampf(value, fminf(minValue, maxValue), fmaxf(minValue, maxValue));
+		this->dirty=true;
+	};
+
+	void onMouseDown(EventMouseDown &e) override {
+		RoundKnob::onMouseDown(e);
+		focused = true;
+	}
+
+	void onMouseUp(EventMouseUp &e) override {
+		RoundKnob::onMouseUp(e);
+		focused = false;
+	}
+
+	void onDragStart(EventDragStart &e) override {
+		RoundKnob::onDragStart(e);
+		focused = true;
+	}
+
+	void onDragEnd(EventDragEnd &e) override {
+		RoundKnob::onDragEnd(e);
+		focused = false;
+	}
+
+	void onDragMove(EventDragMove &e) override {
+		RoundKnob::onDragMove(e);
+		focused = true;
+	}
 };
 
 
