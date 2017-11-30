@@ -123,6 +123,8 @@ struct BidooSlidePotShort : SVGSlider {
 };
 
 struct BidooLongSlider : SVGSlider {
+	bool focused = false;
+
 	BidooLongSlider() {
 		maxHandlePos = Vec(0, 0);
 		minHandlePos = Vec(0, 84);
@@ -132,6 +134,31 @@ struct BidooLongSlider : SVGSlider {
 		box.size = background->box.size;
 		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooLongSliderHandle.svg"));
 		handle->wrap();
+	}
+
+	void onMouseDown(EventMouseDown &e) override {
+		SVGSlider::onMouseDown(e);
+		focused = true;
+	}
+
+	void onMouseUp(EventMouseUp &e) override {
+		SVGSlider::onMouseUp(e);
+		focused = false;
+	}
+
+	void onDragStart(EventDragStart &e) override {
+		SVGSlider::onDragStart(e);
+		focused = true;
+	}
+
+	void onDragEnd(EventDragEnd &e) override {
+		SVGSlider::onDragEnd(e);
+		focused = false;
+	}
+
+	void onDragMove(EventDragMove &e) override {
+		SVGSlider::onDragMove(e);
+		focused = true;
 	}
 };
 

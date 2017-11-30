@@ -39,8 +39,8 @@ struct MOIRE : Module {
 	int  targetScene = 0;
 	float currentValues[16] = {0};
 	int controlsTypes[16] = {0};
-
 	BidooColoredKnob *knobs[16];
+	BidooLongSlider * slider;
 
 	SchmittTrigger typeTriggers[16];
 
@@ -121,18 +121,39 @@ void MOIRE::step() {
 
 	float coeff = inputs[MORPH_INPUT].active ? inputs[MORPH_INPUT].value/10 : params[MORPH_PARAM].value;
 	for (int i = 0 ; i < 16; i++) {
-		if (knobs[i]->focused)
-			currentValues[i] =  params[CONTROLS_PARAMS + i].value;
+		if (inputs[MORPH_INPUT].active) {
+			if (knobs[i] && knobs[i]->focused)
+				currentValues[i] =  params[CONTROLS_PARAMS + i].value;
+			else {
+				if (controlsTypes[i] == 0) {
+					currentValues[i] = rescalef(coeff,0,1,scenes[currentScene][i],scenes[targetScene][i]);
+				} else {
+					if (coeff >= 0.999) {
+						currentValues[i] = scenes[targetScene][i];
+					}
+					else {
+						currentValues[i] = scenes[currentScene][i];
+					}
+				}
+				knobs[i]->setValueNoEngine(currentValues[i]);
+			}
+		}
 		else {
-			if (controlsTypes[i] == 0) {
-				currentValues[i] = rescalef(coeff,0,1,scenes[currentScene][i],scenes[targetScene][i]);
-			} else {
-				if (coeff >= 0.999) {
-					currentValues[i] = scenes[targetScene][i];
+			if (slider && slider->focused) {
+				if (controlsTypes[i] == 0) {
+					currentValues[i] = rescalef(coeff,0,1,scenes[currentScene][i],scenes[targetScene][i]);
+				} else {
+					if (coeff >= 0.999) {
+						currentValues[i] = scenes[targetScene][i];
+					}
+					else {
+						currentValues[i] = scenes[currentScene][i];
+					}
 				}
-				else {
-					currentValues[i] = scenes[currentScene][i];
-				}
+				knobs[i]->setValueNoEngine(currentValues[i]);
+			}
+			else {
+				currentValues[i] =  params[CONTROLS_PARAMS + i].value;
 			}
 		}
 		outputs[CV_OUTPUTS + i].value = currentValues[i] - 5 * params[VOLTAGE_PARAM].value;
@@ -145,9 +166,15 @@ struct MOIRECKD6 : CKD6 {
 		MOIRE *module = dynamic_cast<MOIRE*>(this->module);
 		if (parent && module) {
 			if (this->paramId == MOIRE::ADONF_PARAM) {
-				parent->slider->setValue(1);
+				module->slider->setValue(1);
+				for (int i = 0; i<16; i++){
+					module->knobs[i]->setValue(module->scenes[module->targetScene][i]);
+				}
 			} else if (this->paramId == MOIRE::NADA_PARAM) {
-				parent->slider->setValue(0);
+				module->slider->setValue(0);
+				for (int i = 0; i<16; i++){
+					module->knobs[i]->setValue(module->scenes[module->currentScene][i]);
+				}
 			}
 			else if (this->paramId == MOIRE::SAVE_PARAM) {
 				for (int i = 0 ; i < 16; i++) {
@@ -226,6 +253,7 @@ MOIREWidget::MOIREWidget() {
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+34, portY0[7]-6), module, MOIRE::MORPH_INPUT));
 
 	slider = createParam<BidooLongSlider>(Vec(portX0[0]+32, portY0[2]+12), module, MOIRE::MORPH_PARAM, 0, 1, 0);
+	module->slider= dynamic_cast<BidooLongSlider*>(slider);
 	addParam(slider);
 
 	addParam(createParam<CKSS>(Vec(40, 279), module, MOIRE::VOLTAGE_PARAM, 0.0, 1.0, 0.0));
@@ -244,12 +272,5 @@ void MOIREWidget::step() {
 	MOIRE *module = dynamic_cast<MOIRE*>(this->module);
 	if (module->inputs[MOIRE::MORPH_INPUT].active)
 		slider->setValue(module->inputs[MOIRE::MORPH_INPUT].value/10);
-
-	for (int i = 0; i < 16; i++) {
-		BidooColoredKnob* control = dynamic_cast<BidooColoredKnob*>(controls[i]);
-		if (control && !control->focused)
-			control->setValueNoEngine(module->currentValues[i]);
-	}
-
 	ModuleWidget::step();
 }
