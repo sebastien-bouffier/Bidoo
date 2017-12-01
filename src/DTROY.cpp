@@ -337,8 +337,8 @@ struct DTROY : Module {
 		// running
 		json_object_set_new(rootJ, "running", json_boolean(running));
 
-		// Pattern Number
-		json_object_set_new(rootJ, "patternNumber", json_integer(patternNumber));
+		json_object_set_new(rootJ, "playMode", json_integer(playMode));
+		json_object_set_new(rootJ, "countMode", json_integer(countMode));
 
 		json_t *trigsJ = json_array();
 		for (int i = 0; i < 8; i++) {
@@ -360,11 +360,13 @@ struct DTROY : Module {
 		if (runningJ)
 			running = json_is_true(runningJ);
 
-		// Pattern Number
-		json_t *patternNumberJ = json_object_get(rootJ, "patternNumber");
-		if (patternNumberJ)
-			playMode = json_integer_value(patternNumberJ);
+		json_t *playModeJ = json_object_get(rootJ, "playMode");
+		if (playModeJ)
+			playMode = json_integer_value(playModeJ);
 
+		json_t *countModeJ = json_object_get(rootJ, "countMode");
+		if (countModeJ)
+			countMode = json_integer_value(countModeJ);
 
 		json_t *trigsJ = json_object_get(rootJ, "trigs");
 		if (trigsJ) {
@@ -375,7 +377,6 @@ struct DTROY : Module {
 					slideState[i] = json_is_true(json_array_get(trigJ, 0)) ? 't' : 'f';
 					skipState[i] = json_is_true(json_array_get(trigJ, 1)) ? 't' : 'f';
 				}
-
 			}
 		}
 	}
