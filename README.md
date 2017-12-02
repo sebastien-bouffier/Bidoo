@@ -9,13 +9,11 @@
 
 ## How to
 
-You can find information on that plugins pack on the wiki [wiki](https://github.com/sebastien-bouffier/Bidoo/wiki).
-
-When doing tests it happens that I record a video so you may find some ideas on how to use those modules [here](https://www.youtube.com/bidoo).
+You can find information on that plugins pack on the [wiki](https://github.com/sebastien-bouffier/Bidoo/wiki). When doing tests it happens that I record a video so you may find some ideas on how to use those modules [here](https://www.youtube.com/bidoo).
 
 ## Last changes
 
-MOiRE is CV automated but you can override the automation which is ... cool (thanks "nay-seven" for the idea !!!). 
+MOiRE is CV automated but you can override the automation which is ... cool (thanks "nay-seven" for the idea !!!).
 
 ## License
 
