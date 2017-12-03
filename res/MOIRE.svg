@@ -6,6 +6,7 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
    id="svg12553"
    version="1.1"
    viewBox="0 0 59.53125 100.54166"
@@ -13,6 +14,28 @@
    width="225">
   <defs
      id="defs12547">
+    <linearGradient
+       id="linearGradient951">
+      <stop
+         id="stop947"
+         offset="0"
+         style="stop-color:#000000;stop-opacity:1;" />
+      <stop
+         id="stop949"
+         offset="1"
+         style="stop-color:#000000;stop-opacity:0;" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient937">
+      <stop
+         id="stop933"
+         offset="0"
+         style="stop-color:#000000;stop-opacity:1;" />
+      <stop
+         id="stop935"
+         offset="1"
+         style="stop-color:#000000;stop-opacity:0;" />
+    </linearGradient>
     <linearGradient
        id="linearGradient4708"
        osb:paint="solid">
@@ -54,6 +77,22 @@
          k3="0"
          k4="0" />
     </filter>
+    <linearGradient
+       gradientUnits="userSpaceOnUse"
+       y2="34.395832"
+       x2="16.139584"
+       y1="23.283333"
+       x1="16.139584"
+       id="linearGradient939"
+       xlink:href="#linearGradient937" />
+    <linearGradient
+       gradientUnits="userSpaceOnUse"
+       y2="39.6875"
+       x2="16.139584"
+       y1="50.799999"
+       x1="16.139584"
+       id="linearGradient953"
+       xlink:href="#linearGradient951" />
   </defs>
   <metadata
      id="metadata12550">
@@ -339,4 +378,12 @@
      style="opacity:1;fill:#a60000;fill-opacity:1;fill-rule:evenodd;stroke:#a60000;stroke-width:0.23071666;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
      d="m 18.910094,61.277328 a 2.645853,2.6603746 0 0 1 -2.642238,2.660372 2.645853,2.6603746 0 0 1 -2.649458,-2.653102 2.645853,2.6603746 0 0 1 2.634997,-2.667623 2.645853,2.6603746 0 0 1 2.65666,2.645812"
      id="path856" />
+  <path
+     id="path892"
+     d="m 20.372916,23.283332 h -8.466667 l 4.233334,13.758333 v 0 z"
+     style="opacity:1;fill:url(#linearGradient939);fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+  <path
+     id="path892-7"
+     d="m 11.90625,50.799998 h 8.466667 L 16.139583,37.041665 v 0 z"
+     style="opacity:1;fill:url(#linearGradient953);fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
 </svg>

@@ -34,28 +34,22 @@ struct BidooColoredKnob : RoundKnob {
 	};
 
 	void onMouseDown(EventMouseDown &e) override {
+		this->setValue(this->value);
 		RoundKnob::onMouseDown(e);
-		focused = true;
-	}
-
-	void onMouseUp(EventMouseUp &e) override {
-		RoundKnob::onMouseUp(e);
-		focused = false;
-	}
-
-	void onDragStart(EventDragStart &e) override {
-		RoundKnob::onDragStart(e);
-		focused = true;
-	}
-
-	void onDragEnd(EventDragEnd &e) override {
-		RoundKnob::onDragEnd(e);
-		focused = false;
+		if (e.button == 1)
+			focused = false;
 	}
 
 	void onDragMove(EventDragMove &e) override {
 		RoundKnob::onDragMove(e);
 		focused = true;
+	}
+};
+
+struct BidooSpiralKnob : RoundKnob {
+	BidooSpiralKnob() {
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/SpiralKnobBidoo.svg")));
+		box.size = Vec(28, 28);
 	}
 };
 
