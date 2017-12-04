@@ -46,5 +46,7 @@ struct ACNEWidget : ModuleWidget {
 struct MOIREWidget : ModuleWidget {
 	ParamWidget *controls[16];
 	ParamWidget *morphButton;
+	void step() override;
 	MOIREWidget();
+	Menu *createContextMenu() override;
 };

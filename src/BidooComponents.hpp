@@ -10,8 +10,6 @@ using namespace std;
 namespace rack {
 
 struct BidooColoredKnob : RoundKnob {
-	bool focused = false;
-
 	BidooColoredKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlackKnobBidoo.svg")));
 		box.size = Vec(28, 28);
@@ -26,33 +24,15 @@ struct BidooColoredKnob : RoundKnob {
 				}
 			}
 		RoundKnob::draw(vg);
-	};
-
-	void setValueNoEngine(float value) {
-		this->value = clampf(value, fminf(minValue, maxValue), fmaxf(minValue, maxValue));
-		this->dirty=true;
-	};
-
-	void onMouseDown(EventMouseDown &e) override {
-		this->setValue(this->value);
-		RoundKnob::onMouseDown(e);
-		if (e.button == 1)
-			focused = false;
-	}
-
-	void onDragMove(EventDragMove &e) override {
-		RoundKnob::onDragMove(e);
-		focused = true;
 	}
 };
 
-struct BidooSpiralKnob : RoundKnob {
-	BidooSpiralKnob() {
+struct BidooMorphKnob : RoundKnob {
+	BidooMorphKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/SpiralKnobBidoo.svg")));
 		box.size = Vec(28, 28);
 	}
 };
-
 
 struct BidooColoredTrimpot : RoundKnob {
 	BidooColoredTrimpot() {
@@ -76,9 +56,8 @@ struct BidooColoredTrimpot : RoundKnob {
 			}
 		}
 		RoundKnob::draw(vg);
-	};
+	}
 };
-
 
 struct BidooSlidePotLong : SVGSlider {
 	BidooSlidePotLong() {
@@ -117,8 +96,6 @@ struct BidooSlidePotShort : SVGSlider {
 };
 
 struct BidooLongSlider : SVGSlider {
-	bool focused = false;
-
 	BidooLongSlider() {
 		maxHandlePos = Vec(0, 0);
 		minHandlePos = Vec(0, 84);
@@ -129,33 +106,7 @@ struct BidooLongSlider : SVGSlider {
 		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooLongSliderHandle.svg"));
 		handle->wrap();
 	}
-
-	void onMouseDown(EventMouseDown &e) override {
-		SVGSlider::onMouseDown(e);
-		focused = true;
-	}
-
-	void onMouseUp(EventMouseUp &e) override {
-		SVGSlider::onMouseUp(e);
-		focused = false;
-	}
-
-	void onDragStart(EventDragStart &e) override {
-		SVGSlider::onDragStart(e);
-		focused = true;
-	}
-
-	void onDragEnd(EventDragEnd &e) override {
-		SVGSlider::onDragEnd(e);
-		focused = false;
-	}
-
-	void onDragMove(EventDragMove &e) override {
-		SVGSlider::onDragMove(e);
-		focused = true;
-	}
 };
-
 
 struct CKSS8 : SVGSwitch, ToggleSwitch {
 	CKSS8() {
