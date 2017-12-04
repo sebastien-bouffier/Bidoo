@@ -148,11 +148,13 @@ struct MOIRECKD6 : CKD6 {
 				parent->morphButton->setValue(10);
 				for (int i = 0; i<16; i++){
 					parent->controls[i]->setValue(module->scenes[module->targetScene][i]);
+					module->controlFocused[i] = false;
 				}
 			} else if (this->paramId == MOIRE::NADA_PARAM) {
 				parent->morphButton->setValue(0);
 				for (int i = 0; i<16; i++){
 					parent->controls[i]->setValue(module->scenes[module->currentScene][i]);
+					module->controlFocused[i] = false;
 				}
 			}
 			else if (this->paramId == MOIRE::SAVE_PARAM) {
