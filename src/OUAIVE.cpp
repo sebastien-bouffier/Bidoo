@@ -126,12 +126,18 @@ void OUAIVE::step() {
 		string s = stream.str();
 		displaySpeed = "x" + s;
 
-
-
 		if ((trigMode == 0) && (playTrigger.process(inputs[GATE_INPUT].value))) {
 			play = true;
 			displayParams = "TRIG";
 			samplePos = clampi((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
+			if (readMode == 0) {
+				displayReadMode = "►";
+			} else if (readMode == 2) {
+				displayReadMode = "►►";
+			}
+			else {
+				displayReadMode = "◄";
+			}
 		}	else if (trigMode == 1) {
 			displayParams = "GATE";
 			play = (inputs[GATE_INPUT].value > 0);
@@ -166,7 +172,23 @@ void OUAIVE::step() {
 
 			//shift samplePos
 			if (trigMode == 0) {
+				if (readMode != 1) {
 					samplePos = samplePos + speed;
+				}
+				else {
+					samplePos = samplePos - speed;
+				}
+
+				//manage eof readMode
+				if ((readMode == 0) && (samplePos >= audioFile.getNumSamplesPerChannel()))
+						play = false;
+
+				if ((readMode == 1) && (samplePos <=0))
+						play = false;
+
+				if ((readMode == 2) && (samplePos >= audioFile.getNumSamplesPerChannel())) {
+					samplePos = clampi((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
+				}
 			}
 			else if (trigMode == 2)
 			{
@@ -223,6 +245,10 @@ struct OUAIVEDisplay : TransparentWidget {
 		nvgTextBox(vg, 5, 55,40, module->displayParams.c_str(), NULL);
 		if (module->trigMode != 1)
 			nvgTextBox(vg, 95, 55,30, module->displaySpeed.c_str(), NULL);
+
+		if (module->trigMode == 0) {
+			nvgTextBox(vg, 45, 55,20, module->displayReadMode.c_str(), NULL);
+		}
 
 		if (module->trigMode == 2) {
 			nvgTextBox(vg, 45, 55,20, module->displayReadMode.c_str(), NULL);
