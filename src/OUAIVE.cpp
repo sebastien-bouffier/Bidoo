@@ -2,7 +2,7 @@
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
 #include "../ext/osdialog/osdialog.h"
-#include "AudioFile.h"
+#include "utils/audiofile/AudioFile.h"
 #include <vector>
 #include "cmath"
 #include <iomanip> // setprecision
@@ -111,7 +111,6 @@ void OUAIVE::step() {
 			trigMode = (((int)trigMode + 1) % 3);
 		}
 
-
 		if (inputs[READ_MODE_INPUT].active) {
 			readMode = round(rescalef(inputs[READ_MODE_INPUT].value, 0,10,0,2));
 		} else if (readModeTrigger.process(params[READ_MODE_PARAM].value + inputs[READ_MODE_INPUT].value)) {
@@ -169,7 +168,6 @@ void OUAIVE::step() {
 				outputs[OUT_OUTPUT].value = 5 * audioFile.samples[0][floor(samplePos)];
 			else if (audioFile.getNumChannels() ==2)
 				outputs[OUT_OUTPUT].value = 5 * (audioFile.samples[0][floor(samplePos)] + audioFile.samples[1][floor(samplePos)]) / 2;
-
 			//shift samplePos
 			if (trigMode == 0) {
 				if (readMode != 1) {
@@ -178,7 +176,6 @@ void OUAIVE::step() {
 				else {
 					samplePos = samplePos - speed;
 				}
-
 				//manage eof readMode
 				if ((readMode == 0) && (samplePos >= audioFile.getNumSamplesPerChannel()))
 						play = false;
@@ -198,10 +195,8 @@ void OUAIVE::step() {
 				else {
 					samplePos = samplePos - speed;
 				}
-
 				//update diplay slices
 				displaySlices = "|" + std::to_string(nbSlices) + "|";
-
 				//manage eof readMode
 				if ((readMode == 0) && ((samplePos >= (sliceIndex+1) * sliceLength) || (samplePos >= audioFile.getNumSamplesPerChannel())))
 						play = false;
@@ -221,13 +216,11 @@ void OUAIVE::step() {
 	}
 }
 
-
 struct OUAIVEDisplay : TransparentWidget {
 	OUAIVE *module;
 	int frame = 0;
 	shared_ptr<Font> font;
 	string displayParams;
-
 
 	OUAIVEDisplay() {
 		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
@@ -356,9 +349,6 @@ OUAIVEWidget::OUAIVEWidget() {
 
 	addParam(createParam<Trimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, 0.5, 10, 1.0));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 277), module, OUAIVE::SPEED_INPUT));
-
-
-
 
 	addInput(createInput<PJ301MPort>(Vec(portX0[0]-22, 321), module, OUAIVE::GATE_INPUT));
 	addInput(createInput<PJ301MPort>(Vec(portX0[1]-11, 321), module, OUAIVE::POS_INPUT));

@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.5.5-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.5.6-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -13,7 +13,7 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-MOiRE is CV automated but you can override the automation which is ... cool (thanks "nay-seven" for the idea !!!).
+lATe is a simple module that takes a clock in input and add an offset to even ticks to create swing.
 
 ## License
 

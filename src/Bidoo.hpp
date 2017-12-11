@@ -50,3 +50,7 @@ struct MOIREWidget : ModuleWidget {
 	MOIREWidget();
 	Menu *createContextMenu() override;
 };
+
+struct LATEWidget : ModuleWidget {
+	LATEWidget();
+};

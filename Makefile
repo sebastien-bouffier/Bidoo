@@ -1,5 +1,26 @@
 
-SOURCES = $(wildcard src/*.cpp)
+SOURCES += $(wildcard src/*.cpp src/utils/audiofile/*cpp src/utils/ffft/*cpp src/utils/lodepng/*cpp src/utils/resampler/*cpp)
+
+CFLAGS  += -Isrc/utils/audiofile
+CFLAGS  += -Isrc/utils/ffft
+CFLAGS  += -Isrc/utils/lodepng
+CFLAGS  += -Isrc/utils/resampler
+
+FLAGS += \
+	-DTEST \
+	-Isrc/utils/audiofile
+
+FLAGS += \
+	-DTEST \
+	-Isrc/utils/ffft
+
+FLAGS += \
+	-DTEST \
+	-Isrc/utils/lodepng
+
+FLAGS += \
+	-DTEST \
+	-Isrc/utils/resampler
 
 include ../../plugin.mk
 
