@@ -310,6 +310,7 @@ struct DTROY : Module {
 	int countMode = 0; // 0 steps, 1 pulses
 	int patternNumber = 0;
 	bool updateWidget = false;
+	bool pitchMode = false;
 
 	//Pattern p[16];
 	Pattern p;
@@ -558,9 +559,9 @@ void DTROY::step() {
 	if (nextStep) {
 		// Advance step
 		previousPitch = closestVoltageInScale(params[TRIG_PITCH_PARAM + index%8].value);
-		auto nextStep = p.GetNextStep(reStart);
-		index = std::get<0>(nextStep);
-		pulse = std::get<1>(nextStep);
+		auto nextT = p.GetNextStep(reStart);
+		index = std::get<0>(nextT);
+		pulse = std::get<1>(nextT);
 		if (reStart) { reStart = false; }
 		lights[STEPS_LIGHTS+index%8].value = 1.0;
 	}
@@ -615,7 +616,7 @@ void DTROY::step() {
 
 	// Update Outputs
 	outputs[GATE_OUTPUT].value = gateOn ? gateValue : 0.0;
-	outputs[PITCH_OUTPUT].value = pitch;
+	outputs[PITCH_OUTPUT].value = pitchMode ? pitch : (gateOn ? pitch : 0);
 }
 
 struct DTROYDisplay : TransparentWidget {
@@ -833,6 +834,19 @@ struct DTROYRandSlideSkipItem : MenuItem {
 	}
 };
 
+struct DTROYPitchModeItem : MenuItem {
+	DTROY *dtroyModule;
+
+	void onAction(EventAction &e) override {
+		dtroyModule->pitchMode = !dtroyModule->pitchMode;
+	}
+
+	void step() override {
+		rightText = dtroyModule->pitchMode ? "✔" : "";
+		MenuItem::step();
+	}
+};
+
 Menu *DTROYWidget::createContextMenu() {
 	Menu *menu = ModuleWidget::createContextMenu();
 
@@ -859,6 +873,14 @@ Menu *DTROYWidget::createContextMenu() {
 	randomizeSlideSkipItem->text = "Randomize slides and skips";
 	randomizeSlideSkipItem->dtroyModule = dtroyModule;
 	menu->addChild(randomizeSlideSkipItem);
+
+	MenuLabel *spacerLabel2 = new MenuLabel();
+	menu->addChild(spacerLabel2);
+
+	DTROYPitchModeItem *pitchModeItem = new DTROYPitchModeItem();
+	pitchModeItem->text = "Pitch mode continuous/triggered";
+	pitchModeItem->dtroyModule = dtroyModule;
+	menu->addChild(pitchModeItem);
 
 	return menu;
 }
