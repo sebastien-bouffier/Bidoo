@@ -54,3 +54,15 @@ struct MOIREWidget : ModuleWidget {
 struct LATEWidget : ModuleWidget {
 	LATEWidget();
 };
+
+struct FORKWidget : ModuleWidget {
+	ParamWidget *F1;
+	ParamWidget *F2;
+	ParamWidget *F3;
+	ParamWidget *F4;
+	ParamWidget *A1;
+	ParamWidget *A2;
+	ParamWidget *A3;
+	ParamWidget *A4;
+	FORKWidget();
+};

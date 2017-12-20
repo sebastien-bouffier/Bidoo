@@ -28,7 +28,9 @@ struct LATE : Module {
 	bool armed = false;
 	SchmittTrigger clockTrigger;
 	SchmittTrigger resetTrigger;
-	clock_t tCurrent;
+	clock_t tCurrent = clock();
+	clock_t tPrevious = clock();
+
 
 	LATE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
 
@@ -44,20 +46,23 @@ void LATE::step() {
 	}
 
 	if (clockTrigger.process(inputs[CLOCK_INPUT].value)) {
+		tPrevious = tCurrent;
+		tCurrent = clock();
 		if (odd) {
 			outputs[CLOCK_OUTPUT].value = 10;
 			odd = false;
 		}
 		else {
-			if (armed){
-				outputs[CLOCK_OUTPUT].value = 10;
-			}
+			// if (armed){
+			// 	outputs[CLOCK_OUTPUT].value = 10;
+			// }
 			armed = true;
-			tCurrent = clock();
 		}
 	}
 
-	if (armed && !odd && ((clock() - tCurrent) > (params[SWING_PARAM].value + inputs[SWING_INPUT].value)*50)){
+	float lag = rescalef(clampf(params[SWING_PARAM].value + inputs[SWING_INPUT].value,0,8),0,10,0,tCurrent-tPrevious);
+
+	if (armed && !odd && (clock() - tCurrent) >= lag) {
 		outputs[CLOCK_OUTPUT].value = 10;
 		armed = false;
 		odd = true;
@@ -77,13 +82,13 @@ LATEWidget::LATEWidget() {
 	}
 
 	addParam(createParam<RoundSmallBlackKnob>(Vec(16, 60), module, LATE::SWING_PARAM, 0, 10, 0));
-	addInput(createInput<PJ301MPort>(Vec(17, 100), module, LATE::SWING_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(18, 100), module, LATE::SWING_INPUT));
 
-	addInput(createInput<PJ301MPort>(Vec(17, 170), module, LATE::RESET_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(18, 170), module, LATE::RESET_INPUT));
 
-	addInput(createInput<PJ301MPort>(Vec(17, 240), module, LATE::CLOCK_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(18, 240), module, LATE::CLOCK_INPUT));
 
-	addOutput(createOutput<PJ301MPort>(Vec(17, 310), module, LATE::CLOCK_OUTPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(18, 310), module, LATE::CLOCK_OUTPUT));
 
 	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));

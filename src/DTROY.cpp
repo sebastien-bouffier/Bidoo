@@ -697,7 +697,6 @@ struct DTROYDisplay : TransparentWidget {
 		}
 	}
 
-
 	void draw(NVGcontext *vg) override {
 		if (++frame >= 4) {
 			frame = 0;

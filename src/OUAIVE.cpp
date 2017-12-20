@@ -2,7 +2,7 @@
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
 #include "../ext/osdialog/osdialog.h"
-#include "utils/audiofile/AudioFile.h"
+#include "dep/audiofile/AudioFile.h"
 #include <vector>
 #include "cmath"
 #include <iomanip> // setprecision
@@ -166,8 +166,9 @@ void OUAIVE::step() {
 			//calulate outputs
 			if (audioFile.getNumChannels() == 1)
 				outputs[OUT_OUTPUT].value = 5 * audioFile.samples[0][floor(samplePos)];
-			else if (audioFile.getNumChannels() ==2)
+			else if (audioFile.getNumChannels() == 2)
 				outputs[OUT_OUTPUT].value = 5 * (audioFile.samples[0][floor(samplePos)] + audioFile.samples[1][floor(samplePos)]) / 2;
+
 			//shift samplePos
 			if (trigMode == 0) {
 				if (readMode != 1) {
