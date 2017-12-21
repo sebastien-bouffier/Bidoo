@@ -176,8 +176,8 @@ FORKWidget::FORKWidget() {
 	addParam(createParam<RoundBlackKnob>(Vec(26,40), module, FORK::PITCH_PARAM, -54, 54, 0));
 	addParam(createParam<FORKCKD6>(Vec(30,274), module, FORK::PRESET_PARAM, 0.0, 8, 0.0));
 
-	int xtpots = 35;
-	int xtinyports = 64;
+	int xtpots = 34;
+	int xtinyports = 67;
 
 	F1 = createParam<Trimpot>(Vec(xtpots,35 + 25 * 2), module, FORK::F_PARAM, 190, 730, 190);
 	addParam(F1);
