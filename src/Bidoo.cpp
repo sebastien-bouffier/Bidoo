@@ -9,6 +9,9 @@ void init(rack::Plugin *p) {
 #ifdef VERSION
 	p->version = TOSTRING(VERSION);
 #endif
+	p->website = "https://github.com/sebastien-bouffier/Bidoo";
+	p->manual = "https://github.com/sebastien-bouffier/Bidoo/wiki";
+
 	p->addModel(createModel<DTROYWidget>("Bidoo", "dTRoY", "dTRoY sequencer", SEQUENCER_TAG));
 	p->addModel(createModel<OUAIVEWidget>("Bidoo", "OUAIve", "OUAIve player", SAMPLER_TAG));
 	p->addModel(createModel<CHUTEWidget>("Bidoo", "ChUTE", "ChUTE trigger", SEQUENCER_TAG));
