@@ -1,5 +1,5 @@
 SLUG = Bidoo
-VERSION = 0.5.8
+VERSION = 0.5.9
 
 CFLAGS  += -Isrc/dep/audiofile
 CXXFLAGS +=
