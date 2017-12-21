@@ -40,6 +40,7 @@ struct LATE : Module {
 
 void LATE::step() {
 	outputs[CLOCK_OUTPUT].value = 0;
+	clock_t now = clock();
 
 	if (resetTrigger.process(inputs[RESET_INPUT].value)) {
 		odd=true;
@@ -47,22 +48,20 @@ void LATE::step() {
 
 	if (clockTrigger.process(inputs[CLOCK_INPUT].value)) {
 		tPrevious = tCurrent;
-		tCurrent = clock();
+		tCurrent = now;
 		if (odd) {
 			outputs[CLOCK_OUTPUT].value = 10;
 			odd = false;
+			armed = false;
 		}
 		else {
-			// if (armed){
-			// 	outputs[CLOCK_OUTPUT].value = 10;
-			// }
 			armed = true;
 		}
 	}
 
-	float lag = rescalef(clampf(params[SWING_PARAM].value + inputs[SWING_INPUT].value,0,8),0,10,0,tCurrent-tPrevious);
+	float lag = rescalef(clampf(params[SWING_PARAM].value + inputs[SWING_INPUT].value,0,10),0,10,0,(float)tCurrent-(float)tPrevious);
 
-	if (armed && !odd && (clock() - tCurrent) >= lag) {
+	if (armed && !odd && (((float)now - (float)tCurrent) >= lag)) {
 		outputs[CLOCK_OUTPUT].value = 10;
 		armed = false;
 		odd = true;
