@@ -335,11 +335,10 @@ struct DTROY : Module {
 	json_t *toJson() override {
 		json_t *rootJ = json_object();
 
-		// running
 		json_object_set_new(rootJ, "running", json_boolean(running));
-
 		json_object_set_new(rootJ, "playMode", json_integer(playMode));
 		json_object_set_new(rootJ, "countMode", json_integer(countMode));
+		json_object_set_new(rootJ, "pitchMode", json_boolean(pitchMode));
 
 		json_t *trigsJ = json_array();
 		for (int i = 0; i < 8; i++) {
@@ -356,7 +355,6 @@ struct DTROY : Module {
 	}
 
 	void fromJson(json_t *rootJ) override {
-		// running
 		json_t *runningJ = json_object_get(rootJ, "running");
 		if (runningJ)
 			running = json_is_true(runningJ);
@@ -368,6 +366,10 @@ struct DTROY : Module {
 		json_t *countModeJ = json_object_get(rootJ, "countMode");
 		if (countModeJ)
 			countMode = json_integer_value(countModeJ);
+
+		json_t *pitchModeJ = json_object_get(rootJ, "pitchMode");
+		if (pitchModeJ)
+			pitchMode = json_is_true(pitchModeJ);
 
 		json_t *trigsJ = json_object_get(rootJ, "trigs");
 		if (trigsJ) {

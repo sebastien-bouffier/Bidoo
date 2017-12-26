@@ -1,20 +1,27 @@
 SLUG = Bidoo
-VERSION = 0.5.9
+VERSION = 0.5.10
 
-CFLAGS  += -Isrc/dep/audiofile
+# FLAGS will be passed to both the C and C++ compiler
+FLAGS +=
+CFLAGS +=
 CXXFLAGS +=
-FLAGS += \
-	-DTEST \
-	-Isrc/utils/audiofile
 
+# Careful about linking to libraries, since you can't assume much about the user's environment and library search path.
+# Static libraries are fine.
 LDFLAGS +=
 
-SOURCES += $(wildcard src/*.cpp src/dep/audiofile/*cpp)
+# Add .cpp and .c files to the build
+SOURCES = $(wildcard src/*.cpp src/dep/audiofile/*cpp)
 
+# Must include the VCV plugin Makefile framework
 include ../../plugin.mk
 
+DISTRIBUTABLES += $(wildcard LICENSE*) res
+
+# Convenience target for packaging files into a ZIP file
 .PHONY: dist
 dist: all
+	rm -rf dist
 	mkdir -p dist/$(SLUG)
 	cp LICENSE* dist/$(SLUG)/
 	cp $(TARGET) dist/$(SLUG)/
