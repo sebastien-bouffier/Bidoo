@@ -12,7 +12,7 @@ void init(rack::Plugin *p) {
 	p->website = "https://github.com/sebastien-bouffier/Bidoo";
 	p->manual = "https://github.com/sebastien-bouffier/Bidoo/wiki";
 
-	p->addModel(createModel<DTROYWidget>("Bidoo", "dTRoY", "dTRoY sequencer", SEQUENCER_TAG));
+	p->addModel(createModel<DTROYWidget>("Bidoo", "dTRoY", "dTrOY sequencer", SEQUENCER_TAG));
 	p->addModel(createModel<OUAIVEWidget>("Bidoo", "OUAIve", "OUAIve player", SAMPLER_TAG));
 	p->addModel(createModel<CHUTEWidget>("Bidoo", "ChUTE", "ChUTE trigger", SEQUENCER_TAG));
 	p->addModel(createModel<DUKEWidget>("Bidoo", "dUKe", "dUKe controller", CONTROLLER_TAG));

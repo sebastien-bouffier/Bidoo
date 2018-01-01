@@ -13,7 +13,7 @@ extern Plugin *plugin;
 ////////////////////
 
 struct DTROYWidget : ModuleWidget {
-	ParamWidget *scaleParam;
+	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam, *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam, *pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8];
 	DTROYWidget();
 	Menu *createContextMenu() override;
 };

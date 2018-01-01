@@ -5,11 +5,59 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    id="svg3728"
    version="1.1"
    viewBox="0 0 4.7624999 3.175"
    height="12"
-   width="18">
+   width="18"
+   sodipodi:docname="bidooSlidePotHandle.svg"
+   inkscape:version="0.92.2 (5c3e80d, 2017-08-06)">
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="1920"
+     inkscape:window-height="1017"
+     id="namedview11"
+     showgrid="false"
+     inkscape:zoom="32.000001"
+     inkscape:cx="8.8507942"
+     inkscape:cy="9.3762603"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg3728"
+     inkscape:snap-page="false"
+     inkscape:snap-grids="false"
+     inkscape:snap-to-guides="false">
+    <sodipodi:guide
+       position="0,0"
+       orientation="0,18"
+       id="guide817"
+       inkscape:locked="false" />
+    <sodipodi:guide
+       position="4.7624999,0"
+       orientation="-12,0"
+       id="guide819"
+       inkscape:locked="false" />
+    <sodipodi:guide
+       position="4.7624999,3.175"
+       orientation="0,-18"
+       id="guide821"
+       inkscape:locked="false" />
+    <sodipodi:guide
+       position="0,3.175"
+       orientation="12,0"
+       id="guide823"
+       inkscape:locked="false" />
+  </sodipodi:namedview>
   <defs
      id="defs3722" />
   <metadata
@@ -20,32 +68,17 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
   <path
+     style="opacity:1;fill:#04090c;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.20981458;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+     d="M 0,-0.00826813 H 4.7707682 V 3.1915364 H 0 Z"
+     id="rect819" />
+  <path
      id="rect973"
-     d="M 0.06549303,0.06729695 H 4.699018 V 3.1095076 H 0.06549303 Z"
-     style="fill:#454545;fill-opacity:1;stroke:#000000;stroke-width:0.12773016;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
-  <path
-     id="path818"
-     d="M 0.10523737,0.52916666 H 4.67137 v 0"
-     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
-  <path
-     id="path820"
-     d="M 0.09354433,2.6458333 H 4.6889098"
-     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
-  <path
-     id="path822"
-     d="M 0.08185129,2.1166666 H 4.6830633"
-     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
-  <path
-     id="path824"
-     d="M 0.07015825,1.0583333 H 4.67137"
-     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
-  <path
-     id="path826"
-     d="M 0.07600477,1.5875 H 4.6772168"
-     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+     d="M 0.89908608,0.79510501 H 3.8716821 V 2.3881633 H 0.89908608 Z"
+     style="fill:#377dab;fill-opacity:1;stroke:none;stroke-width:0.12147824;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     inkscape:connector-curvature="0" />
 </svg>

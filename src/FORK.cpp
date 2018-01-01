@@ -207,8 +207,8 @@ FORKWidget::FORKWidget() {
 	addParam(A4);
 	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 6 + 25 * 8 + 20 + 2), module, FORK::A_INPUT + 3));
 
-	addInput(createInput<PJ301MPort>(Vec(15,320), module, FORK::PITCH_INPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(50,320), module, FORK::SIGNAL_OUTPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(20,327), module, FORK::PITCH_INPUT));
+	addOutput(createOutput<TinyPJ301MPort>(Vec(55,327), module, FORK::SIGNAL_OUTPUT));
 
 	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));

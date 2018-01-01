@@ -10,51 +10,63 @@
 using namespace std;
 
 struct Step {
-	int index;
-	int number;
-	bool skip;
-	bool slide;
-	int pulses;
-	float pitch;
-	int type;
+	int index = 0;
+	int number = 0;
+	bool skip = false;
+	bool skipParam = false;
+	bool slide = false;
+	int pulses = 1;
+	int pulsesParam = 1;
+	float pitch = 3;
+	int type = 2;
 };
 
 struct Pattern {
 	int playMode = 0;
 	int countMode = 0;
-	int numberOfSteps = 0;
-	int rootNote;
-	int scale;
-	float gateTime;
-	float slide;
+	int numberOfSteps = 8;
+	int numberOfStepsParam = 8;
+	int rootNote = 0;
+	int rootNoteParam = 0;
+	int scale = 0;
+	int scaleParam = 0;
+	float gateTime = 0.5;
+	float slideTime = 0.2;
+	float sensitivity = 1;
 	int currentStep = 0;
 	int currentPulse = 0;
 	bool forward = true;
 	std::vector<Step> steps {16};
 
-	void Update(int playMode, int countMode, int numberOfSteps, int rootNote, int scale, float gateTime, float slide, std::vector<char> skips, std::vector<char> slides, std::vector<Param> pulses, std::vector<Param> pitches, std::vector<Param> types) {
+	void Update(int playMode, int countMode, int numberOfSteps, int numberOfStepsParam, int rootNote, int scale, float gateTime, float slideTime, float sensitivity, std::vector<char> skips, std::vector<char> slides, std::vector<Param> pulses, std::vector<Param> pitches, std::vector<Param> types) {
 		this->playMode = playMode;
 		this->countMode = countMode;
 		this->numberOfSteps = numberOfSteps;
+		this->numberOfStepsParam = numberOfStepsParam;
 		this->rootNote = rootNote;
 		this->scale = scale;
+		this->rootNoteParam = rootNote;
+		this->scaleParam = scale;
 		this->gateTime = gateTime;
-		this->slide = slide;
+		this->slideTime = slideTime;
+		this->sensitivity = sensitivity;
 		int pCount = 0;
 		for (int i = 0; i < 16; i++) {
 			steps[i].index = i%8;
 			steps[i].number = i;
 			if (((countMode == 0) && (i < numberOfSteps)) || ((countMode == 1) && (pCount < numberOfSteps))) {
-				steps[i].skip = skips[i%8] == 't';
+				steps[i].skip = (skips[i%8] == 't');
 			}	else {
 				steps[i].skip = true;
 			}
-			steps[i].slide = slides[i%8] == 't';
+			steps[i].skipParam = (skips[i%8] == 't');
+			steps[i].slide = (slides[i%8] == 't');
 			if ((countMode == 1) && ((pCount + (int)pulses[i%8].value) >= numberOfSteps)) {
 				steps[i].pulses = max(numberOfSteps - pCount, 0);
 			}	else {
 				steps[i].pulses = (int)pulses[i%8].value;
 			}
+			steps[i].pulsesParam = (int)pulses[i%8].value;
 			pCount = pCount + steps[i].pulses;
 			steps[i].pitch = pitches[i%8].value;
 			steps[i].type = (int)types[i%8].value;
@@ -121,6 +133,10 @@ struct Pattern {
 				}
 			}
 		}
+	}
+
+	Step CurrentStep() {
+		return this->steps[currentStep];
 	}
 
 	int GetFirstStep()
@@ -190,7 +206,8 @@ struct DTROY : Module {
 		PLAY_MODE_PARAM,
 		COUNT_MODE_PARAM,
 		PATTERN_PARAM,
-		TRIG_COUNT_PARAM = PATTERN_PARAM + 8,
+		SENSITIVITY_PARAM,
+		TRIG_COUNT_PARAM = SENSITIVITY_PARAM + 8,
 		TRIG_TYPE_PARAM = TRIG_COUNT_PARAM + 8,
 		TRIG_PITCH_PARAM = TRIG_TYPE_PARAM + 8,
 		TRIG_SLIDE_PARAM = TRIG_PITCH_PARAM + 8,
@@ -284,8 +301,7 @@ struct DTROY : Module {
 	};
 
 	bool running = true;
-	SchmittTrigger clockTrigger; // for external clock
-	// For buttons
+	SchmittTrigger clockTrigger;
 	SchmittTrigger runningTrigger;
 	SchmittTrigger resetTrigger;
 	SchmittTrigger slideTriggers[8];
@@ -308,12 +324,14 @@ struct DTROY : Module {
 	std::vector<char> skipState = {'f','f','f','f','f','f','f','f'};
 	int playMode = 0; // 0 forward, 1 backward, 2 pingpong, 3 random, 4 brownian
 	int countMode = 0; // 0 steps, 1 pulses
-	int patternNumber = 0;
+	int numSteps = 8;
+	int selectedPattern = 0;
+	int playedPattern = 0;
 	bool updateWidget = false;
 	bool pitchMode = false;
+	bool updateFlag = false;
 
-	//Pattern p[16];
-	Pattern p;
+	Pattern patterns[16];
 
 	DTROY() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
 		UpdatePattern();
@@ -323,9 +341,7 @@ struct DTROY : Module {
 		std::vector<Param> pulses(&params[TRIG_COUNT_PARAM],&params[TRIG_COUNT_PARAM + 8]);
 		std::vector<Param> pitches(&params[TRIG_PITCH_PARAM],&params[TRIG_PITCH_PARAM + 8]);
 		std::vector<Param> types(&params[TRIG_TYPE_PARAM],&params[TRIG_TYPE_PARAM + 8]);
-		std::vector<char> skipes(&skipState[0],&skipState[7]);
-		std::vector<char> slides(&slideState[0],&slideState[7]);
-		p.Update(playMode, countMode, numSteps(), params[GATE_TIME_PARAM].value, params[SLIDE_TIME_PARAM].value, rootNote, curScaleVal, skipes, slides, pulses, pitches, types);
+		patterns[selectedPattern].Update(playMode, countMode, numSteps, roundf(params[STEPS_PARAM].value), roundf(params[ROOT_NOTE_PARAM].value), roundf(params[SCALE_PARAM].value), params[GATE_TIME_PARAM].value, params[SLIDE_TIME_PARAM].value, params[SENSITIVITY_PARAM].value , skipState, slideState, pulses, pitches, types);
 	}
 
 	void step() override;
@@ -339,6 +355,8 @@ struct DTROY : Module {
 		json_object_set_new(rootJ, "playMode", json_integer(playMode));
 		json_object_set_new(rootJ, "countMode", json_integer(countMode));
 		json_object_set_new(rootJ, "pitchMode", json_boolean(pitchMode));
+		json_object_set_new(rootJ, "selectedPattern", json_integer(selectedPattern));
+		json_object_set_new(rootJ, "playedPattern", json_integer(playedPattern));
 
 		json_t *trigsJ = json_array();
 		for (int i = 0; i < 8; i++) {
@@ -351,6 +369,31 @@ struct DTROY : Module {
 		}
 		json_object_set_new(rootJ, "trigs", trigsJ);
 
+		for (int i = 0; i<16; i++) {
+			json_t *patternJ = json_object();
+			json_object_set_new(patternJ, "playMode", json_integer(patterns[i].playMode));
+			json_object_set_new(patternJ, "countMode", json_integer(patterns[i].countMode));
+			json_object_set_new(patternJ, "numSteps", json_integer(patterns[i].numberOfStepsParam));
+			json_object_set_new(patternJ, "rootNote", json_integer(patterns[i].rootNote));
+			json_object_set_new(patternJ, "scale", json_integer(patterns[i].scale));
+			json_object_set_new(patternJ, "gateTime", json_real(patterns[i].gateTime));
+			json_object_set_new(patternJ, "slideTime", json_real(patterns[i].slideTime));
+			json_object_set_new(patternJ, "sensitivity", json_real(patterns[i].sensitivity));
+			for (int j = 0; j < 16; j++) {
+				json_t *stepJ = json_object();
+				json_object_set_new(stepJ, "index", json_integer(patterns[i].steps[j].index));
+				json_object_set_new(stepJ, "number", json_integer(patterns[i].steps[j].number));
+				json_object_set_new(stepJ, "skip", json_integer((int)patterns[i].steps[j].skip));
+				json_object_set_new(stepJ, "skipParam", json_integer((int)patterns[i].steps[j].skipParam));
+				json_object_set_new(stepJ, "slide", json_integer((int)patterns[i].steps[j].slide));
+				json_object_set_new(stepJ, "pulses", json_integer(patterns[i].steps[j].pulses));
+				json_object_set_new(stepJ, "pulsesParam", json_integer(patterns[i].steps[j].pulsesParam));
+				json_object_set_new(stepJ, "pitch", json_real(patterns[i].steps[j].pitch));
+				json_object_set_new(stepJ, "type", json_integer(patterns[i].steps[j].type));
+				json_object_set_new(patternJ, ("step" + to_string(j)).c_str() , stepJ);
+			}
+			json_object_set_new(rootJ, ("pattern" + to_string(i)).c_str(), patternJ);
+		}
 		return rootJ;
 	}
 
@@ -358,19 +401,21 @@ struct DTROY : Module {
 		json_t *runningJ = json_object_get(rootJ, "running");
 		if (runningJ)
 			running = json_is_true(runningJ);
-
 		json_t *playModeJ = json_object_get(rootJ, "playMode");
 		if (playModeJ)
 			playMode = json_integer_value(playModeJ);
-
 		json_t *countModeJ = json_object_get(rootJ, "countMode");
 		if (countModeJ)
 			countMode = json_integer_value(countModeJ);
-
+		json_t *selectedPatternJ = json_object_get(rootJ, "selectedPattern");
+		if (selectedPatternJ)
+			selectedPattern = json_integer_value(selectedPatternJ);
+		json_t *playedPatternJ = json_object_get(rootJ, "playedPattern");
+		if (playedPatternJ)
+			playedPattern = json_integer_value(playedPatternJ);
 		json_t *pitchModeJ = json_object_get(rootJ, "pitchMode");
 		if (pitchModeJ)
 			pitchMode = json_is_true(pitchModeJ);
-
 		json_t *trigsJ = json_object_get(rootJ, "trigs");
 		if (trigsJ) {
 			for (int i = 0; i < 8; i++) {
@@ -379,6 +424,67 @@ struct DTROY : Module {
 				{
 					slideState[i] = json_is_true(json_array_get(trigJ, 0)) ? 't' : 'f';
 					skipState[i] = json_is_true(json_array_get(trigJ, 1)) ? 't' : 'f';
+				}
+			}
+		}
+		for (int i=0; i<16;i++) {
+			json_t *patternJ = json_object_get(rootJ, ("pattern" + to_string(i)).c_str());
+			if (patternJ){
+				json_t *playModeJ = json_object_get(patternJ, "playMode");
+				if (playModeJ)
+					patterns[i].playMode = json_integer_value(playModeJ);
+				json_t *countModeJ = json_object_get(patternJ, "countMode");
+				if (countModeJ)
+					patterns[i].countMode = json_integer_value(countModeJ);
+				json_t *numStepsJ = json_object_get(patternJ, "numSteps");
+				if (numStepsJ)
+					patterns[i].numberOfStepsParam = json_integer_value(numStepsJ);
+				json_t *rootNoteJ = json_object_get(patternJ, "rootNote");
+				if (rootNoteJ)
+					patterns[i].rootNote = json_integer_value(rootNoteJ);
+				json_t *scaleJ = json_object_get(patternJ, "scale");
+				if (scaleJ)
+					patterns[i].scale = json_integer_value(scaleJ);
+				json_t *gateTimeJ = json_object_get(patternJ, "gateTime");
+				if (gateTimeJ)
+					patterns[i].gateTime = json_real_value(gateTimeJ);
+				json_t *slideTimeJ = json_object_get(patternJ, "slideTime");
+				if (slideTimeJ)
+					patterns[i].slideTime = json_real_value(slideTimeJ);
+				json_t *sensitivityJ = json_object_get(patternJ, "sensitivity");
+				if (sensitivityJ)
+					patterns[i].sensitivity = json_real_value(sensitivityJ);
+				for (int j = 0; j < 16; j++) {
+					json_t *stepJ = json_object_get(patternJ, ("step" + to_string(j)).c_str());
+					if (stepJ) {
+						json_t *indexJ= json_object_get(stepJ, "index");
+						if (indexJ)
+							patterns[i].steps[j].index = json_integer_value(indexJ);
+						json_t *numberJ= json_object_get(stepJ, "numer");
+						if (numberJ)
+							patterns[i].steps[j].number = json_integer_value(numberJ);
+						json_t *skipJ= json_object_get(stepJ, "skip");
+						if (skipJ)
+							patterns[i].steps[j].skip = !!json_integer_value(skipJ);
+						json_t *skipParamJ= json_object_get(stepJ, "skipParam");
+						if (skipParamJ)
+							patterns[i].steps[j].skipParam = !!json_integer_value(skipParamJ);
+						json_t *slideJ= json_object_get(stepJ, "slide");
+						if (slideJ)
+							patterns[i].steps[j].slide = !!json_integer_value(slideJ);
+						json_t *pulsesJ= json_object_get(stepJ, "pulses");
+						if (pulsesJ)
+							patterns[i].steps[j].pulses = json_integer_value(pulsesJ);
+						json_t *pulsesParamJ= json_object_get(stepJ, "pulsesParam");
+						if (pulsesParamJ)
+							patterns[i].steps[j].pulsesParam = json_integer_value(pulsesParamJ);
+						json_t *pitchJ= json_object_get(stepJ, "pitch");
+						if (pitchJ)
+							patterns[i].steps[j].pitch = json_real_value(pitchJ);
+						json_t *typeJ= json_object_get(stepJ, "type");
+						if (typeJ)
+							patterns[i].steps[j].type = json_integer_value(typeJ);
+					}
 				}
 			}
 		}
@@ -402,15 +508,11 @@ struct DTROY : Module {
 		}
 	}
 
-	// pattern utilities
-
-	int numSteps() { return clampi(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 16); }
-
 	// Quantization inspired from  https://github.com/jeremywen/JW-Modules
 
 	float getOneRandomNoteInScale(){
-		rootNote = clampi(params[ROOT_NOTE_PARAM].value + inputs[ROOT_NOTE_INPUT].value, 0.0, NUM_NOTES-1);
-		curScaleVal = clampi(params[SCALE_PARAM].value + inputs[SCALE_INPUT].value, 0.0, NUM_SCALES-1);
+		rootNote = clampi(patterns[playedPattern].rootNoteParam + inputs[ROOT_NOTE_INPUT].value, 0.0, NUM_NOTES-1);
+		curScaleVal = clampi(patterns[playedPattern].scaleParam + inputs[SCALE_INPUT].value, 0.0, NUM_SCALES-1);
 		int *curScaleArr;
 		int notesInScale = 0;
 		switch(curScaleVal){
@@ -446,8 +548,8 @@ struct DTROY : Module {
 	}
 
 	float closestVoltageInScale(float voltsIn){
-		rootNote = clampi(params[ROOT_NOTE_PARAM].value + inputs[ROOT_NOTE_INPUT].value, 0.0, DTROY::NUM_NOTES-1);
-		curScaleVal = clampi(params[SCALE_PARAM].value + inputs[SCALE_INPUT].value, 0.0, DTROY::NUM_SCALES-1);
+		rootNote = clampi(patterns[playedPattern].rootNoteParam + inputs[ROOT_NOTE_INPUT].value, 0.0, DTROY::NUM_NOTES-1);
+		curScaleVal = clampi(patterns[playedPattern].scaleParam + inputs[SCALE_INPUT].value, 0.0, DTROY::NUM_SCALES-1);
 		int *curScaleArr;
 		int notesInScale = 0;
 		switch(curScaleVal){
@@ -533,7 +635,6 @@ void DTROY::step() {
 		reStart = true;
 		lights[RESET_LIGHT].value = 1.0;
 	}
-
 	// Trigs Update
 	for (int i = 0; i < 8; i++) {
 		if (slideTriggers[i].process(params[TRIG_SLIDE_PARAM + i].value)) {
@@ -543,31 +644,31 @@ void DTROY::step() {
 			skipState[i] = skipState[i] == 't' ? 'f' : 't';
 		}
 	}
-
 	// playMode
 	if (playModeTrigger.process(params[PLAY_MODE_PARAM].value)) {
 		playMode = (((int)playMode + 1) % 5);
 	}
-
 	// countMode
 	if (countModeTrigger.process(params[COUNT_MODE_PARAM].value)) {
 		countMode = (((int)countMode + 1) % 2);
 	}
-
-	// Pattern
-	UpdatePattern();
-
+	// numSteps
+	numSteps = clampi(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 16);
+	//patternNumber
+	//selectedPattern = clampi(params[PATTERN_PARAM].value - 1, 0, 15);
+	playedPattern = clampi((inputs[PATTERN_INPUT].active ? rescalef(inputs[PATTERN_INPUT].value,0,10,1,16.1) : params[PATTERN_PARAM].value) - 1, 0, 15);
+	// Update Pattern
+	if (updateFlag) UpdatePattern();
 	// Steps && Pulses Management
 	if (nextStep) {
 		// Advance step
-		previousPitch = closestVoltageInScale(params[TRIG_PITCH_PARAM + index%8].value);
-		auto nextT = p.GetNextStep(reStart);
+		previousPitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch);
+		auto nextT = patterns[playedPattern].GetNextStep(reStart);
 		index = std::get<0>(nextT);
 		pulse = std::get<1>(nextT);
 		if (reStart) { reStart = false; }
 		lights[STEPS_LIGHTS+index%8].value = 1.0;
 	}
-
 	// Lights
 	for (int i = 0; i < 8; i++) {
 		lights[STEPS_LIGHTS + i].value -= lights[STEPS_LIGHTS + i].value / lightLambda / engineGetSampleRate();
@@ -577,28 +678,28 @@ void DTROY::step() {
 	lights[RESET_LIGHT].value -= lights[RESET_LIGHT].value / lightLambda / engineGetSampleRate();
 
 	// Caclulate Outputs
-	bool gateOn = running && (skipState[index%8] != 't');
+	bool gateOn = running && (!patterns[playedPattern].CurrentStep().skip);
 	float gateValue = 0.0;
 	if (gateOn){
-		if (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 0) {
+		if (patterns[playedPattern].CurrentStep().type == 0) {
 			gateOn = false;
 		}
-		else if (((roundf(params[TRIG_TYPE_PARAM + index%8].value) == 1) && (pulse == 0))
-				|| (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 2)
-				|| ((roundf(params[TRIG_TYPE_PARAM + index%8].value) == 3) && (pulse == roundf(params[TRIG_COUNT_PARAM + index%8].value)))) {
-				float gateCoeff = clampf(params[GATE_TIME_PARAM].value - 0.02 + inputs[GATE_TIME_INPUT].value /10, 0.0, 0.99);
+		else if (((patterns[playedPattern].CurrentStep().type == 1) && (pulse == 0))
+				|| (patterns[playedPattern].CurrentStep().type == 2)
+				|| ((patterns[playedPattern].CurrentStep().type == 3) && (pulse == patterns[playedPattern].CurrentStep().pulses))) {
+				float gateCoeff = clampf(patterns[playedPattern].gateTime - 0.02 + inputs[GATE_TIME_INPUT].value /10, 0.0, 0.99);
 			gateOn = phase < gateCoeff;
 			gateValue = 10.0;
 		}
-		else if (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 3) {
+		else if (patterns[playedPattern].CurrentStep().type == 3) {
 			gateOn = true;
 			gateValue = 10.0;
 		}
-		else if (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 4) {
+		else if (patterns[playedPattern].CurrentStep().type == 4) {
 			gateOn = true;
 			gateValue = inputs[EXTGATE1_INPUT].value;
 		}
-		else if (roundf(params[TRIG_TYPE_PARAM + index%8].value) == 5) {
+		else if (patterns[playedPattern].CurrentStep().type == 5) {
 			gateOn = true;
 			gateValue = inputs[EXTGATE2_INPUT].value;
 		}
@@ -608,10 +709,10 @@ void DTROY::step() {
 		}
 	}
 
-	pitch = closestVoltageInScale(params[TRIG_PITCH_PARAM + index%8].value);
-	if (slideState[index%8] == 't') {
+	pitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch * patterns[playedPattern].sensitivity);
+	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
-			float slideCoeff = clampf(params[SLIDE_TIME_PARAM].value - 0.01 + inputs[SLIDE_TIME_INPUT].value /10, -0.1, 0.99);
+			float slideCoeff = clampf(patterns[playedPattern].slideTime - 0.01 + inputs[SLIDE_TIME_INPUT].value /10, -0.1, 0.99);
 			pitch = pitch - (1 - powf(phase, slideCoeff)) * (pitch - previousPitch);
 		}
 	}
@@ -626,24 +727,26 @@ struct DTROYDisplay : TransparentWidget {
 	int frame = 0;
 	shared_ptr<Font> font;
 
-	string note, scale, steps, playMode, pattern;
+	string note, scale, steps, playMode, selectedPattern, playedPattern;
 
 	DTROYDisplay() {
 		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
 	}
 
-	void drawMessage(NVGcontext *vg, Vec pos, string note, string playMode, string pattern, string steps, string scale) {
+	void drawMessage(NVGcontext *vg, Vec pos, string note, string playMode, string selectedPattern, string playedPattern, string steps, string scale) {
 		nvgFontSize(vg, 18);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2);
 		nvgFillColor(vg, nvgRGBA(75, 199, 75, 0xff));
-		nvgText(vg, pos.x + 7, pos.y + 8, playMode.c_str(), NULL);
+		nvgText(vg, pos.x + 4, pos.y + 8, playMode.c_str(), NULL);
 		nvgFontSize(vg, 14);
 		nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xff));
-		nvgText(vg, pos.x + 115, pos.y + 7, pattern.c_str(), NULL);
-		nvgText(vg, pos.x + 40, pos.y + 7, steps.c_str(), NULL);
-		nvgText(vg, pos.x + 8, pos.y + 23, note.c_str(), NULL);
-		nvgText(vg, pos.x + 30, pos.y + 23, scale.c_str(), NULL);
+		nvgText(vg, pos.x + 91, pos.y + 7, selectedPattern.c_str(), NULL);
+		nvgText(vg, pos.x + 31, pos.y + 7, steps.c_str(), NULL);
+		nvgText(vg, pos.x + 3, pos.y + 23, note.c_str(), NULL);
+		nvgText(vg, pos.x + 25, pos.y + 23, scale.c_str(), NULL);
+		nvgFillColor(vg, nvgRGBA(214, 0, 0, 0xff));
+		nvgText(vg, pos.x + 116, pos.y + 7, playedPattern.c_str(), NULL);
 	}
 
 	string displayRootNote(int value) {
@@ -702,14 +805,45 @@ struct DTROYDisplay : TransparentWidget {
 	void draw(NVGcontext *vg) override {
 		if (++frame >= 4) {
 			frame = 0;
-			note = displayRootNote(module->rootNote);
-			steps = module->countMode == 0 ? "steps: " + to_string(module->numSteps()) : "pulses: " + to_string(module->numSteps());
-			playMode = displayPlayMode(module->playMode);
-			scale = displayScale(module->curScaleVal);
-			pattern = "P" + to_string(module->patternNumber + 1);
+			note = displayRootNote(module->patterns[module->selectedPattern].rootNote);
+			steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);
+			playMode = displayPlayMode(module->patterns[module->selectedPattern].playMode);
+			scale = displayScale(module->patterns[module->selectedPattern].scale);
+			selectedPattern = "P" + to_string(module->selectedPattern + 1);
+			playedPattern = "P" + to_string(module->playedPattern + 1);
 		}
-		drawMessage(vg, Vec(0, 20), note, playMode, pattern, steps, scale);
+		drawMessage(vg, Vec(0, 20), note, playMode, selectedPattern, playedPattern, steps, scale);
 	}
+};
+
+struct DTROYPatternRoundSmallBlackSnapKnob : RoundSmallBlackSnapKnob {
+	void onChange(EventChange &e) override {
+			RoundSmallBlackSnapKnob::onChange(e);
+			DTROY *module = dynamic_cast<DTROY*>(this->module);
+			DTROYWidget *parent = dynamic_cast<DTROYWidget*>(this->parent);
+			int target = clampi(value - 1, 0, 15);
+			if (module && parent && (target != module->selectedPattern))
+			{
+				module->updateFlag = false;
+				module->selectedPattern = value - 1;
+				parent->stepsParam->setValue(module->patterns[target].numberOfStepsParam);
+				parent->rootNoteParam->setValue(module->patterns[target].rootNote);
+				parent->scaleParam->setValue(module->patterns[target].scale);
+				parent->gateTimeParam->setValue(module->patterns[target].gateTime);
+				parent->slideTimeParam->setValue(module->patterns[target].slideTime);
+				parent->sensitivityParam->setValue(module->patterns[target].sensitivity);
+				module->playMode = module->patterns[module->selectedPattern].playMode;
+				module->countMode = module->patterns[module->selectedPattern].countMode;
+				for (int i = 0; i < 8; i++) {
+					parent->pitchParams[i]->setValue(module->patterns[target].steps[i].pitch);
+					parent->pulseParams[i]->setValue(module->patterns[target].steps[i].pulsesParam);
+					parent->typeParams[i]->setValue(module->patterns[target].steps[i].type);
+					module->skipState[i] = module->patterns[target].steps[i].skipParam ? 't' : 'f';
+					module->slideState[i] = module->patterns[target].steps[i].slide ? 't' : 'f';
+				}
+				module->updateFlag = true;
+			}
+		}
 };
 
 DTROYWidget::DTROYWidget() {
@@ -742,7 +876,8 @@ DTROYWidget::DTROYWidget() {
 	addChild(createLight<SmallLight<GreenLight>>(Vec(67, 62), module, DTROY::RUNNING_LIGHT));
 	addParam(createParam<LEDButton>(Vec(99, 56), module, DTROY::RESET_PARAM, 0.0, 1.0, 0.0));
 	addChild(createLight<SmallLight<GreenLight>>(Vec(105, 62), module, DTROY::RESET_LIGHT));
-	addParam(createParam<RoundSmallBlackSnapKnob>(Vec(133, 52), module, DTROY::STEPS_PARAM, 1.0, 16.0, 8));
+	stepsParam = createParam<BidooBlueSnapKnob>(Vec(133, 52), module, DTROY::STEPS_PARAM, 1.0, 16.0, 8);
+	addParam(stepsParam);
 
 	static const float portX0[4] = {20, 58, 96, 135};
  	addInput(createInput<PJ301MPort>(Vec(portX0[0], 90), module, DTROY::CLOCK_INPUT));
@@ -750,31 +885,45 @@ DTROYWidget::DTROYWidget() {
 	addInput(createInput<PJ301MPort>(Vec(portX0[2], 90), module, DTROY::RESET_INPUT));
 	addInput(createInput<PJ301MPort>(Vec(portX0[3], 90), module, DTROY::STEPS_INPUT));
 
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[0]-1, 140), module, DTROY::ROOT_NOTE_PARAM, 0.0, DTROY::NUM_NOTES-1 + 0.1, 0));
-
-	scaleParam = createParam<RoundSmallBlackKnob>(Vec(portX0[1]-1, 140), module, DTROY::SCALE_PARAM, 0.0, DTROY::NUM_SCALES-1 + 0.1, 0);
+	rootNoteParam = createParam<BidooBlueSnapKnob>(Vec(portX0[0]-1, 140), module, DTROY::ROOT_NOTE_PARAM, 0.0, DTROY::NUM_NOTES-1 + 0.1, 0);
+	addParam(rootNoteParam);
+	scaleParam = createParam<BidooBlueSnapKnob>(Vec(portX0[1]-1, 140), module, DTROY::SCALE_PARAM, 0.0, DTROY::NUM_SCALES-1 + 0.1, 0);
 	addParam(scaleParam);
-
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[2]-1, 140), module, DTROY::GATE_TIME_PARAM, 0.1, 1.0, 0.5));
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[3]-1, 140), module, DTROY::SLIDE_TIME_PARAM	, 0.1, 1.0, 0.2));
+	gateTimeParam = createParam<BidooBlueKnob>(Vec(portX0[2]-1, 140), module, DTROY::GATE_TIME_PARAM, 0.1, 1.0, 0.5);
+	addParam(gateTimeParam);
+	slideTimeParam = createParam<BidooBlueKnob>(Vec(portX0[3]-1, 140), module, DTROY::SLIDE_TIME_PARAM	, 0.1, 1.0, 0.2);
+	addParam(slideTimeParam);
 
 	addInput(createInput<PJ301MPort>(Vec(portX0[0], 180), module, DTROY::ROOT_NOTE_INPUT));
 	addInput(createInput<PJ301MPort>(Vec(portX0[1], 180), module, DTROY::SCALE_INPUT));
 	addInput(createInput<PJ301MPort>(Vec(portX0[2], 180), module, DTROY::GATE_TIME_INPUT));
 	addInput(createInput<PJ301MPort>(Vec(portX0[3], 180), module, DTROY::SLIDE_TIME_INPUT));
 
-	addParam(createParam<CKD6>(Vec(portX0[0]-1, 230), module, DTROY::PLAY_MODE_PARAM, 0.0, 4.0, 0));
-	addParam(createParam<CKD6>(Vec(portX0[1]-1, 230), module, DTROY::COUNT_MODE_PARAM, 0.0, 4.0, 0));
+	playModeParam = createParam<BlueCKD6>(Vec(portX0[0]-1, 230), module, DTROY::PLAY_MODE_PARAM, 0.0, 4.0, 0);
+	addParam(playModeParam);
+	countModeParam = createParam<BlueCKD6>(Vec(portX0[1]-1, 230), module, DTROY::COUNT_MODE_PARAM, 0.0, 4.0, 0);
+	addParam(countModeParam);
+	addInput(createInput<PJ301MPort>(Vec(portX0[2], 232), module, DTROY::PATTERN_INPUT));
+	patternParam = createParam<DTROYPatternRoundSmallBlackSnapKnob>(Vec(portX0[3],230), module, DTROY::PATTERN_PARAM, 1.0, 16.0, 1);
+	addParam(patternParam);
 
 	static const float portX1[8] = {200, 238, 276, 315, 353, 392, 430, 469};
 
+	sensitivityParam = createParam<BidooBlueTrimpot>(Vec(portX1[6]+21, 31), module, DTROY::SENSITIVITY_PARAM, 0.1, 1, 1);
+	addParam(sensitivityParam);
+
 	for (int i = 0; i < 8; i++) {
-		addParam(createParam<RoundSmallBlackKnob>(Vec(portX1[i]-2, 52), module, DTROY::TRIG_PITCH_PARAM + i, 0.0, 10.0, 3));
-		addParam(createParam<BidooSlidePotLong>(Vec(portX1[i]+2, 103), module, DTROY::TRIG_COUNT_PARAM + i, 1.0, 8.0,  1));
-		addParam(createParam<BidooSlidePotShort>(Vec(portX1[i]+2, 220), module, DTROY::TRIG_TYPE_PARAM + i, 0.0, 5.0,  2));
-		addParam(createParam<LEDButton>(Vec(portX1[i]+2, 313), module, DTROY::TRIG_SLIDE_PARAM + i, 0.0, 1.0,  0));
+		pitchParams[i] = createParam<BidooBlueKnob>(Vec(portX1[i]-2, 52), module, DTROY::TRIG_PITCH_PARAM + i, 0.0, 10.0, 3);
+		addParam(pitchParams[i]);
+		pulseParams[i] = createParam<BidooSlidePotLong>(Vec(portX1[i]+2, 103), module, DTROY::TRIG_COUNT_PARAM + i, 1.0, 8.0,  1);
+		addParam(pulseParams[i]);
+		typeParams[i] = createParam<BidooSlidePotShort>(Vec(portX1[i]+2, 220), module, DTROY::TRIG_TYPE_PARAM + i, 0.0, 5.0,  2);
+		addParam(typeParams[i]);
+		slideParams[i] = createParam<LEDButton>(Vec(portX1[i]+2, 313), module, DTROY::TRIG_SLIDE_PARAM + i, 0.0, 1.0,  0);
+		addParam(slideParams[i]);
 		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+8, 319), module, DTROY::SLIDES_LIGHTS + i));
-		addParam(createParam<LEDButton>(Vec(portX1[i]+2, 338), module, DTROY::TRIG_SKIP_PARAM + i, 0.0, 1.0,  0));
+		skipParams[i] = createParam<LEDButton>(Vec(portX1[i]+2, 338), module, DTROY::TRIG_SKIP_PARAM + i, 0.0, 1.0,  0);
+		addParam(skipParams[i]);
 		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+8, 344), module, DTROY::SKIPS_LIGHTS + i));
 	}
 
@@ -782,6 +931,23 @@ DTROYWidget::DTROYWidget() {
 	addInput(createInput<PJ301MPort>(Vec(portX0[1], 331), module, DTROY::EXTGATE2_INPUT));
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-1, 331), module, DTROY::GATE_OUTPUT));
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[3]-1, 331), module, DTROY::PITCH_OUTPUT));
+
+	this->stepsParam->setValue(module->patterns[module->selectedPattern].numberOfStepsParam);
+	this->rootNoteParam->setValue(module->patterns[module->selectedPattern].rootNoteParam);
+	this->scaleParam->setValue(module->patterns[module->selectedPattern].scaleParam);
+	this->gateTimeParam->setValue(module->patterns[module->selectedPattern].gateTime);
+	this->slideTimeParam->setValue(module->patterns[module->selectedPattern].slideTime);
+	this->sensitivityParam->setValue(module->patterns[module->selectedPattern].sensitivity);
+	module->playMode = module->patterns[module->selectedPattern].playMode;
+	module->countMode = module->patterns[module->selectedPattern].countMode;
+	for (int i = 0; i < 8; i++) {
+		this->pitchParams[i]->setValue(module->patterns[module->selectedPattern].steps[i].pitch);
+		this->pulseParams[i]->setValue(module->patterns[module->selectedPattern].steps[i].pulsesParam);
+		this->typeParams[i]->setValue(module->patterns[module->selectedPattern].steps[i].type);
+		module->skipState[i] = module->patterns[module->selectedPattern].steps[i].skipParam ? 't' : 'f';
+		module->slideState[i] = module->patterns[module->selectedPattern].steps[i].slide ? 't' : 'f';
+	}
+	module->updateFlag = true;
 }
 
 struct DTROYRandPitchItem : MenuItem {

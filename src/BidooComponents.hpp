@@ -9,6 +9,34 @@ using namespace std;
 
 namespace rack {
 
+struct BidooBlueKnob : RoundKnob {
+	BidooBlueKnob() {
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueKnobBidoo.svg")));
+		box.size = Vec(28, 28);
+	}
+};
+
+struct BidooBlueSnapKnob : RoundSmallBlackSnapKnob {
+	BidooBlueSnapKnob() {
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueKnobBidoo.svg")));
+		box.size = Vec(28, 28);
+	}
+};
+
+struct BidooBlueTrimpot : Trimpot {
+	BidooBlueTrimpot() {
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueTrimpotBidoo.svg")));
+		box.size = Vec(17, 17);
+	}
+};
+
+struct BlueCKD6 : SVGSwitch, MomentarySwitch {
+	BlueCKD6() {
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueCKD6_0.svg")));
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueCKD6_1.svg")));
+	}
+};
+
 struct BidooColoredKnob : RoundKnob {
 	BidooColoredKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlackKnobBidoo.svg")));
