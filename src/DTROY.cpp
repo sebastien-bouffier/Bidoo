@@ -511,8 +511,8 @@ struct DTROY : Module {
 	// Quantization inspired from  https://github.com/jeremywen/JW-Modules
 
 	float getOneRandomNoteInScale(){
-		rootNote = clampi(patterns[playedPattern].rootNoteParam + inputs[ROOT_NOTE_INPUT].value, 0.0, NUM_NOTES-1);
-		curScaleVal = clampi(patterns[playedPattern].scaleParam + inputs[SCALE_INPUT].value, 0.0, NUM_SCALES-1);
+		rootNote = clampi(patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value, 0.0, NUM_NOTES-1);
+		curScaleVal = clampi(patterns[playedPattern].scale + inputs[SCALE_INPUT].value, 0.0, NUM_SCALES-1);
 		int *curScaleArr;
 		int notesInScale = 0;
 		switch(curScaleVal){
@@ -548,8 +548,8 @@ struct DTROY : Module {
 	}
 
 	float closestVoltageInScale(float voltsIn){
-		rootNote = clampi(patterns[playedPattern].rootNoteParam + inputs[ROOT_NOTE_INPUT].value, 0.0, DTROY::NUM_NOTES-1);
-		curScaleVal = clampi(patterns[playedPattern].scaleParam + inputs[SCALE_INPUT].value, 0.0, DTROY::NUM_SCALES-1);
+		rootNote = clampi(patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value, 0.0, DTROY::NUM_NOTES-1);
+		curScaleVal = clampi(patterns[playedPattern].scale + inputs[SCALE_INPUT].value, 0.0, DTROY::NUM_SCALES-1);
 		int *curScaleArr;
 		int notesInScale = 0;
 		switch(curScaleVal){
@@ -633,6 +633,7 @@ void DTROY::step() {
 	if (resetTrigger.process(params[RESET_PARAM].value + inputs[RESET_INPUT].value)) {
 		phase = 0.0;
 		reStart = true;
+		nextStep = true;
 		lights[RESET_LIGHT].value = 1.0;
 	}
 	// Trigs Update
@@ -921,10 +922,10 @@ DTROYWidget::DTROYWidget() {
 		addParam(typeParams[i]);
 		slideParams[i] = createParam<LEDButton>(Vec(portX1[i]+2, 313), module, DTROY::TRIG_SLIDE_PARAM + i, 0.0, 1.0,  0);
 		addParam(slideParams[i]);
-		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+8, 319), module, DTROY::SLIDES_LIGHTS + i));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+8, 319), module, DTROY::SLIDES_LIGHTS + i));
 		skipParams[i] = createParam<LEDButton>(Vec(portX1[i]+2, 338), module, DTROY::TRIG_SKIP_PARAM + i, 0.0, 1.0,  0);
 		addParam(skipParams[i]);
-		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[i]+8, 344), module, DTROY::SKIPS_LIGHTS + i));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+8, 344), module, DTROY::SKIPS_LIGHTS + i));
 	}
 
 	addInput(createInput<PJ301MPort>(Vec(portX0[0], 331), module, DTROY::EXTGATE1_INPUT));
@@ -933,8 +934,8 @@ DTROYWidget::DTROYWidget() {
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[3]-1, 331), module, DTROY::PITCH_OUTPUT));
 
 	this->stepsParam->setValue(module->patterns[module->selectedPattern].numberOfStepsParam);
-	this->rootNoteParam->setValue(module->patterns[module->selectedPattern].rootNoteParam);
-	this->scaleParam->setValue(module->patterns[module->selectedPattern].scaleParam);
+	this->rootNoteParam->setValue(module->patterns[module->selectedPattern].rootNote);
+	this->scaleParam->setValue(module->patterns[module->selectedPattern].scale);
 	this->gateTimeParam->setValue(module->patterns[module->selectedPattern].gateTime);
 	this->slideTimeParam->setValue(module->patterns[module->selectedPattern].slideTime);
 	this->sensitivityParam->setValue(module->patterns[module->selectedPattern].sensitivity);
