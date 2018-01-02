@@ -595,9 +595,7 @@ void DTROY::step() {
 		running = !running;
 	}
 	lights[RUNNING_LIGHT].value = running ? 1.0 : 0.0;
-
 	bool nextStep = false;
-
 	// Phase calculation
 	if (running) {
 		if (inputs[EXT_CLOCK_INPUT].active) {
@@ -627,7 +625,6 @@ void DTROY::step() {
 			}
 		}
 	}
-
 	// Reset
 	if (resetTrigger.process(params[RESET_PARAM].value + inputs[RESET_INPUT].value)) {
 		phase = 0.0;
@@ -635,29 +632,31 @@ void DTROY::step() {
 		nextStep = true;
 		lights[RESET_LIGHT].value = 1.0;
 	}
-	// Trigs Update
-	for (int i = 0; i < 8; i++) {
-		if (slideTriggers[i].process(params[TRIG_SLIDE_PARAM + i].value)) {
-			slideState[i] = slideState[i] == 't' ? 'f' : 't';
-		}
-		if (skipTriggers[i].process(params[TRIG_SKIP_PARAM + i].value)) {
-			skipState[i] = skipState[i] == 't' ? 'f' : 't';
-		}
-	}
-	// playMode
-	if (playModeTrigger.process(params[PLAY_MODE_PARAM].value)) {
-		playMode = (((int)playMode + 1) % 5);
-	}
-	// countMode
-	if (countModeTrigger.process(params[COUNT_MODE_PARAM].value)) {
-		countMode = (((int)countMode + 1) % 2);
-	}
-	// numSteps
-	numSteps = clampi(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 16);
 	//patternNumber
 	playedPattern = clampi((inputs[PATTERN_INPUT].active ? rescalef(inputs[PATTERN_INPUT].value,0,10,1,16.1) : params[PATTERN_PARAM].value) - 1, 0, 15);
 	// Update Pattern
-	if (updateFlag) UpdatePattern();
+	if (updateFlag) {
+		// Trigs Update
+		for (int i = 0; i < 8; i++) {
+			if (slideTriggers[i].process(params[TRIG_SLIDE_PARAM + i].value)) {
+				slideState[i] = slideState[i] == 't' ? 'f' : 't';
+			}
+			if (skipTriggers[i].process(params[TRIG_SKIP_PARAM + i].value)) {
+				skipState[i] = skipState[i] == 't' ? 'f' : 't';
+			}
+		}
+		// playMode
+		if (playModeTrigger.process(params[PLAY_MODE_PARAM].value)) {
+			playMode = (((int)playMode + 1) % 5);
+		}
+		// countMode
+		if (countModeTrigger.process(params[COUNT_MODE_PARAM].value)) {
+			countMode = (((int)countMode + 1) % 2);
+		}
+		// numSteps
+		numSteps = clampi(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 16);
+		UpdatePattern();
+	}
 	// Steps && Pulses Management
 	if (nextStep) {
 		// Advance step
@@ -707,7 +706,7 @@ void DTROY::step() {
 			gateValue = 0.0;
 		}
 	}
-
+	//pitch management
 	pitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch * patterns[playedPattern].sensitivity);
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
@@ -715,7 +714,6 @@ void DTROY::step() {
 			pitch = pitch - (1 - powf(phase, slideCoeff)) * (pitch - previousPitch);
 		}
 	}
-
 	// Update Outputs
 	outputs[GATE_OUTPUT].value = gateOn ? gateValue : 0.0;
 	outputs[PITCH_OUTPUT].value = pitchMode ? pitch : (gateOn ? pitch : 0);
@@ -936,9 +934,8 @@ DTROYWidget::DTROYWidget() {
 
 struct DTROYRandPitchItem : MenuItem {
 	DTROYWidget *dtroyWidget;
-
 	void onAction(EventAction &e) override {
-		for (int i = 0; i<8; i++){
+		for (int i = 0; i < 8; i++){
 			int index = DTROY::TRIG_PITCH_PARAM + i;
 			auto it = std::find_if(dtroyWidget->params.begin(), dtroyWidget->params.end(), [&index](const ParamWidget* m) -> bool { return m->paramId == index; });
 			if (it != dtroyWidget->params.end())
@@ -947,15 +944,13 @@ struct DTROYRandPitchItem : MenuItem {
 				dtroyWidget->params[index]->randomize();
 			}
 		}
-
 	}
 };
 
 struct DTROYRandGatesItem : MenuItem {
 	DTROYWidget *dtroyWidget;
-
 	void onAction(EventAction &e) override {
-		for (int i = 0; i<8; i++){
+		for (int i = 0; i < 8; i++){
 			int index = DTROY::TRIG_COUNT_PARAM + i;
 			auto it = std::find_if(dtroyWidget->params.begin(), dtroyWidget->params.end(), [&index](const ParamWidget* m) -> bool { return m->paramId == index; });
 			if (it != dtroyWidget->params.end())
@@ -964,13 +959,12 @@ struct DTROYRandGatesItem : MenuItem {
 				dtroyWidget->params[index]->randomize();
 			}
 		}
-
-		for (int i = 0; i<8; i++){
-			int index = DTROY::TRIG_TYPE_PARAM + i;
-			auto it = std::find_if(dtroyWidget->params.begin(), dtroyWidget->params.end(), [&index](const ParamWidget* m) -> bool { return m->paramId == index; });
-			if (it != dtroyWidget->params.end())
-			{
-				auto index = std::distance(dtroyWidget->params.begin(), it);
+		for (int i = 0; i < 8; i++){
+				int index = DTROY::TRIG_TYPE_PARAM + i;
+				auto it = std::find_if(dtroyWidget->params.begin(), dtroyWidget->params.end(), [&index](const ParamWidget* m) -> bool { return m->paramId == index; });
+				if (it != dtroyWidget->params.end())
+				{
+					auto index = std::distance(dtroyWidget->params.begin(), it);
 				dtroyWidget->params[index]->randomize();
 			}
 		}
@@ -979,7 +973,6 @@ struct DTROYRandGatesItem : MenuItem {
 
 struct DTROYRandSlideSkipItem : MenuItem {
 	DTROY *dtroyModule;
-
 	void onAction(EventAction &e) override {
 		dtroyModule->randomizeSlidesSkips();
 	}
@@ -987,28 +980,106 @@ struct DTROYRandSlideSkipItem : MenuItem {
 
 struct DTROYPitchModeItem : MenuItem {
 	DTROY *dtroyModule;
-
 	void onAction(EventAction &e) override {
 		dtroyModule->pitchMode = !dtroyModule->pitchMode;
 	}
-
 	void step() override {
 		rightText = dtroyModule->pitchMode ? "✔" : "";
 		MenuItem::step();
 	}
 };
 
+struct DisconnectMenuItem : MenuItem {
+	ModuleWidget *moduleWidget;
+	void onAction(EventAction &e) override {
+		moduleWidget->disconnect();
+	}
+};
+
+struct ResetMenuItem : MenuItem {
+	DTROYWidget *dtroyWidget;
+	DTROY *dtroy;
+	void onAction(EventAction &e) override {
+		for (int i = 0; i < DTROY::NUM_PARAMS; i++){
+			if (i != DTROY::PATTERN_PARAM) {
+				auto it = std::find_if(dtroyWidget->params.begin(), dtroyWidget->params.end(), [&i](const ParamWidget* m) -> bool { return m->paramId == i; });
+				if (it != dtroyWidget->params.end())
+				{
+					auto index = std::distance(dtroyWidget->params.begin(), it);
+					dtroyWidget->params[index]->setValue(dtroyWidget->params[index]->defaultValue);
+				}
+			}
+		}
+		dtroy->updateFlag = false;
+		dtroy->reset();
+		dtroy->playMode = 0;
+		dtroy->countMode = 0;
+		dtroy->updateFlag = true;
+	}
+};
+
+struct RandomizeMenuItem : MenuItem {
+	ModuleWidget *moduleWidget;
+	void onAction(EventAction &e) override {
+		moduleWidget->randomize();
+	}
+};
+
+struct CloneMenuItem : MenuItem {
+	ModuleWidget *moduleWidget;
+	void onAction(EventAction &e) override {
+		gRackWidget->cloneModule(moduleWidget);
+	}
+};
+
+struct DeleteMenuItem : MenuItem {
+	ModuleWidget *moduleWidget;
+	void onAction(EventAction &e) override {
+		gRackWidget->deleteModule(moduleWidget);
+		moduleWidget->finalizeEvents();
+		delete moduleWidget;
+	}
+};
+
 Menu *DTROYWidget::createContextMenu() {
-	Menu *menu = ModuleWidget::createContextMenu();
-
-	MenuLabel *spacerLabel = new MenuLabel();
-	menu->addChild(spacerLabel);
-
 	DTROYWidget *dtroyWidget = dynamic_cast<DTROYWidget*>(this);
 	assert(dtroyWidget);
 
 	DTROY *dtroyModule = dynamic_cast<DTROY*>(module);
 	assert(dtroyModule);
+
+	Menu *menu = gScene->createMenu();
+
+	MenuLabel *menuLabel = new MenuLabel();
+	menuLabel->text = model->manufacturer + " " + model->name;
+	menu->addChild(menuLabel);
+
+	ResetMenuItem *resetItem = new ResetMenuItem();
+	resetItem->text = "Initialize";
+	resetItem->rightText = GUI_MOD_KEY_NAME "+I";
+	resetItem->dtroyWidget = this;
+	resetItem->dtroy = dtroyModule;
+	menu->addChild(resetItem);
+
+	DisconnectMenuItem *disconnectItem = new DisconnectMenuItem();
+	disconnectItem->text = "Disconnect cables";
+	disconnectItem->moduleWidget = this;
+	menu->addChild(disconnectItem);
+
+	CloneMenuItem *cloneItem = new CloneMenuItem();
+	cloneItem->text = "Duplicate";
+	cloneItem->rightText = GUI_MOD_KEY_NAME "+D";
+	cloneItem->moduleWidget = this;
+	menu->addChild(cloneItem);
+
+	DeleteMenuItem *deleteItem = new DeleteMenuItem();
+	deleteItem->text = "Delete";
+	deleteItem->rightText = "Backspace/Delete";
+	deleteItem->moduleWidget = this;
+	menu->addChild(deleteItem);
+
+	MenuLabel *spacerLabel = new MenuLabel();
+	menu->addChild(spacerLabel);
 
 	DTROYRandPitchItem *randomizePitchItem = new DTROYRandPitchItem();
 	randomizePitchItem->text = "Randomize pitch";
