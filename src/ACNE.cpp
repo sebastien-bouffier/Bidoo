@@ -206,7 +206,7 @@ struct ACNEChoseSceneLedButton : LEDButton {
 	}
 };
 
-struct ACNECOPYPASTECKD6 : CKD6 {
+struct ACNECOPYPASTECKD6 : BlueCKD6 {
 	void onMouseDown(EventMouseDown &e) override {
 		ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
 		ACNE *module = dynamic_cast<ACNE*>(this->module);
@@ -224,7 +224,7 @@ struct ACNECOPYPASTECKD6 : CKD6 {
 				module->copyState = false;
 			}
 		}
-		CKD6::onMouseDown(e);
+		BlueCKD6::onMouseDown(e);
 	}
 };
 
@@ -246,7 +246,7 @@ ACNEWidget::ACNEWidget() {
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
 
 
-	addParam(createParam<RoundSmallBlackKnob>(Vec(472, 39), module, ACNE::MAIN_OUT_GAIN_PARAM, 0, 10, 7));
+	addParam(createParam<BidooBlueKnob>(Vec(472, 39), module, ACNE::MAIN_OUT_GAIN_PARAM, 0, 10, 7));
 
 	addParam(createParam<ACNECOPYPASTECKD6>(Vec(7, 39), module, ACNE::COPY_PARAM, 0, 1, 0.0));
 	addChild(createLight<SmallLight<GreenLight>>(Vec(18, 28), module, ACNE::COPY_LIGHT));

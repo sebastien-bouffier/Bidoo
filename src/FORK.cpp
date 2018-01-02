@@ -142,7 +142,7 @@ void FORK::step() {
 	outputs[SIGNAL_OUTPUT].value =10.0f*out;
 }
 
-struct FORKCKD6 : CKD6 {
+struct FORKCKD6 : BlueCKD6 {
 	void onMouseDown(EventMouseDown &e) override {
 		FORKWidget *parent = dynamic_cast<FORKWidget*>(this->parent);
 		FORK *module = dynamic_cast<FORK*>(this->module);
@@ -157,7 +157,7 @@ struct FORKCKD6 : CKD6 {
 			parent->A3->setValue(module->A3[module->preset]);
 			parent->A4->setValue(module->A4[module->preset]);
 		}
-		CKD6::onMouseDown(e);
+		BlueCKD6::onMouseDown(e);
 	}
 };
 
@@ -173,37 +173,37 @@ FORKWidget::FORKWidget() {
 		addChild(panel);
 	}
 
-	addParam(createParam<RoundBlackKnob>(Vec(26,40), module, FORK::PITCH_PARAM, -54, 54, 0));
+	addParam(createParam<BidooLargeBlueKnob>(Vec(26,40), module, FORK::PITCH_PARAM, -54, 54, 0));
 	addParam(createParam<FORKCKD6>(Vec(30,274), module, FORK::PRESET_PARAM, 0.0, 8, 0.0));
 
-	int xtpots = 34;
+	int xtpots = 32;
 	int xtinyports = 67;
 
-	F1 = createParam<Trimpot>(Vec(xtpots,35 + 25 * 2), module, FORK::F_PARAM, 190, 730, 190);
+	F1 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 + 25 * 2), module, FORK::F_PARAM, 190, 730, 190);
 	addParam(F1);
 	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 + 25 * 2 + 2), module, FORK::F_INPUT));
-	A1 = createParam<Trimpot>(Vec(xtpots,35 + 25 * 2 + 20), module, FORK::A_PARAM, 0.0f, 1.0f, 1.0f);
+	A1 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 + 25 * 2 + 20), module, FORK::A_PARAM, 0.0f, 1.0f, 1.0f);
 	addParam(A1);
 	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 + 25 * 2 + 20 + 2), module, FORK::A_INPUT));
 
-	F2 = createParam<Trimpot>(Vec(xtpots,35 - 2 + 25 * 4), module, FORK::F_PARAM + 1, 800, 2100, 1090);
+	F2 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 2 + 25 * 4), module, FORK::F_PARAM + 1, 800, 2100, 1090);
 	addParam(F2);
 	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 2 + 25 * 4 + 2), module, FORK::F_INPUT + 1));
-	A2 = createParam<Trimpot>(Vec(xtpots,35 - 2 + 25 * 4 + 20), module, FORK::A_PARAM + 1, 0.0f, 2.0f, 1.0f);
+	A2 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 2 + 25 * 4 + 20), module, FORK::A_PARAM + 1, 0.0f, 2.0f, 1.0f);
 	addParam(A2);
 	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 2 + 25 * 4 + 20 + 2), module, FORK::A_INPUT + 1));
 
-	F3 = createParam<Trimpot>(Vec(xtpots,35 - 4 + 25 * 6), module, FORK::F_PARAM + 2, 1500, 3100, 2440);
+	F3 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 4 + 25 * 6), module, FORK::F_PARAM + 2, 1500, 3100, 2440);
 	addParam(F3);
 	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 4 + 25 * 6 + 2), module, FORK::F_INPUT + 2));
-	A3 = createParam<Trimpot>(Vec(xtpots,35 - 4 + 25 * 6 + 20), module, FORK::A_PARAM + 2, 0.0f, 0.7f, 0.3f);
+	A3 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 4 + 25 * 6 + 20), module, FORK::A_PARAM + 2, 0.0f, 0.7f, 0.3f);
 	addParam(A3);
 	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 4 + 25 * 6 + 20 + 2), module, FORK::A_INPUT + 2));
 
-	F4 = createParam<Trimpot>(Vec(xtpots,35 - 6 + 25 * 8), module, FORK::F_PARAM + 3, 3000, 4700, 3400);
+	F4 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 6 + 25 * 8), module, FORK::F_PARAM + 3, 3000, 4700, 3400);
 	addParam(F4);
 	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 6 + 25 * 8 + 2), module, FORK::F_INPUT + 3));
-	A4 = createParam<Trimpot>(Vec(xtpots,35 - 6 + 25 * 8 + 20), module, FORK::A_PARAM + 3, 0.0f, 0.3f, 0.2f);
+	A4 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 6 + 25 * 8 + 20), module, FORK::A_PARAM + 3, 0.0f, 0.3f, 0.2f);
 	addParam(A4);
 	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 6 + 25 * 8 + 20 + 2), module, FORK::A_INPUT + 3));
 

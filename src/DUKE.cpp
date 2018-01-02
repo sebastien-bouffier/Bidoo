@@ -40,7 +40,7 @@ void DUKE::step() {
 	}
 }
 
-struct DUKECKD6 : CKD6 {
+struct DUKECKD6 : BlueCKD6 {
 	void onMouseDown(EventMouseDown &e) override {
 		DUKEWidget *parent = dynamic_cast<DUKEWidget*>(this->parent);
 		DUKE *module = dynamic_cast<DUKE*>(this->module);
@@ -57,7 +57,7 @@ struct DUKECKD6 : CKD6 {
 				}
 			}
 		}
-		CKD6::onMouseDown(e);
+		BlueCKD6::onMouseDown(e);
 	}
 };
 
@@ -84,8 +84,8 @@ DUKEWidget::DUKEWidget() {
 	addParam(createParam<DUKECKD6>(Vec(portX0[0]-29, 230), module, DUKE::NADA_PARAM, 0.0, 1.0, 0.0));
 
 	for (int i = 0; i < 4; i++) {
-		addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[i]-1, 52), module, DUKE::MAX_PARAM + i, 0.0, 10.0, 10));
-		addParam(createParam<RoundSmallBlackKnob>(Vec(portX0[i]-1, 95), module, DUKE::MIN_PARAM + i, 0.0, 10.0, 0));
+		addParam(createParam<BidooBlueKnob>(Vec(portX0[i]-1, 52), module, DUKE::MAX_PARAM + i, 0.0, 10.0, 10));
+		addParam(createParam<BidooBlueKnob>(Vec(portX0[i]-1, 95), module, DUKE::MIN_PARAM + i, 0.0, 10.0, 0));
 		addParam(createParam<CKSS>(Vec(portX0[i]+6, 139), module, DUKE::TYPE_PARAM + i, 0.0, 1.0, 0.0));
 		sliders[i] = createParam<BidooLongSlider>(Vec(portX0[i]+4, 176), module, DUKE::SLIDER_PARAM + i, 0.0, 10.0, 0);
 		addParam(sliders[i]);

@@ -152,13 +152,13 @@ CHUTEWidget::CHUTEWidget() {
 	static const float portX[2] = {20, 60};
 	static const float portY[3] = {52, 116, 178};
  	addInput(createInput<PJ301MPort>(Vec(portX[0], portY[0]), module, CHUTE::ALTITUDE_INPUT));
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX[1], portY[0]-2), module, CHUTE::ALTITUDE_PARAM, 0.01, 3, 1));
+	addParam(createParam<BidooBlueKnob>(Vec(portX[1], portY[0]-2), module, CHUTE::ALTITUDE_PARAM, 0.01, 3, 1));
 	addInput(createInput<PJ301MPort>(Vec(portX[0], portY[1]), module, CHUTE::GRAVITY_INPUT));
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX[1], portY[1]-2), module, CHUTE::GRAVITY_PARAM, 1.622, 11.15, 9.798)); // between the Moon and Neptune
+	addParam(createParam<BidooBlueKnob>(Vec(portX[1], portY[1]-2), module, CHUTE::GRAVITY_PARAM, 1.622, 11.15, 9.798)); // between the Moon and Neptune
 	addInput(createInput<PJ301MPort>(Vec(portX[0], portY[2]), module, CHUTE::COR_INPUT));
-	addParam(createParam<RoundSmallBlackKnob>(Vec(portX[1], portY[2]-2), module, CHUTE::COR_PARAM, 0, 1, 0.69)); // 0 inelastic, 1 perfect elastic, 0.69 glass
+	addParam(createParam<BidooBlueKnob>(Vec(portX[1], portY[2]-2), module, CHUTE::COR_PARAM, 0, 1, 0.69)); // 0 inelastic, 1 perfect elastic, 0.69 glass
 
-	addParam(createParam<CKD6>(Vec(50, 269), module, CHUTE::RUN_PARAM, 0.0, 1.0, 0.0));
+	addParam(createParam<BlueCKD6>(Vec(51, 269), module, CHUTE::RUN_PARAM, 0.0, 1.0, 0.0));
 	addInput(createInput<PJ301MPort>(Vec(11, 270), module, CHUTE::TRIG_INPUT));
 
 	addOutput(createOutput<PJ301MPort>(Vec(11, 320), module, CHUTE::GATE_OUTPUT));

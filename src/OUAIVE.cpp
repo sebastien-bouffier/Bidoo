@@ -340,15 +340,15 @@ OUAIVEWidget::OUAIVEWidget() {
 
 	static const float portX0[4] = {34, 67, 101};
 
-	addParam(createParam<CKD6>(Vec(portX0[0]-25, 215), module, OUAIVE::TRIG_MODE_PARAM, 0.0, 2.0, 0.0));
+	addParam(createParam<BlueCKD6>(Vec(portX0[0]-25, 215), module, OUAIVE::TRIG_MODE_PARAM, 0.0, 2.0, 0.0));
 
-	addParam(createParam<CKD6>(Vec(portX0[1]-14, 215), module, OUAIVE::READ_MODE_PARAM, 0.0, 2.0, 0.0));
+	addParam(createParam<BlueCKD6>(Vec(portX0[1]-14, 215), module, OUAIVE::READ_MODE_PARAM, 0.0, 2.0, 0.0));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 222), module, OUAIVE::READ_MODE_INPUT));
 
-	addParam(createParam<Trimpot>(Vec(portX0[1]-9, 250), module, OUAIVE::NB_SLICES_PARAM, 1.0, 128.01, 1.0));
+	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]-9, 250), module, OUAIVE::NB_SLICES_PARAM, 1.0, 128.01, 1.0));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 252), module, OUAIVE::NB_SLICES_INPUT));
 
-	addParam(createParam<Trimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, 0.5, 10, 1.0));
+	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, 0.5, 10, 1.0));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 277), module, OUAIVE::SPEED_INPUT));
 
 	addInput(createInput<PJ301MPort>(Vec(portX0[0]-22, 321), module, OUAIVE::GATE_INPUT));

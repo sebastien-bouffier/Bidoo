@@ -327,7 +327,6 @@ struct DTROY : Module {
 	int numSteps = 8;
 	int selectedPattern = 0;
 	int playedPattern = 0;
-	bool updateWidget = false;
 	bool pitchMode = false;
 	bool updateFlag = false;
 
@@ -656,7 +655,6 @@ void DTROY::step() {
 	// numSteps
 	numSteps = clampi(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 16);
 	//patternNumber
-	//selectedPattern = clampi(params[PATTERN_PARAM].value - 1, 0, 15);
 	playedPattern = clampi((inputs[PATTERN_INPUT].active ? rescalef(inputs[PATTERN_INPUT].value,0,10,1,16.1) : params[PATTERN_PARAM].value) - 1, 0, 15);
 	// Update Pattern
 	if (updateFlag) UpdatePattern();
@@ -933,21 +931,6 @@ DTROYWidget::DTROYWidget() {
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-1, 331), module, DTROY::GATE_OUTPUT));
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[3]-1, 331), module, DTROY::PITCH_OUTPUT));
 
-	this->stepsParam->setValue(module->patterns[module->selectedPattern].numberOfStepsParam);
-	this->rootNoteParam->setValue(module->patterns[module->selectedPattern].rootNote);
-	this->scaleParam->setValue(module->patterns[module->selectedPattern].scale);
-	this->gateTimeParam->setValue(module->patterns[module->selectedPattern].gateTime);
-	this->slideTimeParam->setValue(module->patterns[module->selectedPattern].slideTime);
-	this->sensitivityParam->setValue(module->patterns[module->selectedPattern].sensitivity);
-	module->playMode = module->patterns[module->selectedPattern].playMode;
-	module->countMode = module->patterns[module->selectedPattern].countMode;
-	for (int i = 0; i < 8; i++) {
-		this->pitchParams[i]->setValue(module->patterns[module->selectedPattern].steps[i].pitch);
-		this->pulseParams[i]->setValue(module->patterns[module->selectedPattern].steps[i].pulsesParam);
-		this->typeParams[i]->setValue(module->patterns[module->selectedPattern].steps[i].type);
-		module->skipState[i] = module->patterns[module->selectedPattern].steps[i].skipParam ? 't' : 'f';
-		module->slideState[i] = module->patterns[module->selectedPattern].steps[i].slide ? 't' : 'f';
-	}
 	module->updateFlag = true;
 }
 

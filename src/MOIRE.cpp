@@ -139,7 +139,7 @@ void MOIRE::step() {
 	}
 }
 
-struct MOIRECKD6 : CKD6 {
+struct MOIRECKD6 : BlueCKD6 {
 	void onMouseDown(EventMouseDown &e) override {
 		MOIREWidget *parent = dynamic_cast<MOIREWidget*>(this->parent);
 		MOIRE *module = dynamic_cast<MOIRE*>(this->module);
@@ -163,7 +163,7 @@ struct MOIRECKD6 : CKD6 {
 				}
 			}
 		}
-		CKD6::onMouseDown(e);
+		BlueCKD6::onMouseDown(e);
 	}
 };
 
@@ -239,13 +239,13 @@ MOIREWidget::MOIREWidget() {
 
 	addParam(createParam<MOIRECKD6>(Vec(portX0[5], portY0[0]+18), module, MOIRE::SAVE_PARAM, 0.0, 1.0, 0.0));
 
-  addParam(createParam<Trimpot>(Vec(portX0[0], portY0[1]+16), module, MOIRE::TARGETSCENE_PARAM, 0.0, 15.1, 0));
+  addParam(createParam<BidooBlueTrimpot>(Vec(portX0[0], portY0[1]+16), module, MOIRE::TARGETSCENE_PARAM, 0.0, 15.1, 0));
 	MOIREDisplay *displayTarget = new MOIREDisplay();
 	displayTarget->box.pos = Vec(50,portY0[2]-21);
 	displayTarget->box.size = Vec(20, 20);
 	displayTarget->value = &module->targetScene;
 	addChild(displayTarget);
-	addParam(createParam<Trimpot>(Vec(portX0[0], portY0[6]-5), module, MOIRE::CURRENTSCENE_PARAM, 0.0, 15.1, 0));
+	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[0], portY0[6]-5), module, MOIRE::CURRENTSCENE_PARAM, 0.0, 15.1, 0));
 	MOIREDisplay *displayCurrent = new MOIREDisplay();
 	displayCurrent->box.pos = Vec(50,portY0[5]+19);
 	displayCurrent->box.size = Vec(20, 20);

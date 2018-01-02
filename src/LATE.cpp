@@ -71,7 +71,7 @@ void LATE::step() {
 LATEWidget::LATEWidget() {
 	LATE *module = new LATE();
 	setModule(module);
-	box.size = Vec(15*4, 380);
+	box.size = Vec(15*3, 380);
 
 	{
 		SVGPanel *panel = new SVGPanel();
@@ -80,14 +80,14 @@ LATEWidget::LATEWidget() {
 		addChild(panel);
 	}
 
-	addParam(createParam<RoundSmallBlackKnob>(Vec(16, 60), module, LATE::SWING_PARAM, 0, 10, 0));
-	addInput(createInput<PJ301MPort>(Vec(18, 100), module, LATE::SWING_INPUT));
+	addParam(createParam<BidooBlueKnob>(Vec(9, 70), module, LATE::SWING_PARAM, 0, 10, 0));
+	addInput(createInput<PJ301MPort>(Vec(11, 110), module, LATE::SWING_INPUT));
 
-	addInput(createInput<PJ301MPort>(Vec(18, 170), module, LATE::RESET_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(11, 175), module, LATE::RESET_INPUT));
 
-	addInput(createInput<PJ301MPort>(Vec(18, 240), module, LATE::CLOCK_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(11, 235), module, LATE::CLOCK_INPUT));
 
-	addOutput(createOutput<PJ301MPort>(Vec(18, 310), module, LATE::CLOCK_OUTPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(11, 300), module, LATE::CLOCK_OUTPUT));
 
 	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
