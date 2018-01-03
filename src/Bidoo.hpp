@@ -66,3 +66,7 @@ struct FORKWidget : ModuleWidget {
 	ParamWidget *A4;
 	FORKWidget();
 };
+
+struct TIAREWidget : ModuleWidget {
+	TIAREWidget();
+};
