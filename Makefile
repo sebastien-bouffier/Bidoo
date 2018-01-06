@@ -1,5 +1,5 @@
 SLUG = Bidoo
-VERSION = 0.5.15
+VERSION = 0.5.16
 
 # FLAGS will be passed to both the C and C++ compiler
 FLAGS +=

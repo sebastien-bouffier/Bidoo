@@ -22,4 +22,5 @@ void init(rack::Plugin *p) {
 	p->addModel(createModel<LATEWidget>("Bidoo", "lATe", "lATe clock", CLOCK_TAG));
 	p->addModel(createModel<FORKWidget>("Bidoo", "ForK", "ForK oscillator", OSCILLATOR_TAG));
 	p->addModel(createModel<TIAREWidget>("Bidoo", "TiARE", "TiARE oscillator", OSCILLATOR_TAG));
+	p->addModel(createModel<CLACOSWidget>("Bidoo", "clACos", "clACos oscillator", OSCILLATOR_TAG));
 }

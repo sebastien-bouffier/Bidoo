@@ -17,6 +17,7 @@ struct TIARE : Module {
     DIST_Y_PARAM,
 		MODE_PARAM,
 		SYNC_PARAM,
+		FM_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -24,6 +25,7 @@ struct TIARE : Module {
     SYNC_INPUT,
 		DIST_X_INPUT,
     DIST_Y_INPUT,
+		FM_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -243,6 +245,9 @@ void TIARE::step() {
 
 	float pitchFine = 3.0 * quadraticBipolar(params[FINE_PARAM].value);
 	float pitchCv = 12.0 * inputs[PITCH_INPUT].value;
+	if (inputs[FM_INPUT].active) {
+		pitchCv += quadraticBipolar(params[FM_PARAM].value) * 12.0 * inputs[FM_INPUT].value;
+	}
 	setPitch(params[PITCH_PARAM].value, pitchFine + pitchCv);
 	syncEnabled = inputs[SYNC_INPUT].active;
 
@@ -333,7 +338,7 @@ TIAREWidget::TIAREWidget() {
 	{
 		TIAREDisplay *display = new TIAREDisplay();
 		display->module = module;
-		display->box.pos = Vec(5, 115);
+		display->box.pos = Vec(5, 119);
 		display->box.size = Vec(140, 140);
 		addChild(display);
 	}
@@ -343,6 +348,8 @@ TIAREWidget::TIAREWidget() {
 
 	addParam(createParam<BidooLargeBlueKnob>(Vec(56, 45), module, TIARE::PITCH_PARAM, -54, 54, 0));
   addParam(createParam<BidooBlueTrimpot>(Vec(114,45), module, TIARE::FINE_PARAM, -1, 1, 0));
+	addParam(createParam<BidooBlueTrimpot>(Vec(18,45), module, TIARE::FM_PARAM, 0, 1, 0));
+	addInput(createInput<TinyPJ301MPort>(Vec(38, 83), module, TIARE::FM_INPUT));
 
 	addInput(createInput<PJ301MPort>(Vec(11, 276), module, TIARE::PITCH_INPUT));
 	addInput(createInput<PJ301MPort>(Vec(45, 276), module, TIARE::SYNC_INPUT));

@@ -70,3 +70,7 @@ struct FORKWidget : ModuleWidget {
 struct TIAREWidget : ModuleWidget {
 	TIAREWidget();
 };
+
+struct CLACOSWidget : ModuleWidget {
+	CLACOSWidget();
+};

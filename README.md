@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.5.15-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.5.16-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -13,7 +13,7 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-0.5.15 TiARE is Fundamentals' VCO1 tweaked in order to perform phase distortion. If X and Y not connected you can change the phase distortion manually with the XY pad, if at least X or Y is connected then the pad displays the phase distortion values.  
+0.5.16 clACos is TiARE's brother. The sole difference is that the phase is split in 4 segments and you can chose waveform and set phase distortion per segment.
 
 ## License
 
