@@ -13,7 +13,7 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-0.5.16 clACos is TiARE's brother. The sole difference is that the phase is split in 4 segments and you can chose waveform and set phase distortion per segment.
+0.5.16 clACos is TiARE's brother. The sole difference is that cycles are split in 4 parts and you can chose waveform and set phase distortion per part.
 
 ## License
 
