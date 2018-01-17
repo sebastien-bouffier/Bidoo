@@ -734,15 +734,15 @@ struct DTROYDisplay : TransparentWidget {
 		nvgFontSize(vg, 18);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2);
-		nvgFillColor(vg, nvgRGBA(75, 199, 75, 0xff));
+		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgText(vg, pos.x + 4, pos.y + 8, playMode.c_str(), NULL);
 		nvgFontSize(vg, 14);
-		nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xff));
+		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgText(vg, pos.x + 91, pos.y + 7, selectedPattern.c_str(), NULL);
 		nvgText(vg, pos.x + 31, pos.y + 7, steps.c_str(), NULL);
 		nvgText(vg, pos.x + 3, pos.y + 23, note.c_str(), NULL);
 		nvgText(vg, pos.x + 25, pos.y + 23, scale.c_str(), NULL);
-		nvgFillColor(vg, nvgRGBA(214, 0, 0, 0xff));
+		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgText(vg, pos.x + 116, pos.y + 7, playedPattern.c_str(), NULL);
 	}
 

@@ -13,7 +13,18 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-0.5.16 clACos is TiARE's brother. The sole difference is that cycles are split in 4 parts and you can chose waveform and set phase distortion per part.
+0.5.17
+
+OUAIve goes stereo and has minor fixes regarding player type and play mode information display.
+
+baR is a new module. It is a simple stereo compressor activated when the "peak" (not RMS) signal overshoots the threshold. Is has two pairs of inputs, IN for the compressed signal and SC for the side chain one.
+In terms of controls, nothing really new under the sun, T stands for threshold, R for ratio, Att and Rel for attack and release time, K for knee width, G for makeup gain, M for mix and L for lookahead (% of attack time).
+By default values are set to make subtle compression except T and R (no compression by default) but you can go to mad values ... up to you.
+Two pairs of bars display 10ms RMS and 300ms RMS of side chain signal, if side chain not connected they display input signal values.
+WARNING be careful with makeup gain, it can be loud.
+Many little things still need improvements (RMS calc vs sampling freq, lookahead and att glitches when changing ..) but it already compresses as it is.
+
+Global GUI reworking to homogenize input and output ports design. Use of new set of colors and in particular for text displays in order to increase contrast.
 
 ## License
 

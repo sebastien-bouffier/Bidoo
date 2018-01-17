@@ -142,7 +142,7 @@
   <path
      id="rect860"
      d="m 3.4298966,78.052078 h 3.1749999 v 3.96875 H 3.4298966 Z"
-     style="opacity:1;fill:#e90000;fill-opacity:1;fill-rule:evenodd;stroke:#e90000;stroke-width:0.84190416;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+     style="opacity:1;fill:#cd1f00;fill-opacity:1;fill-rule:evenodd;stroke:#cd1f00;stroke-width:0.84190416;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <path
      id="path862-7"
      d="M 10.847916,85.650457 C 6.6145831,85.603684 6.6145831,85.603684 6.6145831,85.603684"
@@ -150,7 +150,7 @@
   <path
      id="rect860-4"
      d="m 3.4065106,83.612755 h 3.1749999 v 3.96875 H 3.4065106 Z"
-     style="opacity:1;fill:#328d2a;fill-opacity:1;fill-rule:evenodd;stroke:#328d2a;stroke-width:0.84190416;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+     style="opacity:1;fill:#02c375;fill-opacity:1;fill-rule:evenodd;stroke:#02c375;stroke-width:0.84190416;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <g
      id="text860-6"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -285,49 +285,49 @@
   <path
      id="path974"
      d="M 129.56553,20.108333 V 18.256249"
-     style="fill:none;fill-rule:evenodd;stroke:#a60000;stroke-width:0.52440415;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+     style="fill:none;fill-rule:evenodd;stroke:#cd1f00;stroke-width:0.52440415;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <path
      id="rect1000"
      d="m 126.45391,34.131248 h 6.1266 v 51.87238 h -6.1266 z"
-     style="opacity:0.75;fill:#ff3e3e;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.62614757;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+     style="opacity:1;fill:#cd1f00;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.62614757;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <path
      id="path978"
      d="M 126.79935,32.41584 V 20.002425 h 5.42387 v 12.695536 0.282125 h -5.42387 z"
-     style="fill:#a60000;fill-opacity:1;fill-rule:evenodd;stroke:#a60000;stroke-width:0.67837203;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+     style="fill:#cd1f00;fill-opacity:1;fill-rule:evenodd;stroke:#cd1f00;stroke-width:0.67837203;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <path
      id="rect998"
-     d="m 10.5702,88.622284 h 122.04807 v 5.914218 H 10.5702 Z"
-     style="opacity:0.64099995;fill:#090909;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.60052997;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+     d="m 10.5702,88.622284 h 122.04807 v 5.844059 H 10.5702 Z"
+     style="opacity:1;fill:#090909;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.59695739;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <g
      id="text1004-3"
-     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
      transform="rotate(-90.059669)"
      aria-label="OUT">
     <path
        id="path941"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93888855px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px"
-       d="m -83.937763,129.54318 q 0,-1.59646 0.901926,-1.59646 0.467844,0 0.684885,0.3955 0.217041,0.39067 0.217041,1.20096 0,0.79099 -0.217041,1.19131 -0.217041,0.3955 -0.684885,0.3955 -0.458197,0 -0.680061,-0.3955 -0.221865,-0.40032 -0.221865,-1.19131 z m 0.366559,0 q 0,0.34726 0.02894,0.58842 0.02894,0.24116 0.09164,0.3955 0.0627,0.14951 0.163986,0.21704 0.106109,0.0675 0.250803,0.0675 0.144694,0 0.24598,-0.0675 0.106109,-0.0675 0.16881,-0.21704 0.0627,-0.15434 0.09164,-0.3955 0.02894,-0.24116 0.02894,-0.58842 0,-0.34727 -0.02894,-0.58843 -0.02894,-0.24598 -0.09164,-0.39549 -0.0627,-0.15434 -0.16881,-0.22187 -0.101286,-0.0723 -0.24598,-0.0723 -0.144694,0 -0.250803,0.0723 -0.101285,0.0675 -0.163986,0.22187 -0.0627,0.14951 -0.09164,0.39549 -0.02894,0.24116 -0.02894,0.58843 z" />
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px"
+       d="m -82.868445,129.43125 q 0,-0.45338 -0.09371,-0.64768 -0.09233,-0.1943 -0.304547,-0.1943 -0.210839,0 -0.304546,0.1943 -0.09233,0.1943 -0.09233,0.64768 0,0.45199 0.09233,0.6463 0.09371,0.1943 0.304546,0.1943 0.212218,0 0.304547,-0.19292 0.09371,-0.19431 0.09371,-0.64768 z m 0.290766,0 q 0,0.53743 -0.170877,0.80202 -0.169499,0.26458 -0.518143,0.26458 -0.348643,0 -0.518142,-0.26321 -0.169499,-0.2632 -0.169499,-0.80339 0,-0.53882 0.169499,-0.8034 0.170877,-0.26458 0.518142,-0.26458 0.348644,0 0.518143,0.26458 0.170877,0.26458 0.170877,0.8034 z" />
     <path
        id="path943"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93888855px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px"
-       d="m -81.666067,127.99495 h 0.347266 v 2.2717 q 0,0.1254 0.01447,0.22668 0.01929,0.10129 0.06752,0.17364 0.04823,0.0675 0.135048,0.10611 0.08682,0.0386 0.226687,0.0386 0.130225,0 0.217041,-0.0386 0.08682,-0.0386 0.135048,-0.10611 0.05305,-0.0724 0.07235,-0.17364 0.01929,-0.10128 0.01929,-0.22668 v -2.2717 h 0.347266 v 2.2524 q 0,0.23634 -0.05788,0.40515 -0.05788,0.16398 -0.163986,0.27009 -0.106109,0.10129 -0.250803,0.14952 -0.144694,0.0482 -0.318327,0.0482 -0.173633,0 -0.318327,-0.0482 -0.144694,-0.0482 -0.250803,-0.14952 -0.106109,-0.10611 -0.163986,-0.27009 -0.05788,-0.16881 -0.05788,-0.40032 z" />
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px"
+       d="m -82.215255,129.66827 v -1.2678 h 0.279741 v 1.39458 q 0,0.15021 0.0083,0.21497 0.0083,0.0634 0.02894,0.0978 0.0441,0.0813 0.12678,0.12265 0.08406,0.0413 0.202572,0.0413 0.119889,0 0.202571,-0.0413 0.08268,-0.0413 0.128158,-0.12265 0.02067,-0.0344 0.02894,-0.0978 0.0083,-0.0634 0.0083,-0.21221 v -1.39734 h 0.278363 v 1.2678 q 0,0.31557 -0.03996,0.44924 -0.03858,0.13229 -0.135047,0.21911 -0.09095,0.0813 -0.208084,0.12127 -0.117133,0.04 -0.263205,0.04 -0.144694,0 -0.261828,-0.04 -0.117133,-0.04 -0.209462,-0.12127 -0.09508,-0.0854 -0.135047,-0.22049 -0.03996,-0.13642 -0.03996,-0.44786 z" />
     <path
        id="path945"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93888855px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px"
-       d="m -77.846145,128.30363 h -0.694531 v 2.77813 h -0.347266 v -2.77813 h -0.694531 v -0.30868 h 1.736328 z" />
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px"
+       d="m -80.655316,128.40047 h 1.569585 v 0.23427 h -0.643543 v 1.82315 h -0.279742 v -1.82315 h -0.6463 z" />
   </g>
   <g
      id="text1004"
-     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
      aria-label="IN">
     <path
        id="path948"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93888855px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px"
-       d="m 127.36118,90.158869 h 1.50481 v 0.30868 h -0.57877 v 2.469445 h 0.59807 v 0.30868 h -1.54341 v -0.30868 h 0.59807 v -2.469445 h -0.57877 z" />
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px"
+       d="m 127.31019,90.51561 h 1.14239 v 0.234266 h -0.43132 v 1.588878 h 0.43132 v 0.234267 h -1.14239 v -0.234267 h 0.43132 v -1.588878 h -0.43132 z" />
     <path
        id="path950"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93888855px;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px"
-       d="m 129.48335,90.158869 h 0.3955 l 0.69453,1.852083 0.1447,0.598069 v -2.450152 h 0.34726 v 3.086805 h -0.39549 l -0.69454,-1.852083 -0.14469,-0.583599 v 2.435682 h -0.34727 z" />
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.26458332px"
+       d="m 128.92249,90.51561 h 0.35278 l 0.69453,1.693609 V 90.51561 h 0.26872 v 2.057411 h -0.35278 l -0.69453,-1.693609 v 1.693609 h -0.26872 z" />
   </g>
   <g
      id="text860"

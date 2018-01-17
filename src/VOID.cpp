@@ -1,7 +1,6 @@
 #include "Bidoo.hpp"
 #include "BidooComponents.hpp"
 
-
 using namespace std;
 
 struct VOID : Module {
