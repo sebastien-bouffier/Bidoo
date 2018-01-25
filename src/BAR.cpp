@@ -312,12 +312,13 @@ BARWidget::BARWidget() {
 	addParam(createParam<BidooBlueTrimpot>(Vec(42,291), module, BAR::MAKEUP_PARAM, 0, 60, 0));
 	addParam(createParam<BidooBlueTrimpot>(Vec(74,291), module, BAR::MIX_PARAM, 0, 1, 1));
 	addParam(createParam<BidooBlueTrimpot>(Vec(106,291), module, BAR::LOOKAHEAD_PARAM, 0, 200, 0));
-  addInput(createInput<TinyPJ301MPort>(Vec(24, 339), module, BAR::IN_L_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(24, 319), module, BAR::IN_R_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(66, 339), module, BAR::SC_L_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(66, 319), module, BAR::SC_R_INPUT));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(109, 339), module, BAR::OUT_L_OUTPUT));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(109, 319), module, BAR::OUT_R_OUTPUT));
+ 	//Changed ports opposite way around
+	addInput(createInput<TinyPJ301MPort>(Vec(24, 319), module, BAR::IN_L_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(24, 339), module, BAR::IN_R_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(66, 319), module, BAR::SC_L_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(66, 339), module, BAR::SC_R_INPUT));
+	addOutput(createOutput<TinyPJ301MPort>(Vec(109, 319), module, BAR::OUT_L_OUTPUT));
+	addOutput(createOutput<TinyPJ301MPort>(Vec(109, 339), module, BAR::OUT_R_OUTPUT));
 
 	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
