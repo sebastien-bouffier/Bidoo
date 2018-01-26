@@ -2,7 +2,7 @@
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
 #include "../ext/osdialog/osdialog.h"
-#include "dep/audiofile/AudioFile.h"
+#include "dep/audioFile/AudioFile.h"
 #include <vector>
 #include "cmath"
 #include <iomanip> // setprecision

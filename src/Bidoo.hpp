@@ -87,3 +87,7 @@ struct CLACOSWidget : ModuleWidget {
 struct BARWidget : ModuleWidget {
 	BARWidget();
 };
+
+struct LIMBOWidget : ModuleWidget {
+	LIMBOWidget();
+};

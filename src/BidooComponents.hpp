@@ -16,6 +16,13 @@ struct BidooBlueKnob : RoundKnob {
 	}
 };
 
+struct BidooHugeBlueKnob : RoundKnob {
+	BidooHugeBlueKnob() {
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueKnobBidoo.svg")));
+		box.size = Vec(56, 56);
+	}
+};
+
 struct BidooLargeBlueKnob : RoundKnob {
 	BidooLargeBlueKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueKnobBidoo.svg")));
