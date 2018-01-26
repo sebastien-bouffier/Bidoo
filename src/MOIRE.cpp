@@ -257,7 +257,9 @@ MOIREWidget::MOIREWidget() {
 
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[0]+21), module, MOIRE::TARGETSCENE_INPUT));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[7]-6), module, MOIRE::CURRENTSCENE_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+34, portY0[7]-6), module, MOIRE::MORPH_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+33.9, portY0[7]-6), module, MOIRE::MORPH_INPUT));
+	//with red dot centred on fader above and port centred on dot
+	//addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+33.6, portY0[7]-6), module, MOIRE::MORPH_INPUT));
 
 	morphButton = createParam<MOIREMorphKnob>(Vec(portX0[0]+27, portY0[3]+15), module, MOIRE::MORPH_PARAM, 0, 10, 0);
 	addParam(morphButton);
