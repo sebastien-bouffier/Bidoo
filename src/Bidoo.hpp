@@ -91,3 +91,11 @@ struct BARWidget : ModuleWidget {
 struct LIMBOWidget : ModuleWidget {
 	LIMBOWidget();
 };
+
+struct PERCOWidget : ModuleWidget {
+	PERCOWidget();
+};
+
+struct ZINCWidget : ModuleWidget {
+	ZINCWidget();
+};
