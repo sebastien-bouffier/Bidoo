@@ -17,7 +17,7 @@
 //
 
 #include <math.h>
-#include "Biquad.h"
+#include "biquad.h"
 
 Biquad::Biquad() {
     type = bq_type_lowpass;
