@@ -17,7 +17,7 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 lIMbO the 4th order ladder filter has a second mode i.e. "non linear". In that mode the GAIN control is no more a gain on the output but a gain on the tanh() that introduces non linearity.
 
-pErCO is a step in my journey across filters. To achieve the next plugin I needed a BP filter so I tried this approach. The result is a very simple 1st order LP, BP, HP filter.
+pErCO is a step in my journey across filters. To achieve the next plugin I needed a BP filter so I tried this approach. The result is a very simple 2nd order LP, BP, HP filter.
 
 ziNC is the plugin I wanted to do with filters. It is a 16 band vocoder. I started this plugin with pErCO's BP but I needed more selective filters so I finally used 4 poles BP.
 If you are interested in filter design and more generally in dsp I recommend that website http://www.earlevel.com.
