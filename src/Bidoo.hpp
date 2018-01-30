@@ -97,5 +97,7 @@ struct PERCOWidget : ModuleWidget {
 };
 
 struct ZINCWidget : ModuleWidget {
+	ParamWidget *controls[16];
+	void step() override;
 	ZINCWidget();
 };

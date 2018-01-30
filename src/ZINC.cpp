@@ -90,7 +90,7 @@ struct ZINCDisplay : TransparentWidget {
 	}
 
 	void draw(NVGcontext *vg) override {
-		nvgFontSize(vg, 10);
+		nvgFontSize(vg, 12);
 		nvgFontFaceId(vg, font->handle);
 		nvgStrokeWidth(vg, 2);
 		nvgTextLetterSpacing(vg, -2);
@@ -99,7 +99,7 @@ struct ZINCDisplay : TransparentWidget {
 		for (int i=0; i<BANDS; i++) {
 			char fVal[10];
 			snprintf(fVal, sizeof(fVal), "%1i", (int)module->freq[i]);
-			nvgFillColor(vg,nvgRGBA(rescalef(clampf(module->peaks[i],0,1),0,1,0,255), 0, 0, 255));
+			nvgFillColor(vg,nvgRGBA(0, 0, 0, 255));
 			nvgText(vg, portX0[i%(BANDS/4)]+1, 35+43*(int)(i/4), fVal, NULL);
 		}
 	}
@@ -126,7 +126,10 @@ ZINCWidget::ZINCWidget() {
 	static const float portX0[4] = {20, 63, 106, 149};
 
 	for (int i = 0; i < BANDS; i++) {
-		addParam( createParam<BidooBlueKnob>(Vec(portX0[i%(BANDS/4)]-1, 50+43*(int)(i/4)), module, ZINC::BG_PARAM + i, 0, 2, 1));
+		controls[i]=createParam<BidooziNCColoredKnob>(Vec(portX0[i%(BANDS/4)]-1, 50+43*(int)(i/4)), module, ZINC::BG_PARAM + i, 0, 2, 1);
+		BidooziNCColoredKnob *control = dynamic_cast<BidooziNCColoredKnob*>(controls[i]);
+		control->coeff=module->peaks+i;
+		addParam(controls[i]);
 	}
 	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[0]+5, 230), module, ZINC::ATTACK_PARAM, 0.0, 0.25, 0.0));
 	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]+5, 230), module, ZINC::DECAY_PARAM, 0.0, 0.25, 0.0));
@@ -144,4 +147,12 @@ ZINCWidget::ZINCWidget() {
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
 	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
+}
+
+void ZINCWidget::step() {
+	for (int i = 0; i < BANDS; i++) {
+			BidooziNCColoredKnob* knob = dynamic_cast<BidooziNCColoredKnob*>(controls[i]);
+			knob->dirty = true;
+	}
+	ModuleWidget::step();
 }

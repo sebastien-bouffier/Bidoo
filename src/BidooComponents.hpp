@@ -51,6 +51,25 @@ struct BlueCKD6 : SVGSwitch, MomentarySwitch {
 	}
 };
 
+struct BidooziNCColoredKnob : RoundKnob {
+	BidooziNCColoredKnob() {
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueKnobBidoo.svg")));
+		box.size = Vec(28, 28);
+	}
+	float *coeff = 0;
+	void draw(NVGcontext *vg) override {
+			for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
+				std::string str(shape->id);
+				if (str == "bidooBlueKnob") {
+					float corrCoef = rescalef(clampf(*coeff,0,1),0,1,0,255);
+					shape->fill.color = (((unsigned int)clampi(42+corrCoef,0,255)) | ((unsigned int)clampi(87-corrCoef,0,255) << 8) | ((unsigned int)clampi(117-corrCoef,0,255) << 16));
+					shape->fill.color |= (unsigned int)(255) << 24;
+				}
+			}
+		RoundKnob::draw(vg);
+	}
+};
+
 struct BidooColoredKnob : RoundKnob {
 	BidooColoredKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlackKnobBidoo.svg")));
