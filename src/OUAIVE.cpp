@@ -119,7 +119,7 @@ void OUAIVE::step() {
 		readMode = (((int)readMode + 1) % 3);
 	}
 	nbSlices = clampi(roundl(params[NB_SLICES_PARAM].value + inputs[NB_SLICES_INPUT].value), 1, 128);
-	speed = clampf(params[SPEED_PARAM].value + inputs[SPEED_INPUT].value, 0.5, 10);
+	speed = clampf(params[SPEED_PARAM].value + inputs[SPEED_INPUT].value, 0.2, 10);
 	stringstream stream;
 	stream << fixed << setprecision(1) << speed;
 	string s = stream.str();
@@ -424,7 +424,7 @@ OUAIVEWidget::OUAIVEWidget() {
 	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]-9, 250), module, OUAIVE::NB_SLICES_PARAM, 1.0, 128.01, 1.0));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 252), module, OUAIVE::NB_SLICES_INPUT));
 
-	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, 0.5, 10, 1.0));
+	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, 0.2, 10, 1.0));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 277), module, OUAIVE::SPEED_INPUT));
 
 	addInput(createInput<PJ301MPort>(Vec(portX0[0]-25, 321), module, OUAIVE::GATE_INPUT));

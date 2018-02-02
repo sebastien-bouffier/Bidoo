@@ -1095,7 +1095,7 @@ BORDLWidget::BORDLWidget() {
 	addParam(sensitivityParam);
 
 	for (int i = 0; i < 8; i++) {
-		pitchParams[i] = createParam<BidooBlueKnob>(Vec(portX1[i]+2, 79), module, BORDL::TRIG_PITCH_PARAM + i, 0, 10, 3);
+		pitchParams[i] = createParam<BidooBlueKnob>(Vec(portX1[i]+2, 79), module, BORDL::TRIG_PITCH_PARAM + i, 0, 10.001, 3);
 		addParam(pitchParams[i]);
 		pitchRndParams[i] = createParam<BidooBlueTrimpot>(Vec(portX1[i]+7.5, 111), module, BORDL::TRIG_PITCHRND_PARAM + i, 0, 1, 0);
 		addParam(pitchRndParams[i]);
