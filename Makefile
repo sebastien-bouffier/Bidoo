@@ -1,5 +1,5 @@
 SLUG = Bidoo
-VERSION = 0.5.19
+VERSION = 0.5.20
 
 FLAGS = -I./pffft -DPFFFT_SIMD_DISABLE
 

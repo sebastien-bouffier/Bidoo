@@ -22,8 +22,19 @@ extern Plugin *plugin;
 ////////////////////
 
 struct DTROYWidget : ModuleWidget {
-	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam, *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam, *pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8];
+	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam,
+	 *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam,
+	  *pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8];
 	DTROYWidget();
+	Menu *createContextMenu() override;
+};
+
+struct BORDLWidget : ModuleWidget {
+	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam,
+	 *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam,
+	  *pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8],
+		 *pitchRndParams[8], *pulseProbParams[8], *accentParams[8], *rndAccentParams[8];
+	BORDLWidget();
 	Menu *createContextMenu() override;
 };
 

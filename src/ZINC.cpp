@@ -131,17 +131,15 @@ ZINCWidget::ZINCWidget() {
 		control->coeff=module->peaks+i;
 		addParam(controls[i]);
 	}
-	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[0]+5, 230), module, ZINC::ATTACK_PARAM, 0.0, 0.25, 0.0));
-	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]+5, 230), module, ZINC::DECAY_PARAM, 0.0, 0.25, 0.0));
-	addParam(createParam<BidooBlueKnob>(Vec(portX0[0]-1, 268), module, ZINC::GMOD_PARAM, 1, 10, 1));
-	addParam(createParam<BidooBlueKnob>(Vec(portX0[1]-1, 268), module, ZINC::GCARR_PARAM, 1, 10, 1));
-	addParam(createParam<BidooBlueKnob>(Vec(portX0[2]-1, 268), module, ZINC::G_PARAM, 1, 10, 1));
+	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]+5, 230), module, ZINC::ATTACK_PARAM, 0.0, 0.25, 0.0));
+	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[2]+5, 230), module, ZINC::DECAY_PARAM, 0.0, 0.25, 0.0));
+	addParam(createParam<BidooBlueKnob>(Vec(portX0[0]+21, 268), module, ZINC::GMOD_PARAM, 1, 10, 1));
+	addParam(createParam<BidooBlueKnob>(Vec(portX0[1]+21, 268), module, ZINC::GCARR_PARAM, 1, 10, 1));
+	addParam(createParam<BidooBlueKnob>(Vec(portX0[2]+21, 268), module, ZINC::G_PARAM, 1, 10, 1));
 
-
-	addInput(createInput<PJ301MPort>(Vec(10, 320), module, ZINC::IN_MOD));
-	addInput(createInput<PJ301MPort>(Vec(48, 320), module, ZINC::IN_CARR));
-
-	addOutput(createOutput<PJ301MPort>(Vec(85, 320), module, ZINC::OUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[0]+27.5, 320), module, ZINC::IN_MOD));
+	addInput(createInput<PJ301MPort>(Vec(portX0[1]+22.5, 320), module, ZINC::IN_CARR));
+	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]+16.5, 320), module, ZINC::OUT));
 
 	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
