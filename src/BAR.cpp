@@ -325,5 +325,3 @@ BARWidget::BARWidget() {
 	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
 }
-
-//phil
