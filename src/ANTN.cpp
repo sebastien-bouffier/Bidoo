@@ -12,15 +12,17 @@ using namespace std;
 
 struct threadData {
   mpg123_handle *mh;
-  CURL *curl;
   DoubleRingBuffer<Frame<2>,262144> *dataRingBuffer;
+  string url;
   int bytes;
   int channels;
   int encoding;
   long rate;
+  bool play = true;
+  bool free = true;
 };
 
-static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp)
+size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp)
 {
   struct threadData *pData = (struct threadData *) userp;
   size_t realsize = size * nmemb;
@@ -56,16 +58,26 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, voi
               break;
       }
   } while(done > 0);
-  return realsize;
+  return pData->play ? realsize : 0;
 }
 
 void *threadTask(void *data)
 {
   struct threadData *pData;
   pData = (struct threadData *) data;
-  curl_easy_perform(pData->curl);
+  pData->free = false;
+  CURL *curl;
+  curl = curl_easy_init();
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+  curl_easy_setopt(curl, CURLOPT_URL, pData->url.c_str());
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, data);
+  curl_easy_perform(curl);
+  curl_easy_cleanup(curl);
+  pData->free = true;
   pthread_exit(NULL);
-  return 0;
 }
 
 struct ANTN : Module {
@@ -97,7 +109,6 @@ struct ANTN : Module {
   long rate;
   pthread_t *rThread;
   threadData tData;
-  CURL *curl;
   pthread_mutex_t mut;
   bool first = true;
 
@@ -107,13 +118,14 @@ struct ANTN : Module {
     mpg123_format_none(mh);
     mpg123_format(mh, engineGetSampleRate(), 2, MPG123_ENC_FLOAT_32);
     mpg123_open_feed(mh);
+    tData.mh = mh;
+    tData.dataRingBuffer = &dataRingBuffer;
 	}
 
   ~ANTN() {
     mpg123_close(mh);
     mpg123_delete(mh);
     mpg123_exit();
-    curl_easy_cleanup(curl);
   }
 
   json_t *toJson() override {
@@ -133,26 +145,14 @@ struct ANTN : Module {
 
 void ANTN::step() {
 	if (trigTrigger.process(params[TRIG_PARAM].value)) {
-    if (!first) {
-      curl_easy_cleanup(curl);
+    if (!tData.free) {
+      tData.play = false;
     }
     else {
-      first = false;
+      tData.url = url;
+      tData.play = true;
+      pthread_create(rThread, NULL, threadTask, (void *)&tData);
     }
-    curl = curl_easy_init();
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &tData);
-    tData.curl = curl;
-    tData.mh = mh;
-    tData.dataRingBuffer = &dataRingBuffer;
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    if (rThread) {
-      pthread_cancel(*rThread);
-    }
-    pthread_create(rThread, NULL, threadTask, (void *)&tData);
 	}
 
   if (dataRingBuffer.size()>200000) {
