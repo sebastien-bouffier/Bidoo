@@ -35,10 +35,10 @@ struct MOIRE : Module {
 		NUM_LIGHTS = TYPE_LIGHTS + 16
 	};
 
-	float scenes[16][16] = {{0}};
+	float scenes[16][16] = {{0.0f}};
 	int currentScene = 0;
 	int  targetScene = 0;
-	float currentValues[16] = {0};
+	float currentValues[16] = {0.0f};
 	int controlsTypes[16] = {0};
 	bool controlFocused[16] = {false};
 
@@ -107,8 +107,8 @@ struct MOIRE : Module {
 };
 
 void MOIRE::step() {
-	targetScene = clampf(floor(inputs[TARGETSCENE_INPUT].value * 1.6) + params[TARGETSCENE_PARAM].value , 0, 15);
-	currentScene = clampf(floor(inputs[CURRENTSCENE_INPUT].value * 1.6) + params[CURRENTSCENE_PARAM].value , 0, 15);
+	targetScene = clampf(floor(inputs[TARGETSCENE_INPUT].value * 1.6f) + params[TARGETSCENE_PARAM].value , 0.0f, 15.0f);
+	currentScene = clampf(floor(inputs[CURRENTSCENE_INPUT].value * 1.6f) + params[CURRENTSCENE_PARAM].value , 0.0f, 15.0f);
 
 	for (int i = 0; i < 16; i++) {
 		if (typeTriggers[i].process(params[TYPE_PARAMS + i].value)) {
@@ -117,14 +117,14 @@ void MOIRE::step() {
 		lights[TYPE_LIGHTS + i].value = controlsTypes[i];
 	}
 
-	float coeff = clampf(inputs[MORPH_INPUT].value + params[MORPH_PARAM].value, 0, 10);
+	float coeff = clampf(inputs[MORPH_INPUT].value + params[MORPH_PARAM].value, 0.0f, 10.0f);
 
 	for (int i = 0 ; i < 16; i++) {
 		if (!controlFocused[i]) {
 			if (controlsTypes[i] == 0) {
-				currentValues[i] = rescalef(coeff,0,10,scenes[currentScene][i],scenes[targetScene][i]);
+				currentValues[i] = rescalef(coeff,0.0f,10.0f,scenes[currentScene][i],scenes[targetScene][i]);
 			} else {
-				if (coeff >= 9.98) {
+				if (coeff >= 9.98f) {
 					currentValues[i] = scenes[targetScene][i];
 				}
 				else {
@@ -135,7 +135,7 @@ void MOIRE::step() {
 		else {
 			currentValues[i] = params[CONTROLS_PARAMS + i].value;
 		}
-		outputs[CV_OUTPUTS + i].value = currentValues[i] - 5 * params[VOLTAGE_PARAM].value;
+		outputs[CV_OUTPUTS + i].value = currentValues[i] - 5.0f * params[VOLTAGE_PARAM].value;
 	}
 }
 
@@ -145,13 +145,13 @@ struct MOIRECKD6 : BlueCKD6 {
 		MOIRE *module = dynamic_cast<MOIRE*>(this->module);
 		if (parent && module) {
 			if (this->paramId == MOIRE::ADONF_PARAM) {
-				parent->morphButton->setValue(10);
+				parent->morphButton->setValue(10.0f);
 				for (int i = 0; i<16; i++){
 					parent->controls[i]->setValue(module->scenes[module->targetScene][i]);
 					module->controlFocused[i] = false;
 				}
 			} else if (this->paramId == MOIRE::NADA_PARAM) {
-				parent->morphButton->setValue(0);
+				parent->morphButton->setValue(0.0f);
 				for (int i = 0; i<16; i++){
 					parent->controls[i]->setValue(module->scenes[module->currentScene][i]);
 					module->controlFocused[i] = false;
@@ -237,35 +237,35 @@ MOIREWidget::MOIREWidget() {
 	static const float portX0[10] = {20,34,48,62,76,90,120,150,180,210};
 	static const float portY0[12] = {20,50,80,110,140,170,200,230,260,290,320,350};
 
-	addParam(createParam<MOIRECKD6>(Vec(portX0[5], portY0[0]+18), module, MOIRE::SAVE_PARAM, 0.0, 1.0, 0.0));
+	addParam(createParam<MOIRECKD6>(Vec(portX0[5], portY0[0]+18), module, MOIRE::SAVE_PARAM, 0.0f, 1.0f, 0.0f));
 
-  addParam(createParam<BidooBlueTrimpot>(Vec(portX0[0], portY0[1]+16), module, MOIRE::TARGETSCENE_PARAM, 0.0, 15.1, 0));
+  addParam(createParam<BidooBlueTrimpot>(Vec(portX0[0], portY0[1]+16), module, MOIRE::TARGETSCENE_PARAM, 0.0f, 15.1f, 0.0f));
 	MOIREDisplay *displayTarget = new MOIREDisplay();
 	displayTarget->box.pos = Vec(50,portY0[2]-21);
 	displayTarget->box.size = Vec(20, 20);
 	displayTarget->value = &module->targetScene;
 	addChild(displayTarget);
-	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[0], portY0[6]-5), module, MOIRE::CURRENTSCENE_PARAM, 0.0, 15.1, 0));
+	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[0], portY0[6]-5), module, MOIRE::CURRENTSCENE_PARAM, 0.0f, 15.1f, 0.0f));
 	MOIREDisplay *displayCurrent = new MOIREDisplay();
 	displayCurrent->box.pos = Vec(50,portY0[5]+19);
 	displayCurrent->box.size = Vec(20, 20);
 	displayCurrent->value = &module->currentScene;
 	addChild(displayCurrent);
 
-	addParam(createParam<MOIRECKD6>(Vec(portX0[0]-5, portY0[3]-3), module, MOIRE::ADONF_PARAM, 0.0, 1.0, 0.0));
-	addParam(createParam<MOIRECKD6>(Vec(portX0[0]-5, portY0[4]+5), module, MOIRE::NADA_PARAM, 0.0, 1.0, 0.0));
+	addParam(createParam<MOIRECKD6>(Vec(portX0[0]-5, portY0[3]-3), module, MOIRE::ADONF_PARAM, 0.0f, 1.0f, 0.0f));
+	addParam(createParam<MOIRECKD6>(Vec(portX0[0]-5, portY0[4]+5), module, MOIRE::NADA_PARAM, 0.0f, 1.0f, 0.0f));
 
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[0]+21), module, MOIRE::TARGETSCENE_INPUT));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[7]-6), module, MOIRE::CURRENTSCENE_INPUT));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+33.6, portY0[7]-6), module, MOIRE::MORPH_INPUT));
-	morphButton = createParam<MOIREMorphKnob>(Vec(portX0[0]+27, portY0[3]+15), module, MOIRE::MORPH_PARAM, 0, 10, 0);
+	morphButton = createParam<MOIREMorphKnob>(Vec(portX0[0]+27, portY0[3]+15), module, MOIRE::MORPH_PARAM, 0.0f, 10.0f, 0.0f);
 	addParam(morphButton);
 
-	addParam(createParam<CKSS>(Vec(40, 279), module, MOIRE::VOLTAGE_PARAM, 0.0, 1.0, 0.0));
+	addParam(createParam<CKSS>(Vec(40, 279), module, MOIRE::VOLTAGE_PARAM, 0.0f, 1.0f, 0.0f));
 	for (int i = 0; i < 16; i++) {
-		controls[i] = createParam<MOIREColoredKnob>(Vec(portX0[i%4+5], portY0[int(i/4) + 2]), module, MOIRE::CONTROLS_PARAMS + i, 0.0, 10, 0);
+		controls[i] = createParam<MOIREColoredKnob>(Vec(portX0[i%4+5], portY0[int(i/4) + 2]), module, MOIRE::CONTROLS_PARAMS + i, 0.0f, 10.0f, 0.0f);
 		addParam(controls[i]);
-		addParam(createParam<MiniLEDButton>(Vec(portX0[i%4+5]+24, portY0[int(i/4) + 2]+24), module, MOIRE::TYPE_PARAMS + i, 0.0, 1.0,  0));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[i%4+5]+24, portY0[int(i/4) + 2]+24), module, MOIRE::TYPE_PARAMS + i, 0.0f, 1.0f,  0.0f));
 		addChild(createLight<SmallLight<RedLight>>(Vec(portX0[i%4+5]+24, portY0[int(i/4) + 2]+25), module, MOIRE::TYPE_LIGHTS + i));
 		addOutput(createOutput<PJ301MPort>(Vec(portX0[i%4+5]+2, portY0[int(i/4) + 7]), module, MOIRE::CV_OUTPUTS + i));
 	}

@@ -50,7 +50,7 @@ void LATE::step() {
 		tPrevious = tCurrent;
 		tCurrent = now;
 		if (odd) {
-			outputs[CLOCK_OUTPUT].value = 10;
+			outputs[CLOCK_OUTPUT].value = 10.0f;
 			odd = false;
 			armed = false;
 		}
@@ -59,10 +59,10 @@ void LATE::step() {
 		}
 	}
 
-	float lag = rescalef(clampf(params[SWING_PARAM].value + inputs[SWING_INPUT].value,0,10),0,10,0,(float)tCurrent-(float)tPrevious);
+	float lag = rescalef(clampf(params[SWING_PARAM].value + inputs[SWING_INPUT].value,0.0f,10.0f),0.0f,10.0f,0.0f,(float)tCurrent-(float)tPrevious);
 
 	if (armed && !odd && (((float)now - (float)tCurrent) >= lag)) {
-		outputs[CLOCK_OUTPUT].value = 10;
+		outputs[CLOCK_OUTPUT].value = 10.0f;
 		armed = false;
 		odd = true;
 	}

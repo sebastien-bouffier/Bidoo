@@ -38,7 +38,7 @@ struct ACNE : Module {
 	int currentSnapshot = 0;
 	int copySnapshot = 0;
 	bool copyState = false;
-	float snapshots[ACNE_NB_SNAPSHOTS][ACNE_NB_OUTS][ACNE_NB_TRACKS] = {{{0}}};
+	float snapshots[ACNE_NB_SNAPSHOTS][ACNE_NB_OUTS][ACNE_NB_TRACKS] = {{{0.0f}}};
 	bool  outMutes[ACNE_NB_OUTS] = {0};
 	bool  inMutes[ACNE_NB_TRACKS] = {0};
 	bool  inSolo[ACNE_NB_TRACKS] = {0};
@@ -46,8 +46,6 @@ struct ACNE : Module {
 	SchmittTrigger inMutesTriggers[ACNE_NB_TRACKS];
 	SchmittTrigger inSoloTriggers[ACNE_NB_TRACKS];
 	SchmittTrigger snapshotTriggers[ACNE_NB_SNAPSHOTS];
-	//bool updateWidget = false;
-
 
 	ACNE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
 
@@ -131,7 +129,7 @@ void ACNE::step() {
 	}
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
-		outputs[TRACKS_OUTPUTS + i].value = 0;
+		outputs[TRACKS_OUTPUTS + i].value = 0.0f;
 		if (!outMutes[i]) {
 			int sum = 0;
 			for (int s = 0; s < ACNE_NB_TRACKS; ++s) {
@@ -231,7 +229,7 @@ struct ACNECOPYPASTECKD6 : BlueCKD6 {
 ACNEWidget::ACNEWidget() {
 	ACNE *module = new ACNE();
 	setModule(module);
-	box.size = Vec(15*34, 380);
+	box.size = Vec(15.0f*34.0f, 380.0f);
 
 	{
 		SVGPanel *panel = new SVGPanel();
@@ -240,42 +238,42 @@ ACNEWidget::ACNEWidget() {
 		addChild(panel);
 	}
 
-	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
+	addChild(createScrew<ScrewSilver>(Vec(15.0f, 0.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 0.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(15.0f, 365.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 365.0f)));
 
 
-	addParam(createParam<BidooBlueKnob>(Vec(472, 39), module, ACNE::MAIN_OUT_GAIN_PARAM, 0, 10, 7));
+	addParam(createParam<BidooBlueKnob>(Vec(472.0f, 39.0f), module, ACNE::MAIN_OUT_GAIN_PARAM, 0.0f, 10.0f, 7.0f));
 
-	addParam(createParam<ACNECOPYPASTECKD6>(Vec(7, 39), module, ACNE::COPY_PARAM, 0, 1, 0.0));
-	addChild(createLight<SmallLight<GreenLight>>(Vec(18, 28), module, ACNE::COPY_LIGHT));
+	addParam(createParam<ACNECOPYPASTECKD6>(Vec(7.0f, 39.0f), module, ACNE::COPY_PARAM, 0.0f, 1.0f, 0.0f));
+	addChild(createLight<SmallLight<GreenLight>>(Vec(18.0f, 28.0f), module, ACNE::COPY_LIGHT));
 
-	addInput(createInput<TinyPJ301MPort>(Vec(58, 30), module, ACNE::SNAPSHOT_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(58.0f, 30.0f), module, ACNE::SNAPSHOT_INPUT));
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
-		addOutput(createOutput<TinyPJ301MPort>(Vec(482, 79+i*27), module, ACNE::TRACKS_OUTPUTS + i));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(482.0f, 79.0f+i*27.0f), module, ACNE::TRACKS_OUTPUTS + i));
 
-		addParam(createParam<LEDButton>(Vec(10, 77+i*27), module, ACNE::OUT_MUTE_PARAMS + i, 0.0, 1.0,  0));
-		addChild(createLight<SmallLight<RedLight>>(Vec(16, 82+i*27), module, ACNE::OUT_MUTE_LIGHTS + i));
+		addParam(createParam<LEDButton>(Vec(10.0f, 77.0f+i*27.0f), module, ACNE::OUT_MUTE_PARAMS + i, 0.0f, 1.0f,  0.0f));
+		addChild(createLight<SmallLight<RedLight>>(Vec(16.0f, 82.0f+i*27.0f), module, ACNE::OUT_MUTE_LIGHTS + i));
 	}
 
 	for (int i = 0; i < ACNE_NB_TRACKS; i++) {
-		addParam(createParam<ACNEChoseSceneLedButton>(Vec(43+i*27, 49), module, ACNE::SNAPSHOT_PARAMS + i, 0.0, 1.0,  0));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(49+i*27, 55), module, ACNE::SNAPSHOT_LIGHTS + i));
+		addParam(createParam<ACNEChoseSceneLedButton>(Vec(43.0f+i*27.0f, 49.0f), module, ACNE::SNAPSHOT_PARAMS + i, 0.0f, 1.0f,  0.0f));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(49.0f+i*27.0f, 55.0f), module, ACNE::SNAPSHOT_LIGHTS + i));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(45+i*27, 338), module, ACNE::TRACKS_INPUTS + i));
+		addInput(createInput<TinyPJ301MPort>(Vec(45.0f+i*27.0f, 338.0f), module, ACNE::TRACKS_INPUTS + i));
 
-		addParam(createParam<LEDButton>(Vec(43+i*27, 292), module, ACNE::IN_MUTE_PARAMS + i, 0.0, 1.0,  0));
-		addChild(createLight<SmallLight<RedLight>>(Vec(49+i*27, 297), module, ACNE::IN_MUTE_LIGHTS + i));
+		addParam(createParam<LEDButton>(Vec(43.0f+i*27.0f, 292.0f), module, ACNE::IN_MUTE_PARAMS + i, 0.0f, 1.0f,  0.0f));
+		addChild(createLight<SmallLight<RedLight>>(Vec(49.0f+i*27.0f, 297.0f), module, ACNE::IN_MUTE_LIGHTS + i));
 
-		addParam(createParam<LEDButton>(Vec(43+i*27, 314), module, ACNE::IN_SOLO_PARAMS + i, 0.0, 1.0,  0));
-		addChild(createLight<SmallLight<GreenLight>>(Vec(49+i*27, 320), module, ACNE::IN_SOLO_LIGHTS + i));
+		addParam(createParam<LEDButton>(Vec(43.0f+i*27.0f, 314.0f), module, ACNE::IN_SOLO_PARAMS + i, 0.0f, 1.0f,  0.0f));
+		addChild(createLight<SmallLight<GreenLight>>(Vec(49.0f+i*27.0f, 320.0f), module, ACNE::IN_SOLO_LIGHTS + i));
 	}
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
 		for (int j = 0; j < ACNE_NB_TRACKS; j++) {
-				faders[i][j] = createParam<ACNETrimPot>(Vec(43+j*27, 77+i*27), module, ACNE::FADERS_PARAMS + j + i * (ACNE_NB_TRACKS), 0.0, 10, 0);
+				faders[i][j] = createParam<ACNETrimPot>(Vec(43.0f+j*27.0f, 77.0f+i*27.0f), module, ACNE::FADERS_PARAMS + j + i * (ACNE_NB_TRACKS), 0.0f, 10.0f, 0.0f);
 				addParam(faders[i][j]);
 		}
 	}
@@ -293,10 +291,5 @@ void ACNEWidget::UpdateSnapshot(int snapshot) {
 }
 
 void ACNEWidget::step() {
-	// ACNE *module = dynamic_cast<ACNE*>(this->module);
-	// if (module->updateWidget) {
-	// 	UpdateSnapshot(module->currentSnapshot);
-	// 	module->updateWidget = false;
-	// }
 	ModuleWidget::step();
 }

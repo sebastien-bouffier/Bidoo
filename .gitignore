@@ -1,3 +1,9 @@
 build
 dist
 plugin.dll
+/src/dep/bin
+/src/dep/include
+/src/dep/lib
+/src/dep/mpg123-1.25.8
+/src/dep/share
+*.bz2

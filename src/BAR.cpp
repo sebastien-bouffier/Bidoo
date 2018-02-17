@@ -38,12 +38,12 @@ struct BAR : Module {
 	float runningVU_R_Sum = 1e-6f, runningRMS_R_Sum = 1e-6f, rms_R = -96.3f, vu_R = -96.3f, peakR = -96.3f;
 	float in_L_dBFS = 1e-6f;
 	float in_R_dBFS = 1e-6f;
-	float dist = 0, gain = 1, gaindB = 1, ratio = 1, threshold = 1, knee = 0;
-	float attackTime = 0, releaseTime = 0, makeup = 1, previousPostGain = 1.0f, mix = 1;
+	float dist = 0.0f, gain = 1.0f, gaindB = 1.0f, ratio = 1.0f, threshold = 1.0f, knee = 0.0f;
+	float attackTime = 0.0f, releaseTime = 0.0f, makeup = 1.0f, previousPostGain = 1.0f, mix = 1.0f;
 	int indexVU = 0, indexRMS = 0, lookAheadWriteIndex=0;
 	int maxIndexVU = 0, maxIndexRMS = 0, maxLookAheadWriteIndex=0;
 	int lookAhead;
-	float buffL[20000] = {0},buffR[20000] = {0};
+	float buffL[20000] = {0.0f}, buffR[20000] = {0.0f};
 	BAR() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
 	}
 
@@ -75,16 +75,16 @@ void BAR::step() {
 	buffR[lookAheadWriteIndex]=inputs[IN_R_INPUT].value;
 
 	if (!inputs[SC_L_INPUT].active && inputs[IN_L_INPUT].active)
-		in_L_dBFS = max(20*log10((abs(inputs[IN_L_INPUT].value)+1e-6f)/5), -96.3f);
+		in_L_dBFS = max(20.0f*log10((abs(inputs[IN_L_INPUT].value)+1e-6f)/5.0f), -96.3f);
 	else if (inputs[SC_L_INPUT].active)
-		in_L_dBFS = max(20*log10((abs(inputs[SC_L_INPUT].value)+1e-6f)/5), -96.3f);
+		in_L_dBFS = max(20.0f*log10((abs(inputs[SC_L_INPUT].value)+1e-6f)/5.0f), -96.3f);
 	else
 		in_L_dBFS = -96.3f;
 
 	if (!inputs[SC_R_INPUT].active && inputs[IN_R_INPUT].active)
-		in_R_dBFS = max(20*log10((abs(inputs[IN_R_INPUT].value)+1e-6f)/5), -96.3f);
+		in_R_dBFS = max(20.0f*log10((abs(inputs[IN_R_INPUT].value)+1e-6f)/5.0f), -96.3f);
 	else if (inputs[SC_R_INPUT].active)
-		in_R_dBFS = max(20*log10((abs(inputs[SC_R_INPUT].value)+1e-6f)/5), -96.3f);
+		in_R_dBFS = max(20.0f*log10((abs(inputs[SC_R_INPUT].value)+1e-6f)/5.0f), -96.3f);
 	else
 		in_R_dBFS = -96.3f;
 
@@ -123,40 +123,40 @@ void BAR::step() {
 	if (in_L_dBFS>peakL)
 		peakL=in_L_dBFS;
 	else
-		peakL -= 50/engineGetSampleRate();
+		peakL -= 50.0f/engineGetSampleRate();
 
 	if (in_R_dBFS>peakR)
 		peakR=in_R_dBFS;
 	else
-		peakR -= 50/engineGetSampleRate();
+		peakR -= 50.0f/engineGetSampleRate();
 
-	float slope = 1/ratio-1;
+	float slope = 1.0f/ratio-1.0f;
 	float maxIn = max(in_L_dBFS,in_R_dBFS);
 	float dist = maxIn-threshold;
 	float gcurve = 0.0f;
 
-	if (dist<-1*knee/2)
+	if (dist<-1.0f*knee/2.0f)
 		gcurve = maxIn;
-	else if ((dist > -1*knee/2) && (dist < knee/2)) {
-		gcurve = maxIn + slope * pow(dist + knee/2,2)/(2 * knee);
+	else if ((dist > -1.0f*knee/2.0f) && (dist < knee/2.0f)) {
+		gcurve = maxIn + slope * pow(dist + knee/2.0f,2.0f)/(2.0f * knee);
 	} else {
 		gcurve = maxIn + slope * dist;
 	}
 
 	float preGain = gcurve - maxIn;
 	float postGain = 0.0f;
-	float cAtt = exp(-1/(attackTime*engineGetSampleRate()/1000));
-	float cRel = exp(-1/(releaseTime*engineGetSampleRate()/1000));
+	float cAtt = exp(-1.0f/(attackTime*engineGetSampleRate()/1000.0f));
+	float cRel = exp(-1.0f/(releaseTime*engineGetSampleRate()/1000.0f));
 
 	if (preGain>previousPostGain) {
-		postGain = cAtt * previousPostGain + (1-cAtt) * preGain;
+		postGain = cAtt * previousPostGain + (1.0f-cAtt) * preGain;
 	} else {
-		postGain = cRel * previousPostGain + (1-cRel) * preGain;
+		postGain = cRel * previousPostGain + (1.0f-cRel) * preGain;
 	}
 
 	previousPostGain = postGain;
 	gaindB = makeup + postGain;
-	gain = pow(10, gaindB/20);
+	gain = pow(10.0f, gaindB/20.0f);
 
 	mix = params[MIX_PARAM].value;
 	lookAhead = params[LOOKAHEAD_PARAM].value;
@@ -169,8 +169,8 @@ void BAR::step() {
 		readIndex = 20000 - abs(lookAheadWriteIndex-nbSamples);
 	}
 
-	outputs[OUT_L_OUTPUT].value = buffL[readIndex] * (gain*mix + (1-mix));
-	outputs[OUT_R_OUTPUT].value = buffR[readIndex] * (gain*mix + (1-mix));
+	outputs[OUT_L_OUTPUT].value = buffL[readIndex] * (gain*mix + (1.0f-mix));
+	outputs[OUT_R_OUTPUT].value = buffR[readIndex] * (gain*mix + (1.0f-mix));
 
 	lookAheadWriteIndex = (lookAheadWriteIndex+1)%20000;
 }
@@ -183,81 +183,81 @@ struct BARDisplay : TransparentWidget {
 	}
 
 void draw(NVGcontext *vg) override {
-	float height = 150;
-	float width = 15;
-	float spacer = 3;
-	float vuL = rescalef(module->vu_L,-97,0,0,height);
-	float rmsL = rescalef(module->rms_L,-97,0,0,height);
-	float vuR = rescalef(module->vu_R,-97,0,0,height);
-	float rmsR = rescalef(module->rms_R,-97,0,0,height);
-	float threshold = rescalef(module->threshold,0,-97,0,height);
-	float gain = rescalef(1-(module->gaindB-module->makeup),-97,0,97,0);
-	float makeup = rescalef(module->makeup,0,60,0,60);
-	float peakL = rescalef(module->peakL,0,-97,0,height);
-	float peakR = rescalef(module->peakR,0,-97,0,height);
-	float inL = rescalef(module->in_L_dBFS,-97,0,0,height);
-	float inR = rescalef(module->in_R_dBFS,-97,0,0,height);
-	nvgStrokeWidth(vg, 0);
+	float height = 150.0f;
+	float width = 15.0f;
+	float spacer = 3.0f;
+	float vuL = rescalef(module->vu_L,-97.0f,0.0f,0.0f,height);
+	float rmsL = rescalef(module->rms_L,-97.0f,0.0f,0.0f,height);
+	float vuR = rescalef(module->vu_R,-97.0f,0.0f,0.0f,height);
+	float rmsR = rescalef(module->rms_R,-97.0f,0.0f,0.0f,height);
+	float threshold = rescalef(module->threshold,0.0f,-97.0f,0.0f,height);
+	float gain = rescalef(1-(module->gaindB-module->makeup),-97.0f,0.0f,97.0f,0.0f);
+	float makeup = rescalef(module->makeup,0.0f,60.0f,0.0f,60.0f);
+	float peakL = rescalef(module->peakL,0.0f,-97.0f,0.0f,height);
+	float peakR = rescalef(module->peakR,0.0f,-97.0f,0.0f,height);
+	float inL = rescalef(module->in_L_dBFS,-97.0f,0.0f,0.0f,height);
+	float inR = rescalef(module->in_R_dBFS,-97.0f,0.0f,0.0f,height);
+	nvgStrokeWidth(vg, 0.0f);
 	nvgBeginPath(vg);
 	nvgFillColor(vg, BLUE_BIDOO);
-	nvgRoundedRect(vg,0,height-vuL,width,vuL,0);
-	nvgRoundedRect(vg,3*(width+spacer),height-vuR,width,vuR,0);
+	nvgRoundedRect(vg,0.0f,height-vuL,width,vuL,0.0f);
+	nvgRoundedRect(vg,3.0f*(width+spacer),height-vuR,width,vuR,0.0f);
 	nvgFill(vg);
 	nvgClosePath(vg);
 	nvgBeginPath(vg);
 	nvgFillColor(vg, LIGHTBLUE_BIDOO);
-	nvgRoundedRect(vg,width+spacer,height-rmsL,width,rmsL,0);
-	nvgRoundedRect(vg,2*(width+spacer),height-rmsR,width,rmsR,0);
+	nvgRoundedRect(vg,width+spacer,height-rmsL,width,rmsL,0.0f);
+	nvgRoundedRect(vg,2.0f*(width+spacer),height-rmsR,width,rmsR,0.0f);
 	nvgFill(vg);
 	nvgClosePath(vg);
 
 	nvgFillColor(vg, RED_BIDOO);
 	nvgBeginPath(vg);
-	nvgRoundedRect(vg,width+spacer,peakL,width,2,0);
-	nvgRoundedRect(vg,2*(width+spacer),peakR,width,2,0);
+	nvgRoundedRect(vg,width+spacer,peakL,width,2.0f,0.0f);
+	nvgRoundedRect(vg,2.0f*(width+spacer),peakR,width,2.0f,0.0f);
 	nvgFill(vg);
 	nvgClosePath(vg);
 
 	nvgFillColor(vg, ORANGE_BIDOO);
 	nvgBeginPath(vg);
-	if (inL>rmsL+3)
-		nvgRoundedRect(vg,width+spacer,height-inL+1,width,inL-rmsL-2,0);
+	if (inL>rmsL+3.0f)
+		nvgRoundedRect(vg,width+spacer,height-inL+1.0f,width,inL-rmsL-2.0f,0.0f);
 	if (inR>rmsR+3)
-		nvgRoundedRect(vg,2*(width+spacer),height-inR+1,width,inR-rmsR-2,0);
+		nvgRoundedRect(vg,2.0f*(width+spacer),height-inR+1.0f,width,inR-rmsR-2.0f,0.0f);
 	nvgFill(vg);
 	nvgClosePath(vg);
 
-	nvgStrokeWidth(vg, 0.5);
+	nvgStrokeWidth(vg, 0.5f);
 	nvgFillColor(vg, nvgRGBA(255, 255, 255, 255));
 	nvgStrokeColor(vg, nvgRGBA(255, 255, 255, 255));
 	nvgBeginPath(vg);
-	nvgMoveTo(vg, width+spacer+5, threshold);
-	nvgLineTo(vg, 3*width+2*spacer-5, threshold);
+	nvgMoveTo(vg, width+spacer+5.0f, threshold);
+	nvgLineTo(vg, 3.0f*width+2.0f*spacer-5.0f, threshold);
 	//nvgRoundedRect(vg,22,threshold+50,22,2,0);
 	{
-		nvgMoveTo(vg, width+spacer, threshold-3);
-		nvgLineTo(vg, width+spacer, threshold+3);
-		nvgLineTo(vg, width+spacer+5, threshold);
-		nvgLineTo(vg, width+spacer, threshold-3);
-		nvgMoveTo(vg, 3*width+2*spacer, threshold-3);
-		nvgLineTo(vg, 3*width+2*spacer, threshold+3);
-		nvgLineTo(vg, 3*width+2*spacer-5, threshold);
-		nvgLineTo(vg, 3*width+2*spacer, threshold-3);
+		nvgMoveTo(vg, width+spacer, threshold-3.0f);
+		nvgLineTo(vg, width+spacer, threshold+3.0f);
+		nvgLineTo(vg, width+spacer+5.0f, threshold);
+		nvgLineTo(vg, width+spacer, threshold-3.0f);
+		nvgMoveTo(vg, 3.0f*width+2.0f*spacer, threshold-3.0f);
+		nvgLineTo(vg, 3*width+2*spacer, threshold+3.0f);
+		nvgLineTo(vg, 3.0f*width+2.0f*spacer-5.0f, threshold);
+		nvgLineTo(vg, 3.0f*width+2.0f*spacer, threshold-3.0f);
 	}
 	nvgClosePath(vg);
 	nvgStroke(vg);
 	nvgFill(vg);
 
-	float offset = 11;
-	nvgStrokeWidth(vg, 0.5);
+	float offset = 11.0f;
+	nvgStrokeWidth(vg, 0.5f);
 	nvgFillColor(vg, YELLOW_BIDOO);
 	nvgStrokeColor(vg, YELLOW_BIDOO);
 	nvgBeginPath(vg);
-	nvgRoundedRect(vg,4*(width+spacer)+offset,70,width,-gain-makeup,0);
-	nvgMoveTo(vg, 5*(width+spacer)+7+offset, 70-3);
-	nvgLineTo(vg, 5*(width+spacer)+7+offset, 70+3);
-	nvgLineTo(vg, 5*(width+spacer)+2+offset, 70);
-	nvgLineTo(vg, 5*(width+spacer)+7+offset, 70-3);
+	nvgRoundedRect(vg,4.0f*(width+spacer)+offset,70.0f,width,-gain-makeup,0.0f);
+	nvgMoveTo(vg, 5.0f*(width+spacer)+7.0f+offset, 70.0f-3.0f);
+	nvgLineTo(vg, 5.0f*(width+spacer)+7.0f+offset, 70.0f+3.0f);
+	nvgLineTo(vg, 5.0f*(width+spacer)+2.0f+offset, 70.0f);
+	nvgLineTo(vg, 5.0f*(width+spacer)+7.0f+offset, 70.0f-3.0f);
 	nvgClosePath(vg);
 	nvgStroke(vg);
 	nvgFill(vg);
@@ -271,25 +271,25 @@ void draw(NVGcontext *vg) override {
 	snprintf(tMakeUp, sizeof(tTresh), "%2.1f", module->makeup);
 	snprintf(tMix, sizeof(tTresh), "%1.0f/%1.0f", (1-module->mix)*100,module->mix*100);
 	snprintf(tLookAhead, sizeof(tTresh), "%3i", module->lookAhead);
-	nvgFontSize(vg, 14);
+	nvgFontSize(vg, 14.0f);
 	nvgFontFaceId(vg, font->handle);
-	nvgTextLetterSpacing(vg, -2);
+	nvgTextLetterSpacing(vg, -2.0f);
 	nvgFillColor(vg, YELLOW_BIDOO);
 	nvgTextAlign(vg, NVG_ALIGN_CENTER);
-	nvgText(vg, 8, height+31, tTresh, NULL);
-	nvgText(vg, 50, height+31, tRatio, NULL);
-	nvgText(vg, 96, height+31, tAtt, NULL);
-	nvgText(vg, 8, height+63, tKnee, NULL);
-	nvgText(vg, 40, height+63, tMakeUp, NULL);
-	nvgText(vg, 75, height+63, tMix, NULL);
-	nvgText(vg, 107, height+63, tLookAhead, NULL);
+	nvgText(vg, 8.0f, height+31.0f, tTresh, NULL);
+	nvgText(vg, 50.0f, height+31.0f, tRatio, NULL);
+	nvgText(vg, 96.0f, height+31.0f, tAtt, NULL);
+	nvgText(vg, 8.0f, height+63.0f, tKnee, NULL);
+	nvgText(vg, 40.0f, height+63.0f, tMakeUp, NULL);
+	nvgText(vg, 75.0f, height+63.0f, tMix, NULL);
+	nvgText(vg, 107.0f, height+63.0f, tLookAhead, NULL);
 }
 };
 
 BARWidget::BARWidget() {
 	BAR *module = new BAR();
 	setModule(module);
-	box.size = Vec(15*9, 380);
+	box.size = Vec(15.0f*9.0f, 380.0f);
 
 	{
 		SVGPanel *panel = new SVGPanel();
@@ -300,28 +300,28 @@ BARWidget::BARWidget() {
 
 	BARDisplay *display = new BARDisplay();
 	display->module = module;
-	display->box.pos = Vec(12, 40);
-	display->box.size = Vec(110, 70);
+	display->box.pos = Vec(12.0f, 40.0f);
+	display->box.size = Vec(110.0f, 70.0f);
 	addChild(display);
 
-	addParam(createParam<BidooBlueTrimpot>(Vec(10,265), module, BAR::THRESHOLD_PARAM, -93.6, 0, 0));
-	addParam(createParam<BidooBlueTrimpot>(Vec(42,265), module, BAR::RATIO_PARAM, 1, 20, 0));
-	addParam(createParam<BidooBlueTrimpot>(Vec(74,265), module, BAR::ATTACK_PARAM, 1, 100, 10));
-	addParam(createParam<BidooBlueTrimpot>(Vec(106,265), module, BAR::RELEASE_PARAM, 1, 300, 10));
-	addParam(createParam<BidooBlueTrimpot>(Vec(10,291), module, BAR::KNEE_PARAM, 0, 24, 6));
-	addParam(createParam<BidooBlueTrimpot>(Vec(42,291), module, BAR::MAKEUP_PARAM, 0, 60, 0));
-	addParam(createParam<BidooBlueTrimpot>(Vec(74,291), module, BAR::MIX_PARAM, 0, 1, 1));
-	addParam(createParam<BidooBlueTrimpot>(Vec(106,291), module, BAR::LOOKAHEAD_PARAM, 0, 200, 0));
+	addParam(createParam<BidooBlueTrimpot>(Vec(10.0f,265.0f), module, BAR::THRESHOLD_PARAM, -93.6f, 0.0f, 0.0f));
+	addParam(createParam<BidooBlueTrimpot>(Vec(42.0f,265.0f), module, BAR::RATIO_PARAM, 1.0f, 20.0f, 0.0f));
+	addParam(createParam<BidooBlueTrimpot>(Vec(74.0f,265.0f), module, BAR::ATTACK_PARAM, 1.0f, 100.0f, 10.0f));
+	addParam(createParam<BidooBlueTrimpot>(Vec(106.0f,265.0f), module, BAR::RELEASE_PARAM, 1.0f, 300.0f, 10.0f));
+	addParam(createParam<BidooBlueTrimpot>(Vec(10.0f,291.0f), module, BAR::KNEE_PARAM, 0.0f, 24.0f, 6.0f));
+	addParam(createParam<BidooBlueTrimpot>(Vec(42.0f,291.0f), module, BAR::MAKEUP_PARAM, 0.0f, 60.0f, 0.0f));
+	addParam(createParam<BidooBlueTrimpot>(Vec(74.0f,291.0f), module, BAR::MIX_PARAM, 0.0f, 1.0f, 1.0f));
+	addParam(createParam<BidooBlueTrimpot>(Vec(106.0f,291.0f), module, BAR::LOOKAHEAD_PARAM, 0.0f, 200.0f, 0.0f));
  	//Changed ports opposite way around
-	addInput(createInput<TinyPJ301MPort>(Vec(24, 319), module, BAR::IN_L_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(24, 339), module, BAR::IN_R_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(66, 319), module, BAR::SC_L_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(66, 339), module, BAR::SC_R_INPUT));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(109, 319), module, BAR::OUT_L_OUTPUT));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(109, 339), module, BAR::OUT_R_OUTPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 319.0f), module, BAR::IN_L_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 339.0f), module, BAR::IN_R_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(66.0f, 319.0f), module, BAR::SC_L_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(66.0f, 339.0f), module, BAR::SC_R_INPUT));
+	addOutput(createOutput<TinyPJ301MPort>(Vec(109.0f, 319.0f), module, BAR::OUT_L_OUTPUT));
+	addOutput(createOutput<TinyPJ301MPort>(Vec(109.0f, 339.0f), module, BAR::OUT_R_OUTPUT));
 
-	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
+	addChild(createScrew<ScrewSilver>(Vec(15.0f, 0.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 0.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(15.0f, 365.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 365.0f)));
 }

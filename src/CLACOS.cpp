@@ -39,11 +39,11 @@ struct CLACOS : Module {
 	};
 	bool analog = false;
 	bool soft = false;
-	float lastSyncValue = 0.0;
-	float phase = 0.0;
-	float phaseDist = 0.0;
-	float phaseDistX[4] = {0.5};
-	float phaseDistY[4] = {0.5};
+	float lastSyncValue = 0.0f;
+	float phase = 0.0f;
+	float phaseDist = 0.0f;
+	float phaseDistX[4] = {0.5f};
+	float phaseDistY[4] = {0.5f};
 	int waveFormIndex[4] = {0};
 	float freq;
 	float pitch;
@@ -56,21 +56,21 @@ struct CLACOS : Module {
 	RCFilter mainFilter;
 
 	// For analog detuning effect
-	float pitchSlew = 0.0;
+	float pitchSlew = 0.0f;
 	int pitchSlewIndex = 0;
 
-	float sinBuffer[16] = {};
-	float triBuffer[16] = {};
-	float sawBuffer[16] = {};
-	float sqrBuffer[16] = {};
-	float mainBuffer[16] = {};
+	float sinBuffer[16] = {0.0f};
+	float triBuffer[16] = {0.0f};
+	float sawBuffer[16] = {0.0f};
+	float sqrBuffer[16] = {0.0f};
+	float mainBuffer[16] = {0.0f};
 
 	void setPitch(float pitchKnob, float pitchCv) {
 		// Compute frequency
 		pitch = pitchKnob;
 		if (analog) {
 			// Apply pitch slew
-			const float pitchSlewAmount = 3.0;
+			const float pitchSlewAmount = 3.0f;
 			pitch += pitchSlew * pitchSlewAmount;
 		}
 		else {
@@ -79,30 +79,30 @@ struct CLACOS : Module {
 		}
 		pitch += pitchCv;
 		// Note C3
-		freq = 261.626 * powf(2.0, pitch / 12.0);
+		freq = 261.626f * powf(2.0f, pitch / 12.0f);
 	}
 
 	void process(float deltaTime, float syncValue) {
 		if (analog) {
 			// Adjust pitch slew
 			if (++pitchSlewIndex > 32) {
-				const float pitchSlewTau = 100.0; // Time constant for leaky integrator in seconds
+				const float pitchSlewTau = 100.0f; // Time constant for leaky integrator in seconds
 				pitchSlew += (randomNormal() - pitchSlew / pitchSlewTau) / engineGetSampleRate();
-				pitchSlewIndex = 0;
+				pitchSlewIndex = 0.0f;
 			}
 		}
 
 		// Advance phase
-		float deltaPhase = clampf(freq * deltaTime, 1e-6, 0.5);
+		float deltaPhase = clampf(freq * deltaTime, 1e-6f, 0.5f);
 
 		// Detect sync
 		int syncIndex = -1; // Index in the oversample loop where sync occurs [0, OVERSAMPLE)
-		float syncCrossing = 0.0; // Offset that sync occurs [0.0, 1.0)
+		float syncCrossing = 0.0f; // Offset that sync occurs [0.0, 1.0)
 		if (syncEnabled) {
-			syncValue -= 0.01;
-			if (syncValue > 0.0 && lastSyncValue <= 0.0) {
+			syncValue -= 0.01f;
+			if (syncValue > 0.0f && lastSyncValue <= 0.0f) {
 				float deltaSync = syncValue - lastSyncValue;
-				syncCrossing = 1.0 - syncValue / deltaSync;
+				syncCrossing = 1.0f - syncValue / deltaSync;
 				syncCrossing *= 16;
 				syncIndex = (int)syncCrossing;
 				syncCrossing -= syncIndex;
@@ -111,28 +111,28 @@ struct CLACOS : Module {
 		}
 
 		if (syncDirection)
-			deltaPhase *= -1.0;
+			deltaPhase *= -1.0f;
 
-		sqrFilter.setCutoff(40.0 * deltaTime);
-		mainFilter.setCutoff(22000.0 * deltaTime);
+		sqrFilter.setCutoff(40.0f * deltaTime);
+		mainFilter.setCutoff(22000.0f * deltaTime);
 
 		for (int i = 0; i < 16; i++) {
 			if (syncIndex == i) {
 				if (soft) {
 					syncDirection = !syncDirection;
-					deltaPhase *= -1.0;
+					deltaPhase *= -1.0f;
 				}
 				else {
-					phase = 0.0;
-					phaseDist = 0.0;
+					phase = 0.0f;
+					phaseDist = 0.0f;
 				}
 			}
 
-			if (phase<0.25)
+			if (phase<0.25f)
 				index = 0;
-			else if ((phase>=0.25) && (phase<0.50))
+			else if ((phase>=0.25f) && (phase<0.50f))
 				index = 1;
-			else if ((phase>=0.50) && (phase<0.75))
+			else if ((phase>=0.50f) && (phase<0.75f))
 				index = 2;
 			else
 				index = 3;
@@ -140,42 +140,42 @@ struct CLACOS : Module {
 			if (analog) {
 				// Quadratic approximation of sine, slightly richer harmonics
 				if (phaseDist < 0.5f)
-					sinBuffer[i] = 1.f - 16.f * powf(phaseDist - 0.25f, 2);
+					sinBuffer[i] = 1.0f - 16.0f * powf(phaseDist - 0.25f, 2.0f);
 				else
-					sinBuffer[i] = -1.f + 16.f * powf(phaseDist - 0.75f, 2);
+					sinBuffer[i] = -1.0f + 16.0f * powf(phaseDist - 0.75f, 2.0f);
 				sinBuffer[i] *= 1.08f;
 			}
 			else {
-				sinBuffer[i] = sinf(2.f * M_PI * phaseDist);
+				sinBuffer[i] = sinf(2.0f * M_PI * phaseDist);
 			}
 			if (analog) {
 				triBuffer[i] = 1.25f * interpf(triTable, phaseDist * 2047.f);
 			}
 			else {
 				if (phaseDist < 0.25f)
-					triBuffer[i] = 4.f * phaseDist;
+					triBuffer[i] = 4.0f * phaseDist;
 				else if (phaseDist < 0.75f)
-					triBuffer[i] = 2.f - 4.f * phaseDist;
+					triBuffer[i] = 2.0f - 4.0f * phaseDist;
 				else
-					triBuffer[i] = -4.f + 4.f * phaseDist;
+					triBuffer[i] = -4.0f + 4.0f * phaseDist;
 			}
 			if (analog) {
 				sawBuffer[i] = 1.66f * interpf(sawTable, phaseDist * 2047.f);
 			}
 			else {
 				if (phaseDist < 0.5f)
-					sawBuffer[i] = 2.f * phaseDist;
+					sawBuffer[i] = 2.0f * phaseDist;
 				else
-					sawBuffer[i] = -2.f + 2.f * phaseDist;
+					sawBuffer[i] = -2.0f + 2.0f * phaseDist;
 			}
-			sqrBuffer[i] = (phaseDist < 0.5) ? 1.f : -1.f;
+			sqrBuffer[i] = (phaseDist < 0.5f) ? 1.0f : -1.0f;
 			if (analog) {
 				// Simply filter here
 				sqrFilter.process(sqrBuffer[i]);
 				sqrBuffer[i] = 0.71f * sqrFilter.highpass();
 			}
 
-			waveFormIndex[index] = inputs[WAVEFORM_INPUT+index].active ? clampi(rescalef(inputs[WAVEFORM_INPUT+index].value,0,10,0,3),0,3) : clampi(params[WAVEFORM_PARAM+index].value,0,3);
+			waveFormIndex[index] = inputs[WAVEFORM_INPUT+index].active ? clampi(rescalef(inputs[WAVEFORM_INPUT+index].value,0.0f,10.0f,0.0f,3.0f),0,3) : clampi(params[WAVEFORM_PARAM+index].value,0,3);
 			if (waveFormIndex[index] == 0)
 				mainBuffer[i]=sinBuffer[i];
 			else if (waveFormIndex[index] == 1)
@@ -189,13 +189,13 @@ struct CLACOS : Module {
 			mainBuffer[i]=mainFilter.lowpass();
 
 			// Advance phase
-			phase += deltaPhase / 16;
-			phase = eucmodf(phase, 1.0);
-			if (phase<=0.25)
+			phase += deltaPhase / 16.0f;
+			phase = eucmodf(phase, 1.0f);
+			if (phase<=0.25f)
 				index = 0;
-			else if ((phase>0.25) && (phase<=0.5))
+			else if ((phase>0.25f) && (phase<=0.5f))
 				index = 1;
-			else if ((phase>0.5) && (phase<=0.75))
+			else if ((phase>0.5f) && (phase<=0.75f))
 				index = 2;
 			else
 				index = 3;
@@ -205,11 +205,11 @@ struct CLACOS : Module {
 				prevIndex = index;
 			}
 			else {
-				if (rescalef(phase,index*0.25,(index+1)*0.25,0,1)<=(phaseDistX[index]))
-					phaseDist = min(phaseDist + (deltaPhase / 16) * phaseDistY[index]/phaseDistX[index], (index+1)*0.25f);
+				if (rescalef(phase,index*0.25f,(index+1)*0.25f,0.0f,1.0f)<=(phaseDistX[index]))
+					phaseDist = min(phaseDist + (deltaPhase / 16.0f) * phaseDistY[index]/phaseDistX[index], (index+1)*0.25f);
 				else
-					phaseDist = min(phaseDist + (deltaPhase / 16) * (1-phaseDistY[index])/(1-phaseDistX[index]), (index+1)*0.25f);
-				phaseDist = eucmodf(phaseDist, 1.0);
+					phaseDist = min(phaseDist + (deltaPhase / 16.0f) * (1-phaseDistY[index])/(1-phaseDistX[index]), (index+1)*0.25f);
+				phaseDist = eucmodf(phaseDist, 1.0f);
 			}
 		}
 	}
@@ -218,7 +218,7 @@ struct CLACOS : Module {
 		return mainDecimator.process(mainBuffer);
 	}
 	float light() {
-		return sinf(2*M_PI * phase);
+		return sinf(2.0f*M_PI * phase);
 	}
 
 	CLACOS() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
@@ -268,29 +268,29 @@ struct CLACOS : Module {
 };
 
 void CLACOS::step() {
-	analog = params[MODE_PARAM].value > 0.0;
-	soft = params[SYNC_PARAM].value <= 0.0;
+	analog = params[MODE_PARAM].value > 0.0f;
+	soft = params[SYNC_PARAM].value <= 0.0f;
 
 	for (int i=0; i<4; i++) {
 	if (inputs[DIST_X_INPUT+i].active)
-		phaseDistX[i] = rescalef(clampf(inputs[DIST_X_INPUT+i].value,0,10),0,10,0.01,0.99);
+		phaseDistX[i] = rescalef(clampf(inputs[DIST_X_INPUT+i].value,0.0f,10.0f),0.0f,10.0f,0.01f,0.99f);
 
 	if (inputs[DIST_Y_INPUT+i].active)
-		phaseDistY[i] = rescalef(clampf(inputs[DIST_Y_INPUT+i].value,0,10),0,10,0.01,0.99);
+		phaseDistY[i] = rescalef(clampf(inputs[DIST_Y_INPUT+i].value,0.0f,10.0f),0.0f,10.0f,0.01f,0.99f);
 	}
 
-	float pitchFine = 3.0 * quadraticBipolar(params[FINE_PARAM].value);
-	float pitchCv = 12.0 * inputs[PITCH_INPUT].value;
+	float pitchFine = 3.0f * quadraticBipolar(params[FINE_PARAM].value);
+	float pitchCv = 12.0f * inputs[PITCH_INPUT].value;
 	if (inputs[FM_INPUT].active) {
-		pitchCv += quadraticBipolar(params[FM_PARAM].value) * 12.0 * inputs[FM_INPUT].value;
+		pitchCv += quadraticBipolar(params[FM_PARAM].value) * 12.0f * inputs[FM_INPUT].value;
 	}
 	setPitch(params[PITCH_PARAM].value, pitchFine + pitchCv);
 	syncEnabled = inputs[SYNC_INPUT].active;
 
-	process(1.0 / engineGetSampleRate(), inputs[SYNC_INPUT].value);
+	process(1.0f / engineGetSampleRate(), inputs[SYNC_INPUT].value);
 
 	// Set output
-	outputs[MAIN_OUTPUT].value = 5.0 * main();
+	outputs[MAIN_OUTPUT].value = 5.0f * main();
 }
 
 struct CLACOSDisplay : TransparentWidget {
@@ -298,10 +298,10 @@ struct CLACOSDisplay : TransparentWidget {
 	int frame = 0;
 	string waveForm;
 	int segmentNumber = 0;
-	float initX = 0;
-	float initY = 0;
-	float dragX = 0;
-	float dragY = 0;
+	float initX = 0.0f;
+	float initY = 0.0f;
+	float dragX = 0.0f;
+	float dragY = 0.0f;
 
 CLACOSDisplay() {}
 
@@ -314,8 +314,8 @@ void onDragMove(EventDragMove &e) override {
 	if ((!module->inputs[CLACOS::DIST_X_INPUT + segmentNumber].active) && (!module->inputs[CLACOS::DIST_X_INPUT + segmentNumber].active)) {
 		float newDragX = gRackWidget->lastMousePos.x;
 		float newDragY = gRackWidget->lastMousePos.y;
-		module->phaseDistX[segmentNumber] = rescalef(clampf(initX+(newDragX-dragX),0,70), 0, 70, 0.01,0.99);
-		module->phaseDistY[segmentNumber]  = rescalef(clampf(initY-(newDragY-dragY),0,70), 0, 70, 0.01,0.99);
+		module->phaseDistX[segmentNumber] = rescalef(clampf(initX+(newDragX-dragX),0.0f,70.0f), 0.0f, 70.0f, 0.01f,0.99f);
+		module->phaseDistY[segmentNumber]  = rescalef(clampf(initY-(newDragY-dragY),0.0f,70.0f), 0.0f, 70.0f, 0.01f,0.99f);
 	}
 }
 
@@ -324,7 +324,7 @@ void onMouseDown(EventMouseDown &e) override {
 		e.consumed = true;
 		e.target = this;
 		initX = e.pos.x;
-		initY = 70 - e.pos.y;
+		initY = 70.0f - e.pos.y;
 	}
 }
 
@@ -340,18 +340,18 @@ void draw(NVGcontext *vg) override {
 		else if (module->waveFormIndex[segmentNumber] == 3)
 			waveForm="SQR";
 	}
-	nvgFontSize(vg, 10);
+	nvgFontSize(vg, 10.0f);
 	nvgFillColor(vg, nvgRGBA(42, 87, 117, 255));
-	nvgText(vg, 12, 79, waveForm.c_str(), NULL);
+	nvgText(vg, 12.0f, 79.0f, waveForm.c_str(), NULL);
 
 	// Draw ref lines
 	nvgStrokeColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x80));
 	{
 		nvgBeginPath(vg);
-		nvgMoveTo(vg, 0, 35);
-		nvgLineTo(vg, 70, 35);
-		nvgMoveTo(vg, 35, 0);
-		nvgLineTo(vg, 35, 70);
+		nvgMoveTo(vg, 0.0f, 35.0f);
+		nvgLineTo(vg, 70.0f, 35.0f);
+		nvgMoveTo(vg, 35.0f, 0.0f);
+		nvgLineTo(vg, 35.0f, 70.0f);
 		nvgClosePath(vg);
 	}
 	nvgStroke(vg);
@@ -360,10 +360,10 @@ void draw(NVGcontext *vg) override {
 	nvgStrokeColor(vg, nvgRGBA(42, 87, 117, 255));
 	{
 		nvgBeginPath(vg);
-		nvgMoveTo(vg, 0 , 70);
-		nvgLineTo(vg, (int)(rescalef(module->phaseDistX[segmentNumber], 0,1,0,70)) , 70 - (int)(rescalef(module->phaseDistY[segmentNumber], 0,1,0.01,70)));
-		nvgMoveTo(vg, (int)(rescalef(module->phaseDistX[segmentNumber], 0,1,0,70)) , 70 - (int)(rescalef(module->phaseDistY[segmentNumber], 0,1,0.01,70)));
-		nvgLineTo(vg, 70 , 0);
+		nvgMoveTo(vg, 0.0f, 70.0f);
+		nvgLineTo(vg, (int)(rescalef(module->phaseDistX[segmentNumber], 0.0f,1.0f,0.0f,70.0f)) , 70.0f - (int)(rescalef(module->phaseDistY[segmentNumber], 0.0f,1.0f,0.01f,70.0f)));
+		nvgMoveTo(vg, (int)(rescalef(module->phaseDistX[segmentNumber], 0.0f,1.0f,0.0f,70.0f)) , 70.0f - (int)(rescalef(module->phaseDistY[segmentNumber], 0.0f,1.0f,0.01f,70.0f)));
+		nvgLineTo(vg, 70.0f, 0.0f);
 		nvgClosePath(vg);
 	}
 	nvgStroke(vg);
@@ -373,7 +373,7 @@ void draw(NVGcontext *vg) override {
 CLACOSWidget::CLACOSWidget() {
 	CLACOS *module = new CLACOS();
 	setModule(module);
-	box.size = Vec(15*10, 380);
+	box.size = Vec(15.0f*10.0f, 380.0f);
 
 	{
 		SVGPanel *panel = new SVGPanel();
@@ -388,30 +388,30 @@ CLACOSWidget::CLACOSWidget() {
 			CLACOSDisplay *display = new CLACOSDisplay();
 			display->module = module;
 			display->segmentNumber = i;
-			display->box.pos = Vec(3 + 74 * (i%2), 113 + 102 * round(i/2));
-			display->box.size = Vec(70, 70);
+			display->box.pos = Vec(3.0f + 74.0f * (i%2), 113.0f + 102.0f * round(i/2));
+			display->box.size = Vec(70.0f, 70.0f);
 			addChild(display);
-			addParam(createParam<BidooBlueTrimpot>(Vec(2 + 74 * (i%2), 194 + 102 * round(i/2)), module, CLACOS::WAVEFORM_PARAM + i, 0, 3, 0));
-			addInput(createInput<TinyPJ301MPort>(Vec(22 + 74 * (i%2), 196 + 102 * round(i/2)), module, CLACOS::WAVEFORM_INPUT + i));
-			addInput(createInput<TinyPJ301MPort>(Vec(40 + 74 * (i%2), 196 + 102 * round(i/2)), module, CLACOS::DIST_X_INPUT + i));
-			addInput(createInput<TinyPJ301MPort>(Vec(57 + 74 * (i%2), 196 + 102 * round(i/2)), module, CLACOS::DIST_Y_INPUT + i));
+			addParam(createParam<BidooBlueTrimpot>(Vec(2.0f + 74.0f * (i%2), 194.0f + 102.0f * round(i/2)), module, CLACOS::WAVEFORM_PARAM + i, 0.0f, 3.0f, 0.0f));
+			addInput(createInput<TinyPJ301MPort>(Vec(22.0f + 74.0f * (i%2), 196.0f + 102.0f * round(i/2)), module, CLACOS::WAVEFORM_INPUT + i));
+			addInput(createInput<TinyPJ301MPort>(Vec(40.0f + 74.0f * (i%2), 196.0f + 102.0f * round(i/2)), module, CLACOS::DIST_X_INPUT + i));
+			addInput(createInput<TinyPJ301MPort>(Vec(57.0f + 74.0f * (i%2), 196.0f + 102.0f * round(i/2)), module, CLACOS::DIST_Y_INPUT + i));
 		}
 	}
 
-	addParam(createParam<CKSS>(Vec(15, 80), module, CLACOS::MODE_PARAM, 0.0, 1.0, 1.0));
-	addParam(createParam<CKSS>(Vec(119, 80), module, CLACOS::SYNC_PARAM, 0.0, 1.0, 1.0));
+	addParam(createParam<CKSS>(Vec(15.0f, 80.0f), module, CLACOS::MODE_PARAM, 0.0f, 1.0f, 1.0f));
+	addParam(createParam<CKSS>(Vec(119.0f, 80.0f), module, CLACOS::SYNC_PARAM, 0.0f, 1.0f, 1.0f));
 
-	addParam(createParam<BidooLargeBlueKnob>(Vec(56, 45), module, CLACOS::PITCH_PARAM, -54, 54, 0));
-  addParam(createParam<BidooBlueTrimpot>(Vec(114,45), module, CLACOS::FINE_PARAM, -1, 1, 0));
-	addParam(createParam<BidooBlueTrimpot>(Vec(18,45), module, CLACOS::FM_PARAM, 0, 1, 0));
-	addInput(createInput<TinyPJ301MPort>(Vec(38, 83), module, CLACOS::FM_INPUT));
+	addParam(createParam<BidooLargeBlueKnob>(Vec(56.0f, 45.0f), module, CLACOS::PITCH_PARAM, -54.0f, 54.0f, 0.0f));
+  addParam(createParam<BidooBlueTrimpot>(Vec(114.0f,45.0f), module, CLACOS::FINE_PARAM, -1.0f, 1.0f, 0.0f));
+	addParam(createParam<BidooBlueTrimpot>(Vec(18.0f,45.0f), module, CLACOS::FM_PARAM, 0.0f, 1.0f, 0.0f));
+	addInput(createInput<TinyPJ301MPort>(Vec(38.0f, 83.0f), module, CLACOS::FM_INPUT));
 
-  addInput(createInput<PJ301MPort>(Vec(11, 330), module, CLACOS::PITCH_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(45, 330), module, CLACOS::SYNC_INPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(114, 330), module, CLACOS::MAIN_OUTPUT));
+  addInput(createInput<PJ301MPort>(Vec(11.0f, 330.0f), module, CLACOS::PITCH_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(45.0f, 330.0f), module, CLACOS::SYNC_INPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(114.0f, 330.0f), module, CLACOS::MAIN_OUTPUT));
 
-	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
+	addChild(createScrew<ScrewSilver>(Vec(15.0f, 0.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 0.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(15.0f, 365.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 365.0f)));
 }

@@ -39,7 +39,7 @@ struct OUAIVE : Module {
 	bool play = false;
 	string lastPath;
 	AudioFile<double> audioFile;
-	float samplePos = 0;
+	float samplePos = 0.0f;
 	vector<double> displayBuffL;
 	vector<double> displayBuffR;
 	string fileDesc;
@@ -114,12 +114,12 @@ void OUAIVE::step() {
 		trigMode = (((int)trigMode + 1) % 3);
 	}
 	if (inputs[READ_MODE_INPUT].active) {
-		readMode = round(rescalef(inputs[READ_MODE_INPUT].value, 0,10,0,2));
+		readMode = round(rescalef(inputs[READ_MODE_INPUT].value, 0.0f,10.0f,0.0f,2.0f));
 	} else if (readModeTrigger.process(params[READ_MODE_PARAM].value + inputs[READ_MODE_INPUT].value)) {
 		readMode = (((int)readMode + 1) % 3);
 	}
 	nbSlices = clampi(roundl(params[NB_SLICES_PARAM].value + inputs[NB_SLICES_INPUT].value), 1, 128);
-	speed = clampf(params[SPEED_PARAM].value + inputs[SPEED_INPUT].value, 0.2, 10);
+	speed = clampf(params[SPEED_PARAM].value + inputs[SPEED_INPUT].value, 0.2f, 10.0f);
 	stringstream stream;
 	stream << fixed << setprecision(1) << speed;
 	string s = stream.str();
@@ -174,17 +174,17 @@ void OUAIVE::step() {
 		if ((play) && (samplePos>=0) && (samplePos < audioFile.getNumSamplesPerChannel())) {
 			//calulate outputs
 			if (audioFile.getNumChannels() == 1) {
-				outputs[OUTL_OUTPUT].value = 5 * audioFile.samples[0][floor(samplePos)];
-				outputs[OUTR_OUTPUT].value = 5 * audioFile.samples[0][floor(samplePos)];
+				outputs[OUTL_OUTPUT].value = 5.0f * audioFile.samples[0][floor(samplePos)];
+				outputs[OUTR_OUTPUT].value = 5.0f * audioFile.samples[0][floor(samplePos)];
 			}
 			else if (audioFile.getNumChannels() == 2) {
 				if (outputs[OUTL_OUTPUT].active && outputs[OUTR_OUTPUT].active) {
-					outputs[OUTL_OUTPUT].value = 5 * audioFile.samples[0][floor(samplePos)];
-					outputs[OUTR_OUTPUT].value = 5 * audioFile.samples[1][floor(samplePos)];
+					outputs[OUTL_OUTPUT].value = 5.0f * audioFile.samples[0][floor(samplePos)];
+					outputs[OUTR_OUTPUT].value = 5.0f * audioFile.samples[1][floor(samplePos)];
 				}
 				else {
-					outputs[OUTL_OUTPUT].value = 5 * (audioFile.samples[0][floor(samplePos)] + audioFile.samples[1][floor(samplePos)]) / 2;
-					outputs[OUTR_OUTPUT].value = 5 * (audioFile.samples[0][floor(samplePos)] + audioFile.samples[1][floor(samplePos)]) / 2;
+					outputs[OUTL_OUTPUT].value = 5.0f * (audioFile.samples[0][floor(samplePos)] + audioFile.samples[1][floor(samplePos)]) / 2;
+					outputs[OUTR_OUTPUT].value = 5.0f * (audioFile.samples[0][floor(samplePos)] + audioFile.samples[1][floor(samplePos)]) / 2;
 				}
 			}
 
@@ -291,11 +291,11 @@ struct OUAIVEDisplay : TransparentWidget {
 					nvgBeginPath(vg);
 					for (unsigned int i = 0; i < module->displayBuffL.size(); i++) {
 						float x, y;
-						x = (float)i / (module->displayBuffL.size() - 1);
-						y = module->displayBuffL[i] / 2.0 + 0.5;
+						x = (float)i / (module->displayBuffL.size() - 1.0f);
+						y = module->displayBuffL[i] / 2.0f + 0.5f;
 						Vec p;
 						p.x = b.pos.x + b.size.x * x;
-						p.y = b.pos.y + b.size.y * (1.0 - y);
+						p.y = b.pos.y + b.size.y * (1.0f - y);
 						if (i == 0)
 							nvgMoveTo(vg, p.x, p.y);
 						else
@@ -330,11 +330,11 @@ struct OUAIVEDisplay : TransparentWidget {
 					nvgBeginPath(vg);
 					for (unsigned int i = 0; i < module->displayBuffL.size(); i++) {
 						float x, y;
-						x = (float)i / (module->displayBuffL.size() - 1);
-						y = module->displayBuffL[i] / 2.0 + 0.5;
+						x = (float)i / (module->displayBuffL.size() - 1.0f);
+						y = module->displayBuffL[i] / 2.0f + 0.5f;
 						Vec p;
 						p.x = b.pos.x + b.size.x * x;
-						p.y = b.pos.y + b.size.y * (1.0 - y);
+						p.y = b.pos.y + b.size.y * (1.0f - y);
 						if (i == 0)
 							nvgMoveTo(vg, p.x, p.y);
 						else
@@ -351,18 +351,18 @@ struct OUAIVEDisplay : TransparentWidget {
 					nvgBeginPath(vg);
 					for (unsigned int i = 0; i < module->displayBuffR.size(); i++) {
 						float x, y;
-						x = (float)i / (module->displayBuffR.size() - 1);
-						y = module->displayBuffR[i] / 2.0 + 0.5;
+						x = (float)i / (module->displayBuffR.size() - 1.0f);
+						y = module->displayBuffR[i] / 2.0f + 0.5f;
 						Vec p;
 						p.x = b.pos.x + b.size.x * x;
-						p.y = b.pos.y + b.size.y * (1.0 - y);
+						p.y = b.pos.y + b.size.y * (1.0f - y);
 						if (i == 0)
 							nvgMoveTo(vg, p.x, p.y);
 						else
 							nvgLineTo(vg, p.x, p.y);
 					}
 					nvgLineCap(vg, NVG_ROUND);
-					nvgMiterLimit(vg, 2.0);
+					nvgMiterLimit(vg, 2.0f);
 					nvgStrokeWidth(vg, 1);
 					nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
 					nvgStroke(vg);

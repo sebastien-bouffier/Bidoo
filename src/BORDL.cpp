@@ -17,12 +17,12 @@ struct StepPlus {
 	bool slide = false;
 	int pulses = 1;
 	int pulsesParam = 1;
-	float pitch = 3;
+	float pitch = 3.0f;
 	int type = 2;
-	float gateProb = 1;
-	float pitchRnd = 0;
-	float accent = 0;
-	float rndAccent = 0;
+	float gateProb = 1.0f;
+	float pitchRnd = 0.0f;
+	float accent = 0.0f;
+	float rndAccent = 0.0f;
 };
 
 struct PatternPlus {
@@ -34,9 +34,9 @@ struct PatternPlus {
 	int rootNoteParam = 0;
 	int scale = 0;
 	int scaleParam = 0;
-	float gateTime = 0.5;
-	float slideTime = 0.2;
-	float sensitivity = 1;
+	float gateTime = 0.5f;
+	float slideTime = 0.2f;
+	float sensitivity = 1.0f;
 	int currentStep = 0;
 	int currentPulse = 0;
 	bool forward = true;
@@ -326,15 +326,15 @@ struct BORDL : Module {
 	SchmittTrigger playModeTrigger;
 	SchmittTrigger countModeTrigger;
 	SchmittTrigger PatternTrigger;
-	float phase = 0;
+	float phase = 0.0f;
 	int index = 0;
 	int prevIndex = 0;
 	bool reStart = true;
 	int pulse = 0;
 	int rootNote = 0;
 	int curScaleVal = 0;
-	float pitch = 0;
-	float previousPitch = 0;
+	float pitch = 0.0f;
+	float previousPitch = 0.0f;
 	clock_t tCurrent;
 	clock_t tLastTrig;
 	clock_t tPreviousTrig;
@@ -348,8 +348,8 @@ struct BORDL : Module {
 	bool pitchMode = false;
 	bool updateFlag = false;
 	bool probGate = true;
-	float rndPitch = 0;
-	float accent = 5;
+	float rndPitch = 0.0f;
+	float accent = 5.0f;
 
 	PatternPlus patterns[16];
 
@@ -530,6 +530,7 @@ struct BORDL : Module {
 				}
 			}
 		}
+		updateFlag = true;
 	}
 
 	void randomize() override {
@@ -538,8 +539,8 @@ struct BORDL : Module {
 
 	void randomizeSlidesSkips() {
 		for (int i = 0; i < 8; i++) {
-			slideState[i] = (randomf() > 0.8) ? 't' : 'f';
-			skipState[i] = (randomf() > 0.85) ? 't' : 'f';
+			slideState[i] = (randomf() > 0.8f) ? 't' : 'f';
+			skipState[i] = (randomf() > 0.85f) ? 't' : 'f';
 		}
 	}
 
@@ -578,20 +579,20 @@ struct BORDL : Module {
 		}
 
 		if(curScaleVal == NONE){
-			return randomf() * 6.0;
+			return randomf() * 6.0f;
 		} else {
-			float voltsOut = 0;
+			float voltsOut = 0.0f;
 			int rndOctaveInVolts = int(5 * randomf());
 			voltsOut += rndOctaveInVolts;
-			voltsOut += rootNote / 12.0;
-			voltsOut += curScaleArr[int(notesInScale * randomf())] / 12.0;
+			voltsOut += rootNote / 12.0f;
+			voltsOut += curScaleArr[int(notesInScale * randomf())] / 12.0f;
 			return voltsOut;
 		}
 	}
 
 	float closestVoltageInScale(float voltsIn){
-		rootNote = clampi(patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value, 0.0, BORDL::NUM_NOTES-1);
-		curScaleVal = clampi(patterns[playedPattern].scale + inputs[SCALE_INPUT].value, 0.0, BORDL::NUM_SCALES-1);
+		rootNote = clampi(patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value, 0.0f, BORDL::NUM_NOTES-1);
+		curScaleVal = clampi(patterns[playedPattern].scale + inputs[SCALE_INPUT].value, 0.0f, BORDL::NUM_SCALES-1);
 		int *curScaleArr;
 		int notesInScale = 0;
 		switch(curScaleVal){
@@ -615,11 +616,11 @@ struct BORDL : Module {
 			case NONE:           return voltsIn;
 		}
 
-		float closestVal = 10.0;
-		float closestDist = 10.0;
+		float closestVal = 10.0f;
+		float closestDist = 10.0f;
 		int octaveInVolts = int(voltsIn);
 		for (int i = 0; i < notesInScale; i++) {
-			float scaleNoteInVolts = octaveInVolts + ((rootNote + curScaleArr[i]) / 12.0);
+			float scaleNoteInVolts = octaveInVolts + ((rootNote + curScaleArr[i]) / 12.0f);
 			float distAway = fabs(voltsIn - scaleNoteInVolts);
 			if(distAway < closestDist){
 				closestVal = scaleNoteInVolts;
@@ -632,18 +633,18 @@ struct BORDL : Module {
 
 
 void BORDL::step() {
- 	const float lightLambda = 0.075;
+ 	const float lightLambda = 0.075f;
 	// Run
 	if (runningTrigger.process(params[RUN_PARAM].value)) {
 		running = !running;
 	}
-	lights[RUNNING_LIGHT].value = running ? 1.0 : 0.0;
+	lights[RUNNING_LIGHT].value = running ? 1.0f : 0.0f;
 	bool nextStep = false;
 	// Phase calculation
 	if (running) {
 		if (inputs[EXT_CLOCK_INPUT].active) {
 			tCurrent = clock();
-			float clockTime = powf(2.0, params[CLOCK_PARAM].value + inputs[CLOCK_INPUT].value);
+			float clockTime = powf(2.0f, params[CLOCK_PARAM].value + inputs[CLOCK_INPUT].value);
 			if (tLastTrig && tPreviousTrig) {
 				phase = float(tCurrent - tLastTrig) / float(tLastTrig - tPreviousTrig);
 			}
@@ -654,15 +655,15 @@ void BORDL::step() {
 			if (clockTrigger.process(inputs[EXT_CLOCK_INPUT].value)) {
 				tPreviousTrig = tLastTrig;
 				tLastTrig = clock();
-				phase = 0.0;
+				phase = 0.0f;
 				nextStep = true;
 			}
 		}
 		else {
 			// Internal clock
-			float clockTime = powf(2.0, params[CLOCK_PARAM].value + inputs[CLOCK_INPUT].value);
+			float clockTime = powf(2.0f, params[CLOCK_PARAM].value + inputs[CLOCK_INPUT].value);
 			phase += clockTime / engineGetSampleRate();
-			if (phase >= 1.0) {
+			if (phase >= 1.0f) {
 				phase--;
 				nextStep = true;
 			}
@@ -670,13 +671,13 @@ void BORDL::step() {
 	}
 	// Reset
 	if (resetTrigger.process(params[RESET_PARAM].value + inputs[RESET_INPUT].value)) {
-		phase = 0.0;
+		phase = 0.0f;
 		reStart = true;
 		nextStep = true;
-		lights[RESET_LIGHT].value = 1.0;
+		lights[RESET_LIGHT].value = 1.0f;
 	}
 	//patternNumber
-	playedPattern = clampi((inputs[PATTERN_INPUT].active ? rescalef(inputs[PATTERN_INPUT].value,0,10,1,16.1) : params[PATTERN_PARAM].value) - 1, 0, 15);
+	playedPattern = clampi((inputs[PATTERN_INPUT].active ? rescalef(inputs[PATTERN_INPUT].value,0.0f,10.0f,1.0f,16.1f) : params[PATTERN_PARAM].value) - 1.0f, 0.0f, 15.0f);
 	// Update Pattern
 	if (updateFlag) {
 		// Trigs Update
@@ -709,22 +710,22 @@ void BORDL::step() {
 		index = std::get<0>(nextT);
 		pulse = std::get<1>(nextT);
 		if (reStart) { reStart = false; }
-		lights[STEPS_LIGHTS+index%8].value = 1.0;
+		lights[STEPS_LIGHTS+index%8].value = 1.0f;
 		probGate = index != prevIndex ? randomf() <= params[TRIG_GATEPROB_PARAM+index%8].value : probGate;
-		rndPitch = index != prevIndex ? rescalef(randomf(),0,1,params[TRIG_PITCHRND_PARAM+index%8].value*-5,params[TRIG_PITCHRND_PARAM+index%8].value*5) : rndPitch;
-		accent = index != prevIndex ? clampf(params[TRIG_ACCENT_PARAM+index%8].value + rescalef(randomf(),0,1,params[TRIG_RNDACCENT_PARAM+index%8].value*-5,params[TRIG_RNDACCENT_PARAM+index%8].value*5),0,10)  : accent;
+		rndPitch = index != prevIndex ? rescalef(randomf(),0.0f,1.0f,params[TRIG_PITCHRND_PARAM+index%8].value*-5.0f,params[TRIG_PITCHRND_PARAM+index%8].value*5.0f) : rndPitch;
+		accent = index != prevIndex ? clampf(params[TRIG_ACCENT_PARAM+index%8].value + rescalef(randomf(),0.0f,1.0f,params[TRIG_RNDACCENT_PARAM+index%8].value*-5,params[TRIG_RNDACCENT_PARAM+index%8].value*5.0f),0.0f,10.0f)  : accent;
 	}
 	// Lights
 	for (int i = 0; i < 8; i++) {
 		lights[STEPS_LIGHTS + i].value -= lights[STEPS_LIGHTS + i].value / lightLambda / engineGetSampleRate();
-		lights[SLIDES_LIGHTS + i].value = slideState[i] == 't' ? 1 - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
-		lights[SKIPS_LIGHTS + i].value = skipState[i]== 't' ? 1 - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
+		lights[SLIDES_LIGHTS + i].value = slideState[i] == 't' ? 1.0f - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
+		lights[SKIPS_LIGHTS + i].value = skipState[i]== 't' ? 1.0f - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
 	}
 	lights[RESET_LIGHT].value -= lights[RESET_LIGHT].value / lightLambda / engineGetSampleRate();
 
 	// Caclulate Outputs
 	bool gateOn = running && (!patterns[playedPattern].CurrentStep().skip);
-	float gateValue = 0.0;
+	float gateValue = 0.0f;
 	if (gateOn){
 		if (patterns[playedPattern].CurrentStep().type == 0) {
 			gateOn = false;
@@ -732,13 +733,13 @@ void BORDL::step() {
 		else if (((patterns[playedPattern].CurrentStep().type == 1) && (pulse == 0))
 				|| (patterns[playedPattern].CurrentStep().type == 2)
 				|| ((patterns[playedPattern].CurrentStep().type == 3) && (pulse == patterns[playedPattern].CurrentStep().pulses))) {
-				float gateCoeff = clampf(patterns[playedPattern].gateTime - 0.02 + inputs[GATE_TIME_INPUT].value /10, 0.0, 0.99);
+				float gateCoeff = clampf(patterns[playedPattern].gateTime - 0.02f + inputs[GATE_TIME_INPUT].value /10.0f, 0.0f, 0.99f);
 			gateOn = phase < gateCoeff;
-			gateValue = 10.0;
+			gateValue = 10.0f;
 		}
 		else if (patterns[playedPattern].CurrentStep().type == 3) {
 			gateOn = true;
-			gateValue = 10.0;
+			gateValue = 10.0f;
 		}
 		else if (patterns[playedPattern].CurrentStep().type == 4) {
 			gateOn = true;
@@ -750,22 +751,22 @@ void BORDL::step() {
 		}
 		else {
 			gateOn = false;
-			gateValue = 0.0;
+			gateValue = 0.0f;
 		}
 	}
 	//pitch management
 	pitch = closestVoltageInScale(clampf(patterns[playedPattern].CurrentStep().pitch + rndPitch,0,10) * patterns[playedPattern].sensitivity);
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
-			float slideCoeff = clampf(patterns[playedPattern].slideTime - 0.01 + inputs[SLIDE_TIME_INPUT].value /10, -0.1, 0.99);
-			pitch = pitch - (1 - powf(phase, slideCoeff)) * (pitch - previousPitch);
+			float slideCoeff = clampf(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].value /10.0f, -0.1f, 0.99f);
+			pitch = pitch - (1.0f - powf(phase, slideCoeff)) * (pitch - previousPitch);
 		}
 	}
 
 	// Update Outputs
-	outputs[GATE_OUTPUT].value = gateOn ? (probGate ? gateValue : 0.0) : 0.0;
-	outputs[PITCH_OUTPUT].value = pitchMode ? pitch : (gateOn ? pitch : 0);
-	outputs[ACC_OUTPUT].value = gateOn ? (probGate ? accent : 0.0) : 0.0;
+	outputs[GATE_OUTPUT].value = gateOn ? (probGate ? gateValue : 0.0f) : 0.0f;
+	outputs[PITCH_OUTPUT].value = pitchMode ? pitch : (gateOn ? pitch : 0.0f);
+	outputs[ACC_OUTPUT].value = gateOn ? (probGate ? accent : 0.0f) : 0.0f;
 }
 
 struct BORDLDisplay : TransparentWidget {
@@ -780,19 +781,19 @@ struct BORDLDisplay : TransparentWidget {
 	}
 
 	void drawMessage(NVGcontext *vg, Vec pos, string note, string playMode, string selectedPattern, string playedPattern, string steps, string scale) {
-		nvgFontSize(vg, 18);
+		nvgFontSize(vg, 18.0f);
 		nvgFontFaceId(vg, font->handle);
-		nvgTextLetterSpacing(vg, -2);
+		nvgTextLetterSpacing(vg, -2.0f);
 		nvgFillColor(vg, YELLOW_BIDOO);
-		nvgText(vg, pos.x + 4, pos.y + 8, playMode.c_str(), NULL);
-		nvgFontSize(vg, 14);
+		nvgText(vg, pos.x + 4.0f, pos.y + 8.0f, playMode.c_str(), NULL);
+		nvgFontSize(vg, 14.0f);
 		nvgFillColor(vg, YELLOW_BIDOO);
-		nvgText(vg, pos.x + 91, pos.y + 7, selectedPattern.c_str(), NULL);
-		nvgText(vg, pos.x + 31, pos.y + 7, steps.c_str(), NULL);
-		nvgText(vg, pos.x + 3, pos.y + 23, note.c_str(), NULL);
-		nvgText(vg, pos.x + 25, pos.y + 23, scale.c_str(), NULL);
+		nvgText(vg, pos.x + 91.0f, pos.y + 7.0f, selectedPattern.c_str(), NULL);
+		nvgText(vg, pos.x + 31.0f, pos.y + 7.0f, steps.c_str(), NULL);
+		nvgText(vg, pos.x + 3.0f, pos.y + 23.0f, note.c_str(), NULL);
+		nvgText(vg, pos.x + 25.0f, pos.y + 23.0f, scale.c_str(), NULL);
 		nvgFillColor(vg, YELLOW_BIDOO);
-		nvgText(vg, pos.x + 116, pos.y + 7, playedPattern.c_str(), NULL);
+		nvgText(vg, pos.x + 116.0f, pos.y + 7.0f, playedPattern.c_str(), NULL);
 	}
 
 	string displayRootNote(int value) {
@@ -858,7 +859,7 @@ struct BORDLDisplay : TransparentWidget {
 			selectedPattern = "P" + to_string(module->selectedPattern + 1);
 			playedPattern = "P" + to_string(module->playedPattern + 1);
 		}
-		drawMessage(vg, Vec(0, 20), note, playMode, selectedPattern, playedPattern, steps, scale);
+		drawMessage(vg, Vec(0.0f, 20.0f), note, playMode, selectedPattern, playedPattern, steps, scale);
 	}
 };
 
@@ -874,56 +875,56 @@ struct BORDLGateDisplay : TransparentWidget {
 
 	void drawGate(NVGcontext *vg, Vec pos) {
 		int gateType = (int)module->params[BORDL::TRIG_TYPE_PARAM+index].value;
-		nvgStrokeWidth(vg, 1);
+		nvgStrokeWidth(vg, 1.0f);
 		nvgStrokeColor(vg, YELLOW_BIDOO);
 		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER);
-		nvgFontSize(vg, 16);
+		nvgFontSize(vg, 16.0f);
 		nvgFontFaceId(vg, font->handle);
-		nvgTextLetterSpacing(vg, -2);
+		nvgTextLetterSpacing(vg, -2.0f);
 		if (gateType == 0) {
 			nvgBeginPath(vg);
-			nvgRoundedRect(vg,pos.x,pos.y,22,6,0);
+			nvgRoundedRect(vg,pos.x,pos.y,22.0f,6.0f,0.0f);
 			nvgClosePath(vg);
 			nvgStroke(vg);
 		}
 		else if (gateType == 1) {
 			nvgBeginPath(vg);
-			nvgRoundedRect(vg,pos.x,pos.y,22,6,0);
+			nvgRoundedRect(vg,pos.x,pos.y,22.0f,6.0f,0.0f);
 			nvgClosePath(vg);
 			nvgStroke(vg);
 			nvgBeginPath(vg);
-			nvgRoundedRect(vg,pos.x,pos.y,6,6,0);
+			nvgRoundedRect(vg,pos.x,pos.y,6.0f,6.0f,0.0f);
 			nvgClosePath(vg);
 			nvgStroke(vg);
 			nvgFill(vg);
 		}
 		else if (gateType == 2) {
 			nvgBeginPath(vg);
-			nvgRoundedRect(vg,pos.x,pos.y,6,6,0);
-			nvgRoundedRect(vg,pos.x+8,pos.y,6,6,0);
-			nvgRoundedRect(vg,pos.x+16,pos.y,6,6,0);
+			nvgRoundedRect(vg,pos.x,pos.y,6.0f,6.0f,0.0f);
+			nvgRoundedRect(vg,pos.x+8.0f,pos.y,6.0f,6.0f,0.0f);
+			nvgRoundedRect(vg,pos.x+16.0f,pos.y,6.0f,6.0f,0.0f);
 			nvgClosePath(vg);
 			nvgStroke(vg);
 			nvgFill(vg);
 		}
 		else if (gateType == 3) {
 			nvgBeginPath(vg);
-			nvgRoundedRect(vg,pos.x,pos.y,22,6,0);
+			nvgRoundedRect(vg,pos.x,pos.y,22.0f,6.0f,0.0f);
 			nvgClosePath(vg);
 			nvgStroke(vg);
 			nvgFill(vg);
 		}
 		else if (gateType == 4) {
-		  nvgText(vg, pos.x+11, pos.y+8, "G1", NULL);
+		  nvgText(vg, pos.x+11.0f, pos.y+8.0f, "G1", NULL);
 		}
 		else if (gateType == 5) {
-		  nvgText(vg, pos.x+11, pos.y+8, "G2", NULL);
+		  nvgText(vg, pos.x+11.0f, pos.y+8.0f, "G2", NULL);
 		}
 	}
 
 	void draw(NVGcontext *vg) override {
-		drawGate(vg, Vec(0, 0));
+		drawGate(vg, Vec(0.0f, 0.0f));
 	}
 };
 
@@ -938,23 +939,23 @@ struct BORDLPulseDisplay : TransparentWidget {
 	}
 
 	void drawPulse(NVGcontext *vg, Vec pos) {
-		nvgStrokeWidth(vg, 1);
+		nvgStrokeWidth(vg, 1.0f);
 		nvgStrokeColor(vg, YELLOW_BIDOO);
 		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER);
-		nvgFontSize(vg, 16);
+		nvgFontSize(vg, 16.0f);
 		nvgFontFaceId(vg, font->handle);
-		nvgTextLetterSpacing(vg, -2);
+		nvgTextLetterSpacing(vg, -2.0f);
 		char tCount[128],tProb[128];
 		snprintf(tCount, sizeof(tCount), "%1i", (int)module->params[BORDL::TRIG_COUNT_PARAM+index].value);
-		snprintf(tProb, sizeof(tProb), "%1i%%", (int)(module->params[BORDL::TRIG_GATEPROB_PARAM+index].value*100));
+		snprintf(tProb, sizeof(tProb), "%1i%%", (int)(module->params[BORDL::TRIG_GATEPROB_PARAM+index].value*100.0f));
 		nvgText(vg, pos.x, pos.y, tCount, NULL);
-		nvgFontSize(vg, 12);
-		nvgText(vg, pos.x, pos.y+12, tProb, NULL);
+		nvgFontSize(vg, 12.0f);
+		nvgText(vg, pos.x, pos.y+12.0f, tProb, NULL);
 	}
 
 	void draw(NVGcontext *vg) override {
-		drawPulse(vg, Vec(0, 0));
+		drawPulse(vg, Vec(0.0f, 0.0f));
 	}
 };
 
@@ -969,27 +970,27 @@ struct BORDLPitchDisplay : TransparentWidget {
 	}
 
 	void drawPitch(NVGcontext *vg, Vec pos) {
-		nvgStrokeWidth(vg, 1);
+		nvgStrokeWidth(vg, 1.0f);
 		nvgStrokeColor(vg, YELLOW_BIDOO);
 		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER);
-		nvgFontSize(vg, 14);
+		nvgFontSize(vg, 14.0f);
 		nvgFontFaceId(vg, font->handle);
-		nvgTextLetterSpacing(vg, -2);
+		nvgTextLetterSpacing(vg, -2.0f);
 		char tPitch[128],tPitchRnd[128],tAcc[128],tAccRnd[128];
 		snprintf(tPitch, sizeof(tPitch), "%1.2f", module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].value));
 		snprintf(tPitchRnd, sizeof(tPitchRnd), "%1i%%", (int)(module->params[BORDL::TRIG_PITCHRND_PARAM+index].value*100));
 		snprintf(tAcc, sizeof(tAcc), "%1.2f", module->params[BORDL::TRIG_ACCENT_PARAM+index].value);
 		snprintf(tAccRnd, sizeof(tAccRnd), "%1i%%", (int)(module->params[BORDL::TRIG_RNDACCENT_PARAM+index].value*100));
-		nvgText(vg, pos.x, pos.y-9, tPitch, NULL);
-		nvgText(vg, pos.x, pos.y+13, tAcc, NULL);
-		nvgFontSize(vg, 12);
-		nvgText(vg, pos.x, pos.y+2, tPitchRnd, NULL);
-		nvgText(vg, pos.x, pos.y+23, tAccRnd, NULL);
+		nvgText(vg, pos.x, pos.y-9.0f, tPitch, NULL);
+		nvgText(vg, pos.x, pos.y+13.0f, tAcc, NULL);
+		nvgFontSize(vg, 12.0f);
+		nvgText(vg, pos.x, pos.y+2.0f, tPitchRnd, NULL);
+		nvgText(vg, pos.x, pos.y+23.0f, tAccRnd, NULL);
 	}
 
 	void draw(NVGcontext *vg) override {
-		drawPitch(vg, Vec(0, 0));
+		drawPitch(vg, Vec(0.0f, 0.0f));
 	}
 };
 
@@ -999,7 +1000,7 @@ struct BORDLPatternRoundSmallBlackSnapKnob : RoundSmallBlackSnapKnob {
 			BORDL *module = dynamic_cast<BORDL*>(this->module);
 			BORDLWidget *parent = dynamic_cast<BORDLWidget*>(this->parent);
 			int target = clampi(value - 1, 0, 15);
-			if (module && parent && (target != module->selectedPattern))
+			if (module && parent && (target != module->selectedPattern) && module->updateFlag)
 			{
 				module->updateFlag = false;
 				module->selectedPattern = value - 1;
@@ -1031,7 +1032,7 @@ struct BORDLPatternRoundSmallBlackSnapKnob : RoundSmallBlackSnapKnob {
 BORDLWidget::BORDLWidget() {
 	BORDL *module = new BORDL();
 	setModule(module);
-	box.size = Vec(15*34, 380);
+	box.size = Vec(15.0f*34.0f, 380.0f);
 
 	{
 		SVGPanel *panel = new SVGPanel();
@@ -1040,112 +1041,112 @@ BORDLWidget::BORDLWidget() {
 		addChild(panel);
 	}
 
-	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
+	addChild(createScrew<ScrewSilver>(Vec(15.0f, 0.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 0.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(15.0f, 365.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 365.0f)));
 
 	{
 		BORDLDisplay *display = new BORDLDisplay();
 		display->module = module;
-		display->box.pos = Vec(20, 253);
-		display->box.size = Vec(250, 60);
+		display->box.pos = Vec(20.0f, 253.0f);
+		display->box.size = Vec(250.0f, 60.0f);
 		addChild(display);
 	}
 
-	addParam(createParam<RoundSmallBlackKnob>(Vec(18, 52), module, BORDL::CLOCK_PARAM, -2.0, 6.0, 2.0));
-	addParam(createParam<LEDButton>(Vec(61, 56), module, BORDL::RUN_PARAM, 0.0, 1.0, 0.0));
-	addChild(createLight<SmallLight<GreenLight>>(Vec(67, 62), module, BORDL::RUNNING_LIGHT));
-	addParam(createParam<LEDButton>(Vec(99, 56), module, BORDL::RESET_PARAM, 0.0, 1.0, 0.0));
-	addChild(createLight<SmallLight<GreenLight>>(Vec(105, 62), module, BORDL::RESET_LIGHT));
-	stepsParam = createParam<BidooBlueSnapKnob>(Vec(133, 52), module, BORDL::STEPS_PARAM, 1.0, 16.0, 8);
+	addParam(createParam<RoundSmallBlackKnob>(Vec(18.0f, 52.0f), module, BORDL::CLOCK_PARAM, -2.0f, 6.0f, 2.0f));
+	addParam(createParam<LEDButton>(Vec(61.0f, 56.0f), module, BORDL::RUN_PARAM, 0.0f, 1.0f, 0.0f));
+	addChild(createLight<SmallLight<GreenLight>>(Vec(67.0f, 62.0f), module, BORDL::RUNNING_LIGHT));
+	addParam(createParam<LEDButton>(Vec(99.0f, 56.0f), module, BORDL::RESET_PARAM, 0.0f, 1.0f, 0.0f));
+	addChild(createLight<SmallLight<GreenLight>>(Vec(105.0f, 62.0f), module, BORDL::RESET_LIGHT));
+	stepsParam = createParam<BidooBlueSnapKnob>(Vec(133.0f, 52.0f), module, BORDL::STEPS_PARAM, 1.0f, 16.0f, 8.0f);
 	addParam(stepsParam);
 
-	static const float portX0[4] = {20, 58, 96, 135};
- 	addInput(createInput<PJ301MPort>(Vec(portX0[0], 90), module, BORDL::CLOCK_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[1], 90), module, BORDL::EXT_CLOCK_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[2], 90), module, BORDL::RESET_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[3], 90), module, BORDL::STEPS_INPUT));
+	static const float portX0[4] = {20.0f, 58.0f, 96.0f, 135.0f};
+ 	addInput(createInput<PJ301MPort>(Vec(portX0[0], 90.0f), module, BORDL::CLOCK_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[1], 90.0f), module, BORDL::EXT_CLOCK_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[2], 90.0f), module, BORDL::RESET_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[3], 90.0f), module, BORDL::STEPS_INPUT));
 
-	rootNoteParam = createParam<BidooBlueSnapKnob>(Vec(portX0[0]-1, 140), module, BORDL::ROOT_NOTE_PARAM, 0.0, BORDL::NUM_NOTES-1 + 0.1, 0);
+	rootNoteParam = createParam<BidooBlueSnapKnob>(Vec(portX0[0]-1.0f, 140.0f), module, BORDL::ROOT_NOTE_PARAM, 0.0f, BORDL::NUM_NOTES-0.9f, 0.0f);
 	addParam(rootNoteParam);
-	scaleParam = createParam<BidooBlueSnapKnob>(Vec(portX0[1]-1, 140), module, BORDL::SCALE_PARAM, 0.0, BORDL::NUM_SCALES-1 + 0.1, 0);
+	scaleParam = createParam<BidooBlueSnapKnob>(Vec(portX0[1]-1.0f, 140.0f), module, BORDL::SCALE_PARAM, 0.0f, BORDL::NUM_SCALES-0.9f, 0.0f);
 	addParam(scaleParam);
-	gateTimeParam = createParam<BidooBlueKnob>(Vec(portX0[2]-1, 140), module, BORDL::GATE_TIME_PARAM, 0.1, 1.0, 0.5);
+	gateTimeParam = createParam<BidooBlueKnob>(Vec(portX0[2]-1.0f, 140.0f), module, BORDL::GATE_TIME_PARAM, 0.1f, 1.0f, 0.5f);
 	addParam(gateTimeParam);
-	slideTimeParam = createParam<BidooBlueKnob>(Vec(portX0[3]-1, 140), module, BORDL::SLIDE_TIME_PARAM	, 0.1, 1.0, 0.2);
+	slideTimeParam = createParam<BidooBlueKnob>(Vec(portX0[3]-1.0f, 140.0f), module, BORDL::SLIDE_TIME_PARAM	, 0.1f, 1.0f, 0.2f);
 	addParam(slideTimeParam);
 
-	addInput(createInput<PJ301MPort>(Vec(portX0[0], 180), module, BORDL::ROOT_NOTE_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[1], 180), module, BORDL::SCALE_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[2], 180), module, BORDL::GATE_TIME_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[3], 180), module, BORDL::SLIDE_TIME_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[0], 180.0f), module, BORDL::ROOT_NOTE_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[1], 180.0f), module, BORDL::SCALE_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[2], 180.0f), module, BORDL::GATE_TIME_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[3], 180.0f), module, BORDL::SLIDE_TIME_INPUT));
 
-	playModeParam = createParam<BlueCKD6>(Vec(portX0[0]-1, 230), module, BORDL::PLAY_MODE_PARAM, 0.0, 4.0, 0);
+	playModeParam = createParam<BlueCKD6>(Vec(portX0[0]-1.0f, 230.0f), module, BORDL::PLAY_MODE_PARAM, 0.0f, 4.0f, 0.0f);
 	addParam(playModeParam);
-	countModeParam = createParam<BlueCKD6>(Vec(portX0[1]-1, 230), module, BORDL::COUNT_MODE_PARAM, 0.0, 4.0, 0);
+	countModeParam = createParam<BlueCKD6>(Vec(portX0[1]-1.0f, 230.0f), module, BORDL::COUNT_MODE_PARAM, 0.0f, 4.0f, 0.0f);
 	addParam(countModeParam);
-	addInput(createInput<PJ301MPort>(Vec(portX0[2], 232), module, BORDL::PATTERN_INPUT));
-	patternParam = createParam<BORDLPatternRoundSmallBlackSnapKnob>(Vec(portX0[3],230), module, BORDL::PATTERN_PARAM, 1.0, 16.0, 1);
+	addInput(createInput<PJ301MPort>(Vec(portX0[2], 232.0f), module, BORDL::PATTERN_INPUT));
+	patternParam = createParam<BORDLPatternRoundSmallBlackSnapKnob>(Vec(portX0[3],230.0f), module, BORDL::PATTERN_PARAM, 1.0f, 16.0f, 1.0f);
 	addParam(patternParam);
 
-	static const float portX1[8] = {200, 238, 276, 315, 353, 392, 430, 469};
+	static const float portX1[8] = {200.0f, 238.0f, 276.0f, 315.0f, 353.0f, 392.0f, 430.0f, 469.0f};
 
-	sensitivityParam = createParam<BidooBlueTrimpot>(Vec(portX1[0]-22, 35), module, BORDL::SENSITIVITY_PARAM, 0.1, 1, 1);
+	sensitivityParam = createParam<BidooBlueTrimpot>(Vec(portX1[0]-22.0f, 35.0f), module, BORDL::SENSITIVITY_PARAM, 0.1f, 1.0f, 1.0f);
 	addParam(sensitivityParam);
 
 	for (int i = 0; i < 8; i++) {
-		pitchParams[i] = createParam<BidooBlueKnob>(Vec(portX1[i]+2, 79), module, BORDL::TRIG_PITCH_PARAM + i, 0, 10.001, 3);
+		pitchParams[i] = createParam<BidooBlueKnob>(Vec(portX1[i]+2.0f, 79.0f), module, BORDL::TRIG_PITCH_PARAM + i, 0.0f, 10.001f, 3.0f);
 		addParam(pitchParams[i]);
-		pitchRndParams[i] = createParam<BidooBlueTrimpot>(Vec(portX1[i]+7.5, 111), module, BORDL::TRIG_PITCHRND_PARAM + i, 0, 1, 0);
+		pitchRndParams[i] = createParam<BidooBlueTrimpot>(Vec(portX1[i]+7.5f, 111.0f), module, BORDL::TRIG_PITCHRND_PARAM + i, 0.0f, 1.0f, 0.0f);
 		addParam(pitchRndParams[i]);
-		accentParams[i] = createParam<BidooBlueKnob>(Vec(portX1[i]+2, 131), module, BORDL::TRIG_ACCENT_PARAM + i, 0, 10, 0);
+		accentParams[i] = createParam<BidooBlueKnob>(Vec(portX1[i]+2.0f, 131.0f), module, BORDL::TRIG_ACCENT_PARAM + i, 0.0f, 10.0f, 0.0f);
 		addParam(accentParams[i]);
-		rndAccentParams[i] = createParam<BidooBlueTrimpot>(Vec(portX1[i]+7.5, 162), module, BORDL::TRIG_RNDACCENT_PARAM + i, 0, 1, 0);
+		rndAccentParams[i] = createParam<BidooBlueTrimpot>(Vec(portX1[i]+7.5f, 162.0f), module, BORDL::TRIG_RNDACCENT_PARAM + i, 0.0f, 1.0f, 0.0f);
 		addParam(rndAccentParams[i]);
 		{
 			BORDLPitchDisplay *displayPitch = new BORDLPitchDisplay();
 			displayPitch->module = module;
-			displayPitch->box.pos = Vec(portX1[i]+15, 50);
-			displayPitch->box.size = Vec(20, 10);
+			displayPitch->box.pos = Vec(portX1[i]+15.0f, 50.0f);
+			displayPitch->box.size = Vec(20.0f, 10.0f);
 			displayPitch->index = i;
 			addChild(displayPitch);
 		}
-		pulseParams[i] = createParam<BidooBlueSnapKnob>(Vec(portX1[i]+2, 218), module, BORDL::TRIG_COUNT_PARAM + i, 1, 8,  1);
+		pulseParams[i] = createParam<BidooBlueSnapKnob>(Vec(portX1[i]+2.0f, 218.0f), module, BORDL::TRIG_COUNT_PARAM + i, 1.0f, 8.0f,  1.0f);
 		addParam(pulseParams[i]);
-		pulseProbParams[i] = createParam<BidooBlueTrimpot>(Vec(portX1[i]+7.5, 249), module, BORDL::TRIG_GATEPROB_PARAM + i, 0, 1,  1);
+		pulseProbParams[i] = createParam<BidooBlueTrimpot>(Vec(portX1[i]+7.5f, 249.0f), module, BORDL::TRIG_GATEPROB_PARAM + i, 0.0f, 1.0f,  1.0f);
 		addParam(pulseProbParams[i]);
 		{
 			BORDLPulseDisplay *displayPulse = new BORDLPulseDisplay();
 			displayPulse->module = module;
-			displayPulse->box.pos = Vec(portX1[i]+15, 198);
-			displayPulse->box.size = Vec(20, 10);
+			displayPulse->box.pos = Vec(portX1[i]+15.0f, 198.0f);
+			displayPulse->box.size = Vec(20.0f, 10.0f);
 			displayPulse->index = i;
 			addChild(displayPulse);
 		}
-		typeParams[i] = createParam<BidooBlueSnapKnob>(Vec(portX1[i]+2, 289), module, BORDL::TRIG_TYPE_PARAM + i, 0, 5,  2);
+		typeParams[i] = createParam<BidooBlueSnapKnob>(Vec(portX1[i]+2.0f, 289.0f), module, BORDL::TRIG_TYPE_PARAM + i, 0.0f, 5.0f,  2.0f);
 		addParam(typeParams[i]);
 		{
 			BORDLGateDisplay *displayGate = new BORDLGateDisplay();
 			displayGate->module = module;
-			displayGate->box.pos = Vec(portX1[i]+5, 275);
-			displayGate->box.size = Vec(20, 10);
+			displayGate->box.pos = Vec(portX1[i]+5.0f, 275.0f);
+			displayGate->box.size = Vec(20.0f, 10.0f);
 			displayGate->index = i;
 			addChild(displayGate);
 		}
-		slideParams[i] = createParam<LEDButton>(Vec(portX1[i]+7, 320), module, BORDL::TRIG_SLIDE_PARAM + i, 0.0, 1.0,  0);
+		slideParams[i] = createParam<LEDButton>(Vec(portX1[i]+7.0f, 320.0f), module, BORDL::TRIG_SLIDE_PARAM + i, 0.0f, 1.0f,  0.0f);
 		addParam(slideParams[i]);
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+13, 326), module, BORDL::SLIDES_LIGHTS + i));
-		skipParams[i] = createParam<LEDButton>(Vec(portX1[i]+7, 341), module, BORDL::TRIG_SKIP_PARAM + i, 0.0, 1.0,  0);
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+13.0f, 326.0f), module, BORDL::SLIDES_LIGHTS + i));
+		skipParams[i] = createParam<LEDButton>(Vec(portX1[i]+7.0f, 341.0f), module, BORDL::TRIG_SKIP_PARAM + i, 0.0f, 1.0f, 0.0f);
 		addParam(skipParams[i]);
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+13, 347), module, BORDL::SKIPS_LIGHTS + i));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+13.0f, 347.0f), module, BORDL::SKIPS_LIGHTS + i));
 	}
 
-	addInput(createInput<PJ301MPort>(Vec(10, 331), module, BORDL::EXTGATE1_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(43, 331), module, BORDL::EXTGATE2_INPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(76.5, 331), module, BORDL::GATE_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(109.5, 331), module, BORDL::PITCH_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(143, 331), module, BORDL::ACC_OUTPUT));
+	addInput(createInput<PJ301MPort>(Vec(10.0f, 331.0f), module, BORDL::EXTGATE1_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(43.0f, 331.0f), module, BORDL::EXTGATE2_INPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(76.5f, 331.0f), module, BORDL::GATE_OUTPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(109.5f, 331.0f), module, BORDL::PITCH_OUTPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(143.0f, 331.0f), module, BORDL::ACC_OUTPUT));
 	module->updateFlag = true;
 }
 

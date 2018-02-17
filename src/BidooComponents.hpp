@@ -12,35 +12,35 @@ namespace rack {
 struct BidooBlueKnob : RoundKnob {
 	BidooBlueKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueKnobBidoo.svg")));
-		box.size = Vec(28, 28);
+		box.size = Vec(28.0f, 28.0f);
 	}
 };
 
 struct BidooHugeBlueKnob : RoundKnob {
 	BidooHugeBlueKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueKnobBidoo.svg")));
-		box.size = Vec(56, 56);
+		box.size = Vec(56.0f, 56.0f);
 	}
 };
 
 struct BidooLargeBlueKnob : RoundKnob {
 	BidooLargeBlueKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueKnobBidoo.svg")));
-		box.size = Vec(38, 38);
+		box.size = Vec(38.0f, 38.0f);
 	}
 };
 
 struct BidooBlueSnapKnob : RoundSmallBlackSnapKnob {
 	BidooBlueSnapKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueKnobBidoo.svg")));
-		box.size = Vec(28, 28);
+		box.size = Vec(28.0f, 28.0f);
 	}
 };
 
 struct BidooBlueTrimpot : Trimpot {
 	BidooBlueTrimpot() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueTrimpotBidoo.svg")));
-		box.size = Vec(17, 17);
+		box.size = Vec(17.0f, 17.0f);
 	}
 };
 
@@ -54,14 +54,14 @@ struct BlueCKD6 : SVGSwitch, MomentarySwitch {
 struct BidooziNCColoredKnob : RoundKnob {
 	BidooziNCColoredKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/ziNCBlueKnobBidoo.svg")));
-		box.size = Vec(28, 28);
+		box.size = Vec(28.0f, 28.0f);
 	}
-	float *coeff = 0;
+	float *coeff;
 	void draw(NVGcontext *vg) override {
 			for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
 				std::string str(shape->id);
 				if (str == "bidooziNCBlueKnob") {
-					float corrCoef = rescalef(clampf(*coeff,0,1),0,1,0,255);
+					float corrCoef = rescalef(clampf(*coeff,0.0f,1.0f),0.0f,1.0f,0.0f,255.0f);
 					shape->fill.color = (((unsigned int)clampi(42+corrCoef,0,255)) | ((unsigned int)clampi(87-corrCoef,0,255) << 8) | ((unsigned int)clampi(117-corrCoef,0,255) << 16));
 					shape->fill.color |= (unsigned int)(255) << 24;
 				}
@@ -73,7 +73,7 @@ struct BidooziNCColoredKnob : RoundKnob {
 struct BidooColoredKnob : RoundKnob {
 	BidooColoredKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlackKnobBidoo.svg")));
-		box.size = Vec(28, 28);
+		box.size = Vec(28.0f, 28.0f);
 	}
 
 	void draw(NVGcontext *vg) override {
@@ -91,15 +91,15 @@ struct BidooColoredKnob : RoundKnob {
 struct BidooMorphKnob : RoundKnob {
 	BidooMorphKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/SpiralKnobBidoo.svg")));
-		box.size = Vec(28, 28);
+		box.size = Vec(28.0f, 28.0f);
 	}
 };
 
 struct BidooColoredTrimpot : RoundKnob {
 	BidooColoredTrimpot() {
-		box.size = Vec(17, 17);
-		minAngle = -0.75*M_PI;
-		maxAngle = 0.75*M_PI;
+		box.size = Vec(17.0f, 17.0f);
+		minAngle = -0.75f*M_PI;
+		maxAngle = 0.75f*M_PI;
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/TrimpotBidoo.svg")));
 	}
 
@@ -107,7 +107,7 @@ struct BidooColoredTrimpot : RoundKnob {
 		for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
 			std::string str(shape->id);
 			if (str == "bidooTrimPot") {
-				if (value == 0) {
+				if (value == 0.0f) {
 					shape->fill.color = (((unsigned int)128) | ((unsigned int)128 << 8) | ((unsigned int)128 << 16));
 					shape->fill.color |= (unsigned int)(120) << 24;
 				} else {
@@ -123,46 +123,46 @@ struct BidooColoredTrimpot : RoundKnob {
 struct BidooSlidePotLong : SVGSlider {
 	BidooSlidePotLong() {
 		snap = true;
-		maxHandlePos = Vec(0, 0);
-		minHandlePos = Vec(0, 84);
+		maxHandlePos = Vec(0.0f, 0.0f);
+		minHandlePos = Vec(0.0f, 84.0f);
 		background->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotLong.svg"));
 		background->wrap();
-		background->box.pos = Vec(0, 0);
+		background->box.pos = Vec(0.0f, 0.0f);
 		box.size = background->box.size;
 		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotHandle.svg"));
 		handle->wrap();
 	}
 
 	void randomize() override {
-  	setValue(roundf(rescalef(randomf(), 0.0, 1.0, minValue, maxValue)));
+  	setValue(roundf(rescalef(randomf(), 0.0f, 1.0f, minValue, maxValue)));
   }
 };
 
 struct BidooSlidePotShort : SVGSlider {
 	BidooSlidePotShort() {
 		snap = true;
-		maxHandlePos = Vec(0, 0);
-		minHandlePos = Vec(0, 60);
+		maxHandlePos = Vec(0.0f, 0.0f);
+		minHandlePos = Vec(0.0f, 60.0f);
 		background->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotShort.svg"));
 		background->wrap();
-		background->box.pos = Vec(0, 0);
+		background->box.pos = Vec(0.0f, 0.0f);
 		box.size = background->box.size;
 		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooSlidePotHandle.svg"));
 		handle->wrap();
 	}
 
 	void randomize() override {
-  	setValue(roundf(rescalef(randomf(), 0.0, 1.0, minValue, maxValue)));
+  	setValue(roundf(rescalef(randomf(), 0.0f, 1.0f, minValue, maxValue)));
   }
 };
 
 struct BidooLongSlider : SVGSlider {
 	BidooLongSlider() {
-		maxHandlePos = Vec(0, 0);
-		minHandlePos = Vec(0, 84);
+		maxHandlePos = Vec(0.0f, 0.0f);
+		minHandlePos = Vec(0.0f, 84.0f);
 		background->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooLongSlider.svg"));
 		background->wrap();
-		background->box.pos = Vec(0, 0);
+		background->box.pos = Vec(0.0f, 0.0f);
 		box.size = background->box.size;
 		handle->svg = SVG::load(assetPlugin(plugin,"res/ComponentLibrary/bidooLongSliderHandle.svg"));
 		handle->wrap();

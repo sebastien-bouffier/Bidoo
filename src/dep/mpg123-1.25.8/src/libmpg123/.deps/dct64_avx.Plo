@@ -1,0 +1,10 @@
+src/libmpg123/dct64_avx.lo: src/libmpg123/dct64_avx.S \
+ src/libmpg123/mangle.h src/config.h src/intsym.h src/config.h
+
+src/libmpg123/mangle.h:
+
+src/config.h:
+
+src/intsym.h:
+
+src/config.h:

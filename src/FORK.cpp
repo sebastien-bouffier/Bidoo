@@ -8,7 +8,7 @@ using namespace std;
 inline float fast_cos(const float x)
 {
   float x2=x*x;
-  return 1+x2*(-4+2*x2);
+  return 1.0f+x2*(-4.0f+2.0f*x2);
 }
 //Length of the table
 #define L_TABLE (256+1) //The last entry of the table equals the first (to avoid a modulo)
@@ -95,13 +95,13 @@ struct FORK : Module {
 		NUM_LIGHTS
 	};
 
-	float F1[9]={  730,  200,  400,  250,  190,  350,  550,  550,  450};
+	float F1[9]={  730.0f,  200.0f,  400.0f,  250.0f,  190.0f,  350.0f,  550.0f,  550.0f,  450.0f};
 	float A1[9]={ 1.0f, 0.5f, 1.0f, 1.0f, 0.7f, 1.0f, 1.0f, 0.3f, 1.0f};
-	float F2[9]={ 1090, 2100,  900, 1700,  800, 1900, 1600,  850, 1100};
+	float F2[9]={ 1090.0f, 2100.0f,  900.0f, 1700.0f,  800.0f, 1900.0f, 1600.0f,  850.0f, 1100.0f};
 	float A2[9]={ 2.0f, 0.5f, 0.7f, 0.7f,0.35f, 0.3f, 0.5f, 1.0f, 0.7f};
-	float F3[9]={ 2440, 3100, 2300, 2100, 2000, 2500, 2250, 1900, 1500};
+	float F3[9]={ 2440.0f, 3100.0f, 2300.0f, 2100.0f, 2000.0f, 2500.0f, 2250.0f, 1900.0f, 1500.0f};
 	float A3[9]={ 0.3f,0.15f, 0.2f, 0.4f, 0.1f, 0.3f, 0.7f, 0.2f, 0.2f};
-	float F4[9]={ 3400, 4700, 3000, 3300, 3400, 3700, 3200, 3000, 3000};
+	float F4[9]={ 3400.0f, 4700.0f, 3000.0f, 3300.0f, 3400.0f, 3700.0f, 3200.0f, 3000.0f, 3000.0f};
 	float A4[9]={ 0.2f, 0.1f, 0.2f, 0.3f, 0.1f, 0.1f, 0.3f, 0.2f, 0.3f};
 	int preset=0;
 	float f0,dp0,p0=0.0f;
@@ -117,28 +117,28 @@ struct FORK : Module {
 
 
 void FORK::step() {
-	f0=261.626 * powf(2.0, clampf(params[PITCH_PARAM].value + 12 * inputs[PITCH_INPUT].value,-54,54) / 12.0);
+	f0=261.626f * powf(2.0f, clampf(params[PITCH_PARAM].value + 12.0f * inputs[PITCH_INPUT].value,-54.0f,54.0f) / 12.0f);
 	dp0=f0*(2/engineGetSampleRate());
 	float un_f0=1.0f/f0;
 	p0+=dp0;
-	p0-=2*(p0>1);
+	p0-=2.0f*(p0>1.0f);
 	{
 		float r=0.001f;
-		f1+=r*(clampf(params[F_PARAM].value + rescalef(inputs[F_INPUT].value,0,10,190,730),190,730)-f1);
-		f2+=r*(clampf(params[F_PARAM+1].value + rescalef(inputs[F_INPUT+1].value,00,10,800,2100),800,2100)-f2);
-		f3+=r*(clampf(params[F_PARAM+2].value + rescalef(inputs[F_INPUT+2].value,0,10,1500,3100),1500,3100)-f3);
-		f4+=r*(clampf(params[F_PARAM+3].value + rescalef(inputs[F_INPUT+3].value,0,10,3000,4700),3000,4700)-f4);
-		a1+=r*(clampf(params[A_PARAM].value + rescalef(inputs[A_INPUT].value,0,10,0.0f,1.0f),0.0f,1.0f)-a1);
-		a2+=r*(clampf(params[A_PARAM+1].value + rescalef(inputs[A_INPUT+1].value,0,10,0.0f,2.0f),0.0f,2.0f)-a2);
-		a3+=r*(clampf(params[A_PARAM+2].value + rescalef(inputs[A_INPUT+2].value,0,10,0.0f,0.7f),0.0f,0.7f)-a3);
-		a4+=r*(clampf(params[A_PARAM+3].value + rescalef(inputs[A_INPUT+3].value,0,10,0.0f,0.3f),0.0f,0.3f)-a4);
+		f1+=r*(clampf(params[F_PARAM].value + rescalef(inputs[F_INPUT].value,0.0f,10.0f,190.0f,730.0f),190.0f,730.0f)-f1);
+		f2+=r*(clampf(params[F_PARAM+1].value + rescalef(inputs[F_INPUT+1].value,0.0f,10.0f,800.0f,2100.0f),800.0f,2100.0f)-f2);
+		f3+=r*(clampf(params[F_PARAM+2].value + rescalef(inputs[F_INPUT+2].value,0.0f,10.0f,1500.0f,3100.0f),1500.0f,3100.0f)-f3);
+		f4+=r*(clampf(params[F_PARAM+3].value + rescalef(inputs[F_INPUT+3].value,0.0f,10.0f,3000.0f,4700.0f),3000.0f,4700.0f)-f4);
+		a1+=r*(clampf(params[A_PARAM].value + rescalef(inputs[A_INPUT].value,0.0f,10.0f,0.0f,1.0f),0.0f,1.0f)-a1);
+		a2+=r*(clampf(params[A_PARAM+1].value + rescalef(inputs[A_INPUT+1].value,0.0f,10.0f,0.0f,2.0f),0.0f,2.0f)-a2);
+		a3+=r*(clampf(params[A_PARAM+2].value + rescalef(inputs[A_INPUT+2].value,0.0f,10.0f,0.0f,0.7f),0.0f,0.7f)-a3);
+		a4+=r*(clampf(params[A_PARAM+3].value + rescalef(inputs[A_INPUT+3].value,0.0f,10.0f,0.0f,0.3f),0.0f,0.3f)-a4);
 	}
 
 	float out=
-				 a1*(f0/f1)*formant(p0,100*un_f0)*porteuse(f1*un_f0,p0)
-	 +0.7f*a2*(f0/f2)*formant(p0,120*un_f0)*porteuse(f2*un_f0,p0)
-	 +     a3*(f0/f3)*formant(p0,150*un_f0)*porteuse(f3*un_f0,p0)
-	 +     a4*(f0/f4)*formant(p0,300*un_f0)*porteuse(f4*un_f0,p0);
+				 a1*(f0/f1)*formant(p0,100.0f*un_f0)*porteuse(f1*un_f0,p0)
+	 +0.7f*a2*(f0/f2)*formant(p0,120.0f*un_f0)*porteuse(f2*un_f0,p0)
+	 +     a3*(f0/f3)*formant(p0,150.0f*un_f0)*porteuse(f3*un_f0,p0)
+	 +     a4*(f0/f4)*formant(p0,300.0f*un_f0)*porteuse(f4*un_f0,p0);
 	outputs[SIGNAL_OUTPUT].value =10.0f*out;
 }
 
@@ -164,7 +164,7 @@ struct FORKCKD6 : BlueCKD6 {
 FORKWidget::FORKWidget() {
 	FORK *module = new FORK();
 	setModule(module);
-	box.size = Vec(15*6, 380);
+	box.size = Vec(15.0f*6.0f, 380.0f);
 
 	{
 		SVGPanel *panel = new SVGPanel();
@@ -173,34 +173,34 @@ FORKWidget::FORKWidget() {
 		addChild(panel);
 	}
 
-	addParam(createParam<BidooLargeBlueKnob>(Vec(26,40), module, FORK::PITCH_PARAM, -54, 54, 0));
-	addParam(createParam<FORKCKD6>(Vec(30,274), module, FORK::PRESET_PARAM, 0.0, 8, 0.0));
+	addParam(createParam<BidooLargeBlueKnob>(Vec(26.0f,40.0f), module, FORK::PITCH_PARAM, -54.0f, 54.0f, 0));
+	addParam(createParam<FORKCKD6>(Vec(30.0f,274.0f), module, FORK::PRESET_PARAM, 0.0f, 8.0f, 0.0f));
 
 	int xtpots = 32;
 	int xtinyports = 67;
 
-	F1 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 + 25 * 2), module, FORK::F_PARAM, 190, 730, 190);
+	F1 = createParam<BidooBlueTrimpot>(Vec(xtpots,35.0f + 25.0f * 2.0f), module, FORK::F_PARAM, 190.0f, 730.0f, 190.0f);
 	addParam(F1);
-	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 + 25 * 2 + 2), module, FORK::F_INPUT));
-	A1 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 + 25 * 2 + 20), module, FORK::A_PARAM, 0.0f, 1.0f, 1.0f);
+	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35.0f + 25.0f * 2.0f + 2.0f), module, FORK::F_INPUT));
+	A1 = createParam<BidooBlueTrimpot>(Vec(xtpots,35.0f + 25.0f * 2.0f + 20.0f), module, FORK::A_PARAM, 0.0f, 1.0f, 1.0f);
 	addParam(A1);
-	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 + 25 * 2 + 20 + 2), module, FORK::A_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35.0f + 25.0f * 2.0f + 20.0f + 2.0f), module, FORK::A_INPUT));
 
-	F2 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 2 + 25 * 4), module, FORK::F_PARAM + 1, 800, 2100, 1090);
+	F2 = createParam<BidooBlueTrimpot>(Vec(xtpots,35.0f - 2.0f + 25.0f * 4.0f), module, FORK::F_PARAM + 1.0f, 800.0f, 2100.0f, 1090.0f);
 	addParam(F2);
-	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 2 + 25 * 4 + 2), module, FORK::F_INPUT + 1));
-	A2 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 2 + 25 * 4 + 20), module, FORK::A_PARAM + 1, 0.0f, 2.0f, 1.0f);
+	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 2.0f + 25.0f * 4.0f + 2.0f), module, FORK::F_INPUT + 1));
+	A2 = createParam<BidooBlueTrimpot>(Vec(xtpots,35.0f - 2.0f + 25.0f * 4.0f + 20.0f), module, FORK::A_PARAM + 1, 0.0f, 2.0f, 1.0f);
 	addParam(A2);
 	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 2 + 25 * 4 + 20 + 2), module, FORK::A_INPUT + 1));
 
-	F3 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 4 + 25 * 6), module, FORK::F_PARAM + 2, 1500, 3100, 2440);
+	F3 = createParam<BidooBlueTrimpot>(Vec(xtpots,35.0f - 4.0f + 25.0f * 6.0f), module, FORK::F_PARAM + 2, 1500.0f, 3100.0f, 2440.0f);
 	addParam(F3);
 	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 4 + 25 * 6 + 2), module, FORK::F_INPUT + 2));
 	A3 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 4 + 25 * 6 + 20), module, FORK::A_PARAM + 2, 0.0f, 0.7f, 0.3f);
 	addParam(A3);
 	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 4 + 25 * 6 + 20 + 2), module, FORK::A_INPUT + 2));
 
-	F4 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 6 + 25 * 8), module, FORK::F_PARAM + 3, 3000, 4700, 3400);
+	F4 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 6 + 25 * 8), module, FORK::F_PARAM + 3, 3000.0f, 4700.0f, 3400.0f);
 	addParam(F4);
 	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 6 + 25 * 8 + 2), module, FORK::F_INPUT + 3));
 	A4 = createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 6 + 25 * 8 + 20), module, FORK::A_PARAM + 3, 0.0f, 0.3f, 0.2f);

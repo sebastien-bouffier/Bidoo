@@ -34,9 +34,9 @@ struct DUKE : Module {
 
 void DUKE::step() {
 	for (int i = 0; i < 4; i ++) {
-			float min = params[MIN_PARAM + i].value - 5 * params[TYPE_PARAM + i].value;
-			float max = params[MAX_PARAM + i].value - 5 * params[TYPE_PARAM + i].value;
-			outputs[CV_OUTPUT + i].value = min + clampf(params[SLIDER_PARAM + i].value + inputs[SLIDER_INPUT + i].value, 0 , 10) * (max - min) / 10;
+			float min = params[MIN_PARAM + i].value - 5.0f * params[TYPE_PARAM + i].value;
+			float max = params[MAX_PARAM + i].value - 5.0f * params[TYPE_PARAM + i].value;
+			outputs[CV_OUTPUT + i].value = min + clampf(params[SLIDER_PARAM + i].value + inputs[SLIDER_INPUT + i].value, 0.0f , 10.0f) * (max - min) / 10.0f;
 	}
 }
 
@@ -48,12 +48,12 @@ struct DUKECKD6 : BlueCKD6 {
 			if (this->paramId == DUKE::ADONF_PARAM) {
 				for (int i = 0; i < 4 ; i++) {
 					parent->sliders[i]->setValue(10);
-					module->params[DUKE::SLIDER_PARAM + i].value = 10;
+					module->params[DUKE::SLIDER_PARAM + i].value = 10.0f;
 				}
 			} else if (this->paramId == DUKE::NADA_PARAM) {
 				for (int i = 0; i < 4 ; i++) {
-					parent->sliders[i]->setValue(0);
-					module->params[DUKE::SLIDER_PARAM + i].value = 0;
+					parent->sliders[i]->setValue(0.0f);
+					module->params[DUKE::SLIDER_PARAM + i].value = 0.0f;
 				}
 			}
 		}
@@ -64,7 +64,7 @@ struct DUKECKD6 : BlueCKD6 {
 DUKEWidget::DUKEWidget() {
 	DUKE *module = new DUKE();
 	setModule(module);
-	box.size = Vec(15*12, 380);
+	box.size = Vec(15.0f*12.0f, 380.0f);
 
 	{
 		SVGPanel *panel = new SVGPanel();
@@ -73,23 +73,23 @@ DUKEWidget::DUKEWidget() {
 		addChild(panel);
 	}
 
-	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
+	addChild(createScrew<ScrewSilver>(Vec(15.0f, 0.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 0.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(15.0f, 365.0f)));
+	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 365.0f)));
 
-	static const float portX0[4] = {36, 70, 105, 140};
+	static const float portX0[4] = {36.0f, 70.0f, 105.0f, 140.0f};
 
-	addParam(createParam<DUKECKD6>(Vec(portX0[0]-29, 190), module, DUKE::ADONF_PARAM, 0.0, 1.0, 0.0));
-	addParam(createParam<DUKECKD6>(Vec(portX0[0]-29, 230), module, DUKE::NADA_PARAM, 0.0, 1.0, 0.0));
+	addParam(createParam<DUKECKD6>(Vec(portX0[0]-29.0f, 190.0f), module, DUKE::ADONF_PARAM, 0.0f, 1.0f, 0.0f));
+	addParam(createParam<DUKECKD6>(Vec(portX0[0]-29.0f, 230.0f), module, DUKE::NADA_PARAM, 0.0f, 1.0f, 0.0f));
 
 	for (int i = 0; i < 4; i++) {
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[i]-1, 52), module, DUKE::MAX_PARAM + i, 0.0, 10.0, 10));
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[i]-1, 95), module, DUKE::MIN_PARAM + i, 0.0, 10.0, 0));
-		addParam(createParam<CKSS>(Vec(portX0[i]+6, 139), module, DUKE::TYPE_PARAM + i, 0.0, 1.0, 0.0));
-		sliders[i] = createParam<BidooLongSlider>(Vec(portX0[i]+4, 176), module, DUKE::SLIDER_PARAM + i, 0.0, 10.0, 0);
+		addParam(createParam<BidooBlueKnob>(Vec(portX0[i]-1.0f, 52.0f), module, DUKE::MAX_PARAM + i, 0.0f, 10.0f, 10.0f));
+		addParam(createParam<BidooBlueKnob>(Vec(portX0[i]-1.0f, 95.0f), module, DUKE::MIN_PARAM + i, 0.0f, 10.0f, 0.0f));
+		addParam(createParam<CKSS>(Vec(portX0[i]+6.0f, 139.0f), module, DUKE::TYPE_PARAM + i, 0.0f, 1.0f, 0.0f));
+		sliders[i] = createParam<BidooLongSlider>(Vec(portX0[i]+4.0f, 176.0f), module, DUKE::SLIDER_PARAM + i, 0.0f, 10.0f, 0.0f);
 		addParam(sliders[i]);
-		addInput(createInput<PJ301MPort>(Vec(portX0[i]+1, 284), module, DUKE::SLIDER_INPUT + i));
-		addOutput(createOutput<PJ301MPort>(Vec(portX0[i]+1, 323), module, DUKE::CV_OUTPUT + i));
+		addInput(createInput<PJ301MPort>(Vec(portX0[i]+1.0f, 284.0f), module, DUKE::SLIDER_INPUT + i));
+		addOutput(createOutput<PJ301MPort>(Vec(portX0[i]+1.0f, 323.0f), module, DUKE::CV_OUTPUT + i));
 	}
 }

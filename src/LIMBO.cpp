@@ -37,7 +37,7 @@ struct LadderFilter
 	float freq;
 	float smpRate;
 	int mode = 0;
-	float gain = 1;
+	float gain = 1.0f;
 
 	void setParams(float freq, float q, float smpRate, float gain, int mode) {
 		this->freq = freq;
@@ -50,14 +50,15 @@ struct LadderFilter
 	float calcOutput(float sample)
 	{
 		float g = tan(pi*freq/smpRate);
-		float G = g/(1 + g);
+		float G = g/(1.0f + g);
 		G = G*G*G*G;
-		float S1 = stage1.mem/(1 + g);
-		float S2 = stage2.mem/(1 + g);
-		float S3 = stage3.mem/(1 + g);
-		float S4 = stage4.mem/(1 + g);
+		float S1 = stage1.mem/(1.0f + g);
+		float S2 = stage2.mem/(1.0f + g);
+		float S3 = stage3.mem/(1.0f + g);
+		float S4 = stage4.mem/(1.0f + g);
 		float S = G*G*G*S1 + G*G*S2 + G*S3 + S4;
-		return stage4.Filter(stage3.Filter(stage2.Filter(stage1.Filter((sample - q*S)/(1 + q*G),freq,smpRate,gain,mode),freq,smpRate,gain,mode),freq,smpRate,gain,mode),freq,smpRate,gain,mode);
+		return stage4.Filter(stage3.Filter(stage2.Filter(stage1.Filter((sample - q*S)/(1.0f + q*G),
+		freq,smpRate,gain,mode),freq,smpRate,gain,mode),freq,smpRate,gain,mode),freq,smpRate,gain,mode);
 	}
 
 };
@@ -98,16 +99,16 @@ struct LIMBO : Module {
 };
 
 void LIMBO::step() {
-	float cfreq = pow(2,rescalef(clampf(params[CUTOFF_PARAM].value + params[CMOD_PARAM].value * inputs[CUTOFF_INPUT].value / 5,0,1),0,1,4.5,13));
-	float q = 3.5 * clampf(params[Q_PARAM].value + inputs[Q_INPUT].value / 5.0, 0.0, 1.0);
-	float g = pow(2,rescalef(clampf(params[MUG_PARAM].value + inputs[MUG_INPUT].value / 5,0,1),0,1,0,3));
+	float cfreq = pow(2.0f,rescalef(clampf(params[CUTOFF_PARAM].value + params[CMOD_PARAM].value * inputs[CUTOFF_INPUT].value / 5.0f,0.0f,1.0f),0.0f,1.0f,4.5f,13.0f));
+	float q = 3.5f * clampf(params[Q_PARAM].value + inputs[Q_INPUT].value / 5.0f, 0.0f, 1.0f);
+	float g = pow(2.0f,rescalef(clampf(params[MUG_PARAM].value + inputs[MUG_INPUT].value / 5.0f,0.0f,1.0f),0.0f,1.0f,0.0f,3.0f));
 	int mode = (int)params[MODE_PARAM].value;
 	lFilter.setParams(cfreq,q,engineGetSampleRate(),g/3,mode);
 	rFilter.setParams(cfreq,q,engineGetSampleRate(),g/3,mode);
-	float inL = inputs[IN_L].value/5; //normalise to -1/+1 we consider VCV Rack standard is #+5/-5V on VCO1
-	float inR = inputs[IN_R].value/5;
-	inL = lFilter.calcOutput(inL)*5*(mode == 0 ? g : 1);
-	inR = rFilter.calcOutput(inR)*5*(mode == 0 ? g : 1);
+	float inL = inputs[IN_L].value/5.0f; //normalise to -1/+1 we consider VCV Rack standard is #+5/-5V on VCO1
+	float inR = inputs[IN_R].value/5.0f;
+	inL = lFilter.calcOutput(inL)*5.0f*(mode == 0 ? g : 1);
+	inR = rFilter.calcOutput(inR)*5.0f*(mode == 0 ? g : 1);
 	outputs[OUT_L].value = inL;
 	outputs[OUT_R].value = inR;
 }
@@ -142,11 +143,11 @@ LIMBOWidget::LIMBOWidget() {
 	display->box.size = Vec(110, 70);
 	addChild(display);
 
-	addParam(createParam<BidooHugeBlueKnob>(Vec(33, 61), module, LIMBO::CUTOFF_PARAM, 0, 1, 1));
-	addParam(createParam<BidooLargeBlueKnob>(Vec(12, 143), module, LIMBO::Q_PARAM, 0, 1, 0));
-	addParam(createParam<BidooLargeBlueKnob>(Vec(71, 143), module, LIMBO::MUG_PARAM, 0, 1, 0));
-	addParam(createParam<BidooLargeBlueKnob>(Vec(12, 208), module, LIMBO::CMOD_PARAM, -1, 1, 0));
-	addParam(createParam<CKSS>(Vec(83, 217), module, LIMBO::MODE_PARAM, 0.0, 1.0, 0.0));
+	addParam(createParam<BidooHugeBlueKnob>(Vec(33, 61), module, LIMBO::CUTOFF_PARAM, 0.0f, 1.0f, 1.0f));
+	addParam(createParam<BidooLargeBlueKnob>(Vec(12, 143), module, LIMBO::Q_PARAM, 0.0f, 1.0f, 0.0f));
+	addParam(createParam<BidooLargeBlueKnob>(Vec(71, 143), module, LIMBO::MUG_PARAM, 0.0f, 1.0f, 0.0f));
+	addParam(createParam<BidooLargeBlueKnob>(Vec(12, 208), module, LIMBO::CMOD_PARAM, -1.0f, 1.0f, 0.0f));
+	addParam(createParam<CKSS>(Vec(83, 217), module, LIMBO::MODE_PARAM, 0.0f, 1.0f, 0.0f));
 
 	addInput(createInput<PJ301MPort>(Vec(12, 280), module, LIMBO::CUTOFF_INPUT));
 	addInput(createInput<PJ301MPort>(Vec(47, 280), module, LIMBO::Q_INPUT));

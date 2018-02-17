@@ -34,14 +34,14 @@ struct ZINC : Module {
 	};
 	Biquad* iFilter[2*BANDS];
 	Biquad* cFilter[2*BANDS];
-	float mem[BANDS] = {0};
-	float freq[BANDS] = {125,185,270,350,430,530,630,780,950,1150,1380,1680,2070,2780,3800,6400};
-	float peaks[BANDS] = {0};
+	float mem[BANDS] = {0.0f};
+	float freq[BANDS] = {125.0f,185.0f,270.0f,350.0f,430.0f,530.0f,630.0f,780.0f,950.0f,1150.0f,1380.0f,1680.0f,2070.0f,2780.0f,3800.0f,6400.0f};
+	float peaks[BANDS] = {0.0f};
 
 	ZINC() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
 		for(int i=0; i<2*BANDS; i++) {
-			iFilter[i] = new Biquad(bq_type_bandpass, freq[i%BANDS] / engineGetSampleRate(), 5, 6);
-			cFilter[i] = new Biquad(bq_type_bandpass, freq[i%BANDS] / engineGetSampleRate(), 5, 6);
+			iFilter[i] = new Biquad(bq_type_bandpass, freq[i%BANDS] / engineGetSampleRate(), 5.0d, 6.0d);
+			cFilter[i] = new Biquad(bq_type_bandpass, freq[i%BANDS] / engineGetSampleRate(), 5.0d, 6.0d);
 			}
 	}
 
@@ -50,16 +50,16 @@ struct ZINC : Module {
 };
 
 void ZINC::step() {
-	float inM = inputs[IN_MOD].value/5;
-	float inC = inputs[IN_CARR].value/5;
-	const float slewMin = 0.001;
-	const float slewMax = 500.0;
-	const float shapeScale = 1/10.0;
+	float inM = inputs[IN_MOD].value/5.0f;
+	float inC = inputs[IN_CARR].value/5.0f;
+	const float slewMin = 0.001f;
+	const float slewMax = 500.0f;
+	const float shapeScale = 1.0f/10.0f;
 	float attack = params[ATTACK_PARAM].value;
 	float decay = params[DECAY_PARAM].value;
 	float slewAttack = slewMax * powf(slewMin / slewMax, attack);
 	float slewDecay = slewMax * powf(slewMin / slewMax, decay);
-	float out = 0.0;
+	float out = 0.0f;
 
 	for(int i=0; i<BANDS; i++) {
 		float coeff = mem[i];
@@ -78,7 +78,7 @@ void ZINC::step() {
 		mem[i]=coeff;
 		out += cFilter[i+BANDS]->process(cFilter[i]->process(inC*params[GCARR_PARAM].value)) * coeff * params[BG_PARAM+i].value;
 	}
-	outputs[OUT].value = out * 5 * params[G_PARAM].value;
+	outputs[OUT].value = out * 5.0f * params[G_PARAM].value;
 }
 
 struct ZINCDisplay : TransparentWidget {

@@ -23,6 +23,7 @@ void init(rack::Plugin *p) {
 	p->addModel(createModel<FORKWidget>("Bidoo", "ForK", "ForK oscillator", OSCILLATOR_TAG));
 	p->addModel(createModel<TIAREWidget>("Bidoo", "TiARE", "TiARE oscillator", OSCILLATOR_TAG));
 	p->addModel(createModel<CLACOSWidget>("Bidoo", "clACos", "clACos oscillator", OSCILLATOR_TAG));
+	p->addModel(createModel<ANTNWidget>("Bidoo", "antN", "antN oscillator", OSCILLATOR_TAG));
 	p->addModel(createModel<LIMBOWidget>("Bidoo", "lIMbO", "lIMbO filter", FILTER_TAG));
 	p->addModel(createModel<PERCOWidget>("Bidoo", "pErCO", "pErCO filter", FILTER_TAG));
 	p->addModel(createModel<BARWidget>("Bidoo", "baR", "bAR compressor", DYNAMICS_TAG));

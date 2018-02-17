@@ -89,6 +89,7 @@ struct FORKWidget : ModuleWidget {
 
 struct TIAREWidget : ModuleWidget {
 	TIAREWidget();
+	Menu *createContextMenu() override;
 };
 
 struct CLACOSWidget : ModuleWidget {
@@ -111,4 +112,11 @@ struct ZINCWidget : ModuleWidget {
 	ParamWidget *controls[16];
 	void step() override;
 	ZINCWidget();
+};
+
+struct ANTNWidget : ModuleWidget {
+	TextField *textField;
+	ANTNWidget();
+	json_t *toJson() override;
+	void fromJson(json_t *rootJ) override;
 };

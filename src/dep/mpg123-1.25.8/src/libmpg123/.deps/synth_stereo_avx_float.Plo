@@ -1,0 +1,11 @@
+src/libmpg123/synth_stereo_avx_float.lo: \
+ src/libmpg123/synth_stereo_avx_float.S src/libmpg123/mangle.h \
+ src/config.h src/intsym.h src/config.h
+
+src/libmpg123/mangle.h:
+
+src/config.h:
+
+src/intsym.h:
+
+src/config.h:
