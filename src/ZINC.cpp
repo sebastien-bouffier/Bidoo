@@ -40,8 +40,8 @@ struct ZINC : Module {
 
 	ZINC() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
 		for(int i=0; i<2*BANDS; i++) {
-			iFilter[i] = new Biquad(bq_type_bandpass, freq[i%BANDS] / engineGetSampleRate(), 5.0d, 6.0d);
-			cFilter[i] = new Biquad(bq_type_bandpass, freq[i%BANDS] / engineGetSampleRate(), 5.0d, 6.0d);
+			iFilter[i] = new Biquad(bq_type_bandpass, freq[i%BANDS] / engineGetSampleRate(), 5.0, 6.0);
+			cFilter[i] = new Biquad(bq_type_bandpass, freq[i%BANDS] / engineGetSampleRate(), 5.0, 6.0);
 			}
 	}
 
