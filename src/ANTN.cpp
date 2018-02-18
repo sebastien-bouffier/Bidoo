@@ -2,11 +2,12 @@
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
 #include <curl/curl.h>
-#include <thread>
 #include <pthread.h>
 #include <mpg123.h>
 #include "dsp/ringbuffer.hpp"
 #include "dsp/frame.hpp"
+#include <algorithm>
+#include <cctype>
 
 using namespace std;
 
@@ -120,7 +121,7 @@ struct ANTN : Module {
     mpg123_open_feed(mh);
     tData.mh = mh;
     tData.dataRingBuffer = &dataRingBuffer;
-	}  
+	}
 
   ~ANTN() {
     mpg123_close(mh);
@@ -175,8 +176,10 @@ struct ANTNTextField : TextField {
 	ANTN *module;
 };
 void ANTNTextField::onTextChange() {
-	if (text.size() > 0) {
-      module->url = text;
+	if (text.size() > 0) {    
+      string tText = text;
+      tText.erase(std::remove_if(tText.begin(), tText.end(), [](unsigned char x){return std::isspace(x);}), tText.end());
+      module->url = tText;
 	}
 }
 
