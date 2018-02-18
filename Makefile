@@ -9,7 +9,7 @@ FLAGS += -I../../include \
 include ../../arch.mk
 
 ifeq ($(ARCH), lin)
-	LDFLAGS += -rdynamic -L./src/dep/lib -L../../dep/lib -L../../dep/include/curl -lmpg123 -lcurl
+	LDFLAGS += -rdynamic -L./src/dep/lib -L../../dep/lib -L../../dep/include/curl -lmpg123 -lshlwapi -lcurl
 endif
 
 ifeq ($(ARCH), mac)

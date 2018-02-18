@@ -124,7 +124,7 @@ struct ANTN : Module {
 	}
 
   ~ANTN() {
-    while (!tData.free) {
+    if (!tData.free) {
       tData.play = false;
     }
     mpg123_close(mh);
