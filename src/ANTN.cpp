@@ -78,6 +78,7 @@ void *threadTask(void *data)
   curl_easy_cleanup(curl);
   pData->free = true;
   pthread_exit(NULL);
+  return 0;
 }
 
 struct ANTN : Module {
@@ -109,7 +110,6 @@ struct ANTN : Module {
   long rate;
   pthread_t *rThread;
   threadData tData;
-  pthread_mutex_t mut;
   bool first = true;
 
 	ANTN() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
@@ -120,7 +120,7 @@ struct ANTN : Module {
     mpg123_open_feed(mh);
     tData.mh = mh;
     tData.dataRingBuffer = &dataRingBuffer;
-	}
+	}  
 
   ~ANTN() {
     mpg123_close(mh);

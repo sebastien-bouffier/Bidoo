@@ -7,7 +7,7 @@ FLAGS += -I./src/dep/include
 include ../../arch.mk
 
 ifeq ($(ARCH), lin)
-	LDFLAGS += -shared -L./src/dep/lib -lmpg123 -lcurl
+	LDFLAGS += -rdynamic -shared $(RACK_DIR) -L./src/dep/lib -L../../dep/lib -lmpg123 -lcurl
 endif
 
 ifeq ($(ARCH), mac)
@@ -15,7 +15,7 @@ ifeq ($(ARCH), mac)
 endif
 
 ifeq ($(ARCH), win)
-	LDFLAGS += -shared -L./src/dep/lib -lmpg123 -lshlwapi -lcurl
+	LDFLAGS += -shared -L./src/dep/lib -L../../dep/lib -lmpg123 -lshlwapi -lcurl
 endif
 
 SOURCES = $(wildcard src/*.cpp src/dep/audiofile/*cpp src/dep/pffft/*c src/dep/filters/*cpp)
