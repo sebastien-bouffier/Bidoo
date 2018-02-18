@@ -1,7 +1,6 @@
 #include "Bidoo.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/ringbuffer.hpp"
-#include <cfloat>
 
 using namespace std;
 

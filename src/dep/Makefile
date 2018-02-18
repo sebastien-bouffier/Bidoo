@@ -41,7 +41,7 @@ all: $(mpg123) $(libcurl)
 $(mpg123):
 	$(WGET) https://www.mpg123.de/download/mpg123-1.25.8.tar.bz2
 	$(UNTAR) mpg123-1.25.8.tar.bz2
-	cd mpg123-1.25.8 && ./configure --prefix="$(LOCAL)" --disable-shared
+	cd mpg123-1.25.8 && ./configure --prefix="$(LOCAL)" --with-cpu=generic --disable-shared --enable-modules=yes --enable-static
 	$(MAKE) -C mpg123-1.25.8
 	$(MAKE) -C mpg123-1.25.8 install
 

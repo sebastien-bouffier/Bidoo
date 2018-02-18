@@ -99,7 +99,7 @@ struct ANTN : Module {
 	enum LightIds {
 		NUM_LIGHTS
 	};
-	string url;
+  string url;
 	SchmittTrigger trigTrigger;
   size_t index = 0;
   bool read = false;
@@ -124,6 +124,9 @@ struct ANTN : Module {
 	}
 
   ~ANTN() {
+    while (!tData.free) {
+      tData.play = false;
+    }
     mpg123_close(mh);
     mpg123_delete(mh);
     mpg123_exit();
@@ -176,7 +179,7 @@ struct ANTNTextField : TextField {
 	ANTN *module;
 };
 void ANTNTextField::onTextChange() {
-	if (text.size() > 0) {    
+	if (text.size() > 0) {
       string tText = text;
       tText.erase(std::remove_if(tText.begin(), tText.end(), [](unsigned char x){return std::isspace(x);}), tText.end());
       module->url = tText;

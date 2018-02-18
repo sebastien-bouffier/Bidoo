@@ -7,7 +7,7 @@ FLAGS += -I./src/dep/include
 include ../../arch.mk
 
 ifeq ($(ARCH), lin)
-	LDFLAGS += -rdynamic $(RACK_DIR) -L./src/dep/lib -L../../dep/lib -lmpg123 -lcurl
+	LDFLAGS += -rdynamic -L./src/dep/lib -L../../dep/lib -lmpg123 -lcurl
 endif
 
 ifeq ($(ARCH), mac)
