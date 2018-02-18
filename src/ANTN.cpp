@@ -147,6 +147,7 @@ struct ANTN : Module {
 	void step() override;
 };
 
+
 void ANTN::step() {
 	if (trigTrigger.process(params[TRIG_PARAM].value)) {
     if (!tData.free) {

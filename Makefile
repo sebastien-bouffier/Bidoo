@@ -3,6 +3,8 @@ VERSION = 0.5.21
 
 FLAGS += -I./pffft -DPFFFT_SIMD_DISABLE
 FLAGS += -I./src/dep/include
+FLAGS += -I../../include \
+	-I../../dep/include 
 
 include ../../arch.mk
 
