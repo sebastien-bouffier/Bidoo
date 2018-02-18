@@ -4,12 +4,12 @@ VERSION = 0.5.21
 FLAGS += -I./pffft -DPFFFT_SIMD_DISABLE
 FLAGS += -I./src/dep/include
 FLAGS += -I../../include \
-	-I../../dep/include 
+	-I../../dep/include
 
 include ../../arch.mk
 
 ifeq ($(ARCH), lin)
-	LDFLAGS += -rdynamic -L./src/dep/lib -L../../dep/lib -lmpg123 -lcurl
+	LDFLAGS += -rdynamic -L./src/dep/lib -L../../dep/lib -L../../dep/include/curl -lmpg123 -lcurl
 endif
 
 ifeq ($(ARCH), mac)
