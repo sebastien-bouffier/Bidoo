@@ -36,12 +36,11 @@ endif
 
 .NOTPARALLEL:
 
-all: $(mpg123) $(libcurl)
-
+all: $(mpg123)
 $(mpg123):
 	$(WGET) https://www.mpg123.de/download/mpg123-1.25.8.tar.bz2
 	$(UNTAR) mpg123-1.25.8.tar.bz2
-	cd mpg123-1.25.8 && ./configure --prefix="$(LOCAL)" --with-cpu=generic --enable-modules=yes --enable-static
+	cd mpg123-1.25.8 && ./configure --prefix="$(LOCAL)" --with-cpu=generic --with-pic --disable-shared --enable-static
 	$(MAKE) -C mpg123-1.25.8
 	$(MAKE) -C mpg123-1.25.8 install
 

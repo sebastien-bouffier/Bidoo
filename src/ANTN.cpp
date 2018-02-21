@@ -86,6 +86,7 @@ struct ANTN : Module {
 	enum ParamIds {
 		URL_PARAM,
 		TRIG_PARAM,
+    GAIN_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -112,6 +113,7 @@ struct ANTN : Module {
   pthread_t *rThread;
   threadData tData;
   bool first = true;
+  int iret1;
 
 	ANTN() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
     mpg123_init();
@@ -156,7 +158,12 @@ void ANTN::step() {
     else {
       tData.url = url;
       tData.play = true;
-      pthread_create(rThread, NULL, threadTask, (void *)&tData);
+      iret1 = pthread_create(rThread, NULL, threadTask, (void *)&tData);
+      if(iret1)
+      {
+        fprintf(stderr,"Error - pthread_create() return code: %d\n",iret1);
+        exit(EXIT_FAILURE);
+      }
     }
 	}
 
@@ -166,8 +173,8 @@ void ANTN::step() {
 
   if (read) {
     Frame<2> currentFrame = *dataRingBuffer.startData();
-    outputs[OUTL_OUTPUT].value = 10*currentFrame.samples[0];
-    outputs[OUTR_OUTPUT].value = 10*currentFrame.samples[1];
+    outputs[OUTL_OUTPUT].value = 10*currentFrame.samples[0]*params[GAIN_PARAM].value;
+    outputs[OUTR_OUTPUT].value = 10*currentFrame.samples[1]*params[GAIN_PARAM].value;
     dataRingBuffer.startIncr(1);
   }
 }
@@ -211,12 +218,14 @@ ANTNWidget::ANTNWidget() {
 	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
 	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
 
-	addParam(createParam<BlueCKD6>(Vec(29, 328), module, ANTN::TRIG_PARAM, 0.0f, 1.0f, 0.0f));
+  addParam(createParam<BidooBlueKnob>(Vec(54, 183), module, ANTN::GAIN_PARAM, 0.5f, 3.0f, 1.0f));
+
+	addParam(createParam<BlueCKD6>(Vec(54, 245), module, ANTN::TRIG_PARAM, 0.0f, 1.0f, 0.0f));
 
 	static const float portX0[4] = {34, 67, 101};
 
-	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[2]-13, 334), module, ANTN::OUTL_OUTPUT));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[2]+8, 334), module, ANTN::OUTR_OUTPUT));
+	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[1]-17, 334), module, ANTN::OUTL_OUTPUT));
+	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[1]+4, 334), module, ANTN::OUTR_OUTPUT));
 }
 
 json_t *ANTNWidget::toJson() {

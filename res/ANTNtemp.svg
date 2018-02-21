@@ -28,9 +28,9 @@
      inkscape:window-height="1017"
      id="namedview118"
      showgrid="true"
-     inkscape:zoom="2.227451"
-     inkscape:cx="-151.91561"
-     inkscape:cy="172.349"
+     inkscape:zoom="1.5750457"
+     inkscape:cx="-140.15589"
+     inkscape:cy="156.75605"
      inkscape:window-x="-8"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
@@ -159,7 +159,7 @@
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.23333311px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">antN</tspan></text>
   <g
      id="g855"
-     transform="translate(10.935133)">
+     transform="translate(0.88096738)">
     <rect
        ry="1.1370114"
        y="83.828598"
@@ -194,13 +194,13 @@
        id="flowPara884" /></flowRoot>  <text
      xml:space="preserve"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     x="6.1850457"
-     y="84.970261"
+     x="12.703375"
+     y="63.274406"
      id="text843"><tspan
        sodipodi:role="line"
        id="tspan841"
-       x="6.1850457"
-       y="84.970261"
+       x="12.703375"
+       y="63.274406"
        style="stroke-width:0.26458332px">LISTEN</tspan></text>
   <flowRoot
      xml:space="preserve"
@@ -212,4 +212,15 @@
          height="66.443665"
          x="-289.56866"
          y="250.25528" /></flowRegion><flowPara
-       id="flowPara851" /></flowRoot></svg>
+       id="flowPara851" /></flowRoot>  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="14.478977"
+     y="46.626022"
+     id="text843-4"><tspan
+       sodipodi:role="line"
+       id="tspan841-5"
+       x="14.478977"
+       y="46.626022"
+       style="stroke-width:0.26458332px">GAIN</tspan></text>
+</svg>

@@ -1,23 +1,21 @@
 SLUG = Bidoo
 VERSION = 0.5.21
 
-FLAGS += -I./pffft -DPFFFT_SIMD_DISABLE
-FLAGS += -I./src/dep/include
-FLAGS += -I../../include \
-	-I../../dep/include
+FLAGS += -I./src/dep/include -I./src/dep/audiofile -I./src/dep/filters
 
 include ../../arch.mk
 
+
 ifeq ($(ARCH), lin)
-	LDFLAGS += -rdynamic -L./src/dep/lib -L../../dep/lib -L../../dep/include/curl -lmpg123 -lshlwapi -lcurl
+	LDFLAGS += -L../../dep/lib -lcurl -lpthread src/dep/lib/libmpg123.a
 endif
 
 ifeq ($(ARCH), mac)
-	LDFLAGS += -L./src/dep/lib -lmpg123 -lcurl
+	LDFLAGS += -L../../dep/lib -lcurl -lpthread src/dep/lib/libmpg123.a
 endif
 
 ifeq ($(ARCH), win)
-	LDFLAGS += -L./src/dep/lib -lmpg123 -lshlwapi -lcurl
+	LDFLAGS += -L../../dep/lib -lcurl -lpthread src/dep/lib/libmpg123.a -lshlwapi
 endif
 
 SOURCES = $(wildcard src/*.cpp src/dep/audiofile/*cpp src/dep/pffft/*c src/dep/filters/*cpp)
