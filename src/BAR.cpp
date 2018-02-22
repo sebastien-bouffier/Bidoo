@@ -109,10 +109,10 @@ void BAR::step() {
 	runningRMS_L_Sum += data_L;
 	runningVU_R_Sum += data_R;
 	runningRMS_R_Sum += data_R;
-	rms_L = clampf(-1 * sqrtf(runningRMS_L_Sum/512), -96.3f,0.0f);
-	vu_L = clampf(-1 * sqrtf(runningVU_L_Sum/16384), -96.3f,0.0f);
-	rms_R = clampf(-1 * sqrtf(runningRMS_R_Sum/512), -96.3f,0.0f);
-	vu_R = clampf(-1 * sqrtf(runningVU_R_Sum/16384), -96.3f,0.0f);
+	rms_L = clamp(-1 * sqrtf(runningRMS_L_Sum/512), -96.3f,0.0f);
+	vu_L = clamp(-1 * sqrtf(runningVU_L_Sum/16384), -96.3f,0.0f);
+	rms_R = clamp(-1 * sqrtf(runningRMS_R_Sum/512), -96.3f,0.0f);
+	vu_R = clamp(-1 * sqrtf(runningVU_R_Sum/16384), -96.3f,0.0f);
 	threshold = params[THRESHOLD_PARAM].value;
 	attackTime = params[ATTACK_PARAM].value;
 	releaseTime = params[RELEASE_PARAM].value;
@@ -178,8 +178,8 @@ void BAR::step() {
 struct BARDisplay : TransparentWidget {
 	BAR *module;
 	std::shared_ptr<Font> font;
-	BARDisplay() {
-		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
+	BARDisplay() {			   // pluginSLUG,
+		font = Font::load(assetPlugin(pluginBidoo, "res/DejaVuSansMono.ttf"));
 	}
 
 void draw(NVGcontext *vg) override {
@@ -286,15 +286,26 @@ void draw(NVGcontext *vg) override {
 }
 };
 
-BARWidget::BARWidget() {
+//	v0.5.7 ~ OLD
+/*BARWidget::BARWidget() {
 	BAR *module = new BAR();
 	setModule(module);
 	box.size = Vec(15*9, 380);
+*/
+
+//	v0.6.0dev ~ NEW
+struct BARWidget : ModulueWidget{
+	BARWidget(BAR *module)
+};
+
+BARWidget::BARWidget(BAR *module) : ModuleWidget(module) {
+	box.size = vec(15*9, 380);
+
 
 	{
 		SVGPanel *panel = new SVGPanel();
-		panel->box.size = box.size;
-		panel->setBackground(SVG::load(assetPlugin(plugin, "res/BAR.svg")));
+		panel->box.size = box.size;		// pluginSLUG,
+		panel->setBackground(SVG::load(assetPlugin(pluginBidoo, "res/BAR.svg")));
 		addChild(panel);
 	}
 
@@ -304,24 +315,33 @@ BARWidget::BARWidget() {
 	display->box.size = Vec(110, 70);
 	addChild(display);
 
-	addParam(createParam<BidooBlueTrimpot>(Vec(10,265), module, BAR::THRESHOLD_PARAM, -93.6, 0, 0));
-	addParam(createParam<BidooBlueTrimpot>(Vec(42,265), module, BAR::RATIO_PARAM, 1, 20, 0));
-	addParam(createParam<BidooBlueTrimpot>(Vec(74,265), module, BAR::ATTACK_PARAM, 1, 100, 10));
-	addParam(createParam<BidooBlueTrimpot>(Vec(106,265), module, BAR::RELEASE_PARAM, 1, 300, 10));
-	addParam(createParam<BidooBlueTrimpot>(Vec(10,291), module, BAR::KNEE_PARAM, 0, 24, 6));
-	addParam(createParam<BidooBlueTrimpot>(Vec(42,291), module, BAR::MAKEUP_PARAM, 0, 60, 0));
-	addParam(createParam<BidooBlueTrimpot>(Vec(74,291), module, BAR::MIX_PARAM, 0, 1, 1));
-	addParam(createParam<BidooBlueTrimpot>(Vec(106,291), module, BAR::LOOKAHEAD_PARAM, 0, 200, 0));
+	//----
+	//	Widget::create 			= Screw
+	//	ParamWidget::create 		= Knob
+	//	Port::create			= Port	
+	//	    ""		<COMPONENT>(Vec(0, 0), (for port) = , Port::INPUT, or ,Port::OUTPUT, module, NAME::ENUM));
+	//----
+	
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(10,265), module, BAR::THRESHOLD_PARAM, -93.6, 0, 0));
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(42,265), module, BAR::RATIO_PARAM, 1, 20, 0));
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(74,265), module, BAR::ATTACK_PARAM, 1, 100, 10));
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(106,265), module, BAR::RELEASE_PARAM, 1, 300, 10));
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(10,291), module, BAR::KNEE_PARAM, 0, 24, 6));
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(42,291), module, BAR::MAKEUP_PARAM, 0, 60, 0));
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(74,291), module, BAR::MIX_PARAM, 0, 1, 1));
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(106,291), module, BAR::LOOKAHEAD_PARAM, 0, 200, 0));
  	//Changed ports opposite way around
-	addInput(createInput<TinyPJ301MPort>(Vec(24, 319), module, BAR::IN_L_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(24, 339), module, BAR::IN_R_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(66, 319), module, BAR::SC_L_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(66, 339), module, BAR::SC_R_INPUT));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(109, 319), module, BAR::OUT_L_OUTPUT));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(109, 339), module, BAR::OUT_R_OUTPUT));
+	addInput(Port::create<TinyPJ301MPort>(Vec(24, 319), Port::INPUT, module, BAR::IN_L_INPUT));
+	addInput(Port::create<TinyPJ301MPort>(Vec(24, 339), Port::INPUT, module, BAR::IN_R_INPUT));
+	addInput(Port::create<TinyPJ301MPort>(Vec(66, 319), Port::INPUT, module, BAR::SC_L_INPUT));
+	addInput(Port::create<TinyPJ301MPort>(Vec(66, 339), Port::INPUT, module, BAR::SC_R_INPUT));
+	addOutput(Port::create<TinyPJ301MPort>(Vec(109, 319),Port::OUTPUT, module, BAR::OUT_L_OUTPUT));
+	addOutput(Port::create<TinyPJ301MPort>(Vec(109, 339),Port::OUTPUT, module, BAR::OUT_R_OUTPUT));
 
-	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
+	addChild(Widget::create<ScrewSilver>(Vec(15, 0)));
+	addChild(Widget::create<ScrewSilver>(Vec(box.size.x-30, 0)));
+	addChild(Widget::create<ScrewSilver>(Vec(15, 365)));
+	addChild(Widget::create<ScrewSilver>(Vec(box.size.x-30, 365)));
 }
+
+Model *modelBARModule = Model::create<BAR, BARWidget>("Bidoo", "baR", "baR Compressor", DYNAMICS_TAG);
