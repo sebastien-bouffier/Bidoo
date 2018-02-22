@@ -2,14 +2,18 @@
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
 #include <curl/curl.h>
-#include <pthread.h>
+#include <thread>
 #include <mpg123.h>
 #include "dsp/ringbuffer.hpp"
 #include "dsp/frame.hpp"
 #include <algorithm>
 #include <cctype>
+#include <atomic>
 
 using namespace std;
+
+std::atomic<bool> tPlay(true);
+std::atomic<bool> tFree(true);
 
 struct threadData {
   mpg123_handle *mh;
@@ -19,8 +23,6 @@ struct threadData {
   int channels;
   int encoding;
   long rate;
-  bool play = true;
-  bool free = true;
 };
 
 size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp)
@@ -59,26 +61,25 @@ size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *user
               break;
       }
   } while(done > 0);
-  return pData->play ? realsize : 0;
+  return tPlay.load() ? realsize : 0;
 }
 
-void *threadTask(void *data)
+void * threadTask(threadData data)
 {
-  struct threadData *pData;
-  pData = (struct threadData *) data;
-  pData->free = false;
+  // struct threadData *pData;
+  // pData = (struct threadData *) data;
+  tFree.store(false);
   CURL *curl;
   curl = curl_easy_init();
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-  curl_easy_setopt(curl, CURLOPT_URL, pData->url.c_str());
+  curl_easy_setopt(curl, CURLOPT_URL, data.url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, data);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
   curl_easy_perform(curl);
   curl_easy_cleanup(curl);
-  pData->free = true;
-  pthread_exit(NULL);
+  tFree.store(true);
   return 0;
 }
 
@@ -110,10 +111,9 @@ struct ANTN : Module {
   int channels = 0;
   int encoding = 0;
   long rate;
-  pthread_t *rThread;
+  thread rThread;
   threadData tData;
   bool first = true;
-  int iret1;
 
 	ANTN() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
     mpg123_init();
@@ -126,8 +126,8 @@ struct ANTN : Module {
 	}
 
   ~ANTN() {
-    if (!tData.free) {
-      tData.play = false;
+    if (!tFree.load()) {
+      tPlay.store(false);
     }
     mpg123_close(mh);
     mpg123_delete(mh);
@@ -152,19 +152,15 @@ struct ANTN : Module {
 
 void ANTN::step() {
 	if (trigTrigger.process(params[TRIG_PARAM].value)) {
-    if (!tData.free) {
-      tData.play = false;
-    }
-    else {
-      tData.url = url;
-      tData.play = true;
-      iret1 = pthread_create(rThread, NULL, threadTask, (void *)&tData);
-      if(iret1)
-      {
-        fprintf(stderr,"Error - pthread_create() return code: %d\n",iret1);
-        exit(EXIT_FAILURE);
+    if (!tFree.load()) {
+      tPlay.store(false);
+      while(!tFree) {
       }
     }
+    tData.url = url;
+    tPlay.store(true);
+    rThread = thread(threadTask, std::ref(tData));
+    rThread.detach();
 	}
 
   if (dataRingBuffer.size()>200000) {
