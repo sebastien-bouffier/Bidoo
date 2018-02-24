@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.5.22-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.5.23-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -13,13 +13,10 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-0.5.22
+0.5.23
 
-TiARE can be switched from OSC mode to LFO via the right click menu.
-
-bordL and dTrOY where loosing gate time and slide params of the current pattern on close. Fixed.
-
-antN should compile against all OS now !!!
+fix on dTrOY and bordL.
+fix on makefile for CURL and MPG123 static linking for all platforms I hope.
 
 To compile first launch a "make dep" to retrieve mpg123 lib.
 

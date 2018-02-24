@@ -329,12 +329,11 @@ struct DTROY : Module {
 	int playedPattern = 0;
 	bool pitchMode = false;
 	bool updateFlag = false;
-	bool first = true;
+	bool loadedFromJson = false;
 
 	Pattern patterns[16];
 
 	DTROY() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-		//UpdatePattern();
 	}
 
 	void UpdatePattern() {
@@ -489,6 +488,7 @@ struct DTROY : Module {
 			}
 		}
 		updateFlag = true;
+		loadedFromJson = true;
 	}
 
 	void randomize() override {
@@ -637,7 +637,7 @@ void DTROY::step() {
 	//patternNumber
 	playedPattern = clampi((inputs[PATTERN_INPUT].active ? rescalef(inputs[PATTERN_INPUT].value,0,10,1,16.1) : params[PATTERN_PARAM].value) - 1, 0, 15);
 	// Update Pattern
-	if (updateFlag) {
+	if ((updateFlag) || (!loadedFromJson)) {
 		// Trigs Update
 		for (int i = 0; i < 8; i++) {
 			if (slideTriggers[i].process(params[TRIG_SLIDE_PARAM + i].value)) {
@@ -658,6 +658,10 @@ void DTROY::step() {
 		// numSteps
 		numSteps = clampi(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 16);
 		UpdatePattern();
+		if (!loadedFromJson) {
+			loadedFromJson = true;
+			updateFlag = true;
+		}
 	}
 	// Steps && Pulses Management
 	if (nextStep) {

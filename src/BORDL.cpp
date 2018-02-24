@@ -350,6 +350,7 @@ struct BORDL : Module {
 	bool probGate = true;
 	float rndPitch = 0.0f;
 	float accent = 5.0f;
+	bool loadedFromJson = false;
 
 	PatternPlus patterns[16];
 
@@ -531,6 +532,7 @@ struct BORDL : Module {
 			}
 		}
 		updateFlag = true;
+		bool loadedFromJson = true;
 	}
 
 	void randomize() override {
@@ -679,7 +681,7 @@ void BORDL::step() {
 	//patternNumber
 	playedPattern = clampi((inputs[PATTERN_INPUT].active ? rescalef(inputs[PATTERN_INPUT].value,0.0f,10.0f,1.0f,16.1f) : params[PATTERN_PARAM].value) - 1.0f, 0.0f, 15.0f);
 	// Update Pattern
-	if (updateFlag) {
+	if ((updateFlag) || (!loadedFromJson)) {
 		// Trigs Update
 		for (int i = 0; i < 8; i++) {
 			if (slideTriggers[i].process(params[TRIG_SLIDE_PARAM + i].value)) {
@@ -700,6 +702,10 @@ void BORDL::step() {
 		// numSteps
 		numSteps = clampi(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 16);
 		UpdatePattern();
+		if (!loadedFromJson) {
+			loadedFromJson = true;
+			updateFlag = true;
+		}
 	}
 	// Steps && Pulses Management
 	if (nextStep) {
@@ -1147,7 +1153,6 @@ BORDLWidget::BORDLWidget() {
 	addOutput(createOutput<PJ301MPort>(Vec(76.5f, 331.0f), module, BORDL::GATE_OUTPUT));
 	addOutput(createOutput<PJ301MPort>(Vec(109.5f, 331.0f), module, BORDL::PITCH_OUTPUT));
 	addOutput(createOutput<PJ301MPort>(Vec(143.0f, 331.0f), module, BORDL::ACC_OUTPUT));
-	module->updateFlag = true;
 }
 
 struct BORDLRandPitchItem : MenuItem {

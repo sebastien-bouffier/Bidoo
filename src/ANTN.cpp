@@ -25,6 +25,7 @@ struct threadData {
   long rate;
 };
 
+
 size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp)
 {
   struct threadData *pData = (struct threadData *) userp;
