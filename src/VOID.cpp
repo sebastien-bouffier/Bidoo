@@ -27,20 +27,15 @@ void VOID::step() {
 
 }
 
-VOIDWidget::VOIDWidget() {
-	VOID *module = new VOID();
-	setModule(module);
-	box.size = Vec(15*12, 380);
+struct VOIDWidget : ModuleWidget {
+	VOIDWidget(VOID *module) : ModuleWidget(module) {
+		setPanel(SVG::load(assetPlugin(plugin, "res/VOID.svg")));
 
-	{
-		SVGPanel *panel = new SVGPanel();
-		panel->box.size = box.size;
-		panel->setBackground(SVG::load(assetPlugin(plugin, "res/VOID.svg")));
-		addChild(panel);
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 	}
+};
 
-	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
-}
+Model *modelVOID = Model::create<VOID, VOIDWidget>("Bidoo", "vOId", "vOId machine", BLANK_TAG);

@@ -99,9 +99,9 @@ struct LIMBO : Module {
 };
 
 void LIMBO::step() {
-	float cfreq = pow(2.0f,rescalef(clampf(params[CUTOFF_PARAM].value + params[CMOD_PARAM].value * inputs[CUTOFF_INPUT].value / 5.0f,0.0f,1.0f),0.0f,1.0f,4.5f,13.0f));
-	float q = 3.5f * clampf(params[Q_PARAM].value + inputs[Q_INPUT].value / 5.0f, 0.0f, 1.0f);
-	float g = pow(2.0f,rescalef(clampf(params[MUG_PARAM].value + inputs[MUG_INPUT].value / 5.0f,0.0f,1.0f),0.0f,1.0f,0.0f,3.0f));
+	float cfreq = pow(2.0f,rescale(clamp(params[CUTOFF_PARAM].value + params[CMOD_PARAM].value * inputs[CUTOFF_INPUT].value / 5.0f,0.0f,1.0f),0.0f,1.0f,4.5f,13.0f));
+	float q = 3.5f * clamp(params[Q_PARAM].value + inputs[Q_INPUT].value / 5.0f, 0.0f, 1.0f);
+	float g = pow(2.0f,rescale(clamp(params[MUG_PARAM].value + inputs[MUG_INPUT].value / 5.0f,0.0f,1.0f),0.0f,1.0f,0.0f,3.0f));
 	int mode = (int)params[MODE_PARAM].value;
 	lFilter.setParams(cfreq,q,engineGetSampleRate(),g/3,mode);
 	rFilter.setParams(cfreq,q,engineGetSampleRate(),g/3,mode);
@@ -113,53 +113,31 @@ void LIMBO::step() {
 	outputs[OUT_R].value = inR;
 }
 
-struct LIMBODisplay : TransparentWidget {
-	LIMBO *module;
-	std::shared_ptr<Font> font;
-	LIMBODisplay() {
-		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
-	}
 
-	void draw(NVGcontext *vg) override {
+struct LIMBOWidget : ModuleWidget {
+	LIMBOWidget(LIMBO *module) : ModuleWidget(module) {
+		setPanel(SVG::load(assetPlugin(plugin, "res/LIMBO.svg")));
 
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+
+		addParam(ParamWidget::create<BidooHugeBlueKnob>(Vec(33, 61), module, LIMBO::CUTOFF_PARAM, 0.0f, 1.0f, 1.0f));
+		addParam(ParamWidget::create<BidooLargeBlueKnob>(Vec(12, 143), module, LIMBO::Q_PARAM, 0.0f, 1.0f, 0.0f));
+		addParam(ParamWidget::create<BidooLargeBlueKnob>(Vec(71, 143), module, LIMBO::MUG_PARAM, 0.0f, 1.0f, 0.0f));
+		addParam(ParamWidget::create<BidooLargeBlueKnob>(Vec(12, 208), module, LIMBO::CMOD_PARAM, -1.0f, 1.0f, 0.0f));
+		addParam(ParamWidget::create<CKSS>(Vec(83, 217), module, LIMBO::MODE_PARAM, 0.0f, 1.0f, 0.0f));
+
+		addInput(Port::create<PJ301MPort>(Vec(12, 280), Port::INPUT, module, LIMBO::CUTOFF_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(47, 280), Port::INPUT, module, LIMBO::Q_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(82, 280), Port::INPUT, module, LIMBO::MUG_INPUT));
+
+		addInput(Port::create<TinyPJ301MPort>(Vec(24, 319), Port::INPUT, module, LIMBO::IN_L));
+		addInput(Port::create<TinyPJ301MPort>(Vec(24, 339), Port::INPUT, module, LIMBO::IN_R));
+		addOutput(Port::create<TinyPJ301MPort>(Vec(95, 319), Port::OUTPUT, module, LIMBO::OUT_L));
+		addOutput(Port::create<TinyPJ301MPort>(Vec(95, 339), Port::OUTPUT, module, LIMBO::OUT_R));
 	}
 };
 
-LIMBOWidget::LIMBOWidget() {
-	LIMBO *module = new LIMBO();
-	setModule(module);
-	box.size = Vec(15*8, 380);
-
-	{
-		SVGPanel *panel = new SVGPanel();
-		panel->box.size = box.size;
-		panel->setBackground(SVG::load(assetPlugin(plugin, "res/LIMBO.svg")));
-		addChild(panel);
-	}
-
-	LIMBODisplay *display = new LIMBODisplay();
-	display->module = module;
-	display->box.pos = Vec(5, 40);
-	display->box.size = Vec(110, 70);
-	addChild(display);
-
-	addParam(createParam<BidooHugeBlueKnob>(Vec(33, 61), module, LIMBO::CUTOFF_PARAM, 0.0f, 1.0f, 1.0f));
-	addParam(createParam<BidooLargeBlueKnob>(Vec(12, 143), module, LIMBO::Q_PARAM, 0.0f, 1.0f, 0.0f));
-	addParam(createParam<BidooLargeBlueKnob>(Vec(71, 143), module, LIMBO::MUG_PARAM, 0.0f, 1.0f, 0.0f));
-	addParam(createParam<BidooLargeBlueKnob>(Vec(12, 208), module, LIMBO::CMOD_PARAM, -1.0f, 1.0f, 0.0f));
-	addParam(createParam<CKSS>(Vec(83, 217), module, LIMBO::MODE_PARAM, 0.0f, 1.0f, 0.0f));
-
-	addInput(createInput<PJ301MPort>(Vec(12, 280), module, LIMBO::CUTOFF_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(47, 280), module, LIMBO::Q_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(82, 280), module, LIMBO::MUG_INPUT));
-
-	addInput(createInput<TinyPJ301MPort>(Vec(24, 319), module, LIMBO::IN_L));
-	addInput(createInput<TinyPJ301MPort>(Vec(24, 339), module, LIMBO::IN_R));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(95, 319), module, LIMBO::OUT_L));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(95, 339), module, LIMBO::OUT_R));
-
-	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
-}
+Model *modelLIMBO = Model::create<LIMBO, LIMBOWidget>("Bidoo", "lIMbO", "lIMbO filter", FILTER_TAG);

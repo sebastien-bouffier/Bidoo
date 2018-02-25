@@ -25,7 +25,6 @@ struct threadData {
   long rate;
 };
 
-
 size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp)
 {
   struct threadData *pData = (struct threadData *) userp;
@@ -191,39 +190,35 @@ void ANTNTextField::onTextChange() {
 	}
 }
 
+struct ANTNWidget : ModuleWidget {
+  TextField *textField;
+	json_t *toJson() override;
+	void fromJson(json_t *rootJ) override;
 
-ANTNWidget::ANTNWidget() {
-	ANTN *module = new ANTN();
-	setModule(module);
-	box.size = Vec(15*9, 380);
+	ANTNWidget(ANTN *module) : ModuleWidget(module) {
+		setPanel(SVG::load(assetPlugin(plugin, "res/ANTN.svg")));
 
-	{
-		SVGPanel *panel = new SVGPanel();
-		panel->box.size = box.size;
-		panel->setBackground(SVG::load(assetPlugin(plugin, "res/ANTN.svg")));
-		addChild(panel);
-	}
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-	textField = new ANTNTextField(module);
-	textField->box.pos = Vec(5, 25);
-	textField->box.size = Vec(125, 100);
-	textField->multiline = true;
-	addChild(textField);
+  	textField = new ANTNTextField(module);
+  	textField->box.pos = Vec(5, 25);
+  	textField->box.size = Vec(125, 100);
+  	textField->multiline = true;
+  	addChild(textField);
 
-	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
+    addParam(ParamWidget::create<BidooBlueKnob>(Vec(54, 183), module, ANTN::GAIN_PARAM, 0.5f, 3.0f, 1.0f));
 
-  addParam(createParam<BidooBlueKnob>(Vec(54, 183), module, ANTN::GAIN_PARAM, 0.5f, 3.0f, 1.0f));
+  	addParam(ParamWidget::create<BlueCKD6>(Vec(54, 245), module, ANTN::TRIG_PARAM, 0.0f, 1.0f, 0.0f));
 
-	addParam(createParam<BlueCKD6>(Vec(54, 245), module, ANTN::TRIG_PARAM, 0.0f, 1.0f, 0.0f));
+  	static const float portX0[4] = {34, 67, 101};
 
-	static const float portX0[4] = {34, 67, 101};
-
-	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[1]-17, 334), module, ANTN::OUTL_OUTPUT));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[1]+4, 334), module, ANTN::OUTR_OUTPUT));
-}
+  	addOutput(Port::create<TinyPJ301MPort>(Vec(portX0[1]-17, 334),Port::OUTPUT, module, ANTN::OUTL_OUTPUT));
+  	addOutput(Port::create<TinyPJ301MPort>(Vec(portX0[1]+4, 334),Port::OUTPUT, module, ANTN::OUTR_OUTPUT));
+  }
+};
 
 json_t *ANTNWidget::toJson() {
 	json_t *rootJ = ModuleWidget::toJson();
@@ -242,3 +237,5 @@ void ANTNWidget::fromJson(json_t *rootJ) {
 	if (textJ)
 		textField->text = json_string_value(textJ);
 }
+
+Model *modelANTN = Model::create<ANTN, ANTNWidget>("Bidoo", "antN", "antN oscillator", OSCILLATOR_TAG);

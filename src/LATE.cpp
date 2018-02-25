@@ -59,7 +59,7 @@ void LATE::step() {
 		}
 	}
 
-	float lag = rescalef(clampf(params[SWING_PARAM].value + inputs[SWING_INPUT].value,0.0f,10.0f),0.0f,10.0f,0.0f,(float)tCurrent-(float)tPrevious);
+	float lag = rescale(clamp(params[SWING_PARAM].value + inputs[SWING_INPUT].value,0.0f,10.0f),0.0f,10.0f,0.0f,(float)tCurrent-(float)tPrevious);
 
 	if (armed && !odd && (((float)now - (float)tCurrent) >= lag)) {
 		outputs[CLOCK_OUTPUT].value = 10.0f;
@@ -68,29 +68,25 @@ void LATE::step() {
 	}
 }
 
-LATEWidget::LATEWidget() {
-	LATE *module = new LATE();
-	setModule(module);
-	box.size = Vec(15*3, 380);
+struct LATEWidget : ModuleWidget {
+	LATEWidget(LATE *module) : ModuleWidget(module) {
+		setPanel(SVG::load(assetPlugin(plugin, "res/LATE.svg")));
 
-	{
-		SVGPanel *panel = new SVGPanel();
-		panel->box.size = box.size;
-		panel->setBackground(SVG::load(assetPlugin(plugin, "res/LATE.svg")));
-		addChild(panel);
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+
+
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(9, 70), module, LATE::SWING_PARAM, 0, 10, 0));
+		addInput(Port::create<PJ301MPort>(Vec(10, 110), Port::INPUT, module, LATE::SWING_INPUT));
+
+		addInput(Port::create<PJ301MPort>(Vec(10, 173), Port::INPUT, module, LATE::RESET_INPUT));
+
+		addInput(Port::create<PJ301MPort>(Vec(10, 235), Port::INPUT, module, LATE::CLOCK_INPUT));
+
+		addOutput(Port::create<PJ301MPort>(Vec(10, 299), Port::OUTPUT, module, LATE::CLOCK_OUTPUT));
 	}
+};
 
-	addParam(createParam<BidooBlueKnob>(Vec(9, 70), module, LATE::SWING_PARAM, 0, 10, 0));
-	addInput(createInput<PJ301MPort>(Vec(10, 110), module, LATE::SWING_INPUT));
-
-	addInput(createInput<PJ301MPort>(Vec(10, 173), module, LATE::RESET_INPUT));
-
-	addInput(createInput<PJ301MPort>(Vec(10, 235), module, LATE::CLOCK_INPUT));
-
-	addOutput(createOutput<PJ301MPort>(Vec(10, 299), module, LATE::CLOCK_OUTPUT));
-
-	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
-}
+Model *modelLATE = Model::create<LATE, LATEWidget>("Bidoo", "lATe", "lATe clock", CLOCK_TAG);

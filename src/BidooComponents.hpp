@@ -1,5 +1,5 @@
 #pragma once
-#include "components.hpp"
+#include "componentlibrary.hpp"
 #include <vector>
 #include <jansson.h>
 #include "widgets.hpp"
@@ -61,8 +61,8 @@ struct BidooziNCColoredKnob : RoundKnob {
 			for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
 				std::string str(shape->id);
 				if (str == "bidooziNCBlueKnob") {
-					float corrCoef = rescalef(clampf(*coeff,0.0f,1.0f),0.0f,1.0f,0.0f,255.0f);
-					shape->fill.color = (((unsigned int)clampi(42+corrCoef,0,255)) | ((unsigned int)clampi(87-corrCoef,0,255) << 8) | ((unsigned int)clampi(117-corrCoef,0,255) << 16));
+					int corrCoef = rescale(clamp(*coeff,0.0f,1.0f),0.0f,1.0f,0.0f,255.0f);
+					shape->fill.color = (((unsigned int)clamp(42+corrCoef,0,255)) | ((unsigned int)clamp(87-corrCoef,0,255) << 8) | ((unsigned int)clamp(117-corrCoef,0,255) << 16));
 					shape->fill.color |= (unsigned int)(255) << 24;
 				}
 			}
@@ -120,7 +120,7 @@ struct BidooColoredTrimpot : RoundKnob {
 	}
 };
 
-struct BidooSlidePotLong : SVGSlider {
+struct BidooSlidePotLong : SVGFader {
 	BidooSlidePotLong() {
 		snap = true;
 		maxHandlePos = Vec(0.0f, 0.0f);
@@ -134,11 +134,11 @@ struct BidooSlidePotLong : SVGSlider {
 	}
 
 	void randomize() override {
-  	setValue(roundf(rescalef(randomf(), 0.0f, 1.0f, minValue, maxValue)));
+  	setValue(roundf(rescale(randomUniform(), 0.0f, 1.0f, minValue, maxValue)));
   }
 };
 
-struct BidooSlidePotShort : SVGSlider {
+struct BidooSlidePotShort : SVGFader {
 	BidooSlidePotShort() {
 		snap = true;
 		maxHandlePos = Vec(0.0f, 0.0f);
@@ -152,11 +152,11 @@ struct BidooSlidePotShort : SVGSlider {
 	}
 
 	void randomize() override {
-  	setValue(roundf(rescalef(randomf(), 0.0f, 1.0f, minValue, maxValue)));
+  	setValue(roundf(rescale(randomUniform(), 0.0f, 1.0f, minValue, maxValue)));
   }
 };
 
-struct BidooLongSlider : SVGSlider {
+struct BidooLongSlider : SVGFader {
 	BidooLongSlider() {
 		maxHandlePos = Vec(0.0f, 0.0f);
 		minHandlePos = Vec(0.0f, 84.0f);

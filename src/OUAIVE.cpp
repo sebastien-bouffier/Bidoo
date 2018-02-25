@@ -114,12 +114,12 @@ void OUAIVE::step() {
 		trigMode = (((int)trigMode + 1) % 3);
 	}
 	if (inputs[READ_MODE_INPUT].active) {
-		readMode = round(rescalef(inputs[READ_MODE_INPUT].value, 0.0f,10.0f,0.0f,2.0f));
+		readMode = round(rescale(inputs[READ_MODE_INPUT].value, 0.0f,10.0f,0.0f,2.0f));
 	} else if (readModeTrigger.process(params[READ_MODE_PARAM].value + inputs[READ_MODE_INPUT].value)) {
 		readMode = (((int)readMode + 1) % 3);
 	}
-	nbSlices = clampi(roundl(params[NB_SLICES_PARAM].value + inputs[NB_SLICES_INPUT].value), 1, 128);
-	speed = clampf(params[SPEED_PARAM].value + inputs[SPEED_INPUT].value, 0.2f, 10.0f);
+	nbSlices = clamp(roundl(params[NB_SLICES_PARAM].value + inputs[NB_SLICES_INPUT].value), 1, 128);
+	speed = clamp(params[SPEED_PARAM].value + inputs[SPEED_INPUT].value, 0.2f, 10.0f);
 	stringstream stream;
 	stream << fixed << setprecision(1) << speed;
 	string s = stream.str();
@@ -151,24 +151,24 @@ void OUAIVE::step() {
 
 
 	if (fileLoaded) {
-		sliceLength = clampi(audioFile.getNumSamplesPerChannel() / nbSlices, 1, audioFile.getNumSamplesPerChannel());
+		sliceLength = clamp(audioFile.getNumSamplesPerChannel() / nbSlices, 1, audioFile.getNumSamplesPerChannel());
 
 		if ((trigMode == 0) && (playTrigger.process(inputs[GATE_INPUT].value))) {
 			play = true;
-			samplePos = clampi((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
+			samplePos = clamp((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
 		}	else if (trigMode == 1) {
 			play = (inputs[GATE_INPUT].value > 0);
-			samplePos = clampi((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
+			samplePos = clamp((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
 		} else if ((trigMode == 2) && (playTrigger.process(inputs[GATE_INPUT].value))) {
 			play = true;
 			if (inputs[POS_INPUT].active)
-				sliceIndex = clampi(inputs[POS_INPUT].value * nbSlices / 10, 0, nbSlices);
+				sliceIndex = clamp((int)(inputs[POS_INPUT].value * nbSlices / 10), 0, nbSlices);
 			 else
 				sliceIndex = (sliceIndex+1)%nbSlices;
 			if (readMode != 1)
-				samplePos = clampi(sliceIndex*sliceLength, 0 , audioFile.getNumSamplesPerChannel());
+				samplePos = clamp(sliceIndex*sliceLength, 0, audioFile.getNumSamplesPerChannel());
 			else
-				samplePos = clampi((sliceIndex + 1) * sliceLength - 1, 0 , audioFile.getNumSamplesPerChannel());
+				samplePos = clamp((sliceIndex + 1) * sliceLength - 1, 0 , audioFile.getNumSamplesPerChannel());
 		}
 
 		if ((play) && (samplePos>=0) && (samplePos < audioFile.getNumSamplesPerChannel())) {
@@ -201,7 +201,7 @@ void OUAIVE::step() {
 				else if ((readMode == 1) && (samplePos <=0))
 						play = false;
 				else if ((readMode == 2) && (samplePos >= audioFile.getNumSamplesPerChannel()))
-					samplePos = clampi((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
+					samplePos = clamp((int)(inputs[POS_INPUT].value*audioFile.getNumSamplesPerChannel()/10), 0 , audioFile.getNumSamplesPerChannel() -1);
 			}
 			else if (trigMode == 2)
 			{
@@ -217,7 +217,7 @@ void OUAIVE::step() {
 				if ((readMode == 1) && ((samplePos <= (sliceIndex) * sliceLength) || (samplePos <=0)))
 						play = false;
 				if ((readMode == 2) && ((samplePos >= (sliceIndex+1) * sliceLength) || (samplePos >= audioFile.getNumSamplesPerChannel())))
-					samplePos = clampi(sliceIndex*sliceLength, 0 , audioFile.getNumSamplesPerChannel());
+					samplePos = clamp(sliceIndex*sliceLength, 0 , audioFile.getNumSamplesPerChannel());
 			}
 		}
 		else if (samplePos == audioFile.getNumSamplesPerChannel())
@@ -388,50 +388,44 @@ struct OUAIVEDisplay : TransparentWidget {
 	}
 };
 
+struct OUAIVEWidget : ModuleWidget {
+	Menu *createContextMenu() override;
 
-OUAIVEWidget::OUAIVEWidget() {
-	OUAIVE *module = new OUAIVE();
-	setModule(module);
-	box.size = Vec(15*9, 380);
+	OUAIVEWidget(OUAIVE *module) : ModuleWidget(module) {
+		setPanel(SVG::load(assetPlugin(plugin, "res/OUAIVE.svg")));
 
-	{
-		SVGPanel *panel = new SVGPanel();
-		panel->box.size = box.size;
-		panel->setBackground(SVG::load(assetPlugin(plugin, "res/OUAIve.svg")));
-		addChild(panel);
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+
+		{
+			OUAIVEDisplay *display = new OUAIVEDisplay();
+			display->module = module;
+			display->box.pos = Vec(5, 40);
+			display->box.size = Vec(130, 250);
+			addChild(display);
+		}
+
+		static const float portX0[4] = {34, 67, 101};
+
+		addParam(ParamWidget::create<BlueCKD6>(Vec(portX0[0]-25, 215), module, OUAIVE::TRIG_MODE_PARAM, 0.0, 2.0, 0.0));
+
+		addParam(ParamWidget::create<BlueCKD6>(Vec(portX0[1]-14, 215), module, OUAIVE::READ_MODE_PARAM, 0.0, 2.0, 0.0));
+		addInput(Port::create<TinyPJ301MPort>(Vec(portX0[2]+5, 222), Port::INPUT, module, OUAIVE::READ_MODE_INPUT));
+
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[1]-9, 250), module, OUAIVE::NB_SLICES_PARAM, 1.0, 128.01, 1.0));
+		addInput(Port::create<TinyPJ301MPort>(Vec(portX0[2]+5, 252), Port::INPUT, module, OUAIVE::NB_SLICES_INPUT));
+
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, 0.2, 10, 1.0));
+		addInput(Port::create<TinyPJ301MPort>(Vec(portX0[2]+5, 277), Port::INPUT, module, OUAIVE::SPEED_INPUT));
+
+		addInput(Port::create<PJ301MPort>(Vec(portX0[0]-25, 321), Port::INPUT, module, OUAIVE::GATE_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(portX0[1]-19, 321), Port::INPUT, module, OUAIVE::POS_INPUT));
+		addOutput(Port::create<TinyPJ301MPort>(Vec(portX0[2]-13, 331), Port::OUTPUT, module, OUAIVE::OUTL_OUTPUT));
+		addOutput(Port::create<TinyPJ301MPort>(Vec(portX0[2]+11, 331), Port::OUTPUT, module, OUAIVE::OUTR_OUTPUT));
 	}
-
-	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
-
-	{
-		OUAIVEDisplay *display = new OUAIVEDisplay();
-		display->module = module;
-		display->box.pos = Vec(5, 40);
-		display->box.size = Vec(130, 250);
-		addChild(display);
-	}
-
-	static const float portX0[4] = {34, 67, 101};
-
-	addParam(createParam<BlueCKD6>(Vec(portX0[0]-25, 215), module, OUAIVE::TRIG_MODE_PARAM, 0.0, 2.0, 0.0));
-
-	addParam(createParam<BlueCKD6>(Vec(portX0[1]-14, 215), module, OUAIVE::READ_MODE_PARAM, 0.0, 2.0, 0.0));
-	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 222), module, OUAIVE::READ_MODE_INPUT));
-
-	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]-9, 250), module, OUAIVE::NB_SLICES_PARAM, 1.0, 128.01, 1.0));
-	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 252), module, OUAIVE::NB_SLICES_INPUT));
-
-	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, 0.2, 10, 1.0));
-	addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 277), module, OUAIVE::SPEED_INPUT));
-
-	addInput(createInput<PJ301MPort>(Vec(portX0[0]-25, 321), module, OUAIVE::GATE_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[1]-19, 321), module, OUAIVE::POS_INPUT));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[2]-13, 331), module, OUAIVE::OUTL_OUTPUT));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[2]+11, 331), module, OUAIVE::OUTR_OUTPUT));
-}
+};
 
 struct OUAIVEItem : MenuItem {
 	OUAIVE *ouaive;
@@ -467,3 +461,5 @@ Menu *OUAIVEWidget::createContextMenu() {
 
 	return menu;
 }
+
+Model *modelOUAIVE = Model::create<OUAIVE, OUAIVEWidget>("Bidoo","OUAIve", "OUAIve player", SAMPLER_TAG);

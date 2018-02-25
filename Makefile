@@ -15,7 +15,7 @@ ifeq ($(ARCH), mac)
 endif
 
 ifeq ($(ARCH), win)
-	LDFLAGS += ../../dep/lib/libcurl.a src/dep/lib/libmpg123.a -lshlwapi
+	LDFLAGS += -L../../dep/lib -lcurl src/dep/lib/libmpg123.a -lshlwapi
 endif
 
 SOURCES = $(wildcard src/*.cpp src/dep/audiofile/*cpp src/dep/pffft/*c src/dep/filters/*cpp)

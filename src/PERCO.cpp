@@ -68,8 +68,8 @@ struct PERCO : Module {
 };
 
 void PERCO::step() {
-	float cfreq = pow(2.0f,rescalef(clampf(params[CUTOFF_PARAM].value + params[CMOD_PARAM].value * inputs[CUTOFF_INPUT].value / 5.0f,0.0f,1.0f),0.0f,1.0f,4.5f,13.0f));
-	float q = 10.0f * clampf(params[Q_PARAM].value + inputs[Q_INPUT].value / 5.0f, 0.1f, 1.0f);
+	float cfreq = pow(2.0f,rescale(clamp(params[CUTOFF_PARAM].value + params[CMOD_PARAM].value * inputs[CUTOFF_INPUT].value / 5.0f,0.0f,1.0f),0.0f,1.0f,4.5f,13.0f));
+	float q = 10.0f * clamp(params[Q_PARAM].value + inputs[Q_INPUT].value / 5.0f, 0.1f, 1.0f);
 	filter.setParams(cfreq,q,engineGetSampleRate());
 	float in = inputs[IN].value/5.0f; //normalise to -1/+1 we consider VCV Rack standard is #+5/-5V on VCO1
 	//filtering
@@ -79,50 +79,28 @@ void PERCO::step() {
 	outputs[OUT_BP].value = filter.bp * 5.0f;
 }
 
-struct PERCODisplay : TransparentWidget {
-	PERCO *module;
-	std::shared_ptr<Font> font;
-	PERCODisplay() {
-		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
-	}
 
-	void draw(NVGcontext *vg) override {
+struct PERCOWidget : ModuleWidget {
+	PERCOWidget(PERCO *module) : ModuleWidget(module) {
+		setPanel(SVG::load(assetPlugin(plugin, "res/PERCO.svg")));
 
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+
+		addParam(ParamWidget::create<BidooHugeBlueKnob>(Vec(33, 61), module, PERCO::CUTOFF_PARAM, 0.0f, 1.0f, 1.0f));
+		addParam(ParamWidget::create<BidooLargeBlueKnob>(Vec(12, 143), module, PERCO::Q_PARAM, 0.1f, 1.0f, 0.1f));
+		addParam(ParamWidget::create<BidooLargeBlueKnob>(Vec(71, 143), module, PERCO::CMOD_PARAM, -1.0f, 1.0f, 0.0f));
+
+		addInput(Port::create<PJ301MPort>(Vec(10, 276), Port::INPUT, module, PERCO::IN));
+		addInput(Port::create<PJ301MPort>(Vec(48, 276), Port::INPUT, module, PERCO::CUTOFF_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(85, 276), Port::INPUT, module, PERCO::Q_INPUT));
+
+		addOutput(Port::create<PJ301MPort>(Vec(10, 320), Port::OUTPUT, module, PERCO::OUT_LP));
+		addOutput(Port::create<PJ301MPort>(Vec(48, 320), Port::OUTPUT, module, PERCO::OUT_BP));
+		addOutput(Port::create<PJ301MPort>(Vec(85, 320), Port::OUTPUT, module, PERCO::OUT_HP));
 	}
 };
 
-PERCOWidget::PERCOWidget() {
-	PERCO *module = new PERCO();
-	setModule(module);
-	box.size = Vec(15*8, 380);
-
-	{
-		SVGPanel *panel = new SVGPanel();
-		panel->box.size = box.size;
-		panel->setBackground(SVG::load(assetPlugin(plugin, "res/PERCO.svg")));
-		addChild(panel);
-	}
-
-	PERCODisplay *display = new PERCODisplay();
-	display->module = module;
-	display->box.pos = Vec(5, 40);
-	display->box.size = Vec(110, 70);
-	addChild(display);
-
-	addParam(createParam<BidooHugeBlueKnob>(Vec(33, 61), module, PERCO::CUTOFF_PARAM, 0.0f, 1.0f, 1.0f));
-	addParam(createParam<BidooLargeBlueKnob>(Vec(12, 143), module, PERCO::Q_PARAM, 0.1f, 1.0f, 0.1f));
-	addParam(createParam<BidooLargeBlueKnob>(Vec(71, 143), module, PERCO::CMOD_PARAM, -1.0f, 1.0f, 0.0f));
-
-	addInput(createInput<PJ301MPort>(Vec(10, 276), module, PERCO::IN));
-	addInput(createInput<PJ301MPort>(Vec(48, 276), module, PERCO::CUTOFF_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(85, 276), module, PERCO::Q_INPUT));
-
-	addOutput(createOutput<PJ301MPort>(Vec(10, 320), module, PERCO::OUT_LP));
-	addOutput(createOutput<PJ301MPort>(Vec(48, 320), module, PERCO::OUT_BP));
-	addOutput(createOutput<PJ301MPort>(Vec(85, 320), module, PERCO::OUT_HP));
-
-	addChild(createScrew<ScrewSilver>(Vec(15, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createScrew<ScrewSilver>(Vec(15, 365)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30, 365)));
-}
+Model *modelPERCO = Model::create<PERCO, PERCOWidget>("Bidoo", "pErCO", "pErCO filter", FILTER_TAG);

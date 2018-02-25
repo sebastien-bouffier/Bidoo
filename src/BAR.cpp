@@ -108,10 +108,10 @@ void BAR::step() {
 	runningRMS_L_Sum += data_L;
 	runningVU_R_Sum += data_R;
 	runningRMS_R_Sum += data_R;
-	rms_L = clampf(-1 * sqrtf(runningRMS_L_Sum/512), -96.3f,0.0f);
-	vu_L = clampf(-1 * sqrtf(runningVU_L_Sum/16384), -96.3f,0.0f);
-	rms_R = clampf(-1 * sqrtf(runningRMS_R_Sum/512), -96.3f,0.0f);
-	vu_R = clampf(-1 * sqrtf(runningVU_R_Sum/16384), -96.3f,0.0f);
+	rms_L = clamp(-1 * sqrtf(runningRMS_L_Sum/512), -96.3f,0.0f);
+	vu_L = clamp(-1 * sqrtf(runningVU_L_Sum/16384), -96.3f,0.0f);
+	rms_R = clamp(-1 * sqrtf(runningRMS_R_Sum/512), -96.3f,0.0f);
+	vu_R = clamp(-1 * sqrtf(runningVU_R_Sum/16384), -96.3f,0.0f);
 	threshold = params[THRESHOLD_PARAM].value;
 	attackTime = params[ATTACK_PARAM].value;
 	releaseTime = params[RELEASE_PARAM].value;
@@ -160,7 +160,7 @@ void BAR::step() {
 	mix = params[MIX_PARAM].value;
 	lookAhead = params[LOOKAHEAD_PARAM].value;
 
-	int nbSamples = clampi(floor(lookAhead*attackTime*engineGetSampleRate()/100000),0,19999);
+	int nbSamples = clamp(floor(lookAhead*attackTime*engineGetSampleRate()/100000),0.0f,19999.0f);
 	int readIndex;
 	if (lookAheadWriteIndex-nbSamples>=0)
 	  readIndex = (lookAheadWriteIndex-nbSamples)%20000;
@@ -185,17 +185,17 @@ void draw(NVGcontext *vg) override {
 	float height = 150.0f;
 	float width = 15.0f;
 	float spacer = 3.0f;
-	float vuL = rescalef(module->vu_L,-97.0f,0.0f,0.0f,height);
-	float rmsL = rescalef(module->rms_L,-97.0f,0.0f,0.0f,height);
-	float vuR = rescalef(module->vu_R,-97.0f,0.0f,0.0f,height);
-	float rmsR = rescalef(module->rms_R,-97.0f,0.0f,0.0f,height);
-	float threshold = rescalef(module->threshold,0.0f,-97.0f,0.0f,height);
-	float gain = rescalef(1-(module->gaindB-module->makeup),-97.0f,0.0f,97.0f,0.0f);
-	float makeup = rescalef(module->makeup,0.0f,60.0f,0.0f,60.0f);
-	float peakL = rescalef(module->peakL,0.0f,-97.0f,0.0f,height);
-	float peakR = rescalef(module->peakR,0.0f,-97.0f,0.0f,height);
-	float inL = rescalef(module->in_L_dBFS,-97.0f,0.0f,0.0f,height);
-	float inR = rescalef(module->in_R_dBFS,-97.0f,0.0f,0.0f,height);
+	float vuL = rescale(module->vu_L,-97.0f,0.0f,0.0f,height);
+	float rmsL = rescale(module->rms_L,-97.0f,0.0f,0.0f,height);
+	float vuR = rescale(module->vu_R,-97.0f,0.0f,0.0f,height);
+	float rmsR = rescale(module->rms_R,-97.0f,0.0f,0.0f,height);
+	float threshold = rescale(module->threshold,0.0f,-97.0f,0.0f,height);
+	float gain = rescale(1-(module->gaindB-module->makeup),-97.0f,0.0f,97.0f,0.0f);
+	float makeup = rescale(module->makeup,0.0f,60.0f,0.0f,60.0f);
+	float peakL = rescale(module->peakL,0.0f,-97.0f,0.0f,height);
+	float peakR = rescale(module->peakR,0.0f,-97.0f,0.0f,height);
+	float inL = rescale(module->in_L_dBFS,-97.0f,0.0f,0.0f,height);
+	float inR = rescale(module->in_R_dBFS,-97.0f,0.0f,0.0f,height);
 	nvgStrokeWidth(vg, 0.0f);
 	nvgBeginPath(vg);
 	nvgFillColor(vg, BLUE_BIDOO);
@@ -285,42 +285,38 @@ void draw(NVGcontext *vg) override {
 }
 };
 
-BARWidget::BARWidget() {
-	BAR *module = new BAR();
-	setModule(module);
-	box.size = Vec(15.0f*9.0f, 380.0f);
 
-	{
-		SVGPanel *panel = new SVGPanel();
-		panel->box.size = box.size;
-		panel->setBackground(SVG::load(assetPlugin(plugin, "res/BAR.svg")));
-		addChild(panel);
+struct BARWidget : ModuleWidget {
+	BARWidget(BAR *module) : ModuleWidget(module) {
+		setPanel(SVG::load(assetPlugin(plugin, "res/BAR.svg")));
+
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+
+		BARDisplay *display = new BARDisplay();
+		display->module = module;
+		display->box.pos = Vec(12.0f, 40.0f);
+		display->box.size = Vec(110.0f, 70.0f);
+		addChild(display);
+
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(10.0f,265.0f), module, BAR::THRESHOLD_PARAM, -93.6f, 0.0f, 0.0f));
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(42.0f,265.0f), module, BAR::RATIO_PARAM, 1.0f, 20.0f, 0.0f));
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(74.0f,265.0f), module, BAR::ATTACK_PARAM, 1.0f, 100.0f, 10.0f));
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(106.0f,265.0f), module, BAR::RELEASE_PARAM, 1.0f, 300.0f, 10.0f));
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(10.0f,291.0f), module, BAR::KNEE_PARAM, 0.0f, 24.0f, 6.0f));
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(42.0f,291.0f), module, BAR::MAKEUP_PARAM, 0.0f, 60.0f, 0.0f));
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(74.0f,291.0f), module, BAR::MIX_PARAM, 0.0f, 1.0f, 1.0f));
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(106.0f,291.0f), module, BAR::LOOKAHEAD_PARAM, 0.0f, 200.0f, 0.0f));
+	 	//Changed ports opposite way around
+		addInput(Port::create<TinyPJ301MPort>(Vec(24.0f, 319.0f), Port::INPUT, module, BAR::IN_L_INPUT));
+		addInput(Port::create<TinyPJ301MPort>(Vec(24.0f, 339.0f), Port::INPUT, module, BAR::IN_R_INPUT));
+		addInput(Port::create<TinyPJ301MPort>(Vec(66.0f, 319.0f), Port::INPUT, module, BAR::SC_L_INPUT));
+		addInput(Port::create<TinyPJ301MPort>(Vec(66.0f, 339.0f), Port::INPUT, module, BAR::SC_R_INPUT));
+		addOutput(Port::create<TinyPJ301MPort>(Vec(109.0f, 319.0f),Port::OUTPUT, module, BAR::OUT_L_OUTPUT));
+		addOutput(Port::create<TinyPJ301MPort>(Vec(109.0f, 339.0f),Port::OUTPUT, module, BAR::OUT_R_OUTPUT));
 	}
+};
 
-	BARDisplay *display = new BARDisplay();
-	display->module = module;
-	display->box.pos = Vec(12.0f, 40.0f);
-	display->box.size = Vec(110.0f, 70.0f);
-	addChild(display);
-
-	addParam(createParam<BidooBlueTrimpot>(Vec(10.0f,265.0f), module, BAR::THRESHOLD_PARAM, -93.6f, 0.0f, 0.0f));
-	addParam(createParam<BidooBlueTrimpot>(Vec(42.0f,265.0f), module, BAR::RATIO_PARAM, 1.0f, 20.0f, 0.0f));
-	addParam(createParam<BidooBlueTrimpot>(Vec(74.0f,265.0f), module, BAR::ATTACK_PARAM, 1.0f, 100.0f, 10.0f));
-	addParam(createParam<BidooBlueTrimpot>(Vec(106.0f,265.0f), module, BAR::RELEASE_PARAM, 1.0f, 300.0f, 10.0f));
-	addParam(createParam<BidooBlueTrimpot>(Vec(10.0f,291.0f), module, BAR::KNEE_PARAM, 0.0f, 24.0f, 6.0f));
-	addParam(createParam<BidooBlueTrimpot>(Vec(42.0f,291.0f), module, BAR::MAKEUP_PARAM, 0.0f, 60.0f, 0.0f));
-	addParam(createParam<BidooBlueTrimpot>(Vec(74.0f,291.0f), module, BAR::MIX_PARAM, 0.0f, 1.0f, 1.0f));
-	addParam(createParam<BidooBlueTrimpot>(Vec(106.0f,291.0f), module, BAR::LOOKAHEAD_PARAM, 0.0f, 200.0f, 0.0f));
- 	//Changed ports opposite way around
-	addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 319.0f), module, BAR::IN_L_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 339.0f), module, BAR::IN_R_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(66.0f, 319.0f), module, BAR::SC_L_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(66.0f, 339.0f), module, BAR::SC_R_INPUT));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(109.0f, 319.0f), module, BAR::OUT_L_OUTPUT));
-	addOutput(createOutput<TinyPJ301MPort>(Vec(109.0f, 339.0f), module, BAR::OUT_R_OUTPUT));
-
-	addChild(createScrew<ScrewSilver>(Vec(15.0f, 0.0f)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 0.0f)));
-	addChild(createScrew<ScrewSilver>(Vec(15.0f, 365.0f)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 365.0f)));
-}
+Model *modelBAR = Model::create<BAR, BARWidget>("Bidoo", "baR", "bAR compressor", DYNAMICS_TAG);

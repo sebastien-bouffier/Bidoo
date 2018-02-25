@@ -355,7 +355,6 @@ struct BORDL : Module {
 	PatternPlus patterns[16];
 
 	BORDL() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-		UpdatePattern();
 	}
 
 	void UpdatePattern() {
@@ -532,7 +531,7 @@ struct BORDL : Module {
 			}
 		}
 		updateFlag = true;
-		bool loadedFromJson = true;
+		loadedFromJson = true;
 	}
 
 	void randomize() override {
@@ -541,8 +540,8 @@ struct BORDL : Module {
 
 	void randomizeSlidesSkips() {
 		for (int i = 0; i < 8; i++) {
-			slideState[i] = (randomf() > 0.8f) ? 't' : 'f';
-			skipState[i] = (randomf() > 0.85f) ? 't' : 'f';
+			slideState[i] = (randomUniform() > 0.8f) ? 't' : 'f';
+			skipState[i] = (randomUniform() > 0.85f) ? 't' : 'f';
 		}
 	}
 
@@ -556,8 +555,8 @@ struct BORDL : Module {
 	// Quantization inspired from  https://github.com/jeremywen/JW-Modules
 
 	float getOneRandomNoteInScale(){
-		rootNote = clampi(patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value, 0.0, NUM_NOTES-1);
-		curScaleVal = clampi(patterns[playedPattern].scale + inputs[SCALE_INPUT].value, 0.0, NUM_SCALES-1);
+		rootNote = clamp(patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value, 0.0f, NUM_NOTES-1.0f);
+		curScaleVal = clamp(patterns[playedPattern].scale + inputs[SCALE_INPUT].value, 0.0f, NUM_SCALES-1.0f);
 		int *curScaleArr;
 		int notesInScale = 0;
 		switch(curScaleVal){
@@ -581,20 +580,20 @@ struct BORDL : Module {
 		}
 
 		if(curScaleVal == NONE){
-			return randomf() * 6.0f;
+			return randomUniform() * 6.0f;
 		} else {
 			float voltsOut = 0.0f;
-			int rndOctaveInVolts = int(5 * randomf());
+			int rndOctaveInVolts = int(5 * randomUniform());
 			voltsOut += rndOctaveInVolts;
 			voltsOut += rootNote / 12.0f;
-			voltsOut += curScaleArr[int(notesInScale * randomf())] / 12.0f;
+			voltsOut += curScaleArr[int(notesInScale * randomUniform())] / 12.0f;
 			return voltsOut;
 		}
 	}
 
 	float closestVoltageInScale(float voltsIn){
-		rootNote = clampi(patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value, 0.0f, BORDL::NUM_NOTES-1);
-		curScaleVal = clampi(patterns[playedPattern].scale + inputs[SCALE_INPUT].value, 0.0f, BORDL::NUM_SCALES-1);
+		rootNote = clamp(patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value, 0.0f, BORDL::NUM_NOTES-1.0f);
+		curScaleVal = clamp(patterns[playedPattern].scale + inputs[SCALE_INPUT].value, 0.0f, BORDL::NUM_SCALES-1.0f);
 		int *curScaleArr;
 		int notesInScale = 0;
 		switch(curScaleVal){
@@ -679,7 +678,7 @@ void BORDL::step() {
 		lights[RESET_LIGHT].value = 1.0f;
 	}
 	//patternNumber
-	playedPattern = clampi((inputs[PATTERN_INPUT].active ? rescalef(inputs[PATTERN_INPUT].value,0.0f,10.0f,1.0f,16.1f) : params[PATTERN_PARAM].value) - 1.0f, 0.0f, 15.0f);
+	playedPattern = clamp((inputs[PATTERN_INPUT].active ? rescale(inputs[PATTERN_INPUT].value,0.0f,10.0f,1.0f,16.1f) : params[PATTERN_PARAM].value) - 1.0f, 0.0f, 15.0f);
 	// Update Pattern
 	if ((updateFlag) || (!loadedFromJson)) {
 		// Trigs Update
@@ -700,7 +699,7 @@ void BORDL::step() {
 			countMode = (((int)countMode + 1) % 2);
 		}
 		// numSteps
-		numSteps = clampi(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 16);
+		numSteps = clamp(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1.0f, 16.0f);
 		UpdatePattern();
 		if (!loadedFromJson) {
 			loadedFromJson = true;
@@ -717,9 +716,9 @@ void BORDL::step() {
 		pulse = std::get<1>(nextT);
 		if (reStart) { reStart = false; }
 		lights[STEPS_LIGHTS+index%8].value = 1.0f;
-		probGate = index != prevIndex ? randomf() <= params[TRIG_GATEPROB_PARAM+index%8].value : probGate;
-		rndPitch = index != prevIndex ? rescalef(randomf(),0.0f,1.0f,params[TRIG_PITCHRND_PARAM+index%8].value*-5.0f,params[TRIG_PITCHRND_PARAM+index%8].value*5.0f) : rndPitch;
-		accent = index != prevIndex ? clampf(params[TRIG_ACCENT_PARAM+index%8].value + rescalef(randomf(),0.0f,1.0f,params[TRIG_RNDACCENT_PARAM+index%8].value*-5,params[TRIG_RNDACCENT_PARAM+index%8].value*5.0f),0.0f,10.0f)  : accent;
+		probGate = index != prevIndex ? randomUniform() <= params[TRIG_GATEPROB_PARAM+index%8].value : probGate;
+		rndPitch = index != prevIndex ? rescale(randomUniform(),0.0f,1.0f,params[TRIG_PITCHRND_PARAM+index%8].value*-5.0f,params[TRIG_PITCHRND_PARAM+index%8].value*5.0f) : rndPitch;
+		accent = index != prevIndex ? clamp(params[TRIG_ACCENT_PARAM+index%8].value + rescale(randomUniform(),0.0f,1.0f,params[TRIG_RNDACCENT_PARAM+index%8].value*-5.0f,params[TRIG_RNDACCENT_PARAM+index%8].value*5.0f),0.0f,10.0f)  : accent;
 	}
 	// Lights
 	for (int i = 0; i < 8; i++) {
@@ -739,7 +738,7 @@ void BORDL::step() {
 		else if (((patterns[playedPattern].CurrentStep().type == 1) && (pulse == 0))
 				|| (patterns[playedPattern].CurrentStep().type == 2)
 				|| ((patterns[playedPattern].CurrentStep().type == 3) && (pulse == patterns[playedPattern].CurrentStep().pulses))) {
-				float gateCoeff = clampf(patterns[playedPattern].gateTime - 0.02f + inputs[GATE_TIME_INPUT].value /10.0f, 0.0f, 0.99f);
+				float gateCoeff = clamp(patterns[playedPattern].gateTime - 0.02f + inputs[GATE_TIME_INPUT].value /10.0f, 0.0f, 0.99f);
 			gateOn = phase < gateCoeff;
 			gateValue = 10.0f;
 		}
@@ -761,10 +760,10 @@ void BORDL::step() {
 		}
 	}
 	//pitch management
-	pitch = closestVoltageInScale(clampf(patterns[playedPattern].CurrentStep().pitch + rndPitch,0,10) * patterns[playedPattern].sensitivity);
+	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,0.0f,10.0f) * patterns[playedPattern].sensitivity);
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
-			float slideCoeff = clampf(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].value /10.0f, -0.1f, 0.99f);
+			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].value /10.0f, -0.1f, 0.99f);
 			pitch = pitch - (1.0f - powf(phase, slideCoeff)) * (pitch - previousPitch);
 		}
 	}
@@ -1000,12 +999,22 @@ struct BORDLPitchDisplay : TransparentWidget {
 	}
 };
 
+struct BORDLWidget : ModuleWidget {
+	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam,
+	 *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam,
+		*pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8],
+		 *pitchRndParams[8], *pulseProbParams[8], *accentParams[8], *rndAccentParams[8];
+
+	BORDLWidget(BORDL *module);
+	Menu *createContextMenu() override;
+};
+
 struct BORDLPatternRoundSmallBlackSnapKnob : RoundSmallBlackSnapKnob {
 	void onChange(EventChange &e) override {
 			RoundSmallBlackSnapKnob::onChange(e);
 			BORDL *module = dynamic_cast<BORDL*>(this->module);
 			BORDLWidget *parent = dynamic_cast<BORDLWidget*>(this->parent);
-			int target = clampi(value - 1, 0, 15);
+			int target = clamp(value - 1.0f, 0.0f, 15.0f);
 			if (module && parent && (target != module->selectedPattern) && module->updateFlag)
 			{
 				module->updateFlag = false;
@@ -1035,22 +1044,14 @@ struct BORDLPatternRoundSmallBlackSnapKnob : RoundSmallBlackSnapKnob {
 };
 
 
-BORDLWidget::BORDLWidget() {
-	BORDL *module = new BORDL();
-	setModule(module);
-	box.size = Vec(15.0f*34.0f, 380.0f);
 
-	{
-		SVGPanel *panel = new SVGPanel();
-		panel->box.size = box.size;
-		panel->setBackground(SVG::load(assetPlugin(plugin, "res/BORDL.svg")));
-		addChild(panel);
-	}
+BORDLWidget::BORDLWidget(BORDL *module) : ModuleWidget(module) {
+	setPanel(SVG::load(assetPlugin(plugin, "res/BORDL.svg")));
 
-	addChild(createScrew<ScrewSilver>(Vec(15.0f, 0.0f)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 0.0f)));
-	addChild(createScrew<ScrewSilver>(Vec(15.0f, 365.0f)));
-	addChild(createScrew<ScrewSilver>(Vec(box.size.x-30.0f, 365.0f)));
+	addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
+	addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+	addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+	addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 	{
 		BORDLDisplay *display = new BORDLDisplay();
@@ -1060,55 +1061,55 @@ BORDLWidget::BORDLWidget() {
 		addChild(display);
 	}
 
-	addParam(createParam<RoundSmallBlackKnob>(Vec(18.0f, 52.0f), module, BORDL::CLOCK_PARAM, -2.0f, 6.0f, 2.0f));
-	addParam(createParam<LEDButton>(Vec(61.0f, 56.0f), module, BORDL::RUN_PARAM, 0.0f, 1.0f, 0.0f));
-	addChild(createLight<SmallLight<GreenLight>>(Vec(67.0f, 62.0f), module, BORDL::RUNNING_LIGHT));
-	addParam(createParam<LEDButton>(Vec(99.0f, 56.0f), module, BORDL::RESET_PARAM, 0.0f, 1.0f, 0.0f));
-	addChild(createLight<SmallLight<GreenLight>>(Vec(105.0f, 62.0f), module, BORDL::RESET_LIGHT));
-	stepsParam = createParam<BidooBlueSnapKnob>(Vec(133.0f, 52.0f), module, BORDL::STEPS_PARAM, 1.0f, 16.0f, 8.0f);
+	addParam(ParamWidget::create<RoundSmallBlackKnob>(Vec(18.0f, 52.0f), module, BORDL::CLOCK_PARAM, -2.0f, 6.0f, 2.0f));
+	addParam(ParamWidget::create<LEDButton>(Vec(61.0f, 56.0f), module, BORDL::RUN_PARAM, 0.0f, 1.0f, 0.0f));
+	addChild(ModuleLightWidget::create<SmallLight<GreenLight>>(Vec(67.0f, 62.0f), module, BORDL::RUNNING_LIGHT));
+	addParam(ParamWidget::create<LEDButton>(Vec(99.0f, 56.0f), module, BORDL::RESET_PARAM, 0.0f, 1.0f, 0.0f));
+	addChild(ModuleLightWidget::create<SmallLight<GreenLight>>(Vec(105.0f, 62.0f), module, BORDL::RESET_LIGHT));
+	stepsParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(133.0f, 52.0f), module, BORDL::STEPS_PARAM, 1.0f, 16.0f, 8.0f);
 	addParam(stepsParam);
 
 	static const float portX0[4] = {20.0f, 58.0f, 96.0f, 135.0f};
- 	addInput(createInput<PJ301MPort>(Vec(portX0[0], 90.0f), module, BORDL::CLOCK_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[1], 90.0f), module, BORDL::EXT_CLOCK_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[2], 90.0f), module, BORDL::RESET_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[3], 90.0f), module, BORDL::STEPS_INPUT));
+ 	addInput(Port::create<PJ301MPort>(Vec(portX0[0], 90.0f), Port::INPUT, module, BORDL::CLOCK_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(portX0[1], 90.0f), Port::INPUT, module, BORDL::EXT_CLOCK_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(portX0[2], 90.0f), Port::INPUT, module, BORDL::RESET_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(portX0[3], 90.0f), Port::INPUT, module, BORDL::STEPS_INPUT));
 
-	rootNoteParam = createParam<BidooBlueSnapKnob>(Vec(portX0[0]-1.0f, 140.0f), module, BORDL::ROOT_NOTE_PARAM, 0.0f, BORDL::NUM_NOTES-0.9f, 0.0f);
+	rootNoteParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[0]-1.0f, 140.0f), module, BORDL::ROOT_NOTE_PARAM, 0.0f, BORDL::NUM_NOTES-0.9f, 0.0f);
 	addParam(rootNoteParam);
-	scaleParam = createParam<BidooBlueSnapKnob>(Vec(portX0[1]-1.0f, 140.0f), module, BORDL::SCALE_PARAM, 0.0f, BORDL::NUM_SCALES-0.9f, 0.0f);
+	scaleParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[1]-1.0f, 140.0f), module, BORDL::SCALE_PARAM, 0.0f, BORDL::NUM_SCALES-0.9f, 0.0f);
 	addParam(scaleParam);
-	gateTimeParam = createParam<BidooBlueKnob>(Vec(portX0[2]-1.0f, 140.0f), module, BORDL::GATE_TIME_PARAM, 0.1f, 1.0f, 0.5f);
+	gateTimeParam = ParamWidget::create<BidooBlueKnob>(Vec(portX0[2]-1.0f, 140.0f), module, BORDL::GATE_TIME_PARAM, 0.1f, 1.0f, 0.5f);
 	addParam(gateTimeParam);
-	slideTimeParam = createParam<BidooBlueKnob>(Vec(portX0[3]-1.0f, 140.0f), module, BORDL::SLIDE_TIME_PARAM	, 0.1f, 1.0f, 0.2f);
+	slideTimeParam = ParamWidget::create<BidooBlueKnob>(Vec(portX0[3]-1.0f, 140.0f), module, BORDL::SLIDE_TIME_PARAM	, 0.1f, 1.0f, 0.2f);
 	addParam(slideTimeParam);
 
-	addInput(createInput<PJ301MPort>(Vec(portX0[0], 180.0f), module, BORDL::ROOT_NOTE_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[1], 180.0f), module, BORDL::SCALE_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[2], 180.0f), module, BORDL::GATE_TIME_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[3], 180.0f), module, BORDL::SLIDE_TIME_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(portX0[0], 180.0f), Port::INPUT, module, BORDL::ROOT_NOTE_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(portX0[1], 180.0f), Port::INPUT, module, BORDL::SCALE_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(portX0[2], 180.0f), Port::INPUT, module, BORDL::GATE_TIME_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(portX0[3], 180.0f), Port::INPUT, module, BORDL::SLIDE_TIME_INPUT));
 
-	playModeParam = createParam<BlueCKD6>(Vec(portX0[0]-1.0f, 230.0f), module, BORDL::PLAY_MODE_PARAM, 0.0f, 4.0f, 0.0f);
+	playModeParam = ParamWidget::create<BlueCKD6>(Vec(portX0[0]-1.0f, 230.0f), module, BORDL::PLAY_MODE_PARAM, 0.0f, 4.0f, 0.0f);
 	addParam(playModeParam);
-	countModeParam = createParam<BlueCKD6>(Vec(portX0[1]-1.0f, 230.0f), module, BORDL::COUNT_MODE_PARAM, 0.0f, 4.0f, 0.0f);
+	countModeParam = ParamWidget::create<BlueCKD6>(Vec(portX0[1]-1.0f, 230.0f), module, BORDL::COUNT_MODE_PARAM, 0.0f, 4.0f, 0.0f);
 	addParam(countModeParam);
-	addInput(createInput<PJ301MPort>(Vec(portX0[2], 232.0f), module, BORDL::PATTERN_INPUT));
-	patternParam = createParam<BORDLPatternRoundSmallBlackSnapKnob>(Vec(portX0[3],230.0f), module, BORDL::PATTERN_PARAM, 1.0f, 16.0f, 1.0f);
+	addInput(Port::create<PJ301MPort>(Vec(portX0[2], 232.0f), Port::INPUT, module, BORDL::PATTERN_INPUT));
+	patternParam = ParamWidget::create<BORDLPatternRoundSmallBlackSnapKnob>(Vec(portX0[3],230.0f), module, BORDL::PATTERN_PARAM, 1.0f, 16.0f, 1.0f);
 	addParam(patternParam);
 
 	static const float portX1[8] = {200.0f, 238.0f, 276.0f, 315.0f, 353.0f, 392.0f, 430.0f, 469.0f};
 
-	sensitivityParam = createParam<BidooBlueTrimpot>(Vec(portX1[0]-22.0f, 35.0f), module, BORDL::SENSITIVITY_PARAM, 0.1f, 1.0f, 1.0f);
+	sensitivityParam = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[0]-22.0f, 35.0f), module, BORDL::SENSITIVITY_PARAM, 0.1f, 1.0f, 1.0f);
 	addParam(sensitivityParam);
 
 	for (int i = 0; i < 8; i++) {
-		pitchParams[i] = createParam<BidooBlueKnob>(Vec(portX1[i]+2.0f, 79.0f), module, BORDL::TRIG_PITCH_PARAM + i, 0.0f, 10.001f, 3.0f);
+		pitchParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]+2.0f, 79.0f), module, BORDL::TRIG_PITCH_PARAM + i, 0.0f, 10.001f, 3.0f);
 		addParam(pitchParams[i]);
-		pitchRndParams[i] = createParam<BidooBlueTrimpot>(Vec(portX1[i]+7.5f, 111.0f), module, BORDL::TRIG_PITCHRND_PARAM + i, 0.0f, 1.0f, 0.0f);
+		pitchRndParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+7.5f, 111.0f), module, BORDL::TRIG_PITCHRND_PARAM + i, 0.0f, 1.0f, 0.0f);
 		addParam(pitchRndParams[i]);
-		accentParams[i] = createParam<BidooBlueKnob>(Vec(portX1[i]+2.0f, 131.0f), module, BORDL::TRIG_ACCENT_PARAM + i, 0.0f, 10.0f, 0.0f);
+		accentParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]+2.0f, 131.0f), module, BORDL::TRIG_ACCENT_PARAM + i, 0.0f, 10.0f, 0.0f);
 		addParam(accentParams[i]);
-		rndAccentParams[i] = createParam<BidooBlueTrimpot>(Vec(portX1[i]+7.5f, 162.0f), module, BORDL::TRIG_RNDACCENT_PARAM + i, 0.0f, 1.0f, 0.0f);
+		rndAccentParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+7.5f, 162.0f), module, BORDL::TRIG_RNDACCENT_PARAM + i, 0.0f, 1.0f, 0.0f);
 		addParam(rndAccentParams[i]);
 		{
 			BORDLPitchDisplay *displayPitch = new BORDLPitchDisplay();
@@ -1118,9 +1119,9 @@ BORDLWidget::BORDLWidget() {
 			displayPitch->index = i;
 			addChild(displayPitch);
 		}
-		pulseParams[i] = createParam<BidooBlueSnapKnob>(Vec(portX1[i]+2.0f, 218.0f), module, BORDL::TRIG_COUNT_PARAM + i, 1.0f, 8.0f,  1.0f);
+		pulseParams[i] = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX1[i]+2.0f, 218.0f), module, BORDL::TRIG_COUNT_PARAM + i, 1.0f, 8.0f,  1.0f);
 		addParam(pulseParams[i]);
-		pulseProbParams[i] = createParam<BidooBlueTrimpot>(Vec(portX1[i]+7.5f, 249.0f), module, BORDL::TRIG_GATEPROB_PARAM + i, 0.0f, 1.0f,  1.0f);
+		pulseProbParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+7.5f, 249.0f), module, BORDL::TRIG_GATEPROB_PARAM + i, 0.0f, 1.0f,  1.0f);
 		addParam(pulseProbParams[i]);
 		{
 			BORDLPulseDisplay *displayPulse = new BORDLPulseDisplay();
@@ -1130,7 +1131,7 @@ BORDLWidget::BORDLWidget() {
 			displayPulse->index = i;
 			addChild(displayPulse);
 		}
-		typeParams[i] = createParam<BidooBlueSnapKnob>(Vec(portX1[i]+2.0f, 289.0f), module, BORDL::TRIG_TYPE_PARAM + i, 0.0f, 5.0f,  2.0f);
+		typeParams[i] = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX1[i]+2.0f, 289.0f), module, BORDL::TRIG_TYPE_PARAM + i, 0.0f, 5.0f,  2.0f);
 		addParam(typeParams[i]);
 		{
 			BORDLGateDisplay *displayGate = new BORDLGateDisplay();
@@ -1140,19 +1141,19 @@ BORDLWidget::BORDLWidget() {
 			displayGate->index = i;
 			addChild(displayGate);
 		}
-		slideParams[i] = createParam<LEDButton>(Vec(portX1[i]+7.0f, 320.0f), module, BORDL::TRIG_SLIDE_PARAM + i, 0.0f, 1.0f,  0.0f);
+		slideParams[i] = ParamWidget::create<LEDButton>(Vec(portX1[i]+7.0f, 320.0f), module, BORDL::TRIG_SLIDE_PARAM + i, 0.0f, 1.0f,  0.0f);
 		addParam(slideParams[i]);
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+13.0f, 326.0f), module, BORDL::SLIDES_LIGHTS + i));
-		skipParams[i] = createParam<LEDButton>(Vec(portX1[i]+7.0f, 341.0f), module, BORDL::TRIG_SKIP_PARAM + i, 0.0f, 1.0f, 0.0f);
+		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(portX1[i]+13.0f, 326.0f), module, BORDL::SLIDES_LIGHTS + i));
+		skipParams[i] = ParamWidget::create<LEDButton>(Vec(portX1[i]+7.0f, 341.0f), module, BORDL::TRIG_SKIP_PARAM + i, 0.0f, 1.0f, 0.0f);
 		addParam(skipParams[i]);
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+13.0f, 347.0f), module, BORDL::SKIPS_LIGHTS + i));
+		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(portX1[i]+13.0f, 347.0f), module, BORDL::SKIPS_LIGHTS + i));
 	}
 
-	addInput(createInput<PJ301MPort>(Vec(10.0f, 331.0f), module, BORDL::EXTGATE1_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(43.0f, 331.0f), module, BORDL::EXTGATE2_INPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(76.5f, 331.0f), module, BORDL::GATE_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(109.5f, 331.0f), module, BORDL::PITCH_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(143.0f, 331.0f), module, BORDL::ACC_OUTPUT));
+	addInput(Port::create<PJ301MPort>(Vec(10.0f, 331.0f), Port::INPUT, module, BORDL::EXTGATE1_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(43.0f, 331.0f), Port::INPUT, module, BORDL::EXTGATE2_INPUT));
+	addOutput(Port::create<PJ301MPort>(Vec(76.5f, 331.0f), Port::OUTPUT, module, BORDL::GATE_OUTPUT));
+	addOutput(Port::create<PJ301MPort>(Vec(109.5f, 331.0f), Port::OUTPUT, module, BORDL::PITCH_OUTPUT));
+	addOutput(Port::create<PJ301MPort>(Vec(143.0f, 331.0f), Port::OUTPUT, module, BORDL::ACC_OUTPUT));
 }
 
 struct BORDLRandPitchItem : MenuItem {
@@ -1279,7 +1280,7 @@ Menu *BORDLWidget::createContextMenu() {
 
 	ResetMenuItem *resetItem = new ResetMenuItem();
 	resetItem->text = "Initialize";
-	resetItem->rightText = GUI_MOD_KEY_NAME "+I";
+	resetItem->rightText = "+I";
 	resetItem->bordlWidget = this;
 	resetItem->dtroy = dtroyModule;
 	menu->addChild(resetItem);
@@ -1291,7 +1292,7 @@ Menu *BORDLWidget::createContextMenu() {
 
 	CloneMenuItem *cloneItem = new CloneMenuItem();
 	cloneItem->text = "Duplicate";
-	cloneItem->rightText = GUI_MOD_KEY_NAME "+D";
+	cloneItem->rightText = "+D";
 	cloneItem->moduleWidget = this;
 	menu->addChild(cloneItem);
 
@@ -1329,3 +1330,5 @@ Menu *BORDLWidget::createContextMenu() {
 
 	return menu;
 }
+
+Model *modelBORDL = Model::create<BORDL, BORDLWidget>("Bidoo", "bordL", "bordL sequencer", SEQUENCER_TAG);

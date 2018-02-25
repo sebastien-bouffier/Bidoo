@@ -17,106 +17,126 @@ const NVGcolor GREEN_BIDOO = nvgRGBA(2, 195, 154, 255);
 
 extern Plugin *plugin;
 
+extern Model *modelMyModule;
+
+extern Model *modelDTROY;
+extern Model *modelBORDL;
+extern Model *modelCHUTE;
+extern Model *modelLATE;
+extern Model *modelACNE;
+extern Model *modelOUAIVE;
+extern Model *modelDUKE;
+extern Model *modelMOIRE;
+extern Model *modelFORK;
+extern Model *modelTIARE;
+extern Model *modelCLACOS;
+extern Model *modelANTN;
+extern Model *modelLIMBO;
+extern Model *modelPERCO;
+extern Model *modelBAR;
+extern Model *modelZINC;
+extern Model *modelVOID;
+
 ////////////////////
 // module widgets
 ////////////////////
 
-struct DTROYWidget : ModuleWidget {
-	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam,
-	 *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam,
-	  *pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8];
-	DTROYWidget();
-	Menu *createContextMenu() override;
-};
+// struct DTROYWidget : ModuleWidget {
+// 	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam,
+// 	 *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam,
+// 	  *pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8];
+// 	DTROYWidget();
+// 	Menu *createContextMenu() override;
+// };
 
-struct BORDLWidget : ModuleWidget {
-	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam,
-	 *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam,
-	  *pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8],
-		 *pitchRndParams[8], *pulseProbParams[8], *accentParams[8], *rndAccentParams[8];
-	BORDLWidget();
-	Menu *createContextMenu() override;
-};
+// struct BORDLWidget : ModuleWidget {
+// 	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam,
+// 	 *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam,
+// 	  *pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8],
+// 		 *pitchRndParams[8], *pulseProbParams[8], *accentParams[8], *rndAccentParams[8];
+// 	BORDLWidget();
+// 	Menu *createContextMenu() override;
+// };
 
-struct OUAIVEWidget : ModuleWidget {
-	OUAIVEWidget();
-	Menu *createContextMenu() override;
-};
+// struct OUAIVEWidget : ModuleWidget {
+// 	OUAIVEWidget();
+// 	Menu *createContextMenu() override;
+// };
 
-struct CHUTEWidget : ModuleWidget {
-	CHUTEWidget();
-};
+// struct CHUTEWidget : ModuleWidget {
+// 	CHUTEWidget();
+// };
+//
+// struct VOIDWidget : ModuleWidget {
+// 	VOIDWidget();
+// };
 
-struct VOIDWidget : ModuleWidget {
-	VOIDWidget();
-};
+// struct DUKEWidget : ModuleWidget {
+// 	ParamWidget *sliders[4];
+// 	DUKEWidget();
+// };
 
-struct DUKEWidget : ModuleWidget {
-	ParamWidget *sliders[4];
-	DUKEWidget();
-};
+// struct ACNEWidget : ModuleWidget {
+// 	ParamWidget *faders[ACNE_NB_OUTS][ACNE_NB_TRACKS];
+// 	void UpdateSnapshot(int snapshot);
+// 	void step() override;
+// 	ACNEWidget();
+// };
 
-struct ACNEWidget : ModuleWidget {
-	ParamWidget *faders[ACNE_NB_OUTS][ACNE_NB_TRACKS];
-	void UpdateSnapshot(int snapshot);
-	void step() override;
-	ACNEWidget();
-};
+// struct MOIREWidget : ModuleWidget {
+// 	ParamWidget *controls[16];
+// 	ParamWidget *morphButton;
+// 	void step() override;
+// 	MOIREWidget();
+// 	Menu *createContextMenu() override;
+// };
 
-struct MOIREWidget : ModuleWidget {
-	ParamWidget *controls[16];
-	ParamWidget *morphButton;
-	void step() override;
-	MOIREWidget();
-	Menu *createContextMenu() override;
-};
+// struct LATEWidget : ModuleWidget {
+// 	LATEWidget();
+// };
 
-struct LATEWidget : ModuleWidget {
-	LATEWidget();
-};
+// struct FORKWidget : ModuleWidget {
+// 	ParamWidget *F1;
+// 	ParamWidget *F2;
+// 	ParamWidget *F3;
+// 	ParamWidget *F4;
+// 	ParamWidget *A1;
+// 	ParamWidget *A2;
+// 	ParamWidget *A3;
+// 	ParamWidget *A4;
+// 	FORKWidget();
+// };
+//
+// struct TIAREWidget : ModuleWidget {
+// 	TIAREWidget();
+// 	Menu *createContextMenu() override;
+// };
 
-struct FORKWidget : ModuleWidget {
-	ParamWidget *F1;
-	ParamWidget *F2;
-	ParamWidget *F3;
-	ParamWidget *F4;
-	ParamWidget *A1;
-	ParamWidget *A2;
-	ParamWidget *A3;
-	ParamWidget *A4;
-	FORKWidget();
-};
+// struct CLACOSWidget : ModuleWidget {
+// 	CLACOSWidget();
+// };
+//
+// struct BARWidget : ModuleWidget {
+// 	BARWidget();
+// };
+//
+// struct LIMBOWidget : ModuleWidget {
+// 	LIMBOWidget();
+// };
+//
+// struct PERCOWidget : ModuleWidget {
+// 	PERCOWidget();
+// };
 
-struct TIAREWidget : ModuleWidget {
-	TIAREWidget();
-	Menu *createContextMenu() override;
-};
-
-struct CLACOSWidget : ModuleWidget {
-	CLACOSWidget();
-};
-
-struct BARWidget : ModuleWidget {
-	BARWidget();
-};
-
-struct LIMBOWidget : ModuleWidget {
-	LIMBOWidget();
-};
-
-struct PERCOWidget : ModuleWidget {
-	PERCOWidget();
-};
-
-struct ZINCWidget : ModuleWidget {
-	ParamWidget *controls[16];
-	void step() override;
-	ZINCWidget();
-};
-
-struct ANTNWidget : ModuleWidget {
-	TextField *textField;
-	ANTNWidget();
-	json_t *toJson() override;
-	void fromJson(json_t *rootJ) override;
-};
+// struct ZINCWidget : ModuleWidget {
+// 	ParamWidget *controls[16];
+// 	void step() override;
+// 	ZINCWidget();
+// };
+// 
+// struct ANTNWidget : ModuleWidget {
+// 	TextField *textField;
+// 	ANTNWidget();
+// 	json_t *toJson() override;
+// 	void fromJson(json_t *rootJ) override;
+// };
