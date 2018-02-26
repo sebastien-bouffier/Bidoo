@@ -131,10 +131,12 @@ struct ANTN : Module {
   ~ANTN() {
     if (!tFree.load()) {
       tPlay.store(false);
+      while(!tFree) {
+      }
     }
     mpg123_close(mh);
     mpg123_delete(mh);
-    mpg123_exit();
+    //mpg123_exit();
   }
 
   json_t *toJson() override {
