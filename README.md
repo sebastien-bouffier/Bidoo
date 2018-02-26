@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.5.23-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.6.0dev-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -13,10 +13,9 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-0.5.23
+0.6.0dev
 
-fix on dTrOY and bordL.
-fix on makefile for CURL and MPG123 static linking for all platforms I hope.
+fix for antN multiple instances.
 
 To compile first launch a "make dep" to retrieve mpg123 lib.
 

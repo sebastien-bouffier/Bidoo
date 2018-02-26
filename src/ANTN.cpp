@@ -12,9 +12,6 @@
 
 using namespace std;
 
-std::atomic<bool> tPlay(true);
-std::atomic<bool> tFree(true);
-
 struct threadData {
   mpg123_handle *mh;
   DoubleRingBuffer<Frame<2>,262144> *dataRingBuffer;
@@ -23,6 +20,8 @@ struct threadData {
   int channels;
   int encoding;
   long rate;
+  std::atomic<bool> *play;
+  std::atomic<bool> *free;
 };
 
 size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp)
@@ -61,14 +60,14 @@ size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *user
               break;
       }
   } while(done > 0);
-  return tPlay.load() ? realsize : 0;
+  return pData->play->load() ? realsize : 0;
 }
 
 void * threadTask(threadData data)
 {
   // struct threadData *pData;
   // pData = (struct threadData *) data;
-  tFree.store(false);
+  data.free->store(false);
   CURL *curl;
   curl = curl_easy_init();
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
@@ -79,7 +78,7 @@ void * threadTask(threadData data)
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
   curl_easy_perform(curl);
   curl_easy_cleanup(curl);
-  tFree.store(true);
+  data.free->store(true);
   return 0;
 }
 
@@ -114,6 +113,8 @@ struct ANTN : Module {
   thread rThread;
   threadData tData;
   bool first = true;
+  std::atomic<bool> tPlay;
+  std::atomic<bool> tFree;
 
 	ANTN() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
     mpg123_init();
@@ -123,6 +124,8 @@ struct ANTN : Module {
     mpg123_open_feed(mh);
     tData.mh = mh;
     tData.dataRingBuffer = &dataRingBuffer;
+    tPlay.store(true);
+    tFree.store(true);
 	}
 
   ~ANTN() {
@@ -159,6 +162,8 @@ void ANTN::step() {
     }
     tData.url = url;
     tPlay.store(true);
+    tData.play = &tPlay;
+    tData.free = &tFree;
     rThread = thread(threadTask, std::ref(tData));
     rThread.detach();
 	}
