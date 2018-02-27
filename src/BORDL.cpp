@@ -532,7 +532,7 @@ struct BORDL : Module {
 			}
 		}
 		updateFlag = true;
-		bool loadedFromJson = true;
+		loadedFromJson = true;
 	}
 
 	void randomize() override {
