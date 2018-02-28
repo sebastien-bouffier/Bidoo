@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cctype>
 #include <atomic>
+#include <sstream>
 
 using namespace std;
 
@@ -16,6 +17,7 @@ struct threadData {
   mpg123_handle *mh;
   DoubleRingBuffer<Frame<2>,262144> *dataRingBuffer;
   string url;
+  string secUrl;
   int bytes;
   int channels;
   int encoding;
@@ -63,10 +65,48 @@ size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *user
   return pData->play->load() ? realsize : 0;
 }
 
+size_t WriteUrlCallback(void *contents, size_t size, size_t nmemb, void *userp)
+{
+  struct threadData *pData = (struct threadData *) userp;
+  size_t realsize = size * nmemb;
+  pData->secUrl += (const char*) contents;
+  return realsize;
+}
+
 void * threadTask(threadData data)
 {
-  // struct threadData *pData;
-  // pData = (struct threadData *) data;
+  data.free->store(false);
+  CURL *curl;
+  curl = curl_easy_init();
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+  string zeUrl;
+  data.secUrl == "" ? zeUrl = data.url : zeUrl = data.secUrl;
+  zeUrl.erase(std::remove_if(zeUrl.begin(), zeUrl.end(), [](unsigned char x){return std::isspace(x);}), zeUrl.end());
+  if (extractExtension(data.url) == "pls") {
+    istringstream iss(zeUrl);
+    for (std::string line; std::getline(iss, line); )
+    {
+      std::size_t found=line.find("http");
+      if (found!=std::string::npos) {
+        zeUrl = line.substr(found);
+        break;
+      }
+    }
+  }
+  curl_easy_setopt(curl, CURLOPT_URL, zeUrl.c_str());
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
+  curl_easy_perform(curl);
+  curl_easy_cleanup(curl);
+  data.free->store(true);
+  return 0;
+}
+
+
+void * urlTask(threadData data)
+{
   data.free->store(false);
   CURL *curl;
   curl = curl_easy_init();
@@ -74,11 +114,14 @@ void * threadTask(threadData data)
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
   curl_easy_setopt(curl, CURLOPT_URL, data.url.c_str());
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteUrlCallback);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
+  data.secUrl = "";
   curl_easy_perform(curl);
   curl_easy_cleanup(curl);
   data.free->store(true);
+  thread iThread = thread(threadTask, data);
+  iThread.detach();
   return 0;
 }
 
@@ -136,7 +179,6 @@ struct ANTN : Module {
     }
     mpg123_close(mh);
     mpg123_delete(mh);
-    //mpg123_exit();
   }
 
   json_t *toJson() override {
@@ -166,7 +208,13 @@ void ANTN::step() {
     tPlay.store(true);
     tData.play = &tPlay;
     tData.free = &tFree;
-    rThread = thread(threadTask, std::ref(tData));
+
+    if ((extractExtension(tData.url) == "m3u") || (extractExtension(tData.url) == "pls")) {
+      rThread = thread(urlTask, std::ref(tData));
+    }
+    else {
+      rThread = thread(threadTask, std::ref(tData));
+    }
     rThread.detach();
 	}
 

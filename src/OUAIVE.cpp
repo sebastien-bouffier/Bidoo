@@ -1,7 +1,7 @@
 #include "Bidoo.hpp"
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
-#include "../ext/osdialog/osdialog.h"
+#include "osdialog.h"
 #include "dep/audiofile/AudioFile.h"
 #include <vector>
 #include "cmath"
