@@ -1,6 +1,7 @@
 build
 dist
 *.dll
+*.so
 /src/dep/bin
 /src/dep/include
 /src/dep/lib
