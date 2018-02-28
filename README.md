@@ -13,10 +13,9 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-0.5.23
+0.5.24
 
-fix on dTrOY and bordL.
-fix on makefile for CURL and MPG123 static linking for all platforms I hope.
+antN reads .pls and .m3u urls.
 
 To compile first launch a "make dep" to retrieve mpg123 lib.
 
