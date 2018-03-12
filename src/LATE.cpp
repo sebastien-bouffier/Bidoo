@@ -89,4 +89,4 @@ struct LATEWidget : ModuleWidget {
 	}
 };
 
-Model *modelLATE = Model::create<LATE, LATEWidget>("Bidoo", "lATe", "lATe clock", CLOCK_TAG);
+Model *modelLATE = Model::create<LATE, LATEWidget>("Bidoo", "lATe", "lATe clock modulator", CLOCK_MODULATOR_TAG);

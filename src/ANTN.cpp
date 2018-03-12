@@ -35,34 +35,43 @@ size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *user
   size_t i;
   int err;
   unsigned char *audio;
-  mpg123_feed(pData->mh, (const unsigned char*) contents, realsize);
-  do {
-      err = mpg123_decode_frame(pData->mh, &frame_offset, &audio, &done);
-      switch(err) {
-          case MPG123_NEW_FORMAT:
-              mpg123_getformat(pData->mh, &pData->rate, &pData->channels, &pData->encoding);
-              pData->bytes = mpg123_encsize(pData->encoding);
-              break;
-          case MPG123_OK:
-              i = 0;
-              do {
-                Frame<2> newFrame;
-                unsigned char l[] = {audio[i+0], audio[i+1], audio[i+2], audio[i+3]};
-                memcpy(&newFrame.samples[0], &l, sizeof(newFrame.samples[0]));
-                unsigned char r[] = {audio[i+4], audio[i+5], audio[i+6], audio[i+7]};
-                memcpy(&newFrame.samples[1], &r, sizeof(newFrame.samples[1]));
-                pData->dataRingBuffer->push(newFrame);
-                i += 8;
-              }
-              while(i < done);
-              break;
-          case MPG123_NEED_MORE:
-              break;
-          default:
-              break;
+  if (pData->play->load())
+  {
+    mpg123_feed(pData->mh, (const unsigned char*) contents, realsize);
+    do {
+      try {
+        err = mpg123_decode_frame(pData->mh, &frame_offset, &audio, &done);
       }
-  } while(done > 0);
-  return pData->play->load() ? realsize : 0;
+      catch (const std::exception& e) {
+        return 0;
+      }
+      switch(err) {
+        case MPG123_NEW_FORMAT:
+            mpg123_getformat(pData->mh, &pData->rate, &pData->channels, &pData->encoding);
+            pData->bytes = mpg123_encsize(pData->encoding);
+            break;
+        case MPG123_OK:
+            i = 0;
+            do {
+              Frame<2> newFrame;
+              unsigned char l[] = {audio[i+0], audio[i+1], audio[i+2], audio[i+3]};
+              memcpy(&newFrame.samples[0], &l, sizeof(newFrame.samples[0]));
+              unsigned char r[] = {audio[i+4], audio[i+5], audio[i+6], audio[i+7]};
+              memcpy(&newFrame.samples[1], &r, sizeof(newFrame.samples[1]));
+              pData->dataRingBuffer->push(newFrame);
+              i += 8;
+            }
+            while(i < done);
+            break;
+        case MPG123_NEED_MORE:
+            break;
+        default:
+            break;
+      }
+    } while(done > 0);
+    return realsize;
+  }
+  return 0;
 }
 
 size_t WriteUrlCallback(void *contents, size_t size, size_t nmemb, void *userp)
@@ -160,12 +169,6 @@ struct ANTN : Module {
   std::atomic<bool> tFree;
 
 	ANTN() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-    mpg123_init();
-    mh = mpg123_new(NULL, NULL);
-    mpg123_format_none(mh);
-    mpg123_format(mh, engineGetSampleRate(), 2, MPG123_ENC_FLOAT_32);
-    mpg123_open_feed(mh);
-    tData.mh = mh;
     tData.dataRingBuffer = &dataRingBuffer;
     tPlay.store(true);
     tFree.store(true);
@@ -204,6 +207,12 @@ void ANTN::step() {
       while(!tFree) {
       }
     }
+    mpg123_init();
+    mh = mpg123_new(NULL, NULL);
+    mpg123_format_none(mh);
+    mpg123_format(mh, engineGetSampleRate(), 2, MPG123_ENC_FLOAT_32);
+    mpg123_open_feed(mh);
+    tData.mh = mh;
     tData.url = url;
     tPlay.store(true);
     tData.play = &tPlay;

@@ -197,7 +197,7 @@ struct CKSS4 : SVGSwitch, ToggleSwitch {
 
 struct TinyPJ301MPort : SVGPort {
 	TinyPJ301MPort() {
-		background->svg = SVG::load(assetPlugin(plugin, "res/TinyPJ301M.svg"));
+		background->svg = SVG::load(assetPlugin(plugin, "res/ComponentLibrary/TinyPJ301M.svg"));
 		background->wrap();
 		box.size = background->box.size;
 	}

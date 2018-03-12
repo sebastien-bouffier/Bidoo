@@ -1057,7 +1057,7 @@ Menu *DTROYWidget::createContextMenu() {
 	Menu *menu = gScene->createMenu();
 
 	MenuLabel *menuLabel = new MenuLabel();
-	menuLabel->text = model->manufacturer + " " + model->name;
+	menuLabel->text = model->author + " " + model->name;
 	menu->addChild(menuLabel);
 
 	ResetMenuItem *resetItem = new ResetMenuItem();

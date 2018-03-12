@@ -10,10 +10,12 @@ void init(rack::Plugin *p) {
 
 	p->addModel(modelDTROY);
 	p->addModel(modelBORDL);
+	p->addModel(modelTOCANTE);
 	p->addModel(modelCHUTE);
 	p->addModel(modelLATE);
 	p->addModel(modelACNE);
 	p->addModel(modelOUAIVE);
+	p->addModel(modelPANARD);
 	p->addModel(modelDUKE);
 	p->addModel(modelMOIRE);
 	p->addModel(modelFORK);
