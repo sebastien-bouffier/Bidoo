@@ -7,15 +7,15 @@ include ../../arch.mk
 
 
 ifeq ($(ARCH), lin)
-	LDFLAGS += ../../dep/lib/libcurl.a src/dep/lib/libmpg123.a
+	LDFLAGS += -L../../dep/lib -lglfw ../../dep/lib/libcurl.a src/dep/lib/libmpg123.a
 endif
 
 ifeq ($(ARCH), mac)
-	LDFLAGS += ../../dep/lib/libcurl.a src/dep/lib/libmpg123.a
+	LDFLAGS += -L../../dep/lib -lglfw ../../dep/lib/libcurl.a src/dep/lib/libmpg123.a
 endif
 
 ifeq ($(ARCH), win)
-	LDFLAGS += -lcurl src/dep/lib/libmpg123.a -lshlwapi
+	LDFLAGS += -L../../dep/lib -lglfw3dll -lcurl src/dep/lib/libmpg123.a -lshlwapi
 endif
 
 SOURCES = $(wildcard src/*.cpp src/dep/audiofile/*cpp src/dep/pffft/*c src/dep/filters/*cpp)

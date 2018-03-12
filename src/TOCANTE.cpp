@@ -81,22 +81,21 @@ void TOCANTE::step() {
 		currentStep = 0;
 	}
 
-	ref = static_cast<int>(powf(2.0f,params[REF_PARAM].value));
-	beats = static_cast<int>(params[BEATS_PARAM].value);
-	stepsPerMeasure = static_cast<int>(beats * engineGetSampleRate() / ((params[BPM_PARAM].value == 0.0f ? 1 : params[BPM_PARAM].value)/60.0f));
-	stepsPerBeat = static_cast<int>(stepsPerMeasure/(beats == 0 ? 1 : beats)/2)*2;
-	stepsPerSixteenth = static_cast<int>(stepsPerBeat*ref/16);
-	stepsPerEighth = stepsPerSixteenth*2;
-	stepsPerQuarter = stepsPerEighth*2;
-	stepsPerTriplet = static_cast<int>(stepsPerQuarter/3);
+	ref = clamp(powf(2.0f,params[REF_PARAM].value),2.0f,16.0f);
+	beats = clamp(params[BEATS_PARAM].value,1.0f,32.0f);
+	stepsPerSixteenth =  floor(engineGetSampleRate() / clamp(params[BPM_PARAM].value, 1.0f, 350.0f) * 60 * ref / 32) * 2;
+	stepsPerEighth = stepsPerSixteenth * 2;
+	stepsPerQuarter = stepsPerEighth * 2;
+	stepsPerTriplet = floor(stepsPerQuarter/3);
+	stepsPerBeat = stepsPerSixteenth * 16 / ref;
 	stepsPerMeasure = beats*stepsPerBeat;
 
 	if ((stepsPerSixteenth>0) && ((currentStep%stepsPerSixteenth) == 0)) {
-		gatePulse.trigger(1e-3);
+		gatePulse.trigger(2 / engineGetSampleRate());
 	}
 
-	if ((stepsPerTriplet>0) && ((currentStep%stepsPerTriplet) == 0)) {
-		gatePulse_triplets.trigger(1e-3);
+	if ((stepsPerTriplet>0) && ((currentStep%stepsPerTriplet) == 0) && (currentStep <= (stepsPerMeasure-100))) {
+		gatePulse_triplets.trigger(2 / engineGetSampleRate());
 	}
 
 	pulseEven = gatePulse.process(1 / engineGetSampleRate());
@@ -109,7 +108,7 @@ void TOCANTE::step() {
 	outputs[OUT_EIGHTH].value = (pulseEven && (currentStep%stepsPerEighth == 0)) ? 10.0f : 0.0f;
 	outputs[OUT_SIXTEENTH].value = (pulseEven && (currentStep%stepsPerSixteenth == 0)) ? 10.0f : 0.0f;
 	if (running) {
-		currentStep = static_cast<int>((currentStep + 1)%(stepsPerMeasure - 1));
+		currentStep = floor((currentStep + 1)%stepsPerMeasure);
 	}
 	lights[RUNNING_LIGHT].value = running ? 1.0 : 0.0;
 }
@@ -135,6 +134,12 @@ struct TOCANTEDisplay : TransparentWidget {
 	}
 };
 
+struct BPMBlueKnob : BidooBlueKnob {
+	void onChange (EventChange &e) override {
+		BidooBlueKnob::onChange(e);
+	}
+};
+
 struct TOCANTEWidget : ModuleWidget {
 	TOCANTEWidget(TOCANTE *module) : ModuleWidget(module) {
 		setPanel(SVG::load(assetPlugin(plugin, "res/TOCANTE.svg")));
@@ -154,7 +159,7 @@ struct TOCANTEWidget : ModuleWidget {
 		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(5.0f,90.0f), module, TOCANTE::BPM_PARAM, 2.0f, 350.0f, 60.0f));
+		addParam(ParamWidget::create<BPMBlueKnob>(Vec(5.0f,90.0f), module, TOCANTE::BPM_PARAM, 2.0f, 350.0f, 60.0f));
 		addParam(ParamWidget::create<BidooBlueSnapKnob>(Vec(38.0f,90.0f), module, TOCANTE::BEATS_PARAM, 1.0f, 32.0f, 4.0f));
 		addParam(ParamWidget::create<BidooBlueSnapKnob>(Vec(72.0f,90.0f), module, TOCANTE::REF_PARAM, 1.0f, 4.0f, 2.0f));
 
