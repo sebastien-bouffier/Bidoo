@@ -12,35 +12,36 @@ namespace rack {
 struct BidooBlueKnob : RoundKnob {
 	BidooBlueKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueKnobBidoo.svg")));
-		box.size = Vec(28.0f, 28.0f);
 	}
 };
 
 struct BidooHugeBlueKnob : RoundKnob {
 	BidooHugeBlueKnob() {
-		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueKnobBidoo.svg")));
-		box.size = Vec(56.0f, 56.0f);
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/HugeBlueKnobBidoo.svg")));
 	}
 };
 
 struct BidooLargeBlueKnob : RoundKnob {
 	BidooLargeBlueKnob() {
-		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueKnobBidoo.svg")));
-		box.size = Vec(38.0f, 38.0f);
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/LargeBlueKnobBidoo.svg")));
 	}
 };
 
-struct BidooBlueSnapKnob : RoundSmallBlackSnapKnob {
+struct BidooSmallBlueKnob : RoundKnob {
+	BidooSmallBlueKnob() {
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/SmallBlueKnobBidoo.svg")));
+	}
+};
+
+struct BidooBlueSnapKnob : RoundBlackSnapKnob  {
 	BidooBlueSnapKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueKnobBidoo.svg")));
-		box.size = Vec(28.0f, 28.0f);
 	}
 };
 
 struct BidooBlueTrimpot : Trimpot {
 	BidooBlueTrimpot() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueTrimpotBidoo.svg")));
-		box.size = Vec(17.0f, 17.0f);
 	}
 };
 
@@ -54,7 +55,6 @@ struct BlueCKD6 : SVGSwitch, MomentarySwitch {
 struct BidooziNCColoredKnob : RoundKnob {
 	BidooziNCColoredKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/ziNCBlueKnobBidoo.svg")));
-		box.size = Vec(28.0f, 28.0f);
 	}
 	float *coeff;
 	void draw(NVGcontext *vg) override {
@@ -73,7 +73,6 @@ struct BidooziNCColoredKnob : RoundKnob {
 struct BidooColoredKnob : RoundKnob {
 	BidooColoredKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlackKnobBidoo.svg")));
-		box.size = Vec(28.0f, 28.0f);
 	}
 
 	void draw(NVGcontext *vg) override {
@@ -91,13 +90,11 @@ struct BidooColoredKnob : RoundKnob {
 struct BidooMorphKnob : RoundKnob {
 	BidooMorphKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/SpiralKnobBidoo.svg")));
-		box.size = Vec(28.0f, 28.0f);
 	}
 };
 
 struct BidooColoredTrimpot : RoundKnob {
 	BidooColoredTrimpot() {
-		box.size = Vec(17.0f, 17.0f);
 		minAngle = -0.75f*M_PI;
 		maxAngle = 0.75f*M_PI;
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/TrimpotBidoo.svg")));

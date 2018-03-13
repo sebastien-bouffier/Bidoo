@@ -80,8 +80,8 @@ DUKEWidget::DUKEWidget(DUKE *module) : ModuleWidget(module) {
 	addParam(ParamWidget::create<DUKECKD6>(Vec(portX0[0]-29.0f, 230.0f), module, DUKE::NADA_PARAM, 0.0f, 1.0f, 0.0f));
 
 	for (int i = 0; i < 4; i++) {
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[i]-1.0f, 52.0f), module, DUKE::MAX_PARAM + i, 0.0f, 10.0f, 10.0f));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[i]-1.0f, 95.0f), module, DUKE::MIN_PARAM + i, 0.0f, 10.0f, 0.0f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[i]-2.0f, 51.0f), module, DUKE::MAX_PARAM + i, 0.0f, 10.0f, 10.0f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[i]-2.0f, 95.0f), module, DUKE::MIN_PARAM + i, 0.0f, 10.0f, 0.0f));
 		addParam(ParamWidget::create<CKSS>(Vec(portX0[i]+6.0f, 139.0f), module, DUKE::TYPE_PARAM + i, 0.0f, 1.0f, 0.0f));
 		sliders[i] = ParamWidget::create<BidooLongSlider>(Vec(portX0[i]+4.0f, 176.0f), module, DUKE::SLIDER_PARAM + i, 0.0f, 10.0f, 0.0f);
 		addParam(sliders[i]);

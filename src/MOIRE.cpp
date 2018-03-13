@@ -257,12 +257,12 @@ MOIREWidget::MOIREWidget(MOIRE *module) : ModuleWidget(module) {
 	addInput(Port::create<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[0]+21), Port::INPUT, module, MOIRE::TARGETSCENE_INPUT));
 	addInput(Port::create<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[7]-6), Port::INPUT, module, MOIRE::CURRENTSCENE_INPUT));
 	addInput(Port::create<TinyPJ301MPort>(Vec(portX0[0]+33.6, portY0[7]-6), Port::INPUT, module, MOIRE::MORPH_INPUT));
-	morphButton = ParamWidget::create<MOIREMorphKnob>(Vec(portX0[0]+27, portY0[3]+15), module, MOIRE::MORPH_PARAM, 0.0f, 10.0f, 0.0f);
+	morphButton = ParamWidget::create<MOIREMorphKnob>(Vec(portX0[0]+22, portY0[3]+12), module, MOIRE::MORPH_PARAM, 0.0f, 10.0f, 0.0f);
 	addParam(morphButton);
 
 	addParam(ParamWidget::create<CKSS>(Vec(40, 279), module, MOIRE::VOLTAGE_PARAM, 0.0f, 1.0f, 0.0f));
 	for (int i = 0; i < 16; i++) {
-		controls[i] = ParamWidget::create<MOIREColoredKnob>(Vec(portX0[i%4+5], portY0[int(i/4) + 2]), module, MOIRE::CONTROLS_PARAMS + i, 0.0f, 10.0f, 0.0f);
+		controls[i] = ParamWidget::create<MOIREColoredKnob>(Vec(portX0[i%4+5]+1, portY0[int(i/4) + 2] + 2), module, MOIRE::CONTROLS_PARAMS + i, 0.0f, 10.0f, 0.0f);
 		addParam(controls[i]);
 		addParam(ParamWidget::create<MiniLEDButton>(Vec(portX0[i%4+5]+24, portY0[int(i/4) + 2]+24), module, MOIRE::TYPE_PARAMS + i, 0.0f, 1.0f,  0.0f));
 		addChild(ModuleLightWidget::create<SmallLight<RedLight>>(Vec(portX0[i%4+5]+24, portY0[int(i/4) + 2]+25), module, MOIRE::TYPE_LIGHTS + i));

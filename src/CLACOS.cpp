@@ -399,7 +399,7 @@ struct CLACOSWidget : ModuleWidget {
 		addParam(ParamWidget::create<CKSS>(Vec(15.0f, 80.0f), module, CLACOS::MODE_PARAM, 0.0f, 1.0f, 1.0f));
 		addParam(ParamWidget::create<CKSS>(Vec(119.0f, 80.0f), module, CLACOS::SYNC_PARAM, 0.0f, 1.0f, 1.0f));
 
-		addParam(ParamWidget::create<BidooLargeBlueKnob>(Vec(56.0f, 45.0f), module, CLACOS::PITCH_PARAM, -54.0f, 54.0f, 0.0f));
+		addParam(ParamWidget::create<BidooLargeBlueKnob>(Vec(57.0f, 45.0f), module, CLACOS::PITCH_PARAM, -54.0f, 54.0f, 0.0f));
 	  addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(114.0f,45.0f), module, CLACOS::FINE_PARAM, -1.0f, 1.0f, 0.0f));
 		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(18.0f,45.0f), module, CLACOS::FM_PARAM, 0.0f, 1.0f, 0.0f));
 		addInput(Port::create<TinyPJ301MPort>(Vec(38.0f, 83.0f), Port::INPUT, module, CLACOS::FM_INPUT));

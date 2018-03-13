@@ -1,5 +1,5 @@
 SLUG = Bidoo
-VERSION = 0.6.0dev
+VERSION = 0.6.0
 
 FLAGS += -I./src/dep/include -I./src/dep/audiofile -I./src/dep/filters
 

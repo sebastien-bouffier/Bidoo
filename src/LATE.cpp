@@ -78,7 +78,7 @@ struct LATEWidget : ModuleWidget {
 		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(9, 70), module, LATE::SWING_PARAM, 0, 10, 0));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(8, 70), module, LATE::SWING_PARAM, 0, 10, 0));
 		addInput(Port::create<PJ301MPort>(Vec(10, 110), Port::INPUT, module, LATE::SWING_INPUT));
 
 		addInput(Port::create<PJ301MPort>(Vec(10, 173), Port::INPUT, module, LATE::RESET_INPUT));

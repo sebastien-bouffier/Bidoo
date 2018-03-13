@@ -129,7 +129,7 @@ void PANARD::step() {
 			outputs[OUTL_OUTPUT].value = playBuffer.samples[0][floor(samplePos)]*fadeCoeff;
 			outputs[OUTR_OUTPUT].value = playBuffer.samples[1][floor(samplePos)]*fadeCoeff;
 		}
-		if (samplePos >= (sampleStart+loopLength))
+		if (samplePos >= (sampleStart+loopLength-1))
 			samplePos = sampleStart;
 	  else
 		  samplePos = samplePos + inputs[SPEED_INPUT].value + params[SPEED_PARAM].value;

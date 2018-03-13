@@ -123,7 +123,7 @@ struct LIMBOWidget : ModuleWidget {
 		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(ParamWidget::create<BidooHugeBlueKnob>(Vec(33, 61), module, LIMBO::CUTOFF_PARAM, 0.0f, 1.0f, 1.0f));
+		addParam(ParamWidget::create<BidooHugeBlueKnob>(Vec(31, 61), module, LIMBO::CUTOFF_PARAM, 0.0f, 1.0f, 1.0f));
 		addParam(ParamWidget::create<BidooLargeBlueKnob>(Vec(12, 143), module, LIMBO::Q_PARAM, 0.0f, 1.0f, 0.0f));
 		addParam(ParamWidget::create<BidooLargeBlueKnob>(Vec(71, 143), module, LIMBO::MUG_PARAM, 0.0f, 1.0f, 0.0f));
 		addParam(ParamWidget::create<BidooLargeBlueKnob>(Vec(12, 208), module, LIMBO::CMOD_PARAM, -1.0f, 1.0f, 0.0f));

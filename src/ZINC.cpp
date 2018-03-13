@@ -126,16 +126,16 @@ struct ZINCWidget : ModuleWidget {
 		static const float portX0[4] = {20, 63, 106, 149};
 
 		for (int i = 0; i < BANDS; i++) {
-			controls[i]=ParamWidget::create<BidooziNCColoredKnob>(Vec(portX0[i%(BANDS/4)]-1, 50+43*(int)(i/4)), module, ZINC::BG_PARAM + i, 0, 2, 1);
+			controls[i]=ParamWidget::create<BidooziNCColoredKnob>(Vec(portX0[i%(BANDS/4)]+2, 50+43*(int)(i/4)+2), module, ZINC::BG_PARAM + i, 0, 2, 1);
 			BidooziNCColoredKnob *control = dynamic_cast<BidooziNCColoredKnob*>(controls[i]);
 			control->coeff=module->peaks+i;
 			addParam(controls[i]);
 		}
-		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[1]+5, 230), module, ZINC::ATTACK_PARAM, 0.0, 0.25, 0.0));
-		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[2]+5, 230), module, ZINC::DECAY_PARAM, 0.0, 0.25, 0.0));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[0]+21, 268), module, ZINC::GMOD_PARAM, 1, 10, 1));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[1]+21, 268), module, ZINC::GCARR_PARAM, 1, 10, 1));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[2]+21, 268), module, ZINC::G_PARAM, 1, 10, 1));
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[1]+4, 230), module, ZINC::ATTACK_PARAM, 0.0, 0.25, 0.0));
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[2]+4, 230), module, ZINC::DECAY_PARAM, 0.0, 0.25, 0.0));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[0]+20, 268), module, ZINC::GMOD_PARAM, 1, 10, 1));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[1]+20, 268), module, ZINC::GCARR_PARAM, 1, 10, 1));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[2]+20, 268), module, ZINC::G_PARAM, 1, 10, 1));
 
 		addInput(Port::create<PJ301MPort>(Vec(portX0[0]+27.5, 320), Port::INPUT, module, ZINC::IN_MOD));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[1]+22.5, 320), Port::INPUT, module, ZINC::IN_CARR));

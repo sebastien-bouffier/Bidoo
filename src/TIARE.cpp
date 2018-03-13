@@ -351,7 +351,7 @@ struct TIAREWidget : ModuleWidget {
 		addParam(ParamWidget::create<CKSS>(Vec(15, 80), module, TIARE::MODE_PARAM, 0.0f, 1.0f, 1.0f));
 		addParam(ParamWidget::create<CKSS>(Vec(119, 80), module, TIARE::SYNC_PARAM, 0.0f, 1.0f, 1.0f));
 
-		addParam(ParamWidget::create<BidooLargeBlueKnob>(Vec(56, 45), module, TIARE::PITCH_PARAM, -54.0f, 54.0f, 0.0f));
+		addParam(ParamWidget::create<BidooLargeBlueKnob>(Vec(57, 45), module, TIARE::PITCH_PARAM, -54.0f, 54.0f, 0.0f));
 	  addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(114,45), module, TIARE::FINE_PARAM, -1.0f, 1.0f, 0.0f));
 		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(18,45), module, TIARE::FM_PARAM, 0.0f, 1.0f, 0.0f));
 		addInput(Port::create<TinyPJ301MPort>(Vec(38, 83), Port::INPUT, module, TIARE::FM_INPUT));

@@ -829,9 +829,9 @@ struct DTROYWidget : ModuleWidget {
 	Menu *createContextMenu() override;
 };
 
-struct DTROYPatternRoundSmallBlackSnapKnob : RoundSmallBlackSnapKnob {
+struct DTROYPatternRoundBlackSnapKnob : RoundBlackSnapKnob {
 	void onChange(EventChange &e) override {
-			RoundSmallBlackSnapKnob::onChange(e);
+			RoundBlackSnapKnob::onChange(e);
 			DTROY *module = dynamic_cast<DTROY*>(this->module);
 			DTROYWidget *parent = dynamic_cast<DTROYWidget*>(this->parent);
 			int target = clamp((int)(value) - 1, 0, 15);
@@ -875,12 +875,12 @@ DTROYWidget::DTROYWidget(DTROY *module) : ModuleWidget(module) {
 		addChild(display);
 	}
 
-	addParam(ParamWidget::create<RoundSmallBlackKnob>(Vec(18.0f, 52.0f), module, DTROY::CLOCK_PARAM, -2.0f, 6.0f, 2.0f));
+	addParam(ParamWidget::create<RoundBlackKnob>(Vec(17.0f, 52.0f), module, DTROY::CLOCK_PARAM, -2.0f, 6.0f, 2.0f));
 	addParam(ParamWidget::create<LEDButton>(Vec(61.0f, 56.0f), module, DTROY::RUN_PARAM, 0.0f, 1.0f, 0.0f));
 	addChild(ModuleLightWidget::create<SmallLight<GreenLight>>(Vec(67.0f, 62.0f), module, DTROY::RUNNING_LIGHT));
 	addParam(ParamWidget::create<LEDButton>(Vec(99.0f, 56.0f), module, DTROY::RESET_PARAM, 0.0f, 1.0f, 0.0f));
 	addChild(ModuleLightWidget::create<SmallLight<GreenLight>>(Vec(105.0f, 62.0f), module, DTROY::RESET_LIGHT));
-	stepsParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(133.0f, 52.0f), module, DTROY::STEPS_PARAM, 1.0f, 16.0f, 8.0f);
+	stepsParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(132.0f, 52.0f), module, DTROY::STEPS_PARAM, 1.0f, 16.0f, 8.0f);
 	addParam(stepsParam);
 
 	static const float portX0[4] = {20.0f, 58.0f, 96.0f, 135.0f};
@@ -889,13 +889,13 @@ DTROYWidget::DTROYWidget(DTROY *module) : ModuleWidget(module) {
 	addInput(Port::create<PJ301MPort>(Vec(portX0[2], 90.0f), Port::INPUT, module, DTROY::RESET_INPUT));
 	addInput(Port::create<PJ301MPort>(Vec(portX0[3], 90.0f), Port::INPUT, module, DTROY::STEPS_INPUT));
 
-	rootNoteParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[0]-1.0f, 140.0f), module, DTROY::ROOT_NOTE_PARAM, 0.0f, DTROY::NUM_NOTES-0.9f, 0.0f);
+	rootNoteParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[0]-2.0f, 140.0f), module, DTROY::ROOT_NOTE_PARAM, 0.0f, DTROY::NUM_NOTES-0.9f, 0.0f);
 	addParam(rootNoteParam);
-	scaleParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[1]-1.0f, 140.0f), module, DTROY::SCALE_PARAM, 0.0f, DTROY::NUM_SCALES-0.9f, 0.0f);
+	scaleParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[1]-2.0f, 140.0f), module, DTROY::SCALE_PARAM, 0.0f, DTROY::NUM_SCALES-0.9f, 0.0f);
 	addParam(scaleParam);
-	gateTimeParam = ParamWidget::create<BidooBlueKnob>(Vec(portX0[2]-1.0f, 140.0f), module, DTROY::GATE_TIME_PARAM, 0.1f, 1.0f, 0.5f);
+	gateTimeParam = ParamWidget::create<BidooBlueKnob>(Vec(portX0[2]-2.0f, 140.0f), module, DTROY::GATE_TIME_PARAM, 0.1f, 1.0f, 0.5f);
 	addParam(gateTimeParam);
-	slideTimeParam = ParamWidget::create<BidooBlueKnob>(Vec(portX0[3]-1.0f, 140.0f), module, DTROY::SLIDE_TIME_PARAM	, 0.1f, 1.0f, 0.2f);
+	slideTimeParam = ParamWidget::create<BidooBlueKnob>(Vec(portX0[3]-2.0f, 140.0f), module, DTROY::SLIDE_TIME_PARAM	, 0.1f, 1.0f, 0.2f);
 	addParam(slideTimeParam);
 
 	addInput(Port::create<PJ301MPort>(Vec(portX0[0], 180.0f), Port::INPUT, module, DTROY::ROOT_NOTE_INPUT));
@@ -908,7 +908,7 @@ DTROYWidget::DTROYWidget(DTROY *module) : ModuleWidget(module) {
 	countModeParam = ParamWidget::create<BlueCKD6>(Vec(portX0[1]-1.0f, 230.0f), module, DTROY::COUNT_MODE_PARAM, 0.0f, 4.0f, 0.0f);
 	addParam(countModeParam);
 	addInput(Port::create<PJ301MPort>(Vec(portX0[2], 232.0f), Port::INPUT, module, DTROY::PATTERN_INPUT));
-	patternParam = ParamWidget::create<DTROYPatternRoundSmallBlackSnapKnob>(Vec(portX0[3],230.0f), module, DTROY::PATTERN_PARAM, 1.0f, 16.0f, 1.0f);
+	patternParam = ParamWidget::create<DTROYPatternRoundBlackSnapKnob>(Vec(portX0[3]-1,230.0f), module, DTROY::PATTERN_PARAM, 1.0f, 16.0f, 1.0f);
 	addParam(patternParam);
 
 	static const float portX1[8] = {200.0f, 238.0f, 276.0f, 315.0f, 353.0f, 392.0f, 430.0f, 469.0f};
@@ -917,7 +917,7 @@ DTROYWidget::DTROYWidget(DTROY *module) : ModuleWidget(module) {
 	addParam(sensitivityParam);
 
 	for (int i = 0; i < 8; i++) {
-		pitchParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]-2.0f, 52.0f), module, DTROY::TRIG_PITCH_PARAM + i, 0.0f, 10.0f, 3.0f);
+		pitchParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]-3.0f, 52.0f), module, DTROY::TRIG_PITCH_PARAM + i, 0.0f, 10.0f, 3.0f);
 		addParam(pitchParams[i]);
 		pulseParams[i] = ParamWidget::create<BidooSlidePotLong>(Vec(portX1[i]+2.0f, 103.0f), module, DTROY::TRIG_COUNT_PARAM + i, 1.0f, 8.0f,  1.0f);
 		addParam(pulseParams[i]);

@@ -275,12 +275,12 @@ ACNEWidget::ACNEWidget(ACNE *module) : ModuleWidget(module) {
 	addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 	addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-	addParam(ParamWidget::create<BidooBlueKnob>(Vec(472.0f, 39.0f), module, ACNE::MAIN_OUT_GAIN_PARAM, 0.0f, 10.0f, 7.0f));
+	addParam(ParamWidget::create<BidooBlueKnob>(Vec(474.0f, 39.0f), module, ACNE::MAIN_OUT_GAIN_PARAM, 0.0f, 10.0f, 7.0f));
 
 	addParam(ParamWidget::create<ACNECOPYPASTECKD6>(Vec(7.0f, 39.0f), module, ACNE::COPY_PARAM, 0.0f, 1.0f, 0.0f));
 	addChild(ModuleLightWidget::create<SmallLight<GreenLight>>(Vec(18.0f, 28.0f), module, ACNE::COPY_LIGHT));
 
-	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(434.0f, 29.0f), module, ACNE::RAMP_PARAM, 0.0f, 0.01f, 0.001f));
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(432.0f, 28.0f), module, ACNE::RAMP_PARAM, 0.0f, 0.01f, 0.001f));
 
 	addInput(Port::create<TinyPJ301MPort>(Vec(58.0f, 30.0f), Port::INPUT, module, ACNE::SNAPSHOT_INPUT));
 
