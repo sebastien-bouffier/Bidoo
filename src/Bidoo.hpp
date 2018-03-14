@@ -38,4 +38,4 @@ extern Model *modelPERCO;
 extern Model *modelBAR;
 extern Model *modelZINC;
 extern Model *modelVOID;
-extern Model *modelPANARD;
+extern Model *modelCANARD;

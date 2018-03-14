@@ -13,11 +13,9 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-0.6.0dev
+0.6.0
 
-ACnE update: Rotary faders follow values when changing snapshots via cv. You can record snapshots live (faders movements) under cv automation. Added Ramp parameter for smooth transitions between snapshots.
-tOCAnTe : First step on the journey to clocks. So it is a simple clock with quarters triplets (1/12) and measure management.
-pANARd : First version of a live sampling/mangling module.
+pANARd becomes cANARd and it is a very bad duck...
 
 To compile first launch a "make dep" to retrieve mpg123 lib.
 

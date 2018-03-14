@@ -1,5 +1,7 @@
 SLUG = Bidoo
 VERSION = 0.6.0
+DISTRIBUTABLES += $(wildcard LICENSE*) res
+RACK_DIR ?= ../..
 
 FLAGS += -I./src/dep/include -I./src/dep/audiofile -I./src/dep/filters
 
@@ -19,8 +21,6 @@ ifeq ($(ARCH), win)
 endif
 
 SOURCES = $(wildcard src/*.cpp src/dep/audiofile/*cpp src/dep/pffft/*c src/dep/filters/*cpp)
-
-DISTRIBUTABLES += $(wildcard LICENSE*) res
 
 include ../../plugin.mk
 
