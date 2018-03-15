@@ -1,7 +1,7 @@
 LOCAL = $(shell pwd)
 
-# Arch-specifics
-include ../../../../arch.mk
+RACK_DIR ?= ../../../..
+include $(RACK_DIR)/arch.mk
 
 ifeq ($(ARCH),mac)
 	MACOS_FLAGS = -mmacosx-version-min=10.7 -stdlib=libc++
