@@ -28,9 +28,9 @@
      inkscape:window-height="1017"
      id="namedview118"
      showgrid="true"
-     inkscape:zoom="1.1137255"
-     inkscape:cx="-99.680683"
-     inkscape:cy="289.50202"
+     inkscape:zoom="1.5750457"
+     inkscape:cx="220.10477"
+     inkscape:cy="245.68974"
      inkscape:window-x="-8"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
@@ -1190,13 +1190,13 @@
      id="rect959-3-0" />
   <path
      inkscape:connector-curvature="0"
-     style="fill:#000000;fill-opacity:1;stroke:#b2b2b2;stroke-width:0.55956489;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="m 52.672893,48.172309 h 80.006067 v 8.677962 H 52.672893 Z"
+     style="fill:#000000;fill-opacity:1;stroke:#b2b2b2;stroke-width:0.54358202;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     d="m 52.664902,48.082651 h 80.022048 v 8.187667 H 52.664902 Z"
      id="rect959-3-0-7" />
   <path
      inkscape:connector-curvature="0"
-     style="fill:#000000;fill-opacity:1;stroke:#b2b2b2;stroke-width:0.67370218;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="M 52.729962,7.4354351 H 132.62189 V 20.032597 H 52.729962 Z"
+     style="fill:#000000;fill-opacity:1;stroke:#b2b2b2;stroke-width:0.67945898;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     d="m 52.73284,6.3245555 h 79.88617 V 19.138847 H 52.73284 Z"
      id="rect959-3-0-7-5" />
   <g
      id="g1226-6"
@@ -1295,25 +1295,25 @@
   <text
      xml:space="preserve"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     x="-36.483559"
+     x="-43.362732"
      y="49.192631"
      id="text1106-8-8"
      transform="rotate(-90)"><tspan
        sodipodi:role="line"
        id="tspan1104-5-79"
-       x="-36.483559"
+       x="-43.362732"
        y="49.192631"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">PITCH &amp; ACC</tspan></text>
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">V       PITCH</tspan></text>
   <text
      xml:space="preserve"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     x="-8.5882578"
+     x="-8.0590916"
      y="49.192631"
      id="text1106-8-9"
      transform="rotate(-90)"><tspan
        sodipodi:role="line"
        id="tspan1104-5-2"
-       x="-8.5882578"
+       x="-8.0590916"
        y="49.192631"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">S</tspan></text>
   <path
@@ -1343,7 +1343,43 @@
      inkscape:connector-curvature="0" />
   <path
      style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     d="m 51.593747,7.1437496 h -1.322916 v 1.5875"
+     d="m 51.593747,6.1151122 h -1.322916 v 1.5875"
      id="path4764"
      inkscape:connector-curvature="0" />
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="-46.52512"
+     y="51.799763"
+     id="text1060"
+     transform="rotate(-90)"><tspan
+       sodipodi:role="line"
+       id="tspan1058"
+       x="-46.52512"
+       y="51.799763"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.41111112px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">RND</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="-32.23761"
+     y="51.799763"
+     id="text1060-1"
+     transform="rotate(-90)"><tspan
+       sodipodi:role="line"
+       id="tspan1058-8"
+       x="-32.23761"
+       y="51.799763"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.41111112px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">RND</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="-69.808472"
+     y="51.799072"
+     id="text1060-8"
+     transform="rotate(-90)"><tspan
+       sodipodi:role="line"
+       id="tspan1058-2"
+       x="-69.808472"
+       y="51.799072"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:1.41111112px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.26458332px">PROB</tspan></text>
 </svg>

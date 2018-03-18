@@ -53,7 +53,10 @@ struct CANARD : Module {
 	bool play = false;
 	bool record = false;
 	AudioFile<float> playBuffer, recordBuffer;
-	float samplePos = 0.0f, sampleStart = 0.0f, loopLength = 0.0f, fadeLenght = 0.0f, fadeCoeff = 1.0f;
+	float samplePos = 0.0f, sampleStart = 0.0f, loopLength = 0.0f, fadeLenght = 0.0f, fadeCoeff = 1.0f, speedFactor = 1.0f;
+	size_t prevPlayedSlice = 0;
+	size_t playedSlice = 0;
+	bool changedSlice = false;
 	vector<float> displayBuffL;
 	vector<float> displayBuffR;
 	int readMode = 0; // 0 formward, 1 backward, 2 repeat
@@ -61,6 +64,9 @@ struct CANARD : Module {
 	std::vector<int> slices;
 	int selected = -1;
 	bool deleteFlag = false;
+	size_t index = 0;
+	float prevGateState = 0.0f;
+	float prevTrigState = 0.0f;
 
 	SchmittTrigger trigTrigger;
 	SchmittTrigger recordTrigger;
@@ -81,9 +87,9 @@ struct CANARD : Module {
 	}
 
 	void step() override;
-
 	void displaySample();
-
+	void calcLoop();
+	void initPos();
 	// persistence
 
 	json_t *toJson() override {
@@ -102,6 +108,43 @@ void CANARD::displaySample() {
 			displayBuffL.push_back(playBuffer.samples[0][i]);
 			displayBuffR.push_back(playBuffer.samples[1][i]);
 		}
+}
+
+void CANARD::calcLoop() {
+	prevPlayedSlice = index;
+	index = 0;
+	int sliceStart = 0;;
+	int sliceEnd = playBuffer.getNumSamplesPerChannel() > 0 ? playBuffer.getNumSamplesPerChannel() - 1 : 0;
+	if ((params[MODE_PARAM].value == 1) && (slices.size()>0))
+	{
+		index = round(clamp(params[SLICE_PARAM].value + inputs[SLICE_INPUT].value, 0.0f,10.0f)*(slices.size()-1)/10);
+		sliceStart = slices[index] == 0 ? 0 : slices[index];
+		sliceEnd = (index < (slices.size() - 1)) ? (slices[index+1] - 1) : (playBuffer.getNumSamplesPerChannel() - 1);
+	}
+
+	if (playBuffer.getNumSamplesPerChannel() > 0) {
+		loopLength = rescale(clamp(inputs[LOOP_LENGTH_INPUT].value + params[LOOP_LENGTH_PARAM].value, 0.0f, 10.0f), 0.0f, 10.0f, 0.0f, (sliceEnd - sliceStart) > 0.0f ? (sliceEnd - sliceStart) : 0.0f);
+		sampleStart = rescale(clamp(inputs[SAMPLE_START_INPUT].value + params[SAMPLE_START_PARAM].value, 0.0f, 10.0f), 0.0f, 10.0f, sliceStart, sliceEnd - loopLength);
+		fadeLenght = rescale(clamp(inputs[FADE_INPUT].value + params[FADE_PARAM].value, 0.0f, 10.0f), 0.0f, 10.0f,0.0f, floor(loopLength/2));
+	}
+	else {
+		loopLength = 0;
+		sampleStart = 0;
+		fadeLenght = 0;
+	}
+	playedSlice = index;
+}
+
+void CANARD::initPos() {
+	if ((inputs[SPEED_INPUT].value + params[SPEED_PARAM].value)>=0)
+	{
+		samplePos = sampleStart;
+	}
+	else
+	{
+		samplePos = sampleStart + loopLength;
+	}
+	speedFactor = 1.0f;
 }
 
 void CANARD::step() {
@@ -133,6 +176,7 @@ void CANARD::step() {
 		displaySample();
 		selected = -1;
 		deleteFlag = false;
+		calcLoop();
 	}
 
 	if (recordTrigger.process(inputs[RECORD_INPUT].value + params[RECORD_PARAM].value))
@@ -162,35 +206,79 @@ void CANARD::step() {
 		recordBuffer.samples[1].push_back(inputs[INR_INPUT].value/10);
 	}
 
-	int sliceStart = 0;;
-	int sliceEnd = playBuffer.getNumSamplesPerChannel() > 0 ? playBuffer.getNumSamplesPerChannel() - 1 : 0;
-	if ((params[MODE_PARAM].value == 1) && (slices.size()>0))
+	int trigMode = inputs[TRIG_INPUT].active ? 1 : (inputs[GATE_INPUT].active ? 2 : 0);
+	int readMode = round(clamp(inputs[READ_MODE_INPUT].value + params[READ_MODE_PARAM].value,0.0f,2.0f));
+	speed = inputs[SPEED_INPUT].value + params[SPEED_PARAM].value;
+	calcLoop();
+
+	if (trigMode == 1) {
+		if (trigTrigger.process(inputs[TRIG_INPUT].value) && (prevTrigState == 0.0f))
+		{
+			initPos();
+			play = true;
+		}
+		else {
+			if ((readMode == 0) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
+				play = false;
+			}
+			else if ((readMode == 0) && (speed<0) && (samplePos == sampleStart)) {
+				play = false;
+			}
+			else if ((readMode == 1) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
+				initPos();
+			}
+			else if ((readMode == 1) && (speed<0) && (samplePos == sampleStart)) {
+				initPos();
+			}
+			else if ((readMode == 2) && ((samplePos == (sampleStart)) || (samplePos == (sampleStart+loopLength)))) {
+				speedFactor = -1 * speedFactor;
+				samplePos = samplePos + speedFactor * speed;
+			}
+			else {
+				samplePos = samplePos + speedFactor * speed;
+			}
+		}
+		samplePos = clamp(samplePos,sampleStart,sampleStart+loopLength);
+	}
+	else if (trigMode == 2)
 	{
-		size_t index = round(clamp(params[SLICE_PARAM].value + inputs[SLICE_INPUT].value, 0.0f,10.0f)*(slices.size()-1)/10);
-		sliceStart = slices[index] == 0 ? 0 : slices[index];
-		sliceEnd = (index < (slices.size() - 1)) ? (slices[index+1] - 1) : (playBuffer.getNumSamplesPerChannel() - 1);
+		if (inputs[GATE_INPUT].value>0)
+		{
+			if (prevGateState == 0.0f) {
+				initPos();
+				play = true;
+			}
+			else {
+				if ((readMode == 0) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
+					play = false;
+				}
+				else if ((readMode == 0) && (speed<0) && (samplePos == sampleStart)) {
+					play = false;
+				}
+				else if ((readMode == 1) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
+					initPos();
+				}
+				else if ((readMode == 1) && (speed<0) && (samplePos == sampleStart)) {
+					initPos();
+				}
+				else if ((readMode == 2) && ((samplePos == (sampleStart)) || (samplePos == (sampleStart+loopLength)))) {
+					speedFactor = -1 * speedFactor;
+					samplePos = samplePos + speedFactor * speed;
+				}
+				else {
+					samplePos = samplePos + speedFactor * speed;
+				}
+			}
+			samplePos = clamp(samplePos,sampleStart,sampleStart+loopLength);
+		}
+		else {
+			play = false;
+		}
 	}
+	prevGateState = inputs[GATE_INPUT].value;
+	prevTrigState = inputs[TRIG_INPUT].value;
 
-	if (playBuffer.getNumSamplesPerChannel() > 0) {
-		loopLength = rescale(clamp(inputs[LOOP_LENGTH_INPUT].value + params[LOOP_LENGTH_PARAM].value, 0.0f, 10.0f), 0.0f, 10.0f, 0.0f, (sliceEnd - sliceStart) > 0.0f ? (sliceEnd - sliceStart) : 0.0f);
-		sampleStart = rescale(clamp(inputs[SAMPLE_START_INPUT].value + params[SAMPLE_START_PARAM].value, 0.0f, 10.0f), 0.0f, 10.0f, sliceStart, sliceEnd - loopLength);
-		fadeLenght = rescale(clamp(inputs[FADE_INPUT].value + params[FADE_PARAM].value, 0.0f, 10.0f), 0.0f, 10.0f,0.0f, floor(loopLength/2));
-	}
-	else {
-		loopLength = 0;
-		sampleStart = 0;
-		fadeLenght = 0;
-	}
-
-	if (trigTrigger.process(inputs[TRIG_INPUT].value))
-	{
-		if ((inputs[SPEED_INPUT].value + params[SPEED_PARAM].value)>0)
-			samplePos = sampleStart;
-		else
-			samplePos = sampleStart + loopLength;
-	}
-
-	if (((inputs[GATE_INPUT].active) && (inputs[GATE_INPUT].value>0)) || (inputs[TRIG_INPUT].active)) {
+	if (play) {
 		if (samplePos<playBuffer.getNumSamplesPerChannel()) {
 			if (fadeLenght>1000) {
 				if ((samplePos-sampleStart)<fadeLenght)
@@ -206,14 +294,6 @@ void CANARD::step() {
 			outputs[OUTL_OUTPUT].value = playBuffer.samples[0][floor(samplePos)]*fadeCoeff;
 			outputs[OUTR_OUTPUT].value = playBuffer.samples[1][floor(samplePos)]*fadeCoeff;
 		}
-		if ((samplePos == (sampleStart+loopLength)) && ((inputs[SPEED_INPUT].value + params[SPEED_PARAM].value)>0))
-			samplePos = sampleStart;
-		else if ((samplePos == sampleStart) && ((inputs[SPEED_INPUT].value + params[SPEED_PARAM].value)<0))
-			samplePos = sampleStart + loopLength;
-	  else
-		  samplePos =samplePos + inputs[SPEED_INPUT].value + params[SPEED_PARAM].value;
-
-		samplePos = clamp(samplePos,sampleStart,sampleStart+loopLength);
 	}
 	else {
 		outputs[OUTL_OUTPUT].value = 0.0f;
@@ -399,31 +479,33 @@ CANARDWidget::CANARDWidget(CANARD *module) : ModuleWidget(module) {
 			addChild(display);
 		}
 
-		static const float portX0[4] = {32, 71, 110, 149};
+		static const float portX0[5] = {16, 53, 90, 126, 161};
 
-		addChild(ModuleLightWidget::create<SmallLight<RedLight>>(Vec(portX0[0]-10, 158), module, CANARD::REC_LIGHT));
+		addChild(ModuleLightWidget::create<SmallLight<RedLight>>(Vec(portX0[0]-10, 167), module, CANARD::REC_LIGHT));
 		addParam(ParamWidget::create<BlueCKD6>(Vec(portX0[0]-6, 170), module, CANARD::RECORD_PARAM, 0.0f, 1.0f, 0.0f));
 
 		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[2]-7, 170), module, CANARD::SAMPLE_START_PARAM, 0.0f, 10.0f, 0.0f));
 		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[3]-7, 170), module, CANARD::LOOP_LENGTH_PARAM, 0.0f, 10.0f, 10.0f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[4]-7, 170), module, CANARD::READ_MODE_PARAM, 0.0f, 2.0f, 0.0f));
 
 		addInput(Port::create<PJ301MPort>(Vec(portX0[0]-4, 202), Port::INPUT, module, CANARD::RECORD_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[1]-4, 202), Port::INPUT, module, CANARD::TRIG_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[1]-4, 172), Port::INPUT, module, CANARD::GATE_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[2]-4, 202), Port::INPUT, module, CANARD::SAMPLE_START_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[3]-4, 202), Port::INPUT, module, CANARD::LOOP_LENGTH_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(portX0[4]-4, 202), Port::INPUT, module, CANARD::READ_MODE_INPUT));
 
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[0]-7, 245), module, CANARD::SPEED_PARAM, -10.0f, 10.0f, 1.0f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[0]-7, 245), module, CANARD::SPEED_PARAM, -4.0f, 4.0f, 1.0f));
 		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[1]-7, 245), module, CANARD::FADE_PARAM, 0.0f, 10.0f, 0.0f));
 		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[2]-7, 245), module, CANARD::SLICE_PARAM, 0.0f, 10.0f, 0.0f));
-		addParam(ParamWidget::create<BlueCKD6>(Vec(portX0[3]-7, 245), module, CANARD::CLEAR_PARAM, 0.0f, 1.0f, 0.0f));
+		addParam(ParamWidget::create<BlueCKD6>(Vec(portX0[3]-6, 245), module, CANARD::CLEAR_PARAM, 0.0f, 1.0f, 0.0f));
 
 		addInput(Port::create<PJ301MPort>(Vec(portX0[0]-4, 277), Port::INPUT, module, CANARD::SPEED_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[1]-4, 277), Port::INPUT, module, CANARD::FADE_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[2]-4, 277), Port::INPUT, module, CANARD::SLICE_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[3]-4, 277), Port::INPUT, module, CANARD::CLEAR_INPUT));
 
-		addParam(ParamWidget::create<CKSS>(Vec(90, 320), module, CANARD::MODE_PARAM, 0.0f, 1.0f, 0.0f));
+		addParam(ParamWidget::create<CKSS>(Vec(90, 325), module, CANARD::MODE_PARAM, 0.0f, 1.0f, 0.0f));
 
 		addInput(Port::create<TinyPJ301MPort>(Vec(19, 331), Port::INPUT, module, CANARD::INL_INPUT));
 		addInput(Port::create<TinyPJ301MPort>(Vec(19+24, 331), Port::INPUT, module, CANARD::INR_INPUT));

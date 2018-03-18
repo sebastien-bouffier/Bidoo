@@ -417,7 +417,7 @@ struct OUAIVEWidget : ModuleWidget {
 		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[1]-9, 250), module, OUAIVE::NB_SLICES_PARAM, 1.0, 128.01, 1.0));
 		addInput(Port::create<TinyPJ301MPort>(Vec(portX0[2]+5, 252), Port::INPUT, module, OUAIVE::NB_SLICES_INPUT));
 
-		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, 0.2, 10, 1.0));
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, -0.05, 10, 1.0));
 		addInput(Port::create<TinyPJ301MPort>(Vec(portX0[2]+5, 277), Port::INPUT, module, OUAIVE::SPEED_INPUT));
 
 		addInput(Port::create<PJ301MPort>(Vec(portX0[0]-25, 321), Port::INPUT, module, OUAIVE::GATE_INPUT));

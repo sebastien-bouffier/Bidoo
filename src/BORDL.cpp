@@ -988,10 +988,10 @@ struct BORDLPitchDisplay : TransparentWidget {
 		snprintf(tAcc, sizeof(tAcc), "%1.2f", module->params[BORDL::TRIG_ACCENT_PARAM+index].value);
 		snprintf(tAccRnd, sizeof(tAccRnd), "%1i%%", (int)(module->params[BORDL::TRIG_RNDACCENT_PARAM+index].value*100));
 		nvgText(vg, pos.x, pos.y-9.0f, tPitch, NULL);
-		nvgText(vg, pos.x, pos.y+13.0f, tAcc, NULL);
+		nvgText(vg, pos.x, pos.y+15.0f, tAcc, NULL);
 		nvgFontSize(vg, 12.0f);
 		nvgText(vg, pos.x, pos.y+2.0f, tPitchRnd, NULL);
-		nvgText(vg, pos.x, pos.y+23.0f, tAccRnd, NULL);
+		nvgText(vg, pos.x, pos.y+25.0f, tAccRnd, NULL);
 	}
 
 	void draw(NVGcontext *vg) override {
@@ -1099,39 +1099,39 @@ BORDLWidget::BORDLWidget(BORDL *module) : ModuleWidget(module) {
 
 	static const float portX1[8] = {200.0f, 238.0f, 276.0f, 315.0f, 353.0f, 392.0f, 430.0f, 469.0f};
 
-	sensitivityParam = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[0]-24.0f, 35.0f), module, BORDL::SENSITIVITY_PARAM, 0.1f, 1.0f, 1.0f);
+	sensitivityParam = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[0]-24.0f, 32.0f), module, BORDL::SENSITIVITY_PARAM, 0.1f, 1.0f, 1.0f);
 	addParam(sensitivityParam);
 
 	for (int i = 0; i < 8; i++) {
-		pitchParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]+1.0f, 79.0f), module, BORDL::TRIG_PITCH_PARAM + i, 0.0f, 10.001f, 3.0f);
+		pitchParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]+1.0f, 76.0f), module, BORDL::TRIG_PITCH_PARAM + i, 0.0f, 10.001f, 3.0f);
 		addParam(pitchParams[i]);
-		pitchRndParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+6.5f, 111.0f), module, BORDL::TRIG_PITCHRND_PARAM + i, 0.0f, 1.0f, 0.0f);
+		pitchRndParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+6.5f, 108.0f), module, BORDL::TRIG_PITCHRND_PARAM + i, 0.0f, 1.0f, 0.0f);
 		addParam(pitchRndParams[i]);
-		accentParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]+1.0f, 131.0f), module, BORDL::TRIG_ACCENT_PARAM + i, 0.0f, 10.0f, 0.0f);
+		accentParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]+1.0f, 129.0f), module, BORDL::TRIG_ACCENT_PARAM + i, 0.0f, 10.0f, 0.0f);
 		addParam(accentParams[i]);
-		rndAccentParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+6.5f, 162.0f), module, BORDL::TRIG_RNDACCENT_PARAM + i, 0.0f, 1.0f, 0.0f);
+		rndAccentParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+6.5f, 160.0f), module, BORDL::TRIG_RNDACCENT_PARAM + i, 0.0f, 1.0f, 0.0f);
 		addParam(rndAccentParams[i]);
 		{
 			BORDLPitchDisplay *displayPitch = new BORDLPitchDisplay();
 			displayPitch->module = module;
-			displayPitch->box.pos = Vec(portX1[i]+15.0f, 50.0f);
+			displayPitch->box.pos = Vec(portX1[i]+15.0f, 45.0f);
 			displayPitch->box.size = Vec(20.0f, 10.0f);
 			displayPitch->index = i;
 			addChild(displayPitch);
 		}
-		pulseParams[i] = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX1[i]+1.0f, 218.0f), module, BORDL::TRIG_COUNT_PARAM + i, 1.0f, 8.0f,  1.0f);
+		pulseParams[i] = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX1[i]+1.0f, 216.0f), module, BORDL::TRIG_COUNT_PARAM + i, 1.0f, 8.0f,  1.0f);
 		addParam(pulseParams[i]);
-		pulseProbParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+6.5f, 249.0f), module, BORDL::TRIG_GATEPROB_PARAM + i, 0.0f, 1.0f,  1.0f);
+		pulseProbParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+6.5f, 247.0f), module, BORDL::TRIG_GATEPROB_PARAM + i, 0.0f, 1.0f,  1.0f);
 		addParam(pulseProbParams[i]);
 		{
 			BORDLPulseDisplay *displayPulse = new BORDLPulseDisplay();
 			displayPulse->module = module;
-			displayPulse->box.pos = Vec(portX1[i]+15.0f, 198.0f);
+			displayPulse->box.pos = Vec(portX1[i]+15.0f, 197.0f);
 			displayPulse->box.size = Vec(20.0f, 10.0f);
 			displayPulse->index = i;
 			addChild(displayPulse);
 		}
-		typeParams[i] = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX1[i]+1.0f, 289.0f), module, BORDL::TRIG_TYPE_PARAM + i, 0.0f, 5.0f,  2.0f);
+		typeParams[i] = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX1[i]+1.0f, 288.0f), module, BORDL::TRIG_TYPE_PARAM + i, 0.0f, 5.0f,  2.0f);
 		addParam(typeParams[i]);
 		{
 			BORDLGateDisplay *displayGate = new BORDLGateDisplay();
