@@ -333,23 +333,24 @@ struct CANARDDisplay : TransparentWidget {
 		nvgFillColor(vg, YELLOW_BIDOO);
 
 		// Draw play line
-		nvgStrokeColor(vg, LIGHTBLUE_BIDOO);
-		{
-			nvgBeginPath(vg);
-			nvgStrokeWidth(vg, 2);
-			if (module->playBuffer.getNumSamplesPerChannel()>0) {
-				nvgMoveTo(vg, (int)(module->samplePos * width / module->playBuffer.getNumSamplesPerChannel()) , 0);
-				nvgLineTo(vg, (int)(module->samplePos * width / module->playBuffer.getNumSamplesPerChannel()) , 2*height+10);
-			}
-			else {
-				nvgMoveTo(vg, 0, 0);
-				nvgLineTo(vg, 0, 2*height+10);
-			}
+		if (module->play) {
+			nvgStrokeColor(vg, LIGHTBLUE_BIDOO);
+			{
+				nvgBeginPath(vg);
+				nvgStrokeWidth(vg, 2);
+				if (module->playBuffer.getNumSamplesPerChannel()>0) {
+					nvgMoveTo(vg, (int)(module->samplePos * width / module->playBuffer.getNumSamplesPerChannel()) , 0);
+					nvgLineTo(vg, (int)(module->samplePos * width / module->playBuffer.getNumSamplesPerChannel()) , 2*height+10);
+				}
+				else {
+					nvgMoveTo(vg, 0, 0);
+					nvgLineTo(vg, 0, 2*height+10);
+				}
 
-			nvgClosePath(vg);
+				nvgClosePath(vg);
+			}
+			nvgStroke(vg);
 		}
-		nvgStroke(vg);
-
 
 		// Draw ref line
 		nvgStrokeColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
@@ -528,7 +529,7 @@ Menu *CANARDWidget::createContextMenu() {
 	CANARD *canardModule = dynamic_cast<CANARD*>(module);
 	assert(canardModule);
 
-	Menu *menu = gScene->createMenu();
+	Menu *menu = ModuleWidget::createContextMenu();
 
 	if (canardModule->selected>=0) {
 		CANARDDeleteSlice *deleteItem = new CANARDDeleteSlice();
