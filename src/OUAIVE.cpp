@@ -100,7 +100,7 @@ void OUAIVE::loadSample(std::string path) {
 			if (audioFile.getNumChannels() == 2)
 				displayBuffR.push_back(audioFile.samples[1][i]);
 		}
-		fileDesc = (extractFilename(path)).substr(0,20) + ((extractFilename(path)).length() >=20  ? "...\n" :  "\n");
+		fileDesc = (stringFilename(path)).substr(0,20) + ((stringFilename(path)).length() >=20  ? "...\n" :  "\n");
 		fileDesc += std::to_string(audioFile.getSampleRate()) + " Hz " + std::to_string(audioFile.getBitDepth()) + " bit\n";
 		fileDesc += std::to_string(roundf(audioFile.getLengthInSeconds() * 100) / 100) + " s\n";
 	}
@@ -431,7 +431,7 @@ struct OUAIVEItem : MenuItem {
 	OUAIVE *ouaive;
 	void onAction(EventAction &e) override {
 
-		std::string dir = ouaive->lastPath.empty() ? assetLocal("") : extractDirectory(ouaive->lastPath);
+		std::string dir = ouaive->lastPath.empty() ? assetLocal("") : stringDirectory(ouaive->lastPath);
 		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
 		if (path) {
 			ouaive->play = false;
