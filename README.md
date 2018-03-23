@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.6.0dev-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.6.0-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -15,7 +15,7 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 0.6.0
 
-pANARd becomes cANARd and it is a very bad duck...
+pANARd becomes cANARd => play/record samples and slice tools.
 
 To compile first launch a "make dep" to retrieve mpg123 lib.
 
