@@ -78,7 +78,7 @@ struct CANARD : Module {
 	SchmittTrigger trigTrigger;
 	SchmittTrigger recordTrigger;
 	SchmittTrigger clearTrigger;
-
+	std::mutex mylock;
 
 	CANARD() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
 		recordBuffer.setBitDepth(16);
@@ -194,9 +194,11 @@ void CANARD::step() {
 	if (!loading) {
 		if (clearTrigger.process(inputs[CLEAR_INPUT].value + params[CLEAR_PARAM].value))
 		{
+			mylock.lock();
 			playBuffer.samples[0].clear();
 			playBuffer.samples[1].clear();
 			slices.clear();
+			mylock.unlock();
 			lastPath = "";
 			waveFileName = "";
 			waveExtension = "";
@@ -206,13 +208,17 @@ void CANARD::step() {
 			int nbSample=0;
 			if ((size_t)selected<(slices.size()-1)) {
 				nbSample = slices[selected + 1] - slices[selected] - 1;
+				mylock.lock();
 				playBuffer.samples[0].erase(playBuffer.samples[0].begin() + slices[selected], playBuffer.samples[0].begin() + slices[selected + 1]-1);
 				playBuffer.samples[1].erase(playBuffer.samples[1].begin() + slices[selected], playBuffer.samples[1].begin() + slices[selected + 1]-1);
+				mylock.unlock();
 			}
 			else {
 				nbSample = playBuffer.getNumSamplesPerChannel() - slices[selected];
+				mylock.lock();
 				playBuffer.samples[0].erase(playBuffer.samples[0].begin() + slices[selected], playBuffer.samples[0].end());
 				playBuffer.samples[1].erase(playBuffer.samples[1].begin() + slices[selected], playBuffer.samples[1].end());
+				mylock.unlock();
 			}
 			slices.erase(slices.begin()+selected);
 			for (size_t i = selected; i < slices.size(); i++)
@@ -231,7 +237,9 @@ void CANARD::step() {
 			}
 			else {
 				auto it = std::upper_bound(slices.begin(), slices.end(), addSliceMarker);
+				mylock.lock();
 				slices.insert(it, addSliceMarker);
+				mylock.unlock();
 				addSliceMarker = -1;
 				addSliceMarkerFlag = false;
 				calcLoop();
@@ -240,7 +248,9 @@ void CANARD::step() {
 
 		if ((deleteSliceMarker>=0) && (deleteSliceMarkerFlag)) {
 			if (std::find(slices.begin(), slices.end(), deleteSliceMarker) != slices.end()) {
+				mylock.lock();
 				slices.erase(std::find(slices.begin(), slices.end(), deleteSliceMarker));
+				mylock.unlock();
 				deleteSliceMarker = -1;
 				deleteSliceMarkerFlag = false;
 				calcLoop();
@@ -252,28 +262,36 @@ void CANARD::step() {
 			lights[REC_LIGHT].value = 10.0f;
 			if(record) {
 				if (floor(params[MODE_PARAM].value) == 0) {
+					mylock.lock();
 					slices.clear();
 					slices.push_back(0);
 					playBuffer.setAudioBuffer(recordBuffer.samples);
+					mylock.unlock();
 					lastPath = "";
 					waveFileName = "";
 					waveExtension = "";
 				}
 				else {
+					mylock.lock();
 					slices.push_back(playBuffer.getNumSamplesPerChannel() > 0 ? (playBuffer.getNumSamplesPerChannel()-1) : 0);
 					playBuffer.samples[0].insert(playBuffer.samples[0].end(), recordBuffer.samples[0].begin(), recordBuffer.samples[0].end());
 					playBuffer.samples[1].insert(playBuffer.samples[1].end(), recordBuffer.samples[1].begin(), recordBuffer.samples[1].end());
+					mylock.unlock();
 				}
+				mylock.lock();
 				recordBuffer.samples[0].resize(0);
 				recordBuffer.samples[1].resize(0);
+				mylock.unlock();
 				lights[REC_LIGHT].value = 0.0f;
 			}
 			record = !record;
 		}
 
 		if (record) {
+			mylock.lock();
 			recordBuffer.samples[0].push_back(inputs[INL_INPUT].value/10);
 			recordBuffer.samples[1].push_back(inputs[INR_INPUT].value/10);
+			mylock.unlock();
 		}
 
 		int trigMode = inputs[TRIG_INPUT].active ? 1 : (inputs[GATE_INPUT].active ? 2 : 0);
@@ -400,11 +418,12 @@ struct CANARDDisplay : TransparentWidget {
 	}
 
 	void draw(NVGcontext *vg) override {
-		nvgFontSize(vg, 12);
-		nvgFontFaceId(vg, font->handle);
-		nvgStrokeWidth(vg, 1);
-		nvgTextLetterSpacing(vg, -2);
-		nvgFillColor(vg, YELLOW_BIDOO);
+		module->mylock.lock();
+		std::vector<float> vL(module->playBuffer.samples[0]);
+		std::vector<float> vR(module->playBuffer.samples[1]);
+		std::vector<int> s(module->slices);
+		module->mylock.unlock();
+		size_t nbSample = vL.size();
 
 		// Draw play line
 		if ((module->play) && (!module->loading)) {
@@ -413,8 +432,8 @@ struct CANARDDisplay : TransparentWidget {
 				nvgBeginPath(vg);
 				nvgStrokeWidth(vg, 2);
 				if (module->playBuffer.getNumSamplesPerChannel()>0) {
-					nvgMoveTo(vg, module->samplePos * width / module->playBuffer.getNumSamplesPerChannel() , 0);
-					nvgLineTo(vg, module->samplePos * width / module->playBuffer.getNumSamplesPerChannel() , 2*height+10);
+					nvgMoveTo(vg, module->samplePos * width / nbSample , 0);
+					nvgLineTo(vg, module->samplePos * width / nbSample , 2*height+10);
 				}
 				else {
 					nvgMoveTo(vg, 0, 0);
@@ -438,32 +457,30 @@ struct CANARDDisplay : TransparentWidget {
 		}
 		nvgStroke(vg);
 
-		if ((!module->loading) && (module->playBuffer.getNumSamplesPerChannel()>0)) {
+		if ((!module->loading) && (vL.size()>0)) {
 			// Draw loop
 			nvgFillColor(vg, nvgRGBA(255, 255, 255, 60));
 			nvgStrokeWidth(vg, 1);
 			{
 				nvgBeginPath(vg);
-				nvgMoveTo(vg, (module->sampleStart + module->fadeLenght) * width / module->playBuffer.getNumSamplesPerChannel(), 0);
-				nvgLineTo(vg, module->sampleStart * width / module->playBuffer.getNumSamplesPerChannel(), 2*height+10);
-				nvgLineTo(vg, (module->sampleStart + module->loopLength) * width / module->playBuffer.getNumSamplesPerChannel(), 2*height+10);
-				nvgLineTo(vg, (module->sampleStart + module->loopLength - module->fadeLenght) * width / module->playBuffer.getNumSamplesPerChannel(), 0);
-				nvgLineTo(vg, (module->sampleStart + module->fadeLenght) * width / module->playBuffer.getNumSamplesPerChannel(), 0);
+				nvgMoveTo(vg, (module->sampleStart + module->fadeLenght) * width / nbSample, 0);
+				nvgLineTo(vg, module->sampleStart * width / vL.size(), 2*height+10);
+				nvgLineTo(vg, (module->sampleStart + module->loopLength) * width / nbSample, 2*height+10);
+				nvgLineTo(vg, (module->sampleStart + module->loopLength - module->fadeLenght) * width / nbSample, 0);
+				nvgLineTo(vg, (module->sampleStart + module->fadeLenght) * width / nbSample, 0);
 				nvgClosePath(vg);
 			}
 			nvgFill(vg);
 
-
-
 			//draw selected
-			if ((module->selected >= 0) && ((size_t)module->selected < module->slices.size())) {
+			if ((module->selected >= 0) && ((size_t)module->selected < s.size())) {
 				nvgStrokeColor(vg, RED_BIDOO);
 				{
 					nvgBeginPath(vg);
 					nvgStrokeWidth(vg, 4);
-					nvgMoveTo(vg, module->slices[module->selected] * width / module->playBuffer.getNumSamplesPerChannel() , 2*height+9);
-					if ((size_t)module->selected < (module->slices.size()-1))
-						nvgLineTo(vg, module->slices[module->selected+1] * width / module->playBuffer.getNumSamplesPerChannel() , 2*height+9);
+					nvgMoveTo(vg, s[module->selected] * width / nbSample , 2*height+9);
+					if ((size_t)module->selected < (s.size()-1))
+						nvgLineTo(vg, s[module->selected+1] * width / nbSample , 2*height+9);
 					else
 						nvgLineTo(vg, width, 2*height+9);
 					nvgClosePath(vg);
@@ -472,16 +489,15 @@ struct CANARDDisplay : TransparentWidget {
 			}
 
 			// Draw waveform
-
 			nvgStrokeColor(vg, PINK_BIDOO);
 			nvgSave(vg);
 			Rect b = Rect(Vec(0, 0), Vec(width, height));
 			nvgScissor(vg, b.pos.x, b.pos.y, b.size.x, b.size.y);
 			nvgBeginPath(vg);
-			for (size_t i = 0; i < module->playBuffer.samples[0].size(); i++) {
+			for (size_t i = 0; i < vL.size(); i++) {
 				float x, y;
-				x = (float)i/module->playBuffer.samples[0].size();
-				y = module->playBuffer.samples[0][i] / 2.0f + 0.5f;
+				x = (float)i/vL.size();
+				y = vL[i] / 2.0f + 0.5f;
 				Vec p;
 				p.x = b.pos.x + b.size.x * x;
 				p.y = b.pos.y + b.size.y * (1.0f - y);
@@ -500,10 +516,10 @@ struct CANARDDisplay : TransparentWidget {
 			b = Rect(Vec(0, height+10), Vec(width, height));
 			nvgScissor(vg, b.pos.x, b.pos.y, b.size.x, b.size.y);
 			nvgBeginPath(vg);
-			for (size_t i = 0; i < module->playBuffer.samples[1].size(); i++) {
+			for (size_t i = 0; i < vR.size(); i++) {
 				float x, y;
-				x = (float)i/module->playBuffer.samples[1].size();
-				y = module->playBuffer.samples[1][i] / 2.0f + 0.5f;
+				x = (float)i/vR.size();
+				y = vR[i] / 2.0f + 0.5f;
 				Vec p;
 				p.x = b.pos.x + b.size.x * x;
 				p.y = b.pos.y + b.size.y * (1.0f - y);
@@ -519,9 +535,10 @@ struct CANARDDisplay : TransparentWidget {
 			nvgResetScissor(vg);
 
 			//draw slices
+
 			if (floor(module->params[CANARD::MODE_PARAM].value) == 1) {
-				for (size_t i = 0; i < module->slices.size(); i++) {
-					if (module->slices[i] != module->deleteSliceMarker) {
+				for (size_t i = 0; i < s.size(); i++) {
+					if (s[i] != module->deleteSliceMarker) {
 						nvgStrokeColor(vg, YELLOW_BIDOO);
 					}
 					else {
@@ -530,14 +547,14 @@ struct CANARDDisplay : TransparentWidget {
 					nvgStrokeWidth(vg, 1);
 					{
 						nvgBeginPath(vg);
-						nvgMoveTo(vg, module->slices[i] * width / module->playBuffer.getNumSamplesPerChannel() , 0);
-						nvgLineTo(vg, module->slices[i] * width / module->playBuffer.getNumSamplesPerChannel() , 2*height+10);
+						nvgMoveTo(vg, s[i] * width / nbSample , 0);
+						nvgLineTo(vg, s[i] * width / nbSample , 2*height+10);
 						nvgClosePath(vg);
 					}
 					nvgStroke(vg);
 				}
 			}
-			
+
 			nvgRestore(vg);
 		}
 	}
