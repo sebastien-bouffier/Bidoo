@@ -79,7 +79,7 @@ struct BidooColoredKnob : RoundKnob {
 			for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
 				std::string str(shape->id);
 				if (str == "bidooKnob") {
-					shape->fill.color = (((unsigned int)value*25) | ((unsigned int)0 << 8) | ((unsigned int)value*10 << 16));
+					shape->fill.color = (((unsigned int)42+(unsigned int)value*21) | (((unsigned int)87-(unsigned int)value*8) << 8) | (((unsigned int)117-(unsigned int)value) << 16));
 					shape->fill.color |= (unsigned int)(255) << 24;
 				}
 			}

@@ -662,6 +662,7 @@ struct CANARDSaveSample : MenuItem {
 			canardModule->lastPath = path;
 			canardModule->waveFileName = stringDirectory(path);
 			canardModule->waveExtension = stringExtension(path);
+			canardModule->playBuffer.setSampleRate(engineGetSampleRate());
 			canardModule->playBuffer.save(path);
 			free(path);
 		}

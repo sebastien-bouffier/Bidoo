@@ -91,11 +91,11 @@ void TOCANTE::step() {
 	stepsPerMeasure = beats*stepsPerBeat;
 
 	if ((stepsPerSixteenth>0) && ((currentStep%stepsPerSixteenth) == 0)) {
-		gatePulse.trigger(2 / engineGetSampleRate());
+		gatePulse.trigger(10 / engineGetSampleRate());
 	}
 
 	if ((stepsPerTriplet>0) && ((currentStep%stepsPerTriplet) == 0) && (currentStep <= (stepsPerMeasure-100))) {
-		gatePulse_triplets.trigger(2 / engineGetSampleRate());
+		gatePulse_triplets.trigger(10 / engineGetSampleRate());
 	}
 
 	pulseEven = gatePulse.process(1 / engineGetSampleRate());
