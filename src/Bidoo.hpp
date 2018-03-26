@@ -39,3 +39,4 @@ extern Model *modelBAR;
 extern Model *modelZINC;
 extern Model *modelVOID;
 extern Model *modelCANARD;
+extern Model *modelLOURDE;

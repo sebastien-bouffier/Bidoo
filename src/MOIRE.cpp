@@ -187,7 +187,7 @@ struct MOIREDisplay : TransparentWidget {
 		nvgFontSize(vg, 18);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2);
-		nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0xff));
+		nvgFillColor(vg, YELLOW_BIDOO);
 		std::stringstream ss;
 		ss << std::setw(2) << std::setfill('0') << *value + 1;
 		std::string s = ss.str();
@@ -256,7 +256,7 @@ MOIREWidget::MOIREWidget(MOIRE *module) : ModuleWidget(module) {
 
 	addInput(Port::create<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[0]+21), Port::INPUT, module, MOIRE::TARGETSCENE_INPUT));
 	addInput(Port::create<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[7]-6), Port::INPUT, module, MOIRE::CURRENTSCENE_INPUT));
-	addInput(Port::create<TinyPJ301MPort>(Vec(portX0[0]+33.6, portY0[7]-6), Port::INPUT, module, MOIRE::MORPH_INPUT));
+	addInput(Port::create<TinyPJ301MPort>(Vec(portX0[0]+33.2, portY0[7]-6), Port::INPUT, module, MOIRE::MORPH_INPUT));
 
 	morphButton = ParamWidget::create<MOIREMorphKnob>(Vec(portX0[0]+26, portY0[3]+14), module, MOIRE::MORPH_PARAM, 0.0f, 10.0f, 0.0f);
 	addParam(morphButton);

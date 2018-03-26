@@ -1,5 +1,6 @@
 #include "Bidoo.hpp"
 #include "dsp/digital.hpp"
+#include "dsp/samplerate.hpp"
 #include "BidooComponents.hpp"
 #include <curl/curl.h>
 #include <thread>
@@ -35,6 +36,11 @@ size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *user
   size_t i;
   int err;
   unsigned char *audio;
+  SampleRateConverter<2> conv;
+  DoubleRingBuffer<Frame<2>,262144> *tmpBuffer = new DoubleRingBuffer<Frame<2>,262144>();
+  int inSize;
+  int outSize;
+
   if (pData->play->load())
   {
     mpg123_feed(pData->mh, (const unsigned char*) contents, realsize);
@@ -58,10 +64,17 @@ size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *user
               memcpy(&newFrame.samples[0], &l, sizeof(newFrame.samples[0]));
               unsigned char r[] = {audio[i+4], audio[i+5], audio[i+6], audio[i+7]};
               memcpy(&newFrame.samples[1], &r, sizeof(newFrame.samples[1]));
-              pData->dataRingBuffer->push(newFrame);
+              tmpBuffer->push(newFrame);
               i += 8;
             }
             while(i < done);
+            conv.setRates(44100, engineGetSampleRate());
+            conv.setQuality(10);
+            inSize = tmpBuffer->size();
+            outSize = pData->dataRingBuffer->capacity();
+            conv.process(tmpBuffer->startData(),&inSize,pData->dataRingBuffer->endData(),&outSize);
+            tmpBuffer->startIncr(inSize);
+            pData->dataRingBuffer->endIncr((size_t)outSize);
             break;
         case MPG123_NEED_MORE:
             break;
@@ -210,7 +223,7 @@ void ANTN::step() {
     mpg123_init();
     mh = mpg123_new(NULL, NULL);
     mpg123_format_none(mh);
-    mpg123_format(mh, engineGetSampleRate(), 2, MPG123_ENC_FLOAT_32);
+    mpg123_format(mh, 44100, 2, MPG123_ENC_FLOAT_32);
     mpg123_open_feed(mh);
     tData.mh = mh;
     tData.url = url;

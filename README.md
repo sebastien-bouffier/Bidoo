@@ -15,7 +15,9 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 0.6.0
 
-pANARd becomes cANARd => play/record samples and slice tools.
+TiARE fix on phase calculation.
+antN sample rate conversion according to engine sample rate ... working ... but needs to be improved.
+LoURdE is a gate tool that mixes and compares 3 inputs to a threshold.
 
 To compile first launch a "make dep" to retrieve mpg123 lib.
 

@@ -9,6 +9,9 @@ using namespace std;
 extern float sawTable[2048];
 extern float triTable[2048];
 
+const int OVER = 16;
+const int QUAL = 16;
+
 struct TIARE : Module {
 	enum ParamIds {
 		PITCH_PARAM,
@@ -49,20 +52,20 @@ struct TIARE : Module {
 	bool syncDirection = false;
 	int freqFactor = 1;
 
-	Decimator<16, 16> sinDecimator;
-	Decimator<16, 16> triDecimator;
-	Decimator<16, 16> sawDecimator;
-	Decimator<16, 16> sqrDecimator;
+	Decimator<OVER, QUAL> sinDecimator;
+	Decimator<OVER, QUAL> triDecimator;
+	Decimator<OVER, QUAL> sawDecimator;
+	Decimator<OVER, QUAL> sqrDecimator;
 	RCFilter sqrFilter;
 
 	// For analog detuning effect
 	float pitchSlew = 0.0f;
 	int pitchSlewIndex = 0;
 
-	float sinBuffer[16] = {0.0f};
-	float triBuffer[16] = {0.0f};
-	float sawBuffer[16] = {0.0f};
-	float sqrBuffer[16] = {0.0f};
+	float sinBuffer[OVER] = {0.0f};
+	float triBuffer[OVER] = {0.0f};
+	float sawBuffer[OVER] = {0.0f};
+	float sqrBuffer[OVER] = {0.0f};
 
 	void setPitch(float pitchKnob, float pitchCv, int factor) {
 		// Compute frequency
@@ -102,7 +105,7 @@ struct TIARE : Module {
 			if (syncValue > 0.0f && lastSyncValue <= 0.0f) {
 				float deltaSync = syncValue - lastSyncValue;
 				syncCrossing = 1.0f - syncValue / deltaSync;
-				syncCrossing *= 16;
+				syncCrossing *= OVER;
 				syncIndex = (int)syncCrossing;
 				syncCrossing -= syncIndex;
 			}
@@ -114,7 +117,7 @@ struct TIARE : Module {
 
 		sqrFilter.setCutoff(40.0f * deltaTime);
 
-		for (int i = 0; i < 16; i++) {
+		for (int i = 0; i < OVER; i++) {
 			if (syncIndex == i) {
 				if (soft) {
 					syncDirection = !syncDirection;
@@ -165,15 +168,15 @@ struct TIARE : Module {
 			}
 
 			// Advance phase
-			phase += deltaPhase / 16;
-			if ((phase>1) || (phase<-1))
-				phaseDist = 0.0f;
+			phase += deltaPhase / OVER;
+			// if ((phase>1) || (phase<-1))
+			// 	phaseDist = 0.0f;
 			phase = eucmod(phase, 1.0f);
 
 			if (phase<=phaseDistX)
-				phaseDist = phaseDist + (deltaPhase / 16) * phaseDistY/phaseDistX;
+				phaseDist = phaseDist + (deltaPhase / OVER) * phaseDistY/phaseDistX;
 			else
-				phaseDist = phaseDist + (deltaPhase / 16) * (1.0f-phaseDistY)/(1.0f-phaseDistX);
+				phaseDist = phaseDist + (deltaPhase / OVER) * (1.0f-phaseDistY)/(1.0f-phaseDistX);
 
 			phaseDist = eucmod(phaseDist, 1.0f);
 
@@ -244,7 +247,7 @@ void TIARE::step() {
 	analog = params[MODE_PARAM].value > 0.0f;
 	soft = params[SYNC_PARAM].value <= 0.0f;
 	if (inputs[DIST_X_INPUT].active)
-		phaseDistX = rescale(clamp(inputs[DIST_X_INPUT].value,0.0f,10.0f),0.0f,10.0f,0.01f,1.0f);
+		phaseDistX = rescale(clamp(inputs[DIST_X_INPUT].value,0.0f,10.0f),0.0f,10.0f,0.01f,0.98f);
 
 	if (inputs[DIST_Y_INPUT].active)
 		phaseDistY = rescale(clamp(inputs[DIST_Y_INPUT].value,0.0f,10.0f),0.0f,10.0f,0.01f,1.0f);
@@ -288,7 +291,7 @@ void onDragMove(EventDragMove &e) override {
 	if ((!module->inputs[TIARE::DIST_X_INPUT].active) && (!module->inputs[TIARE::DIST_X_INPUT].active)) {
 		float newDragX = gRackWidget->lastMousePos.x;
 		float newDragY = gRackWidget->lastMousePos.y;
-		module->phaseDistX = rescale(clamp(initX+(newDragX-dragX),0.0f,140.0f), 0.0f, 140.0f, 0.01f,1.0f);
+		module->phaseDistX = rescale(clamp(initX+(newDragX-dragX),0.0f,140.0f), 0.0f, 140.0f, 0.01f,0.98f);
 		module->phaseDistY = rescale(clamp(initY-(newDragY-dragY),0.0f,140.0f), 0.0f, 140.0f, 0.01f,1.0f);
 	}
 }
