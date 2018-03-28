@@ -27,5 +27,6 @@ void init(rack::Plugin *p) {
 	p->addModel(modelPERCO);
 	p->addModel(modelBAR);
 	p->addModel(modelZINC);
+	p->addModel(modelDFUZE);
 	p->addModel(modelVOID);
 }

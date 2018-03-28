@@ -3,7 +3,7 @@ VERSION = 0.6.0
 DISTRIBUTABLES += $(wildcard LICENSE*) res
 RACK_DIR ?= ../..
 
-FLAGS += -I./src/dep/include -I./src/dep/audiofile -I./src/dep/filters
+FLAGS += -I./src/dep/include -I./src/dep/audiofile -I./src/dep/filters -I./src/dep/freeverb
 
 include $(RACK_DIR)/arch.mk
 
@@ -19,7 +19,7 @@ ifeq ($(ARCH), win)
 	LDFLAGS += -L$(RACK_DIR)/dep/lib -lglfw3dll -lcurl src/dep/lib/libmpg123.a -lshlwapi
 endif
 
-SOURCES = $(wildcard src/*.cpp src/dep/audiofile/*cpp src/dep/pffft/*c src/dep/filters/*cpp)
+SOURCES = $(wildcard src/*.cpp src/dep/audiofile/*cpp src/dep/pffft/*c src/dep/filters/*cpp src/dep/freeverb/*cpp)
 
 include $(RACK_DIR)/plugin.mk
 

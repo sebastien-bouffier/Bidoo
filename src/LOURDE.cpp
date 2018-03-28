@@ -44,6 +44,33 @@ void LOURDE::step() {
 	outputs[OUT].value = sum >= clamp(params[OUTFLOOR].value+inputs[INFLOOR].value,-10.0f,10.0f) ? 10.0f : 0.0f;
 }
 
+struct LabelDisplayWidget : TransparentWidget {
+  float *value;
+  std::shared_ptr<Font> font;
+
+  LabelDisplayWidget() {
+    font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
+  };
+
+  void draw(NVGcontext *vg) override
+  {
+      // text
+    nvgFontSize(vg, 18);
+    nvgFontFaceId(vg, font->handle);
+    nvgTextLetterSpacing(vg, 2.0);
+
+		char display[128];
+		snprintf(display, sizeof(display), "%2.2f", *value);
+		nvgFontSize(vg, 12.0f);
+		nvgFontFaceId(vg, font->handle);
+		nvgTextLetterSpacing(vg, -2.0f);
+		nvgFillColor(vg, BLUE_BIDOO);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER);
+		nvgRotate(vg,-45.0f);
+		nvgText(vg, 0.0f, 0.0f, display, NULL);
+
+  }
+};
 
 struct LOURDEWidget : ModuleWidget {
 	LOURDEWidget(LOURDE *module) : ModuleWidget(module) {
@@ -66,7 +93,28 @@ struct LOURDEWidget : ModuleWidget {
     addParam(ParamWidget::create<BidooBlueKnob>(Vec(22.5,120), module, LOURDE::WEIGHT2, -5.0f, 5.0f, 0.0f));
     addParam(ParamWidget::create<BidooBlueKnob>(Vec(22.5,190), module, LOURDE::WEIGHT3, -5.0f, 5.0f, 0.0f));
 
+		LabelDisplayWidget *displayW1 = new LabelDisplayWidget();
+		displayW1->box.pos = Vec(20,55);
+		displayW1->value = &module->params[LOURDE::WEIGHT1].value;
+		addChild(displayW1);
+
+		LabelDisplayWidget *displayW2 = new LabelDisplayWidget();
+		displayW2->box.pos = Vec(20,125);
+		displayW2->value = &module->params[LOURDE::WEIGHT2].value;
+		addChild(displayW2);
+
+		LabelDisplayWidget *displayW3 = new LabelDisplayWidget();
+		displayW3->box.pos = Vec(20,195);
+		displayW3->value = &module->params[LOURDE::WEIGHT3].value;
+		addChild(displayW3);
+
     addParam(ParamWidget::create<BidooBlueKnob>(Vec(22.5,270), module, LOURDE::OUTFLOOR, -10.0f, 10.0f, 0.0f));
+
+		LabelDisplayWidget *displayOF = new LabelDisplayWidget();
+		displayOF->box.pos = Vec(20,275);
+		displayOF->value = &module->params[LOURDE::OUTFLOOR].value;
+		addChild(displayOF);
+
     addInput(Port::create<TinyPJ301MPort>(Vec(56.0f, 277.0f), Port::INPUT, module, LOURDE::INFLOOR));
 
   	addOutput(Port::create<PJ301MPort>(Vec(25.5,320), Port::OUTPUT, module, LOURDE::OUT));

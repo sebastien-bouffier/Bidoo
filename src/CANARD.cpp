@@ -22,9 +22,6 @@ struct CANARD : Module {
 		MODE_PARAM,
 		SLICE_PARAM,
 		CLEAR_PARAM,
-		ZOOM_POS_PARAM,
-		ZOOM_X_PARAM,
-		ZOOM_Y_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
