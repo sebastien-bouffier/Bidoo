@@ -8,3 +8,4 @@ dist
 /src/dep/mpg123-1.25.8
 /src/dep/share
 *.bz2
+/dep

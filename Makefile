@@ -23,17 +23,18 @@ endif
 # Static libs
 mpg123 := dep/lib/libmpg123.a
 curl := dep/lib/libcurl.a
+openssl := dep/lib/ssl.a
 
 ifeq ($(ARCH), lin)
-	glfw := dep/lib/libglfw.a
+	glfw = dep/lib/libglfw.a
 endif
 
 ifeq ($(ARCH), mac)
-	glfw := dep/lib/libglfw.a
+	glfw = dep/lib/libglfw.a
 endif
 
 ifeq ($(ARCH), win)
-	glfw := dep/lib/libglfw3dll.a
+	glfw = dep/lib/libglfw3dll.a
 endif
 
 OBJECTS += $(mpg123) $(curl) $(glfw)
@@ -61,8 +62,8 @@ $(openssl):
 	cd dep && $(WGET) https://www.openssl.org/source/openssl-1.1.0g.tar.gz
 	cd dep && $(UNTAR) openssl-1.1.0g.tar.gz
 	cd dep/openssl-1.1.0g && ./config --prefix="$(realpath $(DEP_LOCAL))"
-	cd dep/openssl-1.1.0g $(MAKE)
-	cd dep/openssl-1.1.0g $(MAKE) install_sw
+	$(MAKE) -C dep/openssl-1.1.0g
+	$(MAKE) -C dep/openssl-1.1.0g install_sw
 
 $(curl): $(openssl)
 	cd dep && $(WGET) https://github.com/curl/curl/releases/download/curl-7_56_0/curl-7.56.0.tar.gz
