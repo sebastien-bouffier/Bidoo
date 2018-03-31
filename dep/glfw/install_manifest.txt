@@ -1,0 +1,9 @@
+E:/Rack/plugins/Bidoo/dep/include/GLFW/glfw3.h
+E:/Rack/plugins/Bidoo/dep/include/GLFW/glfw3native.h
+E:/Rack/plugins/Bidoo/dep/lib/cmake/glfw3/glfw3Config.cmake
+E:/Rack/plugins/Bidoo/dep/lib/cmake/glfw3/glfw3ConfigVersion.cmake
+E:/Rack/plugins/Bidoo/dep/lib/cmake/glfw3/glfw3Targets.cmake
+E:/Rack/plugins/Bidoo/dep/lib/cmake/glfw3/glfw3Targets-noconfig.cmake
+E:/Rack/plugins/Bidoo/dep/lib/pkgconfig/glfw3.pc
+E:/Rack/plugins/Bidoo/dep/lib/libglfw3dll.a
+E:/Rack/plugins/Bidoo/dep/bin/glfw3.dll

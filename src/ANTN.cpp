@@ -2,15 +2,15 @@
 #include "dsp/digital.hpp"
 #include "dsp/samplerate.hpp"
 #include "BidooComponents.hpp"
-#include <curl/curl.h>
-#include <thread>
-#include <mpg123.h>
+#include "curl/curl.h"
+#include "mpg123.h"
 #include "dsp/ringbuffer.hpp"
 #include "dsp/frame.hpp"
 #include <algorithm>
 #include <cctype>
 #include <atomic>
 #include <sstream>
+#include <thread>
 
 using namespace std;
 
