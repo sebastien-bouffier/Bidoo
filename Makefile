@@ -25,14 +25,6 @@ mpg123 := dep/lib/libmpg123.a
 curl := dep/lib/libcurl.a
 openssl := dep/lib/ssl.a
 
-ifeq ($(ARCH), lin)
-	glfw = dep/lib/libglfw.a
-endif
-
-ifeq ($(ARCH), mac)
-	glfw = dep/lib/libglfw.a
-endif
-
 ifeq ($(ARCH), win)
 	glfw = dep/lib/libglfw3dll.a
 endif
