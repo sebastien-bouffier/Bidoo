@@ -9,11 +9,11 @@ DISTRIBUTABLES += $(wildcard LICENSE*) res
 include $(RACK_DIR)/arch.mk
 
 ifeq ($(ARCH), lin)
-	LDFLAGS += 	-Ldep/lib -lglfw -lcurl -lssl
+	LDFLAGS += 	-Ldep/lib -lcurl -lssl
 endif
 
 ifeq ($(ARCH), mac)
-	LDFLAGS += 	-Ldep/lib -lglfw -lcurl -lssl
+	LDFLAGS += 	-Ldep/lib -lcurl -lssl
 endif
 
 ifeq ($(ARCH), win)
