@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.6.0.1-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.6.1-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -13,7 +13,9 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-0.6.0
+0.6.1
+
+Should compile on all platforms.
 
 LoURdE coefficients display.
 
@@ -26,7 +28,10 @@ antN sample rate conversion according to engine sample rate ... working ... but 
 
 LoURdE is a gate tool that mixes and compares 3 inputs to a threshold.
 
-To compile first launch a "make dep" to retrieve mpg123 lib.
+Before make clone submodules :
+
+`git submodule update --init --recursive`
+
 
 ## License
 

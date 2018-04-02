@@ -1,6 +1,6 @@
 RACK_DIR ?= ../..
 SLUG = Bidoo
-VERSION = 0.6.0.1
+VERSION = 0.6.1
 
 FLAGS += -Idep/include -I./src/dep/include -I./src/dep/audiofile -I./src/dep/filters -I./src/dep/freeverb
 SOURCES += $(wildcard src/*.cpp src/dep/audiofile/*cpp src/dep/pffft/*c src/dep/filters/*cpp src/dep/freeverb/*cpp)
@@ -17,7 +17,7 @@ ifeq ($(ARCH), mac)
 endif
 
 ifeq ($(ARCH), win)
-	LDFLAGS += 	-Ldep/lib -lglfw3dll -lcurl -lssl -lshlwapi
+	LDFLAGS += 	-Ldep/lib -lcurl -lssl -lshlwapi
 endif
 
 # Static libs
