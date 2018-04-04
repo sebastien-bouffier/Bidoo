@@ -718,7 +718,7 @@ bool AudioFile<T>::writeDataToFile (std::vector<uint8_t>& fileData, std::string 
 
     if (outputFile.is_open())
     {
-        for (int i = 0; i < fileData.size(); i++)
+        for (size_t i = 0; i < fileData.size(); i++)
         {
             char value = (char) fileData[i];
             outputFile.write (&value, sizeof (char));
@@ -736,7 +736,7 @@ bool AudioFile<T>::writeDataToFile (std::vector<uint8_t>& fileData, std::string 
 template <class T>
 void AudioFile<T>::addStringToFileData (std::vector<uint8_t>& fileData, std::string s)
 {
-    for (int i = 0; i < s.length();i++)
+    for (size_t i = 0; i < s.length();i++)
         fileData.push_back ((uint8_t) s[i]);
 }
 
@@ -847,7 +847,7 @@ int AudioFile<T>::getIndexOfString (std::vector<uint8_t>& source, std::string st
     int index = -1;
     int stringLength = (int)stringToSearchFor.length();
 
-    for (int i = 0; i < source.size() - stringLength;i++)
+    for (size_t i = 0; i < source.size() - stringLength;i++)
     {
         std::string section (source.begin() + i, source.begin() + i + stringLength);
 

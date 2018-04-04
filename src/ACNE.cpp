@@ -225,7 +225,7 @@ struct ACNETrimPot : BidooColoredTrimpot {
 		ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
 		ACNE *module = dynamic_cast<ACNE*>(this->module);
 		if (parent && module) {
-			if ((e.button == GLFW_MOUSE_BUTTON_MIDDLE) || ((e.button == GLFW_MOUSE_BUTTON_LEFT) && ((glfwGetKey(gWindow, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) || (glfwGetKey(gWindow, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS)))) {
+			if ((e.button == GLFW_MOUSE_BUTTON_MIDDLE) || ((e.button == GLFW_MOUSE_BUTTON_LEFT) && (windowIsShiftPressed()))) {
 				this->setValue(10);
 				module->snapshots[module->currentSnapshot][(int)((this->paramId - ACNE::FADERS_PARAMS)/ACNE_NB_TRACKS)][(this->paramId - ACNE::FADERS_PARAMS)%ACNE_NB_TRACKS] = 10;
 			}

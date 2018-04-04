@@ -13,16 +13,15 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-0.6.1
+04/04/18 : A big thanks to all the people who helped and supported for the 0.6 transition. Let's make music now!!!
 
-Should compile on all platforms.
+0.6.1
 
 LoURdE coefficients display.
 
 dFUZE freeverb portage with first attempt to make a shimmer hack.
 
-
-TiARE fix on phase calculation.
+TiARE phase calculation fix.
 
 antN sample rate conversion according to engine sample rate ... working ... but needs to be improved.
 
