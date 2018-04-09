@@ -28,9 +28,9 @@
      inkscape:window-height="1017"
      id="namedview151"
      showgrid="true"
-     inkscape:zoom="1.7566022"
-     inkscape:cx="-116.93196"
-     inkscape:cy="120.09366"
+     inkscape:zoom="2.4842107"
+     inkscape:cx="-8.318412"
+     inkscape:cy="157.44763"
      inkscape:window-x="-8"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
@@ -900,4 +900,20 @@
        x="21.652575"
        y="84.578232"
        style="stroke-width:0.26458332px">REC.M</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="42.067928"
+     y="63.67717"
+     id="text964-9-7-5-9-6"><tspan
+       sodipodi:role="line"
+       id="tspan962-7-7-0-9-1"
+       x="42.067928"
+       y="63.67717"
+       style="stroke-width:0.26458332px">EOC</tspan></text>
+  <path
+     style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     d="M 44.64073,64.529458 V 75.112791"
+     id="path1037-2-6-5"
+     inkscape:connector-curvature="0" />
 </svg>

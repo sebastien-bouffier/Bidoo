@@ -24,11 +24,11 @@ FLAGS += -Idep/include -I./src/dep/audiofile -I./src/dep/filters -I./src/dep/fre
 include $(RACK_DIR)/arch.mk
 
 ifeq ($(ARCH), lin)
-	LDFLAGS += -L$(RACK_DIR)/dep/lib -lcurl dep/lib/libmpg123.a
+	LDFLAGS += -L$(RACK_DIR)/dep/lib $(RACK_DIR)/dep/lib/libcurl.a dep/lib/libmpg123.a
 endif
 
 ifeq ($(ARCH), mac)
-	LDFLAGS += -L$(RACK_DIR)/dep/lib -lcurl dep/lib/libmpg123.a
+	LDFLAGS += -L$(RACK_DIR)/dep/lib $(RACK_DIR)/dep/lib/libcurl.a dep/lib/libmpg123.a
 endif
 
 ifeq ($(ARCH), win)

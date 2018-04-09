@@ -28,9 +28,9 @@
      inkscape:window-height="1017"
      id="namedview118"
      showgrid="true"
-     inkscape:zoom="1.5750457"
-     inkscape:cx="-155.78382"
-     inkscape:cy="216.56966"
+     inkscape:zoom="3.1500914"
+     inkscape:cx="-88.41546"
+     inkscape:cy="124.40801"
      inkscape:window-x="-8"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
@@ -151,6 +151,20 @@
   <g
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.66666698px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
      id="flowRoot1009" />
+  <g
+     id="g860-1"
+     transform="translate(0.2253079,20.997396)">
+    <path
+       inkscape:connector-curvature="0"
+       id="path854-4"
+       d="m 9.5751185,54.303919 v 7.979264"
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path856-9"
+       d="M 9.5751182,54.303919 H 16.756457"
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+  </g>
   <g
      id="g907"
      transform="translate(22.604707,5.4552429)">

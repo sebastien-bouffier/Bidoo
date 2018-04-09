@@ -27,11 +27,6 @@ antN sample rate conversion according to engine sample rate ... working ... but 
 
 LoURdE is a gate tool that mixes and compares 3 inputs to a threshold.
 
-Before make clone submodules :
-
-`git submodule update --init --recursive`
-
-
 ## License
 
 The license is a BSD 3-Clause with the addition that any commercial use requires explicit permission of the author. That applies for the source code.

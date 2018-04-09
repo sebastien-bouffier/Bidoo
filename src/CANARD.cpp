@@ -42,6 +42,7 @@ struct CANARD : Module {
 	enum OutputIds {
 		OUTL_OUTPUT,
 		OUTR_OUTPUT,
+		EOC_OUTPUT,
 		NUM_OUTPUTS
 	};
 	enum LightIds {
@@ -75,7 +76,10 @@ struct CANARD : Module {
 	SchmittTrigger trigTrigger;
 	SchmittTrigger recordTrigger;
 	SchmittTrigger clearTrigger;
+	PulseGenerator eocPulse;
 	std::mutex mylock;
+	bool newStop = false;
+	float transientThreshold = 0.0f;
 
 	CANARD() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
 		recordBuffer.setBitDepth(16);
@@ -201,6 +205,10 @@ void CANARD::step() {
 			waveExtension = "";
 		}
 
+		if (transientThreshold>0.0f) {
+			transientThreshold = 0.0f;
+		}
+
 		if ((selected>=0) && (deleteFlag)) {
 			int nbSample=0;
 			if ((size_t)selected<(slices.size()-1)) {
@@ -305,9 +313,17 @@ void CANARD::step() {
 			else {
 				if ((readMode == 0) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
 					play = false;
+					if (newStop) {
+						eocPulse.trigger(10 / engineGetSampleRate());
+						newStop = false;
+					}
 				}
 				else if ((readMode == 0) && (speed<0) && (samplePos == sampleStart)) {
 					play = false;
+					if (newStop) {
+						eocPulse.trigger(10 / engineGetSampleRate());
+						newStop = false;
+					}
 				}
 				else if ((readMode == 1) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
 					initPos();
@@ -336,9 +352,17 @@ void CANARD::step() {
 				else {
 					if ((readMode == 0) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
 						play = false;
+						if (newStop) {
+							eocPulse.trigger(10 / engineGetSampleRate());
+							newStop = false;
+						}
 					}
 					else if ((readMode == 0) && (speed<0) && (samplePos == sampleStart)) {
 						play = false;
+						if (newStop) {
+							eocPulse.trigger(10 / engineGetSampleRate());
+							newStop = false;
+						}
 					}
 					else if ((readMode == 1) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
 						initPos();
@@ -364,6 +388,7 @@ void CANARD::step() {
 		prevTrigState = inputs[TRIG_INPUT].value;
 
 		if (play) {
+			newStop = true;
 			if (samplePos<playBuffer.getNumSamplesPerChannel()) {
 				if (fadeLenght>1000) {
 					if ((samplePos-sampleStart)<fadeLenght)
@@ -389,6 +414,7 @@ void CANARD::step() {
 		outputs[OUTL_OUTPUT].value = 0.0f;
 		outputs[OUTR_OUTPUT].value = 0.0f;
 	}
+	outputs[EOC_OUTPUT].value = eocPulse.process(1 / engineGetSampleRate()) ? 10.0f : 0.0f;
 }
 
 struct CANARDDisplay : TransparentWidget {
@@ -448,6 +474,14 @@ struct CANARDDisplay : TransparentWidget {
 			nvgBeginPath(vg);
 			nvgMoveTo(vg, 0, height/2);
 			nvgLineTo(vg, width, height/2);
+			nvgClosePath(vg);
+		}
+		nvgStroke(vg);
+
+		nvgStrokeColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
+		nvgStrokeWidth(vg, 1);
+		{
+			nvgBeginPath(vg);
 			nvgMoveTo(vg, 0, 3*height/2+10);
 			nvgLineTo(vg, width, 3*height/2+10);
 			nvgClosePath(vg);
@@ -603,6 +637,7 @@ CANARDWidget::CANARDWidget(CANARD *module) : ModuleWidget(module) {
 		addInput(Port::create<PJ301MPort>(Vec(portX0[1]-4, 277), Port::INPUT, module, CANARD::FADE_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[2]-4, 277), Port::INPUT, module, CANARD::SLICE_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[3]-4, 277), Port::INPUT, module, CANARD::CLEAR_INPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(portX0[4]-4, 277), Port::OUTPUT, module, CANARD::EOC_OUTPUT));
 
 		addParam(ParamWidget::create<CKSS>(Vec(90, 325), module, CANARD::MODE_PARAM, 0.0f, 1.0f, 0.0f));
 
@@ -633,6 +668,14 @@ struct CANARDAddSliceMarker : MenuItem {
 	CANARD *canardModule;
 	void onAction(EventAction &e) override {
 		canardModule->addSliceMarkerFlag = true;
+	}
+};
+
+struct CANARDTransientDetect : MenuItem {
+	CANARDWidget *canardWidget;
+	CANARD *canardModule;
+	void onAction(EventAction &e) override {
+		canardModule->transientThreshold = 0.3;
 	}
 };
 
