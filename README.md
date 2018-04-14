@@ -13,6 +13,8 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
+15/04/2018 : cANARd's waveform display can zoom. Left mouse pressed => up (zoom in) & down (zoom out).
+
 04/04/18 : A big thanks to all the people who helped and supported for the 0.6 transition. Let's make music now!!!
 
 0.6.1
