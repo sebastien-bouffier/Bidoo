@@ -82,6 +82,7 @@ size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *user
             break;
       }
     } while(done > 0);
+    delete tmpBuffer;
     return realsize;
   }
   return 0;
