@@ -9,6 +9,7 @@
 #include <sstream> // stringstream
 #include <algorithm>
 #include "window.hpp"
+#include "Gist.h"
 
 using namespace std;
 
@@ -23,6 +24,7 @@ struct CANARD : Module {
 		MODE_PARAM,
 		SLICE_PARAM,
 		CLEAR_PARAM,
+		THRESHOLD_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -80,7 +82,6 @@ struct CANARD : Module {
 	PulseGenerator eocPulse;
 	std::mutex mylock;
 	bool newStop = false;
-	float transientThreshold = 0.0f;
 
 	CANARD() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
 		recordBuffer.setBitDepth(16);
@@ -204,10 +205,6 @@ void CANARD::step() {
 			lastPath = "";
 			waveFileName = "";
 			waveExtension = "";
-		}
-
-		if (transientThreshold>0.0f) {
-			transientThreshold = 0.0f;
 		}
 
 		if ((selected>=0) && (deleteFlag)) {
@@ -441,7 +438,6 @@ struct CANARDDisplay : OpaqueWidget {
 		if (module->slices.size()>0) {
 			refX = e.pos.x;
 			refIdx = ((e.pos.x - zoomLeftAnchor)/zoomWidth)*(float)module->playBuffer.getNumSamplesPerChannel();
-			printf("%f - %f - %f\n",e.pos.x, zoomLeftAnchor, zoomWidth);
 			module->addSliceMarker = refIdx;
 			auto lower = std::lower_bound(module->slices.begin(), module->slices.end(), refIdx);
 			module->selected = distance(module->slices.begin(),lower-1);
@@ -463,12 +459,12 @@ struct CANARDDisplay : OpaqueWidget {
 	void onDragMove(EventDragMove &e) override {
 		float zoom = 1.0f;
 		if (e.mouseRel.y > 0.0f) {
-			zoom = 1.0f/1.1f;
+			zoom = 1.0f/(windowIsShiftPressed() ? 2.0f : 1.1f);
 		}
 		else if (e.mouseRel.y < 0.0f) {
-			zoom = 1.1f;
+			zoom = windowIsShiftPressed() ? 2.0f : 1.1f;
 		}
-		zoomWidth = clamp(zoomWidth*zoom,width,zoomWidth*1.1f);
+		zoomWidth = clamp(zoomWidth*zoom,width,zoomWidth*(windowIsShiftPressed() ? 2.0f : 1.1f));
 		zoomLeftAnchor = clamp(refX - (refX - zoomLeftAnchor)*zoom + e.mouseRel.x, width - zoomWidth,0.0f);
 		OpaqueWidget::onDragMove(e);
 	}
@@ -670,12 +666,13 @@ CANARDWidget::CANARDWidget(CANARD *module) : ModuleWidget(module) {
 		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[1]-7, 245), module, CANARD::FADE_PARAM, 0.0f, 10.0f, 0.0f));
 		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[2]-7, 245), module, CANARD::SLICE_PARAM, 0.0f, 10.0f, 0.0f));
 		addParam(ParamWidget::create<BlueCKD6>(Vec(portX0[3]-6, 245), module, CANARD::CLEAR_PARAM, 0.0f, 1.0f, 0.0f));
+		addOutput(Port::create<PJ301MPort>(Vec(portX0[4]-4, 247), Port::OUTPUT, module, CANARD::EOC_OUTPUT));
 
 		addInput(Port::create<PJ301MPort>(Vec(portX0[0]-4, 277), Port::INPUT, module, CANARD::SPEED_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[1]-4, 277), Port::INPUT, module, CANARD::FADE_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[2]-4, 277), Port::INPUT, module, CANARD::SLICE_INPUT));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[3]-4, 277), Port::INPUT, module, CANARD::CLEAR_INPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(portX0[4]-4, 277), Port::OUTPUT, module, CANARD::EOC_OUTPUT));
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[4]-1, 280), module, CANARD::THRESHOLD_PARAM, 0.0001f, 0.05f, 0.05f));
 
 		addParam(ParamWidget::create<CKSS>(Vec(90, 325), module, CANARD::MODE_PARAM, 0.0f, 1.0f, 0.0f));
 
@@ -713,7 +710,25 @@ struct CANARDTransientDetect : MenuItem {
 	CANARDWidget *canardWidget;
 	CANARD *canardModule;
 	void onAction(EventAction &e) override {
-		canardModule->transientThreshold = 0.3;
+		canardModule->slices.clear();
+		canardModule->slices.push_back(0);
+		int i = 0;
+		int size = 256;
+		Gist<float> gist = Gist<float>(size,engineGetSampleRate());
+		vector<float>::const_iterator first;
+		vector<float>::const_iterator last;
+		while (i+size<canardModule->playBuffer.getNumSamplesPerChannel()) {
+			first = canardModule->playBuffer.samples[0].begin() + i;
+			last = canardModule->playBuffer.samples[0].begin() + i + size;
+			vector<float> newVec(first, last);
+			gist.processAudioFrame(newVec);
+			if (((gist.energyDifference()/size)>canardModule->params[CANARD::THRESHOLD_PARAM].value)
+			&& ((gist.complexSpectralDifference()/size)>canardModule->params[CANARD::THRESHOLD_PARAM].value)
+			&& ((gist.zeroCrossingRate()/size)>canardModule->params[CANARD::THRESHOLD_PARAM].value)) {
+				canardModule->slices.push_back(i);
+			}
+			i+=size;
+		}
 	}
 };
 
@@ -777,16 +792,19 @@ Menu *CANARDWidget::createContextMenu() {
 		addSliceItem->canardWidget = this;
 		addSliceItem->canardModule = canardModule;
 		menu->addChild(addSliceItem);
-	}
 
-	if (canardModule->playBuffer.getNumSamplesPerChannel()>=0) {
 		CANARDDeleteSliceMarker *deleteSliceItem = new CANARDDeleteSliceMarker();
 		deleteSliceItem->text = "Delete slice marker";
 		deleteSliceItem->canardWidget = this;
 		deleteSliceItem->canardModule = canardModule;
 		menu->addChild(deleteSliceItem);
-	}
 
+		CANARDTransientDetect *trnsientItem = new CANARDTransientDetect();
+		trnsientItem->text = "Search transients";
+		trnsientItem->canardWidget = this;
+		trnsientItem->canardModule = canardModule;
+		menu->addChild(trnsientItem);
+	}
 
 	spacerLabel = new MenuLabel();
 	menu->addChild(spacerLabel);

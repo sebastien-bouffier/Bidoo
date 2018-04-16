@@ -41,4 +41,4 @@ extern Model *modelVOID;
 extern Model *modelCANARD;
 extern Model *modelLOURDE;
 extern Model *modelDFUZE;
-//extern Model *modelLAZAGNE;
+extern Model *modelLAZAGNE;

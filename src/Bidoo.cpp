@@ -29,5 +29,5 @@ void init(rack::Plugin *p) {
 	p->addModel(modelZINC);
 	p->addModel(modelDFUZE);
 	p->addModel(modelVOID);
-	//p->addModel(modelLAZAGNE);
+	p->addModel(modelLAZAGNE);
 }

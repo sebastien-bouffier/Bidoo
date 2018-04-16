@@ -13,7 +13,13 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-15/04/2018 : cANARd's waveform display can zoom. Left mouse pressed => up (zoom in) & down (zoom out).
+16/04/2018 : 
+
+0.6.2
+
+cANARd's zoom by drag up and down is 10% by default and 100% when Shift is pressed. Added a transient detection tool (via menu) the threshold is set by the knob under the End Of Cycle output. Needs improvements.
+
+15/04/2018 : cANARd's waveform display is able to zoom. Left mouse pressed => up (zoom in) & down (zoom out).
 
 04/04/18 : A big thanks to all the people who helped and supported for the 0.6 transition. Let's make music now!!!
 
