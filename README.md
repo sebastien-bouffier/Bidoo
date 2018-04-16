@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.6.1-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.6.2-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -13,7 +13,7 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-16/04/2018 : 
+16/04/2018 :
 
 0.6.2
 
