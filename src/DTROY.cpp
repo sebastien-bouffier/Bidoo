@@ -328,9 +328,11 @@ struct DTROY : Module {
 	int selectedPattern = 0;
 	int playedPattern = 0;
 	bool pitchMode = false;
+	bool pitchQuantizeMode = true;
 	bool updateFlag = false;
 	bool first = true;
 	bool loadedFromJson = false;
+	int copyPattern = -1;
 
 	Pattern patterns[16];
 
@@ -355,6 +357,7 @@ struct DTROY : Module {
 		json_object_set_new(rootJ, "playMode", json_integer(playMode));
 		json_object_set_new(rootJ, "countMode", json_integer(countMode));
 		json_object_set_new(rootJ, "pitchMode", json_boolean(pitchMode));
+		json_object_set_new(rootJ, "pitchQuantizeMode", json_boolean(pitchQuantizeMode));
 		json_object_set_new(rootJ, "selectedPattern", json_integer(selectedPattern));
 		json_object_set_new(rootJ, "playedPattern", json_integer(playedPattern));
 
@@ -579,13 +582,14 @@ struct DTROY : Module {
 		float closestDist = 10.0f;
 		int octaveInVolts = int(voltsIn);
 		for (int i = 0; i < notesInScale; i++) {
-			float scaleNoteInVolts = octaveInVolts + ((rootNote + curScaleArr[i]) / 12.0f);
+			float scaleNoteInVolts = octaveInVolts + (((pitchQuantizeMode ? rootNote : 0.0f) + curScaleArr[i]) / 12.0f);
 			float distAway = fabs(voltsIn - scaleNoteInVolts);
-			if(distAway < closestDist){
+			if(distAway < closestDist) {
 				closestVal = scaleNoteInVolts;
 				closestDist = distAway;
 			}
 		}
+		closestVal += pitchQuantizeMode ? 0.0f : (rootNote / 12.0f);
 		return closestVal;
 	}
 };
@@ -593,6 +597,7 @@ struct DTROY : Module {
 
 void DTROY::step() {
  	const float lightLambda = 0.075f;
+
 	// Run
 	if (runningTrigger.process(params[RUN_PARAM].value)) {
 		running = !running;
@@ -995,6 +1000,17 @@ struct DTROYPitchModeItem : MenuItem {
 	}
 };
 
+struct DTROYPitchQuantizeModeItem : MenuItem {
+	DTROY *dtroyModule;
+	void onAction(EventAction &e) override {
+		dtroyModule->pitchQuantizeMode = !dtroyModule->pitchQuantizeMode;
+	}
+	void step() override {
+		rightText = dtroyModule->pitchQuantizeMode ? "✔" : "";
+		MenuItem::step();
+	}
+};
+
 struct DisconnectMenuItem : MenuItem {
 	ModuleWidget *moduleWidget;
 	void onAction(EventAction &e) override {
@@ -1044,6 +1060,40 @@ struct DeleteMenuItem : MenuItem {
 		gRackWidget->deleteModule(moduleWidget);
 		moduleWidget->finalizeEvents();
 		delete moduleWidget;
+	}
+};
+
+struct DTROYCopyItem : MenuItem {
+	DTROY *dtroyModule;
+	void onAction(EventAction &e) override {
+		dtroyModule->copyPattern = dtroyModule->selectedPattern;
+	}
+};
+
+struct DTROYPasteItem : MenuItem {
+	DTROY *dtroyModule;
+	DTROYWidget *dtroyWidget;
+	void onAction(EventAction &e) override {
+		if (dtroyModule && dtroyWidget && (dtroyModule->copyPattern != dtroyModule->selectedPattern) && dtroyModule->updateFlag)
+		{
+			dtroyModule->updateFlag = false;
+			dtroyWidget->stepsParam->setValue(dtroyModule->patterns[dtroyModule->copyPattern].numberOfStepsParam);
+			dtroyWidget->rootNoteParam->setValue(dtroyModule->patterns[dtroyModule->copyPattern].rootNote);
+			dtroyWidget->scaleParam->setValue(dtroyModule->patterns[dtroyModule->copyPattern].scale);
+			dtroyWidget->gateTimeParam->setValue(dtroyModule->patterns[dtroyModule->copyPattern].gateTime);
+			dtroyWidget->slideTimeParam->setValue(dtroyModule->patterns[dtroyModule->copyPattern].slideTime);
+			dtroyWidget->sensitivityParam->setValue(dtroyModule->patterns[dtroyModule->copyPattern].sensitivity);
+			dtroyModule->playMode = dtroyModule->patterns[dtroyModule->copyPattern].playMode;
+			dtroyModule->countMode = dtroyModule->patterns[dtroyModule->copyPattern].countMode;
+			for (int i = 0; i < 8; i++) {
+				dtroyWidget->pitchParams[i]->setValue(dtroyModule->patterns[dtroyModule->copyPattern].steps[i].pitch);
+				dtroyWidget->pulseParams[i]->setValue(dtroyModule->patterns[dtroyModule->copyPattern].steps[i].pulsesParam);
+				dtroyWidget->typeParams[i]->setValue(dtroyModule->patterns[dtroyModule->copyPattern].steps[i].type);
+				dtroyModule->skipState[i] = dtroyModule->patterns[dtroyModule->copyPattern].steps[i].skipParam ? 't' : 'f';
+				dtroyModule->slideState[i] = dtroyModule->patterns[dtroyModule->copyPattern].steps[i].slide ? 't' : 'f';
+			}
+			dtroyModule->updateFlag = true;
+		}
 	}
 };
 
@@ -1105,10 +1155,29 @@ Menu *DTROYWidget::createContextMenu() {
 	MenuLabel *spacerLabel2 = new MenuLabel();
 	menu->addChild(spacerLabel2);
 
+	DTROYCopyItem *copyItem = new DTROYCopyItem();
+	copyItem->text = "Copy pattern";
+	copyItem->dtroyModule = dtroyModule;
+	menu->addChild(copyItem);
+
+	DTROYPasteItem *pasteItem = new DTROYPasteItem();
+	pasteItem->text = "Paste pattern";
+	pasteItem->dtroyModule = dtroyModule;
+	pasteItem->dtroyWidget = dtroyWidget;
+	menu->addChild(pasteItem);
+
+	MenuLabel *spacerLabel3 = new MenuLabel();
+	menu->addChild(spacerLabel3);
+
 	DTROYPitchModeItem *pitchModeItem = new DTROYPitchModeItem();
-	pitchModeItem->text = "Pitch mode continuous/triggered";
+	pitchModeItem->text = "Pitch mode continuous (vs. triggered)";
 	pitchModeItem->dtroyModule = dtroyModule;
 	menu->addChild(pitchModeItem);
+
+	DTROYPitchQuantizeModeItem *pitchQuantizeModeItem = new DTROYPitchQuantizeModeItem();
+	pitchQuantizeModeItem->text = "Pitch full quantize";
+	pitchQuantizeModeItem->dtroyModule = dtroyModule;
+	menu->addChild(pitchQuantizeModeItem);
 
 	return menu;
 }

@@ -1,6 +1,6 @@
 RACK_DIR ?= ../..
 SLUG = Bidoo
-VERSION = 0.6.2
+VERSION = 0.6.3
 DISTRIBUTABLES += $(wildcard LICENSE*) res
 
 # Static libs
