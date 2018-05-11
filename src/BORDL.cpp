@@ -346,11 +346,13 @@ struct BORDL : Module {
 	int selectedPattern = 0;
 	int playedPattern = 0;
 	bool pitchMode = false;
+	bool pitchQuantizeMode = true;
 	bool updateFlag = false;
 	bool probGate = true;
 	float rndPitch = 0.0f;
 	float accent = 5.0f;
 	bool loadedFromJson = false;
+	int copyPattern = -1;
 
 	PatternPlus patterns[16];
 
@@ -381,6 +383,7 @@ struct BORDL : Module {
 		json_object_set_new(rootJ, "playMode", json_integer(playMode));
 		json_object_set_new(rootJ, "countMode", json_integer(countMode));
 		json_object_set_new(rootJ, "pitchMode", json_boolean(pitchMode));
+		json_object_set_new(rootJ, "pitchQuantizeMode", json_boolean(pitchQuantizeMode));
 		json_object_set_new(rootJ, "selectedPattern", json_integer(selectedPattern));
 		json_object_set_new(rootJ, "playedPattern", json_integer(playedPattern));
 
@@ -446,6 +449,9 @@ struct BORDL : Module {
 		json_t *pitchModeJ = json_object_get(rootJ, "pitchMode");
 		if (pitchModeJ)
 			pitchMode = json_is_true(pitchModeJ);
+		json_t *pitchQuantizeModeJ = json_object_get(rootJ, "pitchQuantizeMode");
+		if (pitchQuantizeModeJ)
+			pitchQuantizeMode = json_is_true(pitchQuantizeModeJ);
 		json_t *trigsJ = json_object_get(rootJ, "trigs");
 		if (trigsJ) {
 			for (int i = 0; i < 8; i++) {
@@ -621,13 +627,14 @@ struct BORDL : Module {
 		float closestDist = 10.0f;
 		int octaveInVolts = int(voltsIn);
 		for (int i = 0; i < notesInScale; i++) {
-			float scaleNoteInVolts = octaveInVolts + ((rootNote + curScaleArr[i]) / 12.0f);
+			float scaleNoteInVolts = octaveInVolts + (((pitchQuantizeMode ? rootNote : 0.0f) + curScaleArr[i]) / 12.0f);
 			float distAway = fabs(voltsIn - scaleNoteInVolts);
 			if(distAway < closestDist){
 				closestVal = scaleNoteInVolts;
 				closestDist = distAway;
 			}
 		}
+		closestVal += pitchQuantizeMode ? 0.0f : (rootNote / 12.0f);
 		return closestVal;
 	}
 };
@@ -1196,19 +1203,30 @@ struct BORDLRandGatesItem : MenuItem {
 };
 
 struct BORDLRandSlideSkipItem : MenuItem {
-	BORDL *dtroyModule;
+	BORDL *bordlModule;
 	void onAction(EventAction &e) override {
-		dtroyModule->randomizeSlidesSkips();
+		bordlModule->randomizeSlidesSkips();
 	}
 };
 
 struct BORDLPitchModeItem : MenuItem {
-	BORDL *dtroyModule;
+	BORDL *bordlModule;
 	void onAction(EventAction &e) override {
-		dtroyModule->pitchMode = !dtroyModule->pitchMode;
+		bordlModule->pitchMode = !bordlModule->pitchMode;
 	}
 	void step() override {
-		rightText = dtroyModule->pitchMode ? "✔" : "";
+		rightText = bordlModule->pitchMode ? "✔" : "";
+		MenuItem::step();
+	}
+};
+
+struct BORDLPitchQuantizeModeItem : MenuItem {
+	BORDL *bordlModule;
+	void onAction(EventAction &e) override {
+		bordlModule->pitchQuantizeMode = !bordlModule->pitchQuantizeMode;
+	}
+	void step() override {
+		rightText = bordlModule->pitchQuantizeMode ? "✔" : "";
 		MenuItem::step();
 	}
 };
@@ -1222,7 +1240,7 @@ struct DisconnectMenuItem : MenuItem {
 
 struct ResetMenuItem : MenuItem {
 	BORDLWidget *bordlWidget;
-	BORDL *dtroy;
+	BORDL *bordlModule;
 	void onAction(EventAction &e) override {
 		for (int i = 0; i < BORDL::NUM_PARAMS; i++){
 			if (i != BORDL::PATTERN_PARAM) {
@@ -1234,11 +1252,11 @@ struct ResetMenuItem : MenuItem {
 				}
 			}
 		}
-		dtroy->updateFlag = false;
-		dtroy->reset();
-		dtroy->playMode = 0;
-		dtroy->countMode = 0;
-		dtroy->updateFlag = true;
+		bordlModule->updateFlag = false;
+		bordlModule->reset();
+		bordlModule->playMode = 0;
+		bordlModule->countMode = 0;
+		bordlModule->updateFlag = true;
 	}
 };
 
@@ -1265,12 +1283,50 @@ struct DeleteMenuItem : MenuItem {
 	}
 };
 
+struct BORDLCopyItem : MenuItem {
+	BORDL *bordlModule;
+	void onAction(EventAction &e) override {
+		bordlModule->copyPattern = bordlModule->selectedPattern;
+	}
+};
+
+struct BORDLPasteItem : MenuItem {
+	BORDL *bordlModule;
+	BORDLWidget *bordlWidget;
+	void onAction(EventAction &e) override {
+		if (bordlModule && bordlWidget && (bordlModule->copyPattern != bordlModule->selectedPattern) && bordlModule->updateFlag)
+		{
+			bordlModule->updateFlag = false;
+			bordlWidget->stepsParam->setValue(bordlModule->patterns[bordlModule->copyPattern].numberOfStepsParam);
+			bordlWidget->rootNoteParam->setValue(bordlModule->patterns[bordlModule->copyPattern].rootNote);
+			bordlWidget->scaleParam->setValue(bordlModule->patterns[bordlModule->copyPattern].scale);
+			bordlWidget->gateTimeParam->setValue(bordlModule->patterns[bordlModule->copyPattern].gateTime);
+			bordlWidget->slideTimeParam->setValue(bordlModule->patterns[bordlModule->copyPattern].slideTime);
+			bordlWidget->sensitivityParam->setValue(bordlModule->patterns[bordlModule->copyPattern].sensitivity);
+			bordlModule->playMode = bordlModule->patterns[bordlModule->copyPattern].playMode;
+			bordlModule->countMode = bordlModule->patterns[bordlModule->copyPattern].countMode;
+			for (int i = 0; i < 8; i++) {
+				bordlWidget->pitchParams[i]->setValue(bordlModule->patterns[bordlModule->copyPattern].steps[i].pitch);
+				bordlWidget->pulseParams[i]->setValue(bordlModule->patterns[bordlModule->copyPattern].steps[i].pulsesParam);
+				bordlWidget->typeParams[i]->setValue(bordlModule->patterns[bordlModule->copyPattern].steps[i].type);
+				bordlModule->skipState[i] = bordlModule->patterns[bordlModule->copyPattern].steps[i].skipParam ? 't' : 'f';
+				bordlModule->slideState[i] = bordlModule->patterns[bordlModule->copyPattern].steps[i].slide ? 't' : 'f';
+				bordlWidget->pulseProbParams[i]->setValue(bordlModule->patterns[bordlModule->copyPattern].steps[i].gateProb);
+				bordlWidget->pitchRndParams[i]->setValue(bordlModule->patterns[bordlModule->copyPattern].steps[i].pitchRnd);
+				bordlWidget->accentParams[i]->setValue(bordlModule->patterns[bordlModule->copyPattern].steps[i].accent);
+				bordlWidget->rndAccentParams[i]->setValue(bordlModule->patterns[bordlModule->copyPattern].steps[i].rndAccent);
+			}
+			bordlModule->updateFlag = true;
+		}
+	}
+};
+
 Menu *BORDLWidget::createContextMenu() {
 	BORDLWidget *bordlWidget = dynamic_cast<BORDLWidget*>(this);
 	assert(bordlWidget);
 
-	BORDL *dtroyModule = dynamic_cast<BORDL*>(module);
-	assert(dtroyModule);
+	BORDL *bordlModule = dynamic_cast<BORDL*>(module);
+	assert(bordlModule);
 
 	Menu *menu = gScene->createMenu();
 
@@ -1282,7 +1338,7 @@ Menu *BORDLWidget::createContextMenu() {
 	resetItem->text = "Initialize";
 	resetItem->rightText = "+I";
 	resetItem->bordlWidget = this;
-	resetItem->dtroy = dtroyModule;
+	resetItem->bordlModule = bordlModule;
 	menu->addChild(resetItem);
 
 	DisconnectMenuItem *disconnectItem = new DisconnectMenuItem();
@@ -1317,16 +1373,35 @@ Menu *BORDLWidget::createContextMenu() {
 
 	BORDLRandSlideSkipItem *randomizeSlideSkipItem = new BORDLRandSlideSkipItem();
 	randomizeSlideSkipItem->text = "Randomize slides and skips";
-	randomizeSlideSkipItem->dtroyModule = dtroyModule;
+	randomizeSlideSkipItem->bordlModule = bordlModule;
 	menu->addChild(randomizeSlideSkipItem);
 
 	MenuLabel *spacerLabel2 = new MenuLabel();
 	menu->addChild(spacerLabel2);
 
+	BORDLCopyItem *copyItem = new BORDLCopyItem();
+	copyItem->text = "Copy pattern";
+	copyItem->bordlModule = bordlModule;
+	menu->addChild(copyItem);
+
+	BORDLPasteItem *pasteItem = new BORDLPasteItem();
+	pasteItem->text = "Paste pattern";
+	pasteItem->bordlModule = bordlModule;
+	pasteItem->bordlWidget = bordlWidget;
+	menu->addChild(pasteItem);
+
+	MenuLabel *spacerLabel3 = new MenuLabel();
+	menu->addChild(spacerLabel3);
+
 	BORDLPitchModeItem *pitchModeItem = new BORDLPitchModeItem();
 	pitchModeItem->text = "Pitch mode continuous/triggered";
-	pitchModeItem->dtroyModule = dtroyModule;
+	pitchModeItem->bordlModule = bordlModule;
 	menu->addChild(pitchModeItem);
+
+	BORDLPitchQuantizeModeItem *pitchQuantizeModeItem = new BORDLPitchQuantizeModeItem();
+	pitchQuantizeModeItem->text = "Pitch full quantize";
+	pitchQuantizeModeItem->bordlModule = bordlModule;
+	menu->addChild(pitchQuantizeModeItem);
 
 	return menu;
 }

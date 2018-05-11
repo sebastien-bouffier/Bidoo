@@ -419,6 +419,9 @@ struct DTROY : Module {
 		json_t *pitchModeJ = json_object_get(rootJ, "pitchMode");
 		if (pitchModeJ)
 			pitchMode = json_is_true(pitchModeJ);
+		json_t *pitchQuantizeModeJ = json_object_get(rootJ, "pitchQuantizeMode");
+		if (pitchQuantizeModeJ)
+			pitchQuantizeMode = json_is_true(pitchQuantizeModeJ);
 		json_t *trigsJ = json_object_get(rootJ, "trigs");
 		if (trigsJ) {
 			for (int i = 0; i < 8; i++) {

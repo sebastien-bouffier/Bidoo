@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.6.3-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.6.5-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -13,31 +13,11 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-01/05/2018 :
+11/05/2018 => 0.6.5
 
-dTrOY pitch quantize has 2 modes i.e. full quantize (meaning root note added in quantization) or partial (pitch is quantized and root note added on top). You can Copy/Paste patterns via the menu.
+μ. can be viewed as a step in a sequence. Link some of them and you will build a full sequence path. When moving the cursor over the knobs and ports the display shows a description and the current value of the focused object. As usual black ports are inputs and the red ones outputs. To start experimenting link some units with bpm ports so the first one will become the master tempo for the chain. Link gate and CV at the bottom to create the path for the signal. Link step end ports with step start ones to build the order of steps. At that stage you can use the alternate end of step output port to fork the path and adjust the corresponding probability. Maybe you need that under some circumstances a step is stopped .. use the inhibit port. Once the chain is made set the tempo with the first step (one fast knob and a dedicated one for decimals). Then set the length of each step (two controls too as for bpm) 100% means a quarter for a 4/4 signature, 50% one eighth, 200% an half etc... To introduce swing use decimal values for the step length. Now choose the length of the trigs in percentage of the step length, the CV value, the probability of the trig to be played, the probability of the alternate port to be use instead of the standard end of step port, the trig repeat count and the distance between retrigs. If the trig length is greater than the distance then the trigs will merge. You have two small led buttons between gate and CV in and out ports. They activate the stack mode on those ports. By default a step plays its trigs when active and let the signal pass thru the ports when not active. If you activate the stack mode the incoming signal will be added to the trigs data when the step is active. You can manually launch a step with the left top led button and mute the step with the right one. Modulation ports are available for almost all parameters.
 
-16/04/2018 :
-
-0.6.2
-
-cANARd's zoom by drag up and down is 10% by default and 100% when Shift is pressed. Added a transient detection tool (via menu) the threshold is set by the knob under the End Of Cycle output. Needs improvements.
-
-15/04/2018 : cANARd's waveform display is able to zoom. Left mouse pressed => up (zoom in) & down (zoom out).
-
-04/04/18 : A big thanks to all the people who helped and supported for the 0.6 transition. Let's make music now!!!
-
-0.6.1
-
-LoURdE coefficients display.
-
-dFUZE freeverb portage with first attempt to make a shimmer hack.
-
-TiARE phase calculation fix.
-
-antN sample rate conversion according to engine sample rate ... working ... but needs to be improved.
-
-LoURdE is a gate tool that mixes and compares 3 inputs to a threshold.
+This release comes with another module Σ which is a simple merge tool .. essential with μ in order to merge end of steps ports or gate and CV ones.
 
 ## License
 

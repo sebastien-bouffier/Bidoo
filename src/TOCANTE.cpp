@@ -8,6 +8,7 @@ using namespace std;
 struct TOCANTE : Module {
 	enum ParamIds {
 		BPM_PARAM,
+		BPMFINE_PARAM,
 		BEATS_PARAM,
 		REF_PARAM,
 		RUN_PARAM,
@@ -49,6 +50,7 @@ struct TOCANTE : Module {
 	bool reset = false;
 	float runningLight = 0.0f;
 	bool pulseEven = false, pulseTriplets = false;
+	float bpm = 0.0f;
 
 	TOCANTE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
 
@@ -83,7 +85,8 @@ void TOCANTE::step() {
 
 	ref = clamp(powf(2.0f,params[REF_PARAM].value),2.0f,16.0f);
 	beats = clamp(params[BEATS_PARAM].value,1.0f,32.0f);
-	stepsPerSixteenth =  floor(engineGetSampleRate() / clamp(params[BPM_PARAM].value, 1.0f, 350.0f) * 60 * ref / 32) * 2;
+	bpm = clamp(round(params[BPM_PARAM].value) + round(100*params[BPMFINE_PARAM].value)/100, 1.0f, 350.0f);
+	stepsPerSixteenth =  floor(engineGetSampleRate() / bpm * 60 * ref / 32) * 2;
 	stepsPerEighth = stepsPerSixteenth * 2;
 	stepsPerQuarter = stepsPerEighth * 2;
 	stepsPerTriplet = floor(stepsPerQuarter/3);
@@ -123,7 +126,7 @@ struct TOCANTEDisplay : TransparentWidget {
 
 	void draw(NVGcontext *vg) override {
 		char tBPM[128],tBeats[128];
-		snprintf(tBPM, sizeof(tBPM), "%1.2f BPM", module->params[TOCANTE::BPM_PARAM].value);
+		snprintf(tBPM, sizeof(tBPM), "%1.2f BPM", module->bpm);
 		snprintf(tBeats, sizeof(tBeats), "%1i/%1i", module->beats, module->ref);
 		nvgFontSize(vg, 16.0f);
 		nvgFontFaceId(vg, font->handle);
@@ -159,7 +162,8 @@ struct TOCANTEWidget : ModuleWidget {
 		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(ParamWidget::create<BPMBlueKnob>(Vec(5.0f,90.0f), module, TOCANTE::BPM_PARAM, 2.0f, 350.0f, 60.0f));
+		addParam(ParamWidget::create<BPMBlueKnob>(Vec(5.0f,90.0f), module, TOCANTE::BPM_PARAM, 1.0f, 350.0f, 60.0f));
+		addParam(ParamWidget::create<BPMBlueKnob>(Vec(5.0f,125.0f), module, TOCANTE::BPMFINE_PARAM, 0.0f, 0.99f, 0.0f));
 		addParam(ParamWidget::create<BidooBlueSnapKnob>(Vec(38.0f,90.0f), module, TOCANTE::BEATS_PARAM, 1.0f, 32.0f, 4.0f));
 		addParam(ParamWidget::create<BidooBlueSnapKnob>(Vec(72.0f,90.0f), module, TOCANTE::REF_PARAM, 1.0f, 4.0f, 2.0f));
 

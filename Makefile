@@ -1,6 +1,6 @@
 RACK_DIR ?= ../..
 SLUG = Bidoo
-VERSION = 0.6.3
+VERSION = 0.6.5
 DISTRIBUTABLES += $(wildcard LICENSE*) res
 
 # Static libs
@@ -19,7 +19,8 @@ $(mpg123):
 	cd dep/mpg123-1.25.8 && $(MAKE)
 	cd dep/mpg123-1.25.8 && $(MAKE) install
 
-FLAGS += -DUSE_KISS_FFT -Idep/include -I./src/dep/audiofile -I./src/dep/filters -I./src/dep/freeverb -I./src/dep/gist/libs/kiss_fft130 -I./src/dep/gist/src \
+FLAGS += -DUSE_KISS_FFT -Idep/include -I./src/dep/audiofile -I./src/dep/filters -I./src/dep/freeverb \
+ -I./src/dep/gist/libs/kiss_fft130 -I./src/dep/gist/src \
  -I./src/dep/gist/src/mfcc -I./src/dep/gist/src/core -I./src/dep/gist/src/fft \
  -I./src/dep/gist/src/onset-detection-functions -I./src/dep/gist/src/pitch
 
