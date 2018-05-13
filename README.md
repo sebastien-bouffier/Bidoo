@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.6.5-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.6.6-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -12,6 +12,12 @@
 You can find information on that plugins pack in the [wiki](https://github.com/sebastien-bouffier/Bidoo/wiki). When doing tests it happens that I record a video so you may find some ideas on how to use those modules [here](https://www.youtube.com/bidoo).
 
 ## Last changes
+
+13/05/2018 => 0.6.6
+
+antN goes away from mpg123 and is based now on minimp3 so maybe my pack will be available thru Rack again.
+
+Some changes on μ that has an offset param now. I changed the fine tuning of step length so it is easier to setup. Step length is 100% by default.
 
 11/05/2018 => 0.6.5
 

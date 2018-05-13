@@ -20,6 +20,7 @@ struct MU : Module {
 		CVSTACK_PARAM,
 		TRIGSTACK_PARAM,
 		MUTE_PARAM,
+		OFFSET_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -32,6 +33,7 @@ struct MU : Module {
 		CV_INPUT,
 		NUMTRIGS_INPUT,
 		DISTTRIGS_INPUT,
+		OFFSET_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -75,7 +77,8 @@ struct MU : Module {
 	float displayAltProba = 0.0f;
 	float displayNumTrigs = 0.0f;
 	float displayDistTrigs = 0.0f;
-	float displayCV = 0.0;
+	float displayCV = 0.0f;
+	float displayOffset = 0.0f;
 	bool cvStack = false;
 	bool trigStack = false;
 	bool mute = false;
@@ -88,16 +91,24 @@ struct MU : Module {
 
 
 void MU::step() {
+
 	const float lightLambda = 0.075f;
+
 	bpm = inputs[BPM_INPUT].active ? rescale(clamp(inputs[BPM_INPUT].value,0.0f,10.0f),0.0f,10.0f,1.0f,800.99f) : (round(params[BPM_PARAM].value)+round(100*params[BPMFINE_PARAM].value)/100);
 	displayLength = round(params[STEPLENGTH_PARAM].value) + round(params[STEPLENGTHFINE_PARAM].value*100)/100;
-	if (startTrigger.process(params[START_PARAM].value) && !isActive)
+
+	bool wasActive = isActive;
+	if (startTrigger.process(params[START_PARAM].value))
 	{
 		lights[START_LIGHT].value = 10.0f;
+		isActive = true;
 	}
-	if (activateTrigger.process(inputs[ACTIVATE_INPUT].value + params[START_PARAM].value) && !isActive)
+	if (activateTrigger.process(inputs[ACTIVATE_INPUT].value))
 	{
 		isActive = true;
+	}
+
+	if (!wasActive && isActive) {
 		initTicks = (displayLength/100) * engineGetSampleRate() * 60 / bpm;
 		ticks = initTicks;
 		count = 0;
@@ -131,6 +142,7 @@ void MU::step() {
 	displayAltProba = params[ALTEOSTEPPROBA_PARAM].value * 100;
 	displayDistTrigs = params[DISTTRIGS_PARAM].value * 100;
 	displayNumTrigs = numTrigs;
+	displayOffset = clamp(params[OFFSET_PARAM].value + rescale(clamp(inputs[OFFSET_INPUT].value, 0.0f,10.0f), 0.0f, 10.0f, 0.0f,1.0f), 0.0f, 1.0f) * initTicks;
 
 	if (inhibateTrigger.process(inputs[INHIBIT_INPUT].value))
 	{
@@ -145,8 +157,8 @@ void MU::step() {
 			outputs[CVBRIDGE_OUTPUT].value = 0.0f;
 		}
 		else {
-			int mult = distRetrig > 0 ? (count / distRetrig) : 0;
-			if (play && (mult < numTrigs) && (count >= (mult * distRetrig)) && (count <= (mult * distRetrig + gateTicks))) {
+			int mult = ((distRetrig > 0) && (count>displayOffset))  ? ((count-displayOffset) / distRetrig) : 0;
+			if (play && (mult < numTrigs) && (count >= (displayOffset + mult * distRetrig)) && (count <= (displayOffset + (mult * distRetrig) + gateTicks))) {
 				outputs[GATEBRIDGE_OUTPUT].value = mute ? 0.0f : 10.0f;
 				lights[GATE_LIGHT].value = mute ? 0.0f : 10.0f;
 				lights[GATE_LIGHT+1].value = 0.0f;
@@ -252,197 +264,210 @@ struct MUWidget : ModuleWidget {
 		setPanel(SVG::load(assetPlugin(plugin, "res/MU.svg")));
 
 		LabelMICROWidget *display = new LabelMICROWidget();
-		display->box.pos = Vec(7,48);
+		display->box.pos = Vec(4,37);
 		addChild(display);
 
-		addChild(Widget::create<ScrewSilver>(Vec(30, 0)));
-  	// addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-  	// addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-  	// addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(ModuleLightWidget::create<SmallLight<RedGreenBlueLight>>(Vec(40, 15), module, MU::GATE_LIGHT));
 
-		addChild(ModuleLightWidget::create<SmallLight<RedGreenBlueLight>>(Vec(40, 23), module, MU::GATE_LIGHT));
+		addParam(ParamWidget::create<LEDButton>(Vec(5, 5), module, MU::START_PARAM, 0.0f, 10.0f,  0.0f));
+		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(11, 11), module, MU::START_LIGHT));
 
-		BidooBlueTrimpotWithDisplay* bpm = ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(14, 70), module, MU::BPM_PARAM, 1.0f, 800.0f, 117.0f);
+		addParam(ParamWidget::create<LEDButton>(Vec(52, 5), module, MU::MUTE_PARAM, 0.0f, 10.0f,  0.0f));
+		addChild(ModuleLightWidget::create<SmallLight<RedLight>>(Vec(58, 11), module, MU::MUTE_LIGHT));
+
+		static const float portX0[2] = {14.0f, 41.0f};
+		static const float portY0[5] = {60.0f, 83.0f, 106.0f, 145.0f, 166.0f};
+
+		static const float portX1[2] = {15.0f, 45.0f};
+		static const float portY1[8] = {191.0f, 215.0f, 239.0f, 263.0f, 287.0f, 311.0f, 335.0f, 359.0f};
+
+		BidooBlueTrimpotWithDisplay* bpm = ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(portX0[0], portY0[0]), module, MU::BPM_PARAM, 1.0f, 800.0f, 117.0f);
 		bpm->lblDisplay = display;
 		bpm->valueForDisplay = &module->bpm;
 		bpm->format = "%2.2f";
 		bpm->header = "BPM";
 		addParam(bpm);
-		BidooBlueTrimpotWithDisplay* bpmFine =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(14, 93), module, MU::BPMFINE_PARAM, 0.0f, 0.99f, 0.0f);
+		BidooBlueTrimpotWithDisplay* bpmFine =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(portX0[0], portY0[1]), module, MU::BPMFINE_PARAM, 0.0f, 0.99f, 0.0f);
 		bpmFine->lblDisplay = display;
 		bpmFine->valueForDisplay = &module->bpm;
 		bpmFine->format = "%2.2f";
 		bpmFine->header = "BPM";
 		addParam(bpmFine);
 
-		BidooBlueTrimpotWithDisplay* stepLength =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(41, 70), module, MU::STEPLENGTH_PARAM, 0.0f, 1600.0f, 1.0f);
+		BidooBlueTrimpotWithDisplay* stepLength =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(portX0[1], portY0[0]), module, MU::STEPLENGTH_PARAM, 0.0f, 1600.0f, 100.0f);
 		stepLength->lblDisplay = display;
 		stepLength->valueForDisplay = &module->displayLength;
 		stepLength->format = "%2.2f %%";
 		stepLength->header = "Step len.";
 		addParam(stepLength);
-		BidooBlueTrimpotWithDisplay* stepLengthFine =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(41, 93), module, MU::STEPLENGTHFINE_PARAM, 0.0f, 0.99f, 0.0f);
+		BidooBlueTrimpotWithDisplay* stepLengthFine =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(portX0[1], portY0[1]), module, MU::STEPLENGTHFINE_PARAM, -0.5f, 0.5f, 0.0f);
 		stepLengthFine->lblDisplay = display;
 		stepLengthFine->valueForDisplay = &module->displayLength;
 		stepLengthFine->format = "%2.2f %%";
 		stepLengthFine->header = "Step len.";
 		addParam(stepLengthFine);
 
-		BidooBlueTrimpotWithDisplay* noteLength =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(14, 116), module, MU::NOTELENGTH_PARAM, 0.0f, 1.0f, 1.0f);
+		BidooBlueTrimpotWithDisplay* noteLength =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(portX0[0], portY0[2]), module, MU::NOTELENGTH_PARAM, 0.0f, 1.0f, 1.0f);
 		noteLength->lblDisplay = display;
 		noteLength->valueForDisplay = &module->displayNoteLength;
 		noteLength->format = "%2.2f %%";
 		noteLength->header = "Trigs len.";
 		addParam(noteLength);
 
-		BidooBlueTrimpotWithDisplay* cv =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(41, 116), module, MU::CV_PARAM, 0.0f, 10.0f, 0.0f);
+		BidooBlueTrimpotWithDisplay* offset =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(portX0[1], portY0[2]), module, MU::OFFSET_PARAM, 0.0f, 1.0f, 0.0f);
+		offset->lblDisplay = display;
+		offset->valueForDisplay = &module->displayOffset;
+		offset->format = "%2.2f V";
+		offset->header = "Trigs offset";
+		addParam(offset);
+
+		BidooBlueTrimpotWithDisplay* cv =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(portX0[0]+14, portY0[2]+19), module, MU::CV_PARAM, 0.0f, 10.0f, 0.0f);
 		cv->lblDisplay = display;
 		cv->valueForDisplay = &module->params[MU::CV_PARAM].value;
 		cv->format = "%2.2f V";
 		cv->header = "CV";
 		addParam(cv);
 
-		BidooBlueTrimpotWithDisplay* stepProb =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(14, 139), module, MU::STEPPROBA_PARAM, 0.0f, 1.0f, 1.0f);
+		BidooBlueTrimpotWithDisplay* stepProb =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(portX0[0], portY0[3]), module, MU::STEPPROBA_PARAM, 0.0f, 1.0f, 1.0f);
 		stepProb->lblDisplay = display;
 		stepProb->valueForDisplay = &module->displayStepProba;
 		stepProb->format = "%2.2f %%";
 		stepProb->header = "Step prob.";
 		addParam(stepProb);
 
-		BidooBlueTrimpotWithDisplay* altOutProb =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(41, 139), module, MU::ALTEOSTEPPROBA_PARAM, 0.0f, 1.0f, 0.0f);
+		BidooBlueTrimpotWithDisplay* altOutProb =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(portX0[1], portY0[3]), module, MU::ALTEOSTEPPROBA_PARAM, 0.0f, 1.0f, 0.0f);
 		altOutProb->lblDisplay = display;
 		altOutProb->valueForDisplay = &module->displayAltProba;
 		altOutProb->format = "%2.2f %%";
 		altOutProb->header = "Alt out prob.";
 		addParam(altOutProb);
 
-		BidooBlueTrimpotWithDisplay* numTrig =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(14, 162), module, MU::NUMTRIGS_PARAM, 1.0f, 64.0f, 1.0f);
+		BidooBlueTrimpotWithDisplay* numTrig =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(portX0[0], portY0[4]), module, MU::NUMTRIGS_PARAM, 1.0f, 64.0f, 1.0f);
 		numTrig->lblDisplay = display;
 		numTrig->valueForDisplay = &module->displayNumTrigs;
 		numTrig->format = "%2.0f";
-		numTrig->header = "Nb. Trigs";
+		numTrig->header = "Trigs count";
 		addParam(numTrig);
 
-		BidooBlueTrimpotWithDisplay* distTrig =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(41, 162), module, MU::DISTTRIGS_PARAM, 0.0f, 1.0f, 1.0f);
+		BidooBlueTrimpotWithDisplay* distTrig =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(portX0[1], portY0[4]), module, MU::DISTTRIGS_PARAM, 0.0f, 1.0f, 1.0f);
 		distTrig->lblDisplay = display;
 		distTrig->valueForDisplay = &module->displayDistTrigs;
 		distTrig->format = "%2.2f %%";
 		distTrig->header = "Trigs Dist.";
 		addParam(distTrig);
 
-
-		TinyPJ301MPortWithDisplay* bpmIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(15, 189), Port::INPUT, module, MU::BPM_INPUT);
+		TinyPJ301MPortWithDisplay* bpmIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[0]), Port::INPUT, module, MU::BPM_INPUT);
 		bpmIn->lblDisplay = display;
 		bpmIn->valueForDisplay = &module->inputs[MU::BPM_INPUT].value;
 		bpmIn->format = "%2.2f V";
 		bpmIn->header = "BPM";
 		addInput(bpmIn);
-		TinyPJ301MPortWithDisplay* bpmOut = Port::create<TinyPJ301MPortWithDisplay>(Vec(45, 189), Port::OUTPUT, module, MU::BPM_OUTPUT);
+		TinyPJ301MPortWithDisplay* bpmOut = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[0]), Port::OUTPUT, module, MU::BPM_OUTPUT);
 		bpmOut->lblDisplay = display;
 		bpmOut->valueForDisplay = &module->outputs[MU::BPM_OUTPUT].value;
 		bpmOut->format = "%2.2f V";
 		bpmOut->header = "BPM";
 		addOutput(bpmOut);
 
-		TinyPJ301MPortWithDisplay* activateIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(15, 213), Port::INPUT, module, MU::ACTIVATE_INPUT);
+		TinyPJ301MPortWithDisplay* activateIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[1]), Port::INPUT, module, MU::ACTIVATE_INPUT);
 		activateIn->lblDisplay = display;
 		activateIn->valueForDisplay = &module->inputs[MU::ACTIVATE_INPUT].value;
 		activateIn->format = "%2.2f V";
 		activateIn->header = "Step start";
 		addInput(activateIn);
-		TinyPJ301MPortWithDisplay* activateOUT = Port::create<TinyPJ301MPortWithDisplay>(Vec(45, 213), Port::OUTPUT, module, MU::EOSTEP_OUTPUT);
+		TinyPJ301MPortWithDisplay* activateOUT = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[1]), Port::OUTPUT, module, MU::EOSTEP_OUTPUT);
 		activateOUT->lblDisplay = display;
 		activateOUT->valueForDisplay = &module->outputs[MU::BPM_OUTPUT].value;
 		activateOUT->format = "%2.2f V";
 		activateOUT->header = "Step end";
 		addOutput(activateOUT);
 
-		addChild(ModuleLightWidget::create<SmallLight<GreenLight>>(Vec(34, 218), module, MU::NORMEOS_LIGHT));
+		addChild(ModuleLightWidget::create<SmallLight<GreenLight>>(Vec(portX1[1]-11, portY1[1]+5), module, MU::NORMEOS_LIGHT));
 
-		TinyPJ301MPortWithDisplay* activateAltOUT = Port::create<TinyPJ301MPortWithDisplay>(Vec(45, 237), Port::OUTPUT, module, MU::ALTEOSTEP_OUTPUT);
+		TinyPJ301MPortWithDisplay* activateAltOUT = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[2]), Port::OUTPUT, module, MU::ALTEOSTEP_OUTPUT);
 		activateAltOUT->lblDisplay = display;
 		activateAltOUT->valueForDisplay = &module->outputs[MU::ALTEOSTEP_OUTPUT].value;
 		activateAltOUT->format = "%2.2f V";
 		activateAltOUT->header = "Alt step end";
 		addOutput(activateAltOUT);
 
-		addChild(ModuleLightWidget::create<SmallLight<GreenLight>>(Vec(34, 242), module, MU::ALTEOS_LIGHT));
+		addChild(ModuleLightWidget::create<SmallLight<GreenLight>>(Vec(portX1[1]-11, portY1[2]+5), module, MU::ALTEOS_LIGHT));
 
-		TinyPJ301MPortWithDisplay* inhibitIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(15, 237), Port::INPUT, module, MU::INHIBIT_INPUT);
+		TinyPJ301MPortWithDisplay* inhibitIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[2]), Port::INPUT, module, MU::INHIBIT_INPUT);
 		inhibitIn->lblDisplay = display;
 		inhibitIn->valueForDisplay = &module->inputs[MU::INHIBIT_INPUT].value;
 		inhibitIn->format = "%2.2f V";
 		inhibitIn->header = "Inhibit step";
 		addInput(inhibitIn);
 
-		TinyPJ301MPortWithDisplay* noteLengthIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(15, 261), Port::INPUT, module, MU::NOTELENGTH_INPUT);
+		TinyPJ301MPortWithDisplay* noteLengthIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[3]), Port::INPUT, module, MU::NOTELENGTH_INPUT);
 		noteLengthIn->lblDisplay = display;
 		noteLengthIn->valueForDisplay = &module->inputs[MU::NOTELENGTH_INPUT].value;
 		noteLengthIn->format = "%2.2f V";
 		noteLengthIn->header = "Trigs len.";
 		addInput(noteLengthIn);
 
-		TinyPJ301MPortWithDisplay* cvIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(45, 261), Port::INPUT, module, MU::CV_INPUT);
+		TinyPJ301MPortWithDisplay* offsetIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[3]), Port::INPUT, module, MU::OFFSET_INPUT);
+		offsetIn->lblDisplay = display;
+		offsetIn->valueForDisplay = &module->inputs[MU::OFFSET_INPUT].value;
+		offsetIn->format = "%2.2f V";
+		offsetIn->header = "Offset mod";
+		addInput(offsetIn);
+
+		TinyPJ301MPortWithDisplay* cvIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[0]+14, portY1[4]), Port::INPUT, module, MU::CV_INPUT);
 		cvIn->lblDisplay = display;
 		cvIn->valueForDisplay = &module->inputs[MU::CV_INPUT].value;
 		cvIn->format = "%2.2f V";
 		cvIn->header = "CV mod";
 		addInput(cvIn);
 
-		TinyPJ301MPortWithDisplay* numTrigsIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(15, 285), Port::INPUT, module, MU::NUMTRIGS_INPUT);
+		TinyPJ301MPortWithDisplay* numTrigsIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[5]), Port::INPUT, module, MU::NUMTRIGS_INPUT);
 		numTrigsIn->lblDisplay = display;
 		numTrigsIn->valueForDisplay = &module->inputs[MU::NUMTRIGS_INPUT].value;
 		numTrigsIn->format = "%2.2f V";
-		numTrigsIn->header = "Nb. Trigs";
+		numTrigsIn->header = "Trigs count";
 		addInput(numTrigsIn);
 
-		TinyPJ301MPortWithDisplay* distTrigsIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(45, 285), Port::INPUT, module, MU::DISTTRIGS_INPUT);
+		TinyPJ301MPortWithDisplay* distTrigsIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[5]), Port::INPUT, module, MU::DISTTRIGS_INPUT);
 		distTrigsIn->lblDisplay = display;
 		distTrigsIn->valueForDisplay = &module->inputs[MU::DISTTRIGS_INPUT].value;
 		distTrigsIn->format = "%2.2f V";
 		distTrigsIn->header = "Trigs Dist.";
 		addInput(distTrigsIn);
 
-		TinyPJ301MPortWithDisplay* gateBridgeIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(15, 309), Port::INPUT, module, MU::GATEBRIDGE_INPUT);
+		TinyPJ301MPortWithDisplay* gateBridgeIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[6]), Port::INPUT, module, MU::GATEBRIDGE_INPUT);
 		gateBridgeIn->lblDisplay = display;
 		gateBridgeIn->valueForDisplay = &module->inputs[MU::GATEBRIDGE_INPUT].value;
 		gateBridgeIn->format = "%2.2f V";
 		gateBridgeIn->header = "Gate";
 		addInput(gateBridgeIn);
 
-		TinyPJ301MPortWithDisplay* gateBridgeOut = Port::create<TinyPJ301MPortWithDisplay>(Vec(45, 309), Port::OUTPUT, module, MU::GATEBRIDGE_OUTPUT);
+		TinyPJ301MPortWithDisplay* gateBridgeOut = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[6]), Port::OUTPUT, module, MU::GATEBRIDGE_OUTPUT);
 		gateBridgeOut->lblDisplay = display;
 		gateBridgeOut->valueForDisplay = &module->outputs[MU::GATEBRIDGE_OUTPUT].value;
 		gateBridgeOut->format = "%2.2f V";
 		gateBridgeOut->header = "Gate";
 		addOutput(gateBridgeOut);
 
-		addParam(ParamWidget::create<MiniLEDButton>(Vec(34, 314), module, MU::TRIGSTACK_PARAM, 0.0f, 10.0f,  0.0f));
-		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(34, 314), module, MU::TRIGSTACK_LIGHT));
+		addParam(ParamWidget::create<MiniLEDButton>(Vec(portX1[1]-11, portY1[6]+5), module, MU::TRIGSTACK_PARAM, 0.0f, 10.0f,  0.0f));
+		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(portX1[1]-11, portY1[6]+5), module, MU::TRIGSTACK_LIGHT));
 
-		TinyPJ301MPortWithDisplay* cvBridgeIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(15, 333), Port::INPUT, module, MU::CVBRIDGE_INPUT);
+		TinyPJ301MPortWithDisplay* cvBridgeIn = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[7]), Port::INPUT, module, MU::CVBRIDGE_INPUT);
 		cvBridgeIn->lblDisplay = display;
 		cvBridgeIn->valueForDisplay = &module->inputs[MU::CVBRIDGE_INPUT].value;
 		cvBridgeIn->format = "%2.2f V";
 		cvBridgeIn->header = "CV";
 		addInput(cvBridgeIn);
 
-		TinyPJ301MPortWithDisplay* cvBridgeOut = Port::create<TinyPJ301MPortWithDisplay>(Vec(45, 333), Port::OUTPUT, module, MU::CVBRIDGE_OUTPUT);
+		TinyPJ301MPortWithDisplay* cvBridgeOut = Port::create<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[7]), Port::OUTPUT, module, MU::CVBRIDGE_OUTPUT);
 		cvBridgeOut->lblDisplay = display;
 		cvBridgeOut->valueForDisplay = &module->outputs[MU::CVBRIDGE_OUTPUT].value;
 		cvBridgeOut->format = "%2.2f V";
 		cvBridgeOut->header = "CV";
 		addOutput(cvBridgeOut);
 
-		addParam(ParamWidget::create<MiniLEDButton>(Vec(34, 338), module, MU::CVSTACK_PARAM, 0.0f, 10.0f,  0.0f));
-		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(34, 338), module, MU::CVSTACK_LIGHT));
-
-		addParam(ParamWidget::create<LEDButton>(Vec(5, 13), module, MU::START_PARAM, 0.0f, 10.0f,  0.0f));
-		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(11, 19), module, MU::START_LIGHT));
-
-		addParam(ParamWidget::create<LEDButton>(Vec(52, 13), module, MU::MUTE_PARAM, 0.0f, 10.0f,  0.0f));
-		addChild(ModuleLightWidget::create<SmallLight<RedLight>>(Vec(58, 19), module, MU::MUTE_LIGHT));
-
+		addParam(ParamWidget::create<MiniLEDButton>(Vec(portX1[1]-11, portY1[7]+5), module, MU::CVSTACK_PARAM, 0.0f, 10.0f,  0.0f));
+		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(portX1[1]-11, portY1[7]+5), module, MU::CVSTACK_LIGHT));
   }
 };
 

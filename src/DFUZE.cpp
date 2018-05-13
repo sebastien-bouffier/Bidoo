@@ -113,25 +113,25 @@ struct DFUZEWidget : ModuleWidget {
 		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(30, 50), module, DFUZE::SIZE_PARAM, 0.0f, 1.0f, 0.5f));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(30, 95), module, DFUZE::DAMP_PARAM, 0.0f, 1.0f, 0.5f));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(30, 140), module, DFUZE::WIDTH_PARAM, 0.0f, 1.0f, 0.5f));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(30, 185), module, DFUZE::DRY_PARAM, 0.0f, 1.0f, 0.0f));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(80, 185), module, DFUZE::WET_PARAM, 0.0f, 1.0f, 1.0f));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(30, 230), module, DFUZE::SHIMM_PARAM, 0.0f, 0.08f, 0.0f));
-		addParam(ParamWidget::create<BlueCKD6>(Vec(31, 276), module, DFUZE::FREEZE_PARAM, 0.0f, 10.0f, 0.0f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(13, 50), module, DFUZE::SIZE_PARAM, 0.0f, 1.0f, 0.5f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(13, 95), module, DFUZE::DAMP_PARAM, 0.0f, 1.0f, 0.5f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(13, 140), module, DFUZE::WIDTH_PARAM, 0.0f, 1.0f, 0.5f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(13, 185), module, DFUZE::DRY_PARAM, 0.0f, 1.0f, 0.0f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(63, 185), module, DFUZE::WET_PARAM, 0.0f, 1.0f, 1.0f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(13, 230), module, DFUZE::SHIMM_PARAM, 0.0f, 0.08f, 0.0f));
+		addParam(ParamWidget::create<BlueCKD6>(Vec(13, 276), module, DFUZE::FREEZE_PARAM, 0.0f, 10.0f, 0.0f));
 
-		addInput(Port::create<PJ301MPort>(Vec(83.0f, 52.0f), Port::INPUT, module, DFUZE::SIZE_INPUT));
-		addInput(Port::create<PJ301MPort>(Vec(83.0f, 97.0f), Port::INPUT, module, DFUZE::DAMP_INPUT));
-		addInput(Port::create<PJ301MPort>(Vec(83.0f, 142.0f), Port::INPUT, module, DFUZE::WIDTH_INPUT));
-		addInput(Port::create<PJ301MPort>(Vec(83.0f, 232.0f), Port::INPUT, module, DFUZE::SHIMM_INPUT));
-		addInput(Port::create<PJ301MPort>(Vec(83.0f, 277.0f), Port::INPUT, module, DFUZE::FREEZE_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(65.0f, 52.0f), Port::INPUT, module, DFUZE::SIZE_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(65.0f, 97.0f), Port::INPUT, module, DFUZE::DAMP_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(65.0f, 142.0f), Port::INPUT, module, DFUZE::WIDTH_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(65.0f, 232.0f), Port::INPUT, module, DFUZE::SHIMM_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(65.0f, 277.0f), Port::INPUT, module, DFUZE::FREEZE_INPUT));
 
 	 	//Changed ports opposite way around
 		addInput(Port::create<TinyPJ301MPort>(Vec(24.0f, 319.0f), Port::INPUT, module, DFUZE::IN_L_INPUT));
 		addInput(Port::create<TinyPJ301MPort>(Vec(24.0f, 339.0f), Port::INPUT, module, DFUZE::IN_R_INPUT));
-		addOutput(Port::create<TinyPJ301MPort>(Vec(109.0f, 319.0f),Port::OUTPUT, module, DFUZE::OUT_L_OUTPUT));
-		addOutput(Port::create<TinyPJ301MPort>(Vec(109.0f, 339.0f),Port::OUTPUT, module, DFUZE::OUT_R_OUTPUT));
+		addOutput(Port::create<TinyPJ301MPort>(Vec(78.0f, 319.0f),Port::OUTPUT, module, DFUZE::OUT_L_OUTPUT));
+		addOutput(Port::create<TinyPJ301MPort>(Vec(78.0f, 339.0f),Port::OUTPUT, module, DFUZE::OUT_R_OUTPUT));
 	}
 };
 

@@ -3,7 +3,6 @@
 #include "dsp/samplerate.hpp"
 #include "BidooComponents.hpp"
 #include "curl/curl.h"
-#include "mpg123.h"
 #include "dsp/ringbuffer.hpp"
 #include "dsp/frame.hpp"
 #include <algorithm>
@@ -11,78 +10,35 @@
 #include <atomic>
 #include <sstream>
 #include <thread>
+#define MINIMP3_IMPLEMENTATION
+#include "dep/minimp3/minimp3.h"
 
 using namespace std;
 
-struct threadData {
-  mpg123_handle *mh;
-  DoubleRingBuffer<Frame<2>,262144> *dataRingBuffer;
+struct threadReadData {
+  DoubleRingBuffer<char,262144> *dataToDecodeRingBuffer;
   string url;
   string secUrl;
-  int bytes;
-  int channels;
-  int encoding;
-  long rate;
-  std::atomic<bool> *play;
+  std::atomic<bool> *dl;
+  std::atomic<bool> *free;
+};
+
+struct threadDecodeData {
+  DoubleRingBuffer<char,262144> *dataToDecodeRingBuffer;
+  DoubleRingBuffer<Frame<2>,262144> *dataAudioRingBuffer;
+  mp3dec_t mp3d;
+  std::atomic<bool> *dc;
   std::atomic<bool> *free;
 };
 
 size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp)
 {
-  struct threadData *pData = (struct threadData *) userp;
+  struct threadReadData *pData = (struct threadReadData *) userp;
   size_t realsize = size * nmemb;
-  off_t frame_offset;
-  size_t done;
-  size_t i;
-  int err;
-  unsigned char *audio;
-  SampleRateConverter<2> conv;
-  DoubleRingBuffer<Frame<2>,262144> *tmpBuffer = new DoubleRingBuffer<Frame<2>,262144>();
-  int inSize;
-  int outSize;
-
-  if (pData->play->load())
+  if ((pData->dl->load()) && (realsize < pData->dataToDecodeRingBuffer->capacity()))   //
   {
-    mpg123_feed(pData->mh, (const unsigned char*) contents, realsize);
-    do {
-      try {
-        err = mpg123_decode_frame(pData->mh, &frame_offset, &audio, &done);
-      }
-      catch (const std::exception& e) {
-        return 0;
-      }
-      switch(err) {
-        case MPG123_NEW_FORMAT:
-            mpg123_getformat(pData->mh, &pData->rate, &pData->channels, &pData->encoding);
-            pData->bytes = mpg123_encsize(pData->encoding);
-            break;
-        case MPG123_OK:
-            i = 0;
-            do {
-              Frame<2> newFrame;
-              unsigned char l[] = {audio[i+0], audio[i+1], audio[i+2], audio[i+3]};
-              memcpy(&newFrame.samples[0], &l, sizeof(newFrame.samples[0]));
-              unsigned char r[] = {audio[i+4], audio[i+5], audio[i+6], audio[i+7]};
-              memcpy(&newFrame.samples[1], &r, sizeof(newFrame.samples[1]));
-              tmpBuffer->push(newFrame);
-              i += 8;
-            }
-            while(i < done);
-            conv.setRates(44100, engineGetSampleRate());
-            conv.setQuality(10);
-            inSize = tmpBuffer->size();
-            outSize = pData->dataRingBuffer->capacity();
-            conv.process(tmpBuffer->startData(),&inSize,pData->dataRingBuffer->endData(),&outSize);
-            tmpBuffer->startIncr(inSize);
-            pData->dataRingBuffer->endIncr((size_t)outSize);
-            break;
-        case MPG123_NEED_MORE:
-            break;
-        default:
-            break;
-      }
-    } while(done > 0);
-    delete tmpBuffer;
+    memcpy(pData->dataToDecodeRingBuffer->endData(), contents, realsize);
+    pData->dataToDecodeRingBuffer->endIncr(realsize);
     return realsize;
   }
   return 0;
@@ -90,20 +46,80 @@ size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *user
 
 size_t WriteUrlCallback(void *contents, size_t size, size_t nmemb, void *userp)
 {
-  struct threadData *pData = (struct threadData *) userp;
+  struct threadReadData *pData = (struct threadReadData *) userp;
   size_t realsize = size * nmemb;
   pData->secUrl += (const char*) contents;
   return realsize;
 }
 
-void * threadTask(threadData data)
+void * threadDecodeTask(threadDecodeData data)
 {
   data.free->store(false);
+
+  mp3dec_frame_info_t info;
+  DoubleRingBuffer<Frame<2>,4096> *tmpBuffer = new DoubleRingBuffer<Frame<2>,4096>();
+  SampleRateConverter<2> conv;
+  int inSize;
+  int outSize;
+
+  while (data.dc->load()) {
+
+    short pcm[MINIMP3_MAX_SAMPLES_PER_FRAME];
+
+    if (data.dataToDecodeRingBuffer->size() > 64000) {
+
+      int samples = mp3dec_decode_frame(&data.mp3d, (const uint8_t*)data.dataToDecodeRingBuffer->startData(), data.dataToDecodeRingBuffer->size(), pcm, &info);
+
+      if (info.frame_bytes > 0) {
+        if (samples > 0) {
+          if (info.channels == 1) {
+            for(int i = 0; i < samples; i++) {
+              if (!data.dc->load()) break;
+              Frame<2> newFrame;
+              newFrame.samples[0]=(float)pcm[i]/32768;
+              newFrame.samples[1]=(float)pcm[i]/32768;
+              tmpBuffer->push(newFrame);
+            }
+          }
+          else {
+            for(int i = 0; i < 2 * samples; i=i+2) {
+              if (!data.dc->load()) break;
+              Frame<2> newFrame;
+              newFrame.samples[0]=(float)pcm[i]/32768;
+              newFrame.samples[1]=(float)pcm[i+1]/32768;
+              tmpBuffer->push(newFrame);
+            }
+          }
+        }
+        if (samples == 0) {
+          //printf("invalid data \n");
+        }
+        data.dataToDecodeRingBuffer->startIncr(info.frame_bytes);
+        conv.setRates(info.hz, engineGetSampleRate());
+        conv.setQuality(10);
+        inSize = tmpBuffer->size();
+        outSize = data.dataAudioRingBuffer->capacity();
+        conv.process(tmpBuffer->startData(), &inSize,data.dataAudioRingBuffer->endData(), &outSize);
+        tmpBuffer->startIncr(inSize);
+        data.dataAudioRingBuffer->endIncr((size_t)outSize);
+      }
+    }
+  }
+
+  data.free->store(true);
+  return 0;
+}
+
+void * threadReadTask(threadReadData data)
+{
+  data.free->store(false);
+
   CURL *curl;
   curl = curl_easy_init();
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+
   string zeUrl;
   data.secUrl == "" ? zeUrl = data.url : zeUrl = data.secUrl;
   zeUrl.erase(std::remove_if(zeUrl.begin(), zeUrl.end(), [](unsigned char x){return std::isspace(x);}), zeUrl.end());
@@ -118,19 +134,23 @@ void * threadTask(threadData data)
       }
     }
   }
+
   curl_easy_setopt(curl, CURLOPT_URL, zeUrl.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
   curl_easy_perform(curl);
   curl_easy_cleanup(curl);
+
   data.free->store(true);
+
   return 0;
 }
 
 
-void * urlTask(threadData data)
+void * urlTask(threadReadData data)
 {
   data.free->store(false);
+
   CURL *curl;
   curl = curl_easy_init();
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
@@ -142,9 +162,12 @@ void * urlTask(threadData data)
   data.secUrl = "";
   curl_easy_perform(curl);
   curl_easy_cleanup(curl);
+
   data.free->store(true);
-  thread iThread = thread(threadTask, data);
+
+  thread iThread = thread(threadReadTask, data);
   iThread.detach();
+
   return 0;
 }
 
@@ -168,34 +191,42 @@ struct ANTN : Module {
 	};
   string url;
 	SchmittTrigger trigTrigger;
-  size_t index = 0;
   bool read = false;
-  DoubleRingBuffer<Frame<2>,262144> dataRingBuffer;
-  mpg123_handle *mh = NULL;
-  int bytes = 0;
-  int channels = 0;
-  int encoding = 0;
-  long rate;
-  thread rThread;
-  threadData tData;
-  bool first = true;
-  std::atomic<bool> tPlay;
-  std::atomic<bool> tFree;
+  DoubleRingBuffer<Frame<2>,262144> dataAudioRingBuffer;
+  DoubleRingBuffer<char,262144> dataToDecodeRingBuffer;
+  thread rThread, dThread;
+  threadReadData rData;
+  threadDecodeData dData;
+  std::atomic<bool> tDl;
+  std::atomic<bool> tDc;
+  std::atomic<bool> trFree;
+  std::atomic<bool> tdFree;
 
 	ANTN() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-    tData.dataRingBuffer = &dataRingBuffer;
-    tPlay.store(true);
-    tFree.store(true);
+    tDl.store(true);
+    tDc.store(true);
+    trFree.store(true);
+    tdFree.store(true);
+
+    rData.dataToDecodeRingBuffer = &dataToDecodeRingBuffer;
+    rData.dl = &tDl;
+    rData.free = &trFree;
+
+    dData.dataToDecodeRingBuffer = &dataToDecodeRingBuffer;
+    dData.dataAudioRingBuffer = &dataAudioRingBuffer;
+    dData.dc = &tDc;
+    dData.free = &tdFree;
+    mp3dec_init(&dData.mp3d);
 	}
 
   ~ANTN() {
-    if (!tFree.load()) {
-      tPlay.store(false);
-      while(!tFree) {
-      }
+    tDc.store(false);
+    while(!tdFree) {
     }
-    mpg123_close(mh);
-    mpg123_delete(mh);
+
+    tDl.store(false);
+    while(!trFree) {
+    }
   }
 
   json_t *toJson() override {
@@ -211,45 +242,58 @@ struct ANTN : Module {
   }
 
 	void step() override;
+
+  void onSampleRateChange() override;
 };
 
+void ANTN::onSampleRateChange() {
+  read = false;
+  dataAudioRingBuffer.clear();
+}
 
 void ANTN::step() {
-	if (trigTrigger.process(params[TRIG_PARAM].value)) {
-    if (!tFree.load()) {
-      tPlay.store(false);
-      while(!tFree) {
-      }
-    }
-    mpg123_init();
-    mh = mpg123_new(NULL, NULL);
-    mpg123_format_none(mh);
-    mpg123_format(mh, 44100, 2, MPG123_ENC_FLOAT_32);
-    mpg123_open_feed(mh);
-    tData.mh = mh;
-    tData.url = url;
-    tPlay.store(true);
-    tData.play = &tPlay;
-    tData.free = &tFree;
 
-    if ((stringExtension(tData.url) == "m3u") || (stringExtension(tData.url) == "pls")) {
-      rThread = thread(urlTask, std::ref(tData));
+	if (trigTrigger.process(params[TRIG_PARAM].value)) {
+
+    tDc.store(false);
+    while(!tdFree) {
+    }
+
+    tDl.store(false);
+    while(!trFree) {
+    }
+    read = false;
+    dataToDecodeRingBuffer.clear();
+    dataAudioRingBuffer.clear();
+
+    tDl.store(true);
+    rData.url = url;
+    if ((stringExtension(rData.url) == "m3u") || (stringExtension(rData.url) == "pls")) {
+      rThread = thread(urlTask, std::ref(rData));
     }
     else {
-      rThread = thread(threadTask, std::ref(tData));
+      rThread = thread(threadReadTask, std::ref(rData));
     }
     rThread.detach();
+
+    tDc.store(true);
+    mp3dec_init(&dData.mp3d);
+    dThread = thread(threadDecodeTask, std::ref(dData));
+    dThread.detach();
 	}
 
-  if (dataRingBuffer.size()>200000) {
+  if ((dataAudioRingBuffer.size()>64000) && (engineGetSampleRate()<96000)) {
+    read = true;
+  }
+  if ((dataAudioRingBuffer.size()>128000) && (engineGetSampleRate()>=96000)) {
     read = true;
   }
 
   if (read) {
-    Frame<2> currentFrame = *dataRingBuffer.startData();
+    Frame<2> currentFrame = *dataAudioRingBuffer.startData();
     outputs[OUTL_OUTPUT].value = 10*currentFrame.samples[0]*params[GAIN_PARAM].value;
     outputs[OUTR_OUTPUT].value = 10*currentFrame.samples[1]*params[GAIN_PARAM].value;
-    dataRingBuffer.startIncr(1);
+    dataAudioRingBuffer.startIncr(1);
   }
 }
 
