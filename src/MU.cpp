@@ -142,7 +142,7 @@ void MU::step() {
 	displayAltProba = params[ALTEOSTEPPROBA_PARAM].value * 100;
 	displayDistTrigs = params[DISTTRIGS_PARAM].value * 100;
 	displayNumTrigs = numTrigs;
-	displayOffset = clamp(params[OFFSET_PARAM].value + rescale(clamp(inputs[OFFSET_INPUT].value, 0.0f,10.0f), 0.0f, 10.0f, 0.0f,1.0f), 0.0f, 1.0f) * initTicks;
+	displayOffset = clamp(params[OFFSET_PARAM].value + rescale(clamp(inputs[OFFSET_INPUT].value, 0.0f,10.0f), 0.0f, 10.0f, 0.0f,1.0f), 0.0f, 1.0f) * 100;
 
 	if (inhibateTrigger.process(inputs[INHIBIT_INPUT].value))
 	{
@@ -157,8 +157,9 @@ void MU::step() {
 			outputs[CVBRIDGE_OUTPUT].value = 0.0f;
 		}
 		else {
-			int mult = ((distRetrig > 0) && (count>displayOffset))  ? ((count-displayOffset) / distRetrig) : 0;
-			if (play && (mult < numTrigs) && (count >= (displayOffset + mult * distRetrig)) && (count <= (displayOffset + (mult * distRetrig) + gateTicks))) {
+			int offset = displayOffset * initTicks / 100;
+			int mult = ((distRetrig > 0) && (count>offset))  ? ((count-offset) / distRetrig) : 0;
+			if (play && (mult < numTrigs) && (count >= (offset + mult * distRetrig)) && (count <= (offset + (mult * distRetrig) + gateTicks))) {
 				outputs[GATEBRIDGE_OUTPUT].value = mute ? 0.0f : 10.0f;
 				lights[GATE_LIGHT].value = mute ? 0.0f : 10.0f;
 				lights[GATE_LIGHT+1].value = 0.0f;
@@ -317,7 +318,7 @@ struct MUWidget : ModuleWidget {
 		BidooBlueTrimpotWithDisplay* offset =  ParamWidget::create<BidooBlueTrimpotWithDisplay>(Vec(portX0[1], portY0[2]), module, MU::OFFSET_PARAM, 0.0f, 1.0f, 0.0f);
 		offset->lblDisplay = display;
 		offset->valueForDisplay = &module->displayOffset;
-		offset->format = "%2.2f V";
+		offset->format = "%2.2f %%";
 		offset->header = "Trigs offset";
 		addParam(offset);
 

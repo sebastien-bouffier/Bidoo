@@ -2,7 +2,6 @@
 #include "dsp/digital.hpp"
 #include "dsp/samplerate.hpp"
 #include "BidooComponents.hpp"
-#include "curl/curl.h"
 #include "dsp/ringbuffer.hpp"
 #include "dsp/frame.hpp"
 #include <algorithm>
@@ -10,8 +9,10 @@
 #include <atomic>
 #include <sstream>
 #include <thread>
+#include "curl/curl.h"
 #define MINIMP3_IMPLEMENTATION
 #include "dep/minimp3/minimp3.h"
+
 
 using namespace std;
 
