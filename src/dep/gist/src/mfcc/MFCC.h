@@ -27,6 +27,7 @@
 #define _USE_MATH_DEFINES
 #include <vector>
 #include <cmath>
+#include <stdlib.h>
 
 //=======================================================================
 /** Template class for calculating Mel Frequency Cepstral Coefficients
@@ -36,14 +37,14 @@ template <class T>
 class MFCC
 {
 public:
-    
+
     //=======================================================================
     /** Constructor */
     MFCC (int frameSize_, int samplingFrequency_);
 
     //=======================================================================
     /** Set the number of coefficients to calculate
-     * @param numCoefficients_ the number of coefficients to calculate 
+     * @param numCoefficients_ the number of coefficients to calculate
      */
     void setNumCoefficients (int numCoefficients_);
 
@@ -60,8 +61,8 @@ public:
     //=======================================================================
     /** Calculates the Mel Frequency Cepstral Coefficients from the magnitude spectrum of a signal. The result
      * is stored in the public vector MFCCs.
-     * 
-     * Note that the magnitude spectrum passed to the function is not the full mirrored magnitude spectrum, but 
+     *
+     * Note that the magnitude spectrum passed to the function is not the full mirrored magnitude spectrum, but
      * only the first half. The frame size passed to the constructor should be twice the length of the magnitude spectrum.
      * @param magnitudeSpectrum the magnitude spectrum in vector format
      */
@@ -75,10 +76,10 @@ public:
     //=======================================================================
     /** a vector to hold the mel spectrum once it has been computed */
     std::vector<T> melSpectrum;
-    
+
     /** a vector to hold the MFCCs once they have been computed */
     std::vector<T> MFCCs;
-    
+
 private:
     /** Initialises the parts of the algorithm dependent on frame size, sampling frequency
      * and the number of coefficients
