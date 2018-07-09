@@ -787,13 +787,13 @@ struct CANARDSaveSample : MenuItem {
 			canardModule->waveFileName = stringDirectory(path);
 			canardModule->waveExtension = stringExtension(path);
 			drwav_data_format format;
-	    format.container = drwav_container_riff;     // <-- drwav_container_riff = normal WAV files, drwav_container_w64 = Sony Wave64.
-	    format.format = DR_WAVE_FORMAT_PCM;          // <-- Any of the DR_WAVE_FORMAT_* codes.
+	    format.container = drwav_container_riff;
+	    format.format = DR_WAVE_FORMAT_PCM;        
 	    format.channels = 2;
 	    format.sampleRate = engineGetSampleRate();
 	    format.bitsPerSample = 32;
 	    drwav* pWav = drwav_open_file_write(path, &format);
-			int pSamples[2*canardModule->totalSampleCount] = { 0 };
+			int pSamples[2*canardModule->totalSampleCount];
 			for (unsigned int i = 0; i < canardModule->totalSampleCount; i++) {
 				pSamples[2*i]= floor(canardModule->playBuffer[0][i]*2147483647);
 				pSamples[2*i+1]= floor(canardModule->playBuffer[1][i]*2147483647);
