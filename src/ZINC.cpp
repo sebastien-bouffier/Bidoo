@@ -151,4 +151,4 @@ void ZINCWidget::step() {
 	ModuleWidget::step();
 }
 
-Model *modelZINC = Model::create<ZINC, ZINCWidget>("Bidoo", "ziNC", "ziNC vocoder", EFFECT_TAG);
+Model *modelZINC = Model::create<ZINC, ZINCWidget>("Bidoo", "ziNC", "ziNC vocoder", EFFECT_TAG, VOCODER_TAG);

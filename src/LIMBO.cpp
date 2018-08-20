@@ -105,7 +105,7 @@ void LIMBO::step() {
 	int mode = (int)params[MODE_PARAM].value;
 	lFilter.setParams(cfreq,q,engineGetSampleRate(),g/3,mode);
 	rFilter.setParams(cfreq,q,engineGetSampleRate(),g/3,mode);
-	float inL = inputs[IN_L].value/5.0f; //normalise to -1/+1 we consider VCV Rack standard is #+5/-5V on VCO1
+	float inL = inputs[IN_L].value/5.0f; 
 	float inR = inputs[IN_R].value/5.0f;
 	inL = lFilter.calcOutput(inL)*5.0f*(mode == 0 ? g : 1);
 	inR = rFilter.calcOutput(inR)*5.0f*(mode == 0 ? g : 1);

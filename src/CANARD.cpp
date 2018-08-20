@@ -788,7 +788,7 @@ struct CANARDSaveSample : MenuItem {
 			canardModule->waveExtension = stringExtension(path);
 			drwav_data_format format;
 	    format.container = drwav_container_riff;
-	    format.format = DR_WAVE_FORMAT_PCM;        
+	    format.format = DR_WAVE_FORMAT_PCM;
 	    format.channels = 2;
 	    format.sampleRate = engineGetSampleRate();
 	    format.bitsPerSample = 32;
@@ -867,4 +867,4 @@ Menu *CANARDWidget::createContextMenu() {
 	return menu;
 }
 
-Model *modelCANARD = Model::create<CANARD, CANARDWidget>("Bidoo","cANARd", "cANARd sampler", SAMPLER_TAG);
+Model *modelCANARD = Model::create<CANARD, CANARDWidget>("Bidoo","cANARd", "cANARd sampler", SAMPLER_TAG, GRANULAR_TAG, RECORDING_TAG);

@@ -43,4 +43,4 @@ extern Model *modelLOURDE;
 extern Model *modelDFUZE;
 extern Model *modelMU;
 extern Model *modelSIGMA;
-//extern Model *modelHORUS;
+extern Model *modelRABBIT;

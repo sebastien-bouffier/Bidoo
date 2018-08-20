@@ -319,4 +319,4 @@ struct BARWidget : ModuleWidget {
 	}
 };
 
-Model *modelBAR = Model::create<BAR, BARWidget>("Bidoo", "baR", "bAR compressor", DYNAMICS_TAG);
+Model *modelBAR = Model::create<BAR, BARWidget>("Bidoo", "baR", "bAR compressor", DYNAMICS_TAG, COMPRESSOR_TAG, EFFECT_TAG);

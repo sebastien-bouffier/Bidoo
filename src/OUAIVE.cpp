@@ -108,7 +108,6 @@ void OUAIVE::loadSample(std::string path) {
       fileLoaded = false;
   }
 	else {
-		fileLoaded = true;
 		vector<double>().swap(displayBuffL);
 		vector<double>().swap(displayBuffR);
 		for (unsigned int i=0; i < totalSampleCount; i = i + floor(totalSampleCount/125)) {
@@ -118,6 +117,7 @@ void OUAIVE::loadSample(std::string path) {
 		}
 		fileDesc = (stringFilename(path)).substr(0,20) + ((stringFilename(path)).length() >=20  ? "...\n" :  "\n");
 		fileDesc += std::to_string(sampleRate) + " Hz\n";
+		fileLoaded = true;
 	}
 	mylock.unlock();
 }
@@ -476,4 +476,4 @@ Menu *OUAIVEWidget::createContextMenu() {
 	return menu;
 }
 
-Model *modelOUAIVE = Model::create<OUAIVE, OUAIVEWidget>("Bidoo","OUAIve", "OUAIve player", SAMPLER_TAG);
+Model *modelOUAIVE = Model::create<OUAIVE, OUAIVEWidget>("Bidoo","OUAIve", "OUAIve player", SAMPLER_TAG, GRANULAR_TAG);

@@ -135,4 +135,4 @@ struct DFUZEWidget : ModuleWidget {
 	}
 };
 
-Model *modelDFUZE = Model::create<DFUZE, DFUZEWidget>("Bidoo", "dFUZE", "dFUZE reverberator", REVERB_TAG);
+Model *modelDFUZE = Model::create<DFUZE, DFUZEWidget>("Bidoo", "dFUZE", "dFUZE reverberator", REVERB_TAG, EFFECT_TAG);
