@@ -6,14 +6,16 @@ using namespace std;
 
 struct RABBIT : Module {
 	enum ParamIds {
-		BITON_PARAM,
-    BITREV_PARAM = BITON_PARAM + 8,
+		BITOFF_PARAM,
+    BITREV_PARAM = BITOFF_PARAM + 8,
 		NUM_PARAMS = BITREV_PARAM + 8
 	};
 	enum InputIds {
 		L_INPUT,
     R_INPUT,
-		NUM_INPUTS
+		BITOFF_INPUT,
+		BITREV_INPUT = BITOFF_INPUT + 8,
+		NUM_INPUTS = BITREV_INPUT + 8
 	};
 	enum OutputIds {
 		L_OUTPUT,
@@ -21,23 +23,45 @@ struct RABBIT : Module {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
-    BITON_LIGHTS,
-    BITREV_LIGHTS = BITON_LIGHTS + 8,
+    BITOFF_LIGHTS,
+    BITREV_LIGHTS = BITOFF_LIGHTS + 8,
 		NUM_LIGHTS = BITREV_LIGHTS + 8
 	};
 
-  SchmittTrigger bitOnTrigger[8], bitRevTrigger[8];
+  SchmittTrigger bitOffTrigger[8], bitRevTrigger[8];
 
-  bool bitOn[8];
+  bool bitOff[8];
   bool bitRev[8];
 
 	RABBIT() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-    memset(&bitOn,1,8*sizeof(bool));
+    memset(&bitOff,0,8*sizeof(bool));
     memset(&bitRev,0,8*sizeof(bool));
 	}
 
 	~RABBIT() {
   }
+
+	json_t *toJson() override {
+		json_t *rootJ = json_object();
+		for (int i=0; i<8; i++) {
+			json_object_set_new(rootJ, ("bitOff" + to_string(i)).c_str(), json_boolean(bitOff[i]));
+			json_object_set_new(rootJ, ("bitRev" + to_string(i)).c_str(), json_boolean(bitRev[i]));
+		}
+		return rootJ;
+	}
+
+	void fromJson(json_t *rootJ) override {
+		for (int i=0; i<8; i++) {
+			json_t *jbitOff = json_object_get(rootJ, ("bitOff" + to_string(i)).c_str());
+			if (jbitOff) {
+				bitOff[i] = json_is_true(jbitOff) ? 1 : 0;
+			}
+			json_t *jbitRev = json_object_get(rootJ, ("bitRev" + to_string(i)).c_str());
+			if (jbitRev) {
+				bitRev[i] = json_is_true(jbitRev) ? 1 : 0;
+			}
+		}
+	}
 
 	void step() override;
 };
@@ -55,17 +79,17 @@ void RABBIT::step() {
 
   for (int i = 0 ; i < 8 ; i++ ) {
 
-    if (bitOnTrigger[i].process(params[BITON_PARAM+i].value))
+    if (bitOffTrigger[i].process(params[BITOFF_PARAM+i].value + inputs[BITOFF_INPUT+i].value))
     {
-      bitOn[i] = !bitOn[i];
+      bitOff[i] = !bitOff[i];
     }
 
-    if (bitRevTrigger[i].process(params[BITREV_PARAM+i].value))
+    if (bitRevTrigger[i].process(params[BITREV_PARAM+i].value + inputs[BITREV_INPUT+i].value))
     {
       bitRev[i] = !bitRev[i];
     }
 
-    if (!bitOn[i]) {
+    if (bitOff[i]) {
       red_L &= ~(1 << i);
       red_R &= ~(1 << i);
     }
@@ -76,13 +100,20 @@ void RABBIT::step() {
       }
     }
 
-    lights[BITON_LIGHTS + i].value = bitOn[i] == 1 ? 0.0f : 1.0f;
-    lights[BITREV_LIGHTS + i].value = bitRev[i] == 1 ? 1.0f : 0.0f;
+    lights[BITOFF_LIGHTS + i].value = bitOff[i] ? 1.0f : 0.0f;
+    lights[BITREV_LIGHTS + i].value = bitRev[i] ? 1.0f : 0.0f;
   }
 
   outputs[L_OUTPUT].value = clamp(((((float)red_L/255.0f))-0.5f)*20.0f,-10.0f,10.0f);
   outputs[R_OUTPUT].value = clamp(((((float)red_R/255.0f))-0.5f)*20.0f,-10.0f,10.0f);
 }
+
+template <typename BASE>
+struct RabbitLight : BASE {
+	RabbitLight() {
+		this->box.size = mm2px(Vec(6.0f, 6.0f));
+	}
+};
 
 struct RABBITWidget : ModuleWidget {
 	RABBITWidget(RABBIT *module) : ModuleWidget(module) {
@@ -94,10 +125,14 @@ struct RABBITWidget : ModuleWidget {
 		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
     for (int i = 0; i<8; i++) {
-    	addParam(ParamWidget::create<BlueCKD6>(Vec(9.0f, 45.0f + 32.0f * i), module, RABBIT::BITON_PARAM + i, 0.0f, 1.0f, 0.0f));
-      addChild(ModuleLightWidget::create<SmallLight<RedLight>>(Vec(42.0f,  56.0f + 32.0f * i), module, RABBIT::BITON_LIGHTS + i));
-      addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(55.0f,  56.0f + 32.0f * i), module, RABBIT::BITREV_LIGHTS + i));
-      addParam(ParamWidget::create<BlueCKD6>(Vec(67.0f, 45.0f + 32.0f * i), module, RABBIT::BITREV_PARAM + i, 0.0f, 1.0f, 0.0f));
+    	addParam(ParamWidget::create<LEDBezel>(Vec(27.0f, 50.0f + 32.0f * i), module, RABBIT::BITOFF_PARAM + i, 0.0f, 1.0f, 0.0f));
+      addChild(ModuleLightWidget::create<RabbitLight<RedLight>>(Vec(29.0f, 52.0f + 32.0f * i), module, RABBIT::BITOFF_LIGHTS + i));
+
+			addInput(Port::create<TinyPJ301MPort>(Vec(8.0f, 54.0f + 32.0f * i), Port::INPUT, module, RABBIT::BITOFF_INPUT + i));
+			addInput(Port::create<TinyPJ301MPort>(Vec(83.0f, 54.0f + 32.0f * i), Port::INPUT, module, RABBIT::BITREV_INPUT + i));
+
+      addParam(ParamWidget::create<LEDBezel>(Vec(57.0f, 50.0f + 32.0f * i), module, RABBIT::BITREV_PARAM + i, 0.0f, 1.0f, 0.0f));
+			addChild(ModuleLightWidget::create<RabbitLight<BlueLight>>(Vec(59.0f, 52.0f + 32.0f * i), module, RABBIT::BITREV_LIGHTS + i));
     }
 
 		addInput(Port::create<TinyPJ301MPort>(Vec(24.0f, 319.0f), Port::INPUT, module, RABBIT::L_INPUT));
