@@ -38,7 +38,7 @@ struct Pattern {
 	bool forward = true;
 	std::vector<Step> steps {16};
 
-	void Update(int playMode, int countMode, int numberOfSteps, int numberOfStepsParam, int rootNote, int scale, float gateTime, float slideTime, float sensitivity, std::vector<char> skips, std::vector<char> slides, std::vector<Param> pulses, std::vector<Param> pitches, std::vector<Param> types) {
+	void Update(int playMode, int countMode, int numberOfSteps, int numberOfStepsParam, int rootNote, int scale, float gateTime, float slideTime, float sensitivity, vector<char> skips, vector<char> slides, vector<Param> pulses, vector<Param> pitches, vector<Param> types) {
 		this->playMode = playMode;
 		this->countMode = countMode;
 		this->numberOfSteps = numberOfSteps;
@@ -55,21 +55,21 @@ struct Pattern {
 			steps[i].index = i%8;
 			steps[i].number = i;
 			if (((countMode == 0) && (i < numberOfSteps)) || ((countMode == 1) && (pCount < numberOfSteps))) {
-				steps[i].skip = (skips[i%8] == 't');
+				steps[i].skip = (skips[steps[i].index] == 't');
 			}	else {
 				steps[i].skip = true;
 			}
-			steps[i].skipParam = (skips[i%8] == 't');
-			steps[i].slide = (slides[i%8] == 't');
-			if ((countMode == 1) && ((pCount + (int)pulses[i%8].value) >= numberOfSteps)) {
+			steps[i].skipParam = (skips[steps[i].index] == 't');
+			steps[i].slide = (slides[steps[i].index] == 't');
+			if ((countMode == 1) && ((pCount + (int)pulses[steps[i].index].value) >= numberOfSteps)) {
 				steps[i].pulses = max(numberOfSteps - pCount, 0);
 			}	else {
-				steps[i].pulses = (int)pulses[i%8].value;
+				steps[i].pulses = (int)pulses[steps[i].index].value;
 			}
-			steps[i].pulsesParam = (int)pulses[i%8].value;
+			steps[i].pulsesParam = (int)pulses[steps[i].index].value;
 			pCount = pCount + steps[i].pulses;
-			steps[i].pitch = pitches[i%8].value;
-			steps[i].type = (int)types[i%8].value;
+			steps[i].pitch = pitches[steps[i].index].value;
+			steps[i].type = (int)types[steps[i].index].value;
 		}
 	}
 
@@ -162,8 +162,9 @@ struct Pattern {
 	int GetNextStepForward(int pos)
 	{
 			for (int i = pos + 1; i < pos + 16; i++) {
-				if (!steps[i%16].skip) {
-					return i%16;
+				int j = i%16;
+				if (!steps[j].skip) {
+					return j;
 				}
 			}
 			return pos;
@@ -172,8 +173,9 @@ struct Pattern {
 	int GetNextStepBackward(int pos)
 	{
 			for (int i = pos - 1; i > pos - 16; i--) {
-				if (!steps[i%16 + (i<0?16:0)].skip) {
-					return i%16 + (i<0?16:0);
+				int j = i%16;
+				if (!steps[j + (i<0?16:0)].skip) {
+					return j + (i<0?16:0);
 				}
 			}
 			return pos;
@@ -343,7 +345,20 @@ struct DTROY : Module {
 		std::vector<Param> pulses(&params[TRIG_COUNT_PARAM],&params[TRIG_COUNT_PARAM + 8]);
 		std::vector<Param> pitches(&params[TRIG_PITCH_PARAM],&params[TRIG_PITCH_PARAM + 8]);
 		std::vector<Param> types(&params[TRIG_TYPE_PARAM],&params[TRIG_TYPE_PARAM + 8]);
-		patterns[selectedPattern].Update(playMode, countMode, numSteps, roundf(params[STEPS_PARAM].value), roundf(params[ROOT_NOTE_PARAM].value), roundf(params[SCALE_PARAM].value), params[GATE_TIME_PARAM].value, params[SLIDE_TIME_PARAM].value, params[SENSITIVITY_PARAM].value , skipState, slideState, pulses, pitches, types);
+		patterns[selectedPattern].Update(playMode,
+			countMode,
+			 numSteps,
+			 roundf(params[STEPS_PARAM].value),
+			 roundf(params[ROOT_NOTE_PARAM].value),
+			 roundf(params[SCALE_PARAM].value),
+			 params[GATE_TIME_PARAM].value,
+			 params[SLIDE_TIME_PARAM].value,
+			 params[SENSITIVITY_PARAM].value ,
+			 skipState,
+			 slideState,
+			 pulses,
+			 pitches,
+			 types);
 	}
 
 	void step() override;
@@ -549,8 +564,8 @@ struct DTROY : Module {
 			float voltsOut = 0.0f;
 			int rndOctaveInVolts = int(5.0f * randomUniform());
 			voltsOut += rndOctaveInVolts;
-			voltsOut += rootNote / 12.0f;
-			voltsOut += curScaleArr[int(notesInScale * randomUniform())] / 12.0f;
+			voltsOut += rootNote * 0.083333f;
+			voltsOut += curScaleArr[int(notesInScale * randomUniform())] * 0.083333f;
 			return voltsOut;
 		}
 	}
@@ -585,21 +600,22 @@ struct DTROY : Module {
 		float closestDist = 10.0f;
 		int octaveInVolts = int(voltsIn);
 		for (int i = 0; i < notesInScale; i++) {
-			float scaleNoteInVolts = octaveInVolts + (((pitchQuantizeMode ? rootNote : 0.0f) + curScaleArr[i]) / 12.0f);
+			float scaleNoteInVolts = octaveInVolts + (((pitchQuantizeMode ? rootNote : 0.0f) + curScaleArr[i]) * 0.083333f);
 			float distAway = fabs(voltsIn - scaleNoteInVolts);
 			if(distAway < closestDist) {
 				closestVal = scaleNoteInVolts;
 				closestDist = distAway;
 			}
 		}
-		closestVal += pitchQuantizeMode ? 0.0f : (rootNote / 12.0f);
+		closestVal += pitchQuantizeMode ? 0.0f : (rootNote * 0.083333f);
 		return closestVal;
 	}
 };
 
 
 void DTROY::step() {
- 	const float lightLambda = 0.075f;
+	const float invLightLambda = 13.333333333333333333333f;
+	float invESR = 1 / engineGetSampleRate();
 
 	// Run
 	if (runningTrigger.process(params[RUN_PARAM].value)) {
@@ -616,7 +632,7 @@ void DTROY::step() {
 				phase = float(tCurrent - tLastTrig) / float(tLastTrig - tPreviousTrig);
 			}
 			else {
-				phase += clockTime / engineGetSampleRate();
+				phase += clockTime * invESR;
 			}
 			// External clock
 			if (clockTrigger.process(inputs[EXT_CLOCK_INPUT].value)) {
@@ -629,7 +645,7 @@ void DTROY::step() {
 		else {
 			// Internal clock
 			float clockTime = powf(2.0f, params[CLOCK_PARAM].value + inputs[CLOCK_INPUT].value);
-			phase += clockTime / engineGetSampleRate();
+			phase += clockTime * invESR;
 			if (phase >= 1.0f) {
 				phase--;
 				nextStep = true;
@@ -684,11 +700,11 @@ void DTROY::step() {
 	}
 	// Lights
 	for (int i = 0; i < 8; i++) {
-		lights[STEPS_LIGHTS + i].value -= lights[STEPS_LIGHTS + i].value / lightLambda / engineGetSampleRate();
+		lights[STEPS_LIGHTS + i].value -= lights[STEPS_LIGHTS + i].value * invLightLambda * invESR;
 		lights[SLIDES_LIGHTS + i].value = slideState[i] == 't' ? 1.0f - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
 		lights[SKIPS_LIGHTS + i].value = skipState[i]== 't' ? 1.0f - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
 	}
-	lights[RESET_LIGHT].value -= lights[RESET_LIGHT].value / lightLambda / engineGetSampleRate();
+	lights[RESET_LIGHT].value -= lights[RESET_LIGHT].value * invLightLambda * invESR;
 
 	// Caclulate Outputs
 	bool gateOn = running && (!patterns[playedPattern].CurrentStep().skip);
@@ -815,7 +831,7 @@ struct DTROYDisplay : TransparentWidget {
 	}
 
 	void draw(NVGcontext *vg) override {
-		if (++frame >= 4) {
+		if (++frame >= 8) {
 			frame = 0;
 			note = displayRootNote(module->patterns[module->selectedPattern].rootNote);
 			steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);

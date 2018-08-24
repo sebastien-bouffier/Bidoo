@@ -418,8 +418,8 @@ void CANARD::step() {
 				else
 					fadeCoeff = 1.0f;
 
-				outputs[OUTL_OUTPUT].value = playBuffer[0][floor(samplePos)]*fadeCoeff*10;
-				outputs[OUTR_OUTPUT].value = playBuffer[1][floor(samplePos)]*fadeCoeff*10;
+				outputs[OUTL_OUTPUT].value = playBuffer[0][floor(samplePos)]*fadeCoeff*5;
+				outputs[OUTR_OUTPUT].value = playBuffer[1][floor(samplePos)]*fadeCoeff*5;
 			}
 		}
 		else {

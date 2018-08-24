@@ -77,8 +77,8 @@ void * threadDecodeTask(threadDecodeData data)
             for(int i = 0; i < samples; i++) {
               if (!data.dc->load()) break;
               Frame<2> newFrame;
-              newFrame.samples[0]=(float)pcm[i]/32768;
-              newFrame.samples[1]=(float)pcm[i]/32768;
+              newFrame.samples[0]=(float)pcm[i] * 30517578125e-15f;
+              newFrame.samples[1]=(float)pcm[i] * 30517578125e-15f;
               tmpBuffer->push(newFrame);
             }
           }
@@ -86,8 +86,8 @@ void * threadDecodeTask(threadDecodeData data)
             for(int i = 0; i < 2 * samples; i=i+2) {
               if (!data.dc->load()) break;
               Frame<2> newFrame;
-              newFrame.samples[0]=(float)pcm[i]/32768;
-              newFrame.samples[1]=(float)pcm[i+1]/32768;
+              newFrame.samples[0]=(float)pcm[i] * 30517578125e-15f;
+              newFrame.samples[1]=(float)pcm[i+1] * 30517578125e-15f;
               tmpBuffer->push(newFrame);
             }
           }
@@ -292,8 +292,8 @@ void ANTN::step() {
 
   if (read) {
     Frame<2> currentFrame = *dataAudioRingBuffer.startData();
-    outputs[OUTL_OUTPUT].value = 10*currentFrame.samples[0]*params[GAIN_PARAM].value;
-    outputs[OUTR_OUTPUT].value = 10*currentFrame.samples[1]*params[GAIN_PARAM].value;
+    outputs[OUTL_OUTPUT].value = 5.0f*currentFrame.samples[0]*params[GAIN_PARAM].value;
+    outputs[OUTR_OUTPUT].value = 5.0f*currentFrame.samples[1]*params[GAIN_PARAM].value;
     dataAudioRingBuffer.startIncr(1);
   }
 }

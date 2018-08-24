@@ -117,7 +117,7 @@ void ACNE::step() {
 	rampSize = static_cast<int>(engineGetSampleRate()*params[RAMP_PARAM].value);
 
 	if (inputs[SNAPSHOT_INPUT].active) {
-		int newSnapshot = clamp((int)(inputs[SNAPSHOT_INPUT].value * 16 / 10),0,ACNE_NB_SNAPSHOTS-1);
+		int newSnapshot = clamp((int)(inputs[SNAPSHOT_INPUT].value * 16 * 0.1f),0,ACNE_NB_SNAPSHOTS-1);
 		if (currentSnapshot != newSnapshot) {
 			previousSnapshot = currentSnapshot;
 			currentSnapshot = newSnapshot;
@@ -161,7 +161,7 @@ void ACNE::step() {
 			if (sum > 0) {
 				for (int j = 0; j < ACNE_NB_TRACKS; j ++) {
 					if ((inputs[TRACKS_INPUTS + j].active) && (inSolo[j])) {
-						outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value + (getRampedValue(i,j) / 10) * inputs[TRACKS_INPUTS + j].value / 32768.0f;
+						outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value + (getRampedValue(i,j) * 0.1f) * inputs[TRACKS_INPUTS + j].value * 30517578125e-15f; //  / 32768.0f;
 					}
 				}
 			}
@@ -174,7 +174,7 @@ void ACNE::step() {
 						else {
 							rampedValue = snapshots[currentSnapshot][i][j];
 						}
-						outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value + (getRampedValue(i,j) / 10) * inputs[TRACKS_INPUTS + j].value / 32768.0f;
+						outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value + (getRampedValue(i,j) * 0.1f) * inputs[TRACKS_INPUTS + j].value * 30517578125e-15f; //  / 32768.0f;
 					}
 				}
 			}
@@ -185,8 +185,8 @@ void ACNE::step() {
 	if (rampSteps > 0)
 		rampSteps--;
 
-	outputs[TRACKS_OUTPUTS].value = outputs[TRACKS_OUTPUTS].value * params[MAIN_OUT_GAIN_PARAM].value / 10;
-	outputs[TRACKS_OUTPUTS + 1].value = outputs[TRACKS_OUTPUTS + 1].value * params[MAIN_OUT_GAIN_PARAM].value / 10;
+	outputs[TRACKS_OUTPUTS].value = outputs[TRACKS_OUTPUTS].value * params[MAIN_OUT_GAIN_PARAM].value * 0.1f;
+	outputs[TRACKS_OUTPUTS + 1].value = outputs[TRACKS_OUTPUTS + 1].value * params[MAIN_OUT_GAIN_PARAM].value * 0.1f;
 
 	lights[COPY_LIGHT].value = (copyState == true) ? 1 : 0;
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
@@ -215,7 +215,7 @@ struct ACNETrimPot : BidooColoredTrimpot {
 			ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
 			ACNE *module = dynamic_cast<ACNE*>(this->module);
 			if (parent && module) {
-				module->snapshots[module->currentSnapshot][(int)((this->paramId - ACNE::FADERS_PARAMS)/ACNE_NB_TRACKS)][(this->paramId - ACNE::FADERS_PARAMS)%ACNE_NB_TRACKS] = value;
+				module->snapshots[module->currentSnapshot][(int)((this->paramId - ACNE::FADERS_PARAMS) / ACNE_NB_TRACKS)][(this->paramId - ACNE::FADERS_PARAMS) % ACNE_NB_TRACKS] = value;
 			}
 			BidooColoredTrimpot::onChange(e);
 	}
@@ -227,7 +227,7 @@ struct ACNETrimPot : BidooColoredTrimpot {
 		if (parent && module) {
 			if ((e.button == GLFW_MOUSE_BUTTON_MIDDLE) || ((e.button == GLFW_MOUSE_BUTTON_LEFT) && (windowIsShiftPressed()))) {
 				this->setValue(10);
-				module->snapshots[module->currentSnapshot][(int)((this->paramId - ACNE::FADERS_PARAMS)/ACNE_NB_TRACKS)][(this->paramId - ACNE::FADERS_PARAMS)%ACNE_NB_TRACKS] = 10;
+				module->snapshots[module->currentSnapshot][(int)((this->paramId - ACNE::FADERS_PARAMS) / ACNE_NB_TRACKS)][(this->paramId - ACNE::FADERS_PARAMS) % ACNE_NB_TRACKS] = 10;
 			}
 		}
 	}

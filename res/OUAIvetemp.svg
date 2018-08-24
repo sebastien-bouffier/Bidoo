@@ -14,7 +14,7 @@
    height="380"
    width="135"
    sodipodi:docname="OUAIvetemp.svg"
-   inkscape:version="0.92.2 (5c3e80d, 2017-08-06)">
+   inkscape:version="0.92.3 (2405546, 2018-03-11)">
   <sodipodi:namedview
      pagecolor="#ffffff"
      bordercolor="#666666"
@@ -28,9 +28,9 @@
      inkscape:window-height="1017"
      id="namedview118"
      showgrid="true"
-     inkscape:zoom="8.9098042"
-     inkscape:cx="67.060811"
-     inkscape:cy="44.126254"
+     inkscape:zoom="2.2274511"
+     inkscape:cx="-132.05026"
+     inkscape:cy="310.99324"
      inkscape:window-x="-8"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
@@ -657,18 +657,13 @@
   <g
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222223px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
      id="text4860" />
-  <path
-     inkscape:connector-curvature="0"
-     style="fill:#000000;fill-opacity:1;stroke:#b2b2b2;stroke-width:0.15102436;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="M 1.3312766,7.9342726 H 34.458452 V 19.579166 H 1.3312766 Z"
-     id="rect959-3" />
   <g
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.66666698px;line-height:125%;font-family:Sudo;-inkscape-font-specification:'Sudo, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
      id="flowRoot1009" />
   <path
      inkscape:connector-curvature="0"
-     style="fill:#000000;fill-opacity:1;stroke:#b2b2b2;stroke-width:0.24726199;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="M 1.2867448,20.637499 H 34.407202 V 51.858332 H 1.2867448 Z"
+     style="fill:#000000;fill-opacity:1;stroke:#b2b2b2;stroke-width:0.27825385;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     d="M 1.2838708,10.310987 H 34.410076 V 49.841895 H 1.2838708 Z"
      id="rect959-3-7" />
   <g
      aria-label="MODE"

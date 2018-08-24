@@ -29,6 +29,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelZINC);
 	p->addModel(modelDFUZE);
 	p->addModel(modelRABBIT);
-	p->addModel(modelVOID);
+	p->addModel(modelBISTROT);
 	p->addModel(modelSIGMA);
+	p->addModel(modelVOID);
 }

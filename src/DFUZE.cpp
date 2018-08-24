@@ -55,15 +55,6 @@ void DFUZE::step() {
 	float wOutL = 0.0f, wOutR = 0.0f;
   float inL = 0.0f, inR = 0.0f;
 
-	// if (sr != engineGetSampleRate()) {
-	// 	revprocessor.setsamplerate(engineGetSampleRate());
-	// 	in_L_Buffer.clear();
-	// 	in_R_Buffer.clear();
-	// 	pin_L_Buffer.clear();
-	// 	pin_R_Buffer.clear();
-	// 	sr = engineGetSampleRate();
-	// }
-
 	revprocessor.setdamp(clamp(params[DAMP_PARAM].value+inputs[DAMP_INPUT].value,0.0f,1.0f));
 	revprocessor.setroomsize(clamp(params[SIZE_PARAM].value+inputs[SIZE_INPUT].value,0.0f,1.0f));
 	revprocessor.setwet(clamp(params[WET_PARAM].value,0.0f,1.0f));

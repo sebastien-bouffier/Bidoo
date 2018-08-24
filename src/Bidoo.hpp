@@ -44,3 +44,4 @@ extern Model *modelDFUZE;
 extern Model *modelMU;
 extern Model *modelSIGMA;
 extern Model *modelRABBIT;
+extern Model *modelBISTROT;

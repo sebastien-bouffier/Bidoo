@@ -83,35 +83,37 @@ void TOCANTE::step() {
 		currentStep = 0;
 	}
 
+	float invESR = 1 / engineGetSampleRate();
+
 	ref = clamp(powf(2.0f,params[REF_PARAM].value),2.0f,16.0f);
 	beats = clamp(params[BEATS_PARAM].value,1.0f,32.0f);
-	bpm = clamp(round(params[BPM_PARAM].value) + round(100*params[BPMFINE_PARAM].value)/100, 1.0f, 350.0f);
+	bpm = clamp(round(params[BPM_PARAM].value) + round(100*params[BPMFINE_PARAM].value) * 0.01f, 1.0f, 350.0f);
 	stepsPerSixteenth =  floor(engineGetSampleRate() / bpm * 60 * ref / 32) * 2;
 	stepsPerEighth = stepsPerSixteenth * 2;
 	stepsPerQuarter = stepsPerEighth * 2;
-	stepsPerTriplet = floor(stepsPerQuarter/3);
+	stepsPerTriplet = floor(stepsPerQuarter / 3);
 	stepsPerBeat = stepsPerSixteenth * 16 / ref;
 	stepsPerMeasure = beats*stepsPerBeat;
 
-	if ((stepsPerSixteenth>0) && ((currentStep%stepsPerSixteenth) == 0)) {
-		gatePulse.trigger(10 / engineGetSampleRate());
+	if ((stepsPerSixteenth>0) && ((currentStep % stepsPerSixteenth) == 0)) {
+		gatePulse.trigger(10 * invESR);
 	}
 
-	if ((stepsPerTriplet>0) && ((currentStep%stepsPerTriplet) == 0) && (currentStep <= (stepsPerMeasure-100))) {
-		gatePulse_triplets.trigger(10 / engineGetSampleRate());
+	if ((stepsPerTriplet>0) && ((currentStep % stepsPerTriplet) == 0) && (currentStep <= (stepsPerMeasure-100))) {
+		gatePulse_triplets.trigger(10 * invESR);
 	}
 
-	pulseEven = gatePulse.process(1 / engineGetSampleRate());
-	pulseTriplets = gatePulse_triplets.process(1 / engineGetSampleRate());
+	pulseEven = gatePulse.process(invESR);
+	pulseTriplets = gatePulse_triplets.process(invESR);
 
 	outputs[OUT_MEASURE].value = (currentStep == 0) ? 10.0f : 0.0f;
-	outputs[OUT_BEAT].value = (pulseEven && (currentStep%stepsPerBeat == 0)) ? 10.0f : 0.0f;
-	outputs[OUT_TRIPLET].value = (pulseTriplets && (currentStep%stepsPerTriplet == 0)) ? 10.0f : 0.0f;
-	outputs[OUT_QUARTER].value = (pulseEven && (currentStep%stepsPerQuarter == 0)) ? 10.0f : 0.0f;
-	outputs[OUT_EIGHTH].value = (pulseEven && (currentStep%stepsPerEighth == 0)) ? 10.0f : 0.0f;
-	outputs[OUT_SIXTEENTH].value = (pulseEven && (currentStep%stepsPerSixteenth == 0)) ? 10.0f : 0.0f;
+	outputs[OUT_BEAT].value = (pulseEven && (currentStep % stepsPerBeat == 0)) ? 10.0f : 0.0f;
+	outputs[OUT_TRIPLET].value = (pulseTriplets && (currentStep % stepsPerTriplet == 0)) ? 10.0f : 0.0f;
+	outputs[OUT_QUARTER].value = (pulseEven && (currentStep % stepsPerQuarter == 0)) ? 10.0f : 0.0f;
+	outputs[OUT_EIGHTH].value = (pulseEven && (currentStep % stepsPerEighth == 0)) ? 10.0f : 0.0f;
+	outputs[OUT_SIXTEENTH].value = (pulseEven && (currentStep % stepsPerSixteenth == 0)) ? 10.0f : 0.0f;
 	if (running) {
-		currentStep = floor((currentStep + 1)%stepsPerMeasure);
+		currentStep = floor((currentStep + 1) % stepsPerMeasure);
 	}
 	lights[RUNNING_LIGHT].value = running ? 1.0 : 0.0;
 }

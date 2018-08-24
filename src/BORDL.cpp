@@ -641,7 +641,9 @@ struct BORDL : Module {
 
 
 void BORDL::step() {
- 	const float lightLambda = 0.075f;
+ 	//const float lightLambda = 0.075f;
+	const float invLightLambda = 13.333333333333333333333f;
+	float invESR = 1 / engineGetSampleRate();
 	// Run
 	if (runningTrigger.process(params[RUN_PARAM].value)) {
 		running = !running;
@@ -657,7 +659,7 @@ void BORDL::step() {
 				phase = float(tCurrent - tLastTrig) / float(tLastTrig - tPreviousTrig);
 			}
 			else {
-				phase += clockTime / engineGetSampleRate();
+				phase += clockTime * invESR;
 			}
 			// External clock
 			if (clockTrigger.process(inputs[EXT_CLOCK_INPUT].value)) {
@@ -670,7 +672,7 @@ void BORDL::step() {
 		else {
 			// Internal clock
 			float clockTime = powf(2.0f, params[CLOCK_PARAM].value + inputs[CLOCK_INPUT].value);
-			phase += clockTime / engineGetSampleRate();
+			phase += clockTime * invESR;
 			if (phase >= 1.0f) {
 				phase--;
 				nextStep = true;
@@ -729,11 +731,11 @@ void BORDL::step() {
 	}
 	// Lights
 	for (int i = 0; i < 8; i++) {
-		lights[STEPS_LIGHTS + i].value -= lights[STEPS_LIGHTS + i].value / lightLambda / engineGetSampleRate();
+		lights[STEPS_LIGHTS + i].value -= lights[STEPS_LIGHTS + i].value * invLightLambda * invESR;
 		lights[SLIDES_LIGHTS + i].value = slideState[i] == 't' ? 1.0f - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
 		lights[SKIPS_LIGHTS + i].value = skipState[i]== 't' ? 1.0f - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
 	}
-	lights[RESET_LIGHT].value -= lights[RESET_LIGHT].value / lightLambda / engineGetSampleRate();
+	lights[RESET_LIGHT].value -= lights[RESET_LIGHT].value * invLightLambda * invESR;
 
 	// Caclulate Outputs
 	bool gateOn = running && (!patterns[playedPattern].CurrentStep().skip);
@@ -745,7 +747,7 @@ void BORDL::step() {
 		else if (((patterns[playedPattern].CurrentStep().type == 1) && (pulse == 0))
 				|| (patterns[playedPattern].CurrentStep().type == 2)
 				|| ((patterns[playedPattern].CurrentStep().type == 3) && (pulse == patterns[playedPattern].CurrentStep().pulses))) {
-				float gateCoeff = clamp(patterns[playedPattern].gateTime - 0.02f + inputs[GATE_TIME_INPUT].value /10.0f, 0.0f, 0.99f);
+				float gateCoeff = clamp(patterns[playedPattern].gateTime - 0.02f + inputs[GATE_TIME_INPUT].value * 0.1f, 0.0f, 0.99f);
 			gateOn = phase < gateCoeff;
 			gateValue = 10.0f;
 		}
@@ -770,7 +772,7 @@ void BORDL::step() {
 	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,0.0f,10.0f) * patterns[playedPattern].sensitivity);
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
-			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].value /10.0f, -0.1f, 0.99f);
+			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].value * 0.1f, -0.1f, 0.99f);
 			pitch = pitch - (1.0f - powf(phase, slideCoeff)) * (pitch - previousPitch);
 		}
 	}
