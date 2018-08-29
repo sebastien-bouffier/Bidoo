@@ -9,7 +9,7 @@
 
 using namespace std;
 
-struct StepPlus {
+struct StepExtended {
 	int index = 0;
 	int number = 0;
 	bool skip = false;
@@ -22,10 +22,10 @@ struct StepPlus {
 	float gateProb = 1.0f;
 	float pitchRnd = 0.0f;
 	float accent = 0.0f;
-	float rndAccent = 0.0f;
+	float accentRnd = 0.0f;
 };
 
-struct PatternPlus {
+struct PatternExtended {
 	int playMode = 0;
 	int countMode = 0;
 	int numberOfSteps = 8;
@@ -40,12 +40,12 @@ struct PatternPlus {
 	int currentStep = 0;
 	int currentPulse = 0;
 	bool forward = true;
-	std::vector<StepPlus> steps {16};
+	std::vector<StepExtended> steps {16};
 
 	void Update(int playMode, int countMode, int numberOfSteps, int numberOfStepsParam, int rootNote, int scale,
 		 float gateTime, float slideTime, float sensitivity, std::vector<char> skips, std::vector<char> slides,
-		  std::vector<Param> pulses, std::vector<Param> pitches, std::vector<Param> types, std::vector<Param> probGates,
-			std::vector<Param> rndPitches, std::vector<Param> accents, std::vector<Param> rndAccents)
+		  Param *pulses, Param *pitches, Param *types, Param *probGates,
+			Param *rndPitches, Param *accents, Param *rndAccents)
 			{
 		this->playMode = playMode;
 		this->countMode = countMode;
@@ -72,16 +72,17 @@ struct PatternPlus {
 			if ((countMode == 1) && ((pCount + (int)pulses[i%8].value) >= numberOfSteps)) {
 				steps[i].pulses = max(numberOfSteps - pCount, 0);
 			}	else {
-				steps[i].pulses = (int)pulses[i%8].value;
+				steps[i].pulses = (int)(pulses + steps[i].index)->value;
 			}
-			steps[i].pulsesParam = (int)pulses[i%8].value;
+			steps[i].pulsesParam = (int)(pulses + steps[i].index)->value;
+			steps[i].pitch = (pitches + steps[i].index)->value;
+			steps[i].type = (int)(types + steps[i].index)->value;
+			steps[i].gateProb = (probGates + steps[i].index)->value;
+			steps[i].pitchRnd = (rndPitches + steps[i].index)->value;
+			steps[i].accent = (accents + steps[i].index)->value;
+			steps[i].accentRnd = (rndAccents + steps[i].index)->value;
+
 			pCount = pCount + steps[i].pulses;
-			steps[i].pitch = pitches[i%8].value;
-			steps[i].type = (int)types[i%8].value;
-			steps[i].gateProb = probGates[i%8].value;
-			steps[i].pitchRnd = rndPitches[i%8].value;
-			steps[i].accent = accents[i%8].value;
-			steps[i].rndAccent = rndAccents[i%8].value;
 		}
 	}
 
@@ -123,20 +124,20 @@ struct PatternPlus {
 					currentPulse = 0;
 					return std::make_tuple(steps[currentStep%16].index,currentPulse);
 				} else if (playMode == 3) {
-					std::vector<StepPlus> tmp (steps.size());
-				  auto it = std::copy_if (steps.begin(), steps.end(), tmp.begin(), [](StepPlus i){return !(i.skip);} );
+					std::vector<StepExtended> tmp (steps.size());
+				  auto it = std::copy_if (steps.begin(), steps.end(), tmp.begin(), [](StepExtended i){return !(i.skip);} );
 				  tmp.resize(std::distance(tmp.begin(),it));  // shrink container to new size
-					StepPlus tmpStep = *select_randomly(tmp.begin(), tmp.end());
+					StepExtended tmpStep = *select_randomly(tmp.begin(), tmp.end());
 					currentPulse = 0;
 					currentStep = tmpStep.number;
 					return std::make_tuple(steps[currentStep%16].index,currentPulse);
 				} else if (playMode == 4) {
 					int next = GetNextStepForward(currentStep);
 					int prev = GetNextStepBackward(currentStep);
-					vector<StepPlus> subPattern;
+					vector<StepExtended> subPattern;
 					subPattern.push_back(steps[prev]);
 					subPattern.push_back(steps[next]);
-					StepPlus choice = *select_randomly(subPattern.begin(), subPattern.end());
+					StepExtended choice = *select_randomly(subPattern.begin(), subPattern.end());
 					currentPulse = 0;
 					currentStep = choice.number;
 					return std::make_tuple(steps[currentStep%16].index,currentPulse);
@@ -147,7 +148,7 @@ struct PatternPlus {
 		}
 	}
 
-	StepPlus CurrentStep() {
+	StepExtended CurrentStep() {
 		return this->steps[currentStep];
 	}
 
@@ -248,7 +249,8 @@ struct BORDL : Module {
 		GATE_OUTPUT,
 		PITCH_OUTPUT,
 		ACC_OUTPUT,
-		NUM_OUTPUTS
+		STEP_OUTPUT,
+		NUM_OUTPUTS = STEP_OUTPUT + 8
 	};
 	enum LightIds {
 		RUNNING_LIGHT,
@@ -335,6 +337,7 @@ struct BORDL : Module {
 	int curScaleVal = 0;
 	float pitch = 0.0f;
 	float previousPitch = 0.0f;
+	float candidateForPreviousPitch = 0.0f;
 	clock_t tCurrent;
 	clock_t tLastTrig;
 	clock_t tPreviousTrig;
@@ -353,23 +356,20 @@ struct BORDL : Module {
 	float accent = 5.0f;
 	bool loadedFromJson = false;
 	int copyPattern = -1;
+	PulseGenerator stepPulse[8];
+	bool stepOutputsMode = false;
+	bool gateOn = false;
 
-	PatternPlus patterns[16];
+	PatternExtended patterns[16];
 
 	BORDL() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
 	}
 
 	void UpdatePattern() {
-		std::vector<Param> pulses(&params[TRIG_COUNT_PARAM],&params[TRIG_COUNT_PARAM + 8]);
-		std::vector<Param> pitches(&params[TRIG_PITCH_PARAM],&params[TRIG_PITCH_PARAM + 8]);
-		std::vector<Param> types(&params[TRIG_TYPE_PARAM],&params[TRIG_TYPE_PARAM + 8]);
-		std::vector<Param> probGates(&params[TRIG_GATEPROB_PARAM],&params[TRIG_GATEPROB_PARAM + 8]);
-		std::vector<Param> rndPitches(&params[TRIG_PITCHRND_PARAM],&params[TRIG_PITCHRND_PARAM + 8]);
-		std::vector<Param> accents(&params[TRIG_ACCENT_PARAM],&params[TRIG_ACCENT_PARAM + 8]);
-		std::vector<Param> rndAccents(&params[TRIG_RNDACCENT_PARAM],&params[TRIG_RNDACCENT_PARAM + 8]);
 		patterns[selectedPattern].Update(playMode, countMode, numSteps, roundf(params[STEPS_PARAM].value), roundf(params[ROOT_NOTE_PARAM].value),
 		 roundf(params[SCALE_PARAM].value), params[GATE_TIME_PARAM].value, params[SLIDE_TIME_PARAM].value, params[SENSITIVITY_PARAM].value ,
-		  skipState, slideState, pulses, pitches, types, probGates, rndPitches, accents, rndAccents);
+		  skipState, slideState, &params[TRIG_COUNT_PARAM], &params[TRIG_PITCH_PARAM], &params[TRIG_TYPE_PARAM], &params[TRIG_GATEPROB_PARAM],
+			 &params[TRIG_PITCHRND_PARAM], &params[TRIG_ACCENT_PARAM], &params[TRIG_RNDACCENT_PARAM]);
 	}
 
 	void step() override;
@@ -383,6 +383,7 @@ struct BORDL : Module {
 		json_object_set_new(rootJ, "playMode", json_integer(playMode));
 		json_object_set_new(rootJ, "countMode", json_integer(countMode));
 		json_object_set_new(rootJ, "pitchMode", json_boolean(pitchMode));
+		json_object_set_new(rootJ, "stepOutputsMode", json_boolean(stepOutputsMode));
 		json_object_set_new(rootJ, "pitchQuantizeMode", json_boolean(pitchQuantizeMode));
 		json_object_set_new(rootJ, "selectedPattern", json_integer(selectedPattern));
 		json_object_set_new(rootJ, "playedPattern", json_integer(playedPattern));
@@ -422,7 +423,7 @@ struct BORDL : Module {
 				json_object_set_new(stepJ, "gateProb", json_real(patterns[i].steps[j].gateProb));
 				json_object_set_new(stepJ, "pitchRnd", json_real(patterns[i].steps[j].pitchRnd));
 				json_object_set_new(stepJ, "accent", json_real(patterns[i].steps[j].accent));
-				json_object_set_new(stepJ, "rndAccent", json_real(patterns[i].steps[j].rndAccent));
+				json_object_set_new(stepJ, "accentRnd", json_real(patterns[i].steps[j].accentRnd));
 				json_object_set_new(patternJ, ("step" + to_string(j)).c_str() , stepJ);
 			}
 			json_object_set_new(rootJ, ("pattern" + to_string(i)).c_str(), patternJ);
@@ -449,6 +450,9 @@ struct BORDL : Module {
 		json_t *pitchModeJ = json_object_get(rootJ, "pitchMode");
 		if (pitchModeJ)
 			pitchMode = json_is_true(pitchModeJ);
+		json_t *stepOutputsModeJ = json_object_get(rootJ, "stepOutputsMode");
+		if (stepOutputsModeJ)
+			stepOutputsMode = json_is_true(stepOutputsModeJ);
 		json_t *pitchQuantizeModeJ = json_object_get(rootJ, "pitchQuantizeMode");
 		if (pitchQuantizeModeJ)
 			pitchQuantizeMode = json_is_true(pitchQuantizeModeJ);
@@ -529,9 +533,9 @@ struct BORDL : Module {
 						json_t *accentJ= json_object_get(stepJ, "accent");
 						if (accentJ)
 							patterns[i].steps[j].accent = json_real_value(accentJ);
-						json_t *rndAccentJ= json_object_get(stepJ, "rndAccent");
+						json_t *rndAccentJ= json_object_get(stepJ, "accentRnd");
 						if (rndAccentJ)
-							patterns[i].steps[j].rndAccent = json_real_value(rndAccentJ);
+							patterns[i].steps[j].accentRnd = json_real_value(rndAccentJ);
 					}
 				}
 			}
@@ -715,30 +719,42 @@ void BORDL::step() {
 			updateFlag = true;
 		}
 	}
+
 	// Steps && Pulses Management
 	if (nextStep) {
 		// Advance step
-		previousPitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch);
+		candidateForPreviousPitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch * patterns[playedPattern].sensitivity);
+
 		prevIndex = index;
 		auto nextT = patterns[playedPattern].GetNextStep(reStart);
 		index = std::get<0>(nextT);
 		pulse = std::get<1>(nextT);
-		if (reStart) { reStart = false; }
-		lights[STEPS_LIGHTS+index%8].value = 1.0f;
-		probGate = index != prevIndex ? randomUniform() <= params[TRIG_GATEPROB_PARAM+index%8].value : probGate;
-		rndPitch = index != prevIndex ? rescale(randomUniform(),0.0f,1.0f,params[TRIG_PITCHRND_PARAM+index%8].value*-5.0f,params[TRIG_PITCHRND_PARAM+index%8].value*5.0f) : rndPitch;
-		accent = index != prevIndex ? clamp(params[TRIG_ACCENT_PARAM+index%8].value + rescale(randomUniform(),0.0f,1.0f,params[TRIG_RNDACCENT_PARAM+index%8].value*-5.0f,params[TRIG_RNDACCENT_PARAM+index%8].value*5.0f),0.0f,10.0f)  : accent;
+
+		if (reStart)
+			reStart = false;
+
+		if (((!stepOutputsMode) && (pulse == 0)) || (stepOutputsMode))
+			stepPulse[patterns[playedPattern].CurrentStep().number].trigger(10 * invESR);
+
+		probGate = index != prevIndex ? randomUniform() <= patterns[playedPattern].CurrentStep().gateProb : probGate;
+		rndPitch = index != prevIndex ? rescale(randomUniform(),0.0f,1.0f,patterns[playedPattern].CurrentStep().pitchRnd * -5.0f, patterns[playedPattern].CurrentStep().pitchRnd * 5.0f) : rndPitch;
+		accent = index != prevIndex ? clamp(patterns[playedPattern].CurrentStep().accent + rescale(randomUniform(),0.0f,1.0f,patterns[playedPattern].CurrentStep().accentRnd * -5.0f,patterns[playedPattern].CurrentStep().accentRnd * 5.0f),0.0f,10.0f)  : accent;
+
+		lights[STEPS_LIGHTS+patterns[playedPattern].CurrentStep().number].value = 1.0f;
 	}
-	// Lights
+
+	// Lights & steps outputs
 	for (int i = 0; i < 8; i++) {
 		lights[STEPS_LIGHTS + i].value -= lights[STEPS_LIGHTS + i].value * invLightLambda * invESR;
 		lights[SLIDES_LIGHTS + i].value = slideState[i] == 't' ? 1.0f - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
 		lights[SKIPS_LIGHTS + i].value = skipState[i]== 't' ? 1.0f - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
+
+		outputs[STEP_OUTPUT+i].value = stepPulse[i].process(invESR) ? 10.0f : 0.0f;
 	}
 	lights[RESET_LIGHT].value -= lights[RESET_LIGHT].value * invLightLambda * invESR;
 
 	// Caclulate Outputs
-	bool gateOn = running && (!patterns[playedPattern].CurrentStep().skip);
+	gateOn = running && (!patterns[playedPattern].CurrentStep().skip);
 	float gateValue = 0.0f;
 	if (gateOn){
 		if (patterns[playedPattern].CurrentStep().type == 0) {
@@ -781,6 +797,9 @@ void BORDL::step() {
 	outputs[GATE_OUTPUT].value = gateOn ? (probGate ? gateValue : 0.0f) : 0.0f;
 	outputs[PITCH_OUTPUT].value = pitchMode ? pitch : (gateOn ? pitch : 0.0f);
 	outputs[ACC_OUTPUT].value = gateOn ? (probGate ? accent : 0.0f) : 0.0f;
+
+	if (nextStep && gateOn)
+		previousPitch = candidateForPreviousPitch;
 }
 
 struct BORDLDisplay : TransparentWidget {
@@ -960,12 +979,9 @@ struct BORDLPulseDisplay : TransparentWidget {
 		nvgFontSize(vg, 16.0f);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2.0f);
-		char tCount[128],tProb[128];
+		char tCount[128];
 		snprintf(tCount, sizeof(tCount), "%1i", (int)module->params[BORDL::TRIG_COUNT_PARAM+index].value);
-		snprintf(tProb, sizeof(tProb), "%1i%%", (int)(module->params[BORDL::TRIG_GATEPROB_PARAM+index].value*100.0f));
 		nvgText(vg, pos.x, pos.y, tCount, NULL);
-		nvgFontSize(vg, 12.0f);
-		nvgText(vg, pos.x, pos.y+12.0f, tProb, NULL);
 	}
 
 	void draw(NVGcontext *vg) override {
@@ -983,24 +999,35 @@ struct BORDLPitchDisplay : TransparentWidget {
 		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
 	}
 
+	string displayNote(float value) {
+		int octave = value;
+		int note = (value-octave)*1000;
+		switch(note){
+			case 0:  return "C" + to_string(octave);
+			case 83: return "C#" + to_string(octave);
+			case 166: return "D" + to_string(octave);
+			case 250: return "D#" + to_string(octave);
+			case 333: return "E" + to_string(octave);
+			case 416: return "F" + to_string(octave);
+			case 500: return "F#" + to_string(octave);
+			case 583: return "G" + to_string(octave);
+			case 666: return "G#" + to_string(octave);
+			case 750: return "A" + to_string(octave);
+			case 833: return "A#" + to_string(octave);
+			case 916: return "B" + to_string(octave);
+			default: return to_string(octave);
+		}
+	}
+
 	void drawPitch(NVGcontext *vg, Vec pos) {
-		nvgStrokeWidth(vg, 1.0f);
+		nvgStrokeWidth(vg, 3.0f);
 		nvgStrokeColor(vg, YELLOW_BIDOO);
 		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER);
-		nvgFontSize(vg, 14.0f);
+		nvgFontSize(vg, 16.0f);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2.0f);
-		char tPitch[128],tPitchRnd[128],tAcc[128],tAccRnd[128];
-		snprintf(tPitch, sizeof(tPitch), "%1.2f", module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].value));
-		snprintf(tPitchRnd, sizeof(tPitchRnd), "%1i%%", (int)(module->params[BORDL::TRIG_PITCHRND_PARAM+index].value*100));
-		snprintf(tAcc, sizeof(tAcc), "%1.2f", module->params[BORDL::TRIG_ACCENT_PARAM+index].value);
-		snprintf(tAccRnd, sizeof(tAccRnd), "%1i%%", (int)(module->params[BORDL::TRIG_RNDACCENT_PARAM+index].value*100));
-		nvgText(vg, pos.x, pos.y-9.0f, tPitch, NULL);
-		nvgText(vg, pos.x, pos.y+15.0f, tAcc, NULL);
-		nvgFontSize(vg, 12.0f);
-		nvgText(vg, pos.x, pos.y+2.0f, tPitchRnd, NULL);
-		nvgText(vg, pos.x, pos.y+25.0f, tAccRnd, NULL);
+		nvgText(vg, pos.x, pos.y-9.0f, displayNote(module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].value * module->params[BORDL::SENSITIVITY_PARAM].value)).c_str(), NULL);
 	}
 
 	void draw(NVGcontext *vg) override {
@@ -1045,7 +1072,7 @@ struct BORDLPatternRoundBlackSnapKnob : RoundBlackSnapKnob {
 					parent->pulseProbParams[i]->setValue(module->patterns[target].steps[i].gateProb);
 					parent->pitchRndParams[i]->setValue(module->patterns[target].steps[i].pitchRnd);
 					parent->accentParams[i]->setValue(module->patterns[target].steps[i].accent);
-					parent->rndAccentParams[i]->setValue(module->patterns[target].steps[i].rndAccent);
+					parent->rndAccentParams[i]->setValue(module->patterns[target].steps[i].accentRnd);
 				}
 				module->updateFlag = true;
 			}
@@ -1070,15 +1097,17 @@ BORDLWidget::BORDLWidget(BORDL *module) : ModuleWidget(module) {
 		addChild(display);
 	}
 
-	addParam(ParamWidget::create<RoundBlackKnob>(Vec(17.0f, 52.0f), module, BORDL::CLOCK_PARAM, -2.0f, 6.0f, 2.0f));
+	static const float portX0[4] = {20.0f, 58.0f, 96.0f, 135.0f};
+
+	addParam(ParamWidget::create<RoundBlackKnob>(Vec(portX0[0]-2.0f, 52.0f), module, BORDL::CLOCK_PARAM, -2.0f, 6.0f, 2.0f));
 	addParam(ParamWidget::create<LEDButton>(Vec(61.0f, 56.0f), module, BORDL::RUN_PARAM, 0.0f, 1.0f, 0.0f));
 	addChild(ModuleLightWidget::create<SmallLight<GreenLight>>(Vec(67.0f, 62.0f), module, BORDL::RUNNING_LIGHT));
 	addParam(ParamWidget::create<LEDButton>(Vec(99.0f, 56.0f), module, BORDL::RESET_PARAM, 0.0f, 1.0f, 0.0f));
 	addChild(ModuleLightWidget::create<SmallLight<GreenLight>>(Vec(105.0f, 62.0f), module, BORDL::RESET_LIGHT));
-	stepsParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(134.0f, 52.0f), module, BORDL::STEPS_PARAM, 1.0f, 16.0f, 8.0f);
+	stepsParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[3]-2.0f, 52.0f), module, BORDL::STEPS_PARAM, 1.0f, 16.0f, 8.0f);
 	addParam(stepsParam);
 
-	static const float portX0[4] = {20.0f, 58.0f, 96.0f, 135.0f};
+
  	addInput(Port::create<PJ301MPort>(Vec(portX0[0], 90.0f), Port::INPUT, module, BORDL::CLOCK_INPUT));
 	addInput(Port::create<PJ301MPort>(Vec(portX0[1], 90.0f), Port::INPUT, module, BORDL::EXT_CLOCK_INPUT));
 	addInput(Port::create<PJ301MPort>(Vec(portX0[2], 90.0f), Port::INPUT, module, BORDL::RESET_INPUT));
@@ -1106,56 +1135,58 @@ BORDLWidget::BORDLWidget(BORDL *module) : ModuleWidget(module) {
 	patternParam = ParamWidget::create<BORDLPatternRoundBlackSnapKnob>(Vec(portX0[3],230.0f), module, BORDL::PATTERN_PARAM, 1.0f, 16.0f, 1.0f);
 	addParam(patternParam);
 
-	static const float portX1[8] = {200.0f, 238.0f, 276.0f, 315.0f, 353.0f, 392.0f, 430.0f, 469.0f};
+	static const float portX1[8] = {200.0f, 241.0f, 282.0f, 323.0f, 364.0f, 405.0f, 446.0f, 487.0f};
 
-	sensitivityParam = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[0]-24.0f, 32.0f), module, BORDL::SENSITIVITY_PARAM, 0.1f, 1.0f, 1.0f);
+	sensitivityParam = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[0]-24.0f, 38.0f), module, BORDL::SENSITIVITY_PARAM, 0.1f, 1.0f, 1.0f);
 	addParam(sensitivityParam);
 
 	for (int i = 0; i < 8; i++) {
-		pitchParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]+1.0f, 76.0f), module, BORDL::TRIG_PITCH_PARAM + i, 0.0f, 10.001f, 3.0f);
+		pitchParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]+1.0f, 56.0f), module, BORDL::TRIG_PITCH_PARAM + i, 0.0f, 10.001f, 3.0f);
 		addParam(pitchParams[i]);
-		pitchRndParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+6.5f, 108.0f), module, BORDL::TRIG_PITCHRND_PARAM + i, 0.0f, 1.0f, 0.0f);
+		pitchRndParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+27.0f, 81.0f), module, BORDL::TRIG_PITCHRND_PARAM + i, 0.0f, 1.0f, 0.0f);
 		addParam(pitchRndParams[i]);
-		accentParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]+1.0f, 129.0f), module, BORDL::TRIG_ACCENT_PARAM + i, 0.0f, 10.0f, 0.0f);
+		accentParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]+1.0f, 110.0f), module, BORDL::TRIG_ACCENT_PARAM + i, 0.0f, 10.0f, 0.0f);
 		addParam(accentParams[i]);
-		rndAccentParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+6.5f, 160.0f), module, BORDL::TRIG_RNDACCENT_PARAM + i, 0.0f, 1.0f, 0.0f);
+		rndAccentParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+27.0f, 135.0f), module, BORDL::TRIG_RNDACCENT_PARAM + i, 0.0f, 1.0f, 0.0f);
 		addParam(rndAccentParams[i]);
 		{
 			BORDLPitchDisplay *displayPitch = new BORDLPitchDisplay();
 			displayPitch->module = module;
-			displayPitch->box.pos = Vec(portX1[i]+15.0f, 45.0f);
+			displayPitch->box.pos = Vec(portX1[i]+15.0f, 55.0f);
 			displayPitch->box.size = Vec(20.0f, 10.0f);
 			displayPitch->index = i;
 			addChild(displayPitch);
 		}
-		pulseParams[i] = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX1[i]+1.0f, 216.0f), module, BORDL::TRIG_COUNT_PARAM + i, 1.0f, 8.0f,  1.0f);
+		pulseParams[i] = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX1[i]+1.0f, 188.0f), module, BORDL::TRIG_COUNT_PARAM + i, 1.0f, 8.0f,  1.0f);
 		addParam(pulseParams[i]);
-		pulseProbParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+6.5f, 247.0f), module, BORDL::TRIG_GATEPROB_PARAM + i, 0.0f, 1.0f,  1.0f);
+		pulseProbParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+27.0f, 213.0f), module, BORDL::TRIG_GATEPROB_PARAM + i, 0.0f, 1.0f,  1.0f);
 		addParam(pulseProbParams[i]);
 		{
 			BORDLPulseDisplay *displayPulse = new BORDLPulseDisplay();
 			displayPulse->module = module;
-			displayPulse->box.pos = Vec(portX1[i]+15.0f, 197.0f);
+			displayPulse->box.pos = Vec(portX1[i]+15.0f, 179.0f);
 			displayPulse->box.size = Vec(20.0f, 10.0f);
 			displayPulse->index = i;
 			addChild(displayPulse);
 		}
-		typeParams[i] = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX1[i]+1.0f, 288.0f), module, BORDL::TRIG_TYPE_PARAM + i, 0.0f, 5.0f,  2.0f);
+		typeParams[i] = ParamWidget::create<BidooBlueSnapTrimpot>(Vec(portX1[i]+6.5f, 267.0f), module, BORDL::TRIG_TYPE_PARAM + i, 0.0f, 5.0f,  2.0f);
 		addParam(typeParams[i]);
 		{
 			BORDLGateDisplay *displayGate = new BORDLGateDisplay();
 			displayGate->module = module;
-			displayGate->box.pos = Vec(portX1[i]+5.0f, 275.0f);
+			displayGate->box.pos = Vec(portX1[i]+5.0f, 250.0f);
 			displayGate->box.size = Vec(20.0f, 10.0f);
 			displayGate->index = i;
 			addChild(displayGate);
 		}
-		slideParams[i] = ParamWidget::create<LEDButton>(Vec(portX1[i]+7.0f, 320.0f), module, BORDL::TRIG_SLIDE_PARAM + i, 0.0f, 1.0f,  0.0f);
+		slideParams[i] = ParamWidget::create<LEDButton>(Vec(portX1[i]+7.0f, 295.0f), module, BORDL::TRIG_SLIDE_PARAM + i, 0.0f, 1.0f,  0.0f);
 		addParam(slideParams[i]);
-		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(portX1[i]+13.0f, 326.0f), module, BORDL::SLIDES_LIGHTS + i));
-		skipParams[i] = ParamWidget::create<LEDButton>(Vec(portX1[i]+7.0f, 341.0f), module, BORDL::TRIG_SKIP_PARAM + i, 0.0f, 1.0f, 0.0f);
+		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(portX1[i]+13.0f, 301.0f), module, BORDL::SLIDES_LIGHTS + i));
+		skipParams[i] = ParamWidget::create<LEDButton>(Vec(portX1[i]+7.0f, 316.0f), module, BORDL::TRIG_SKIP_PARAM + i, 0.0f, 1.0f, 0.0f);
 		addParam(skipParams[i]);
-		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(portX1[i]+13.0f, 347.0f), module, BORDL::SKIPS_LIGHTS + i));
+		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(portX1[i]+13.0f, 322.0f), module, BORDL::SKIPS_LIGHTS + i));
+
+		addOutput(Port::create<TinyPJ301MPort>(Vec(portX1[i]+9.0f, 344.0f), Port::OUTPUT, module, BORDL::STEP_OUTPUT + i));
 	}
 
 	addInput(Port::create<PJ301MPort>(Vec(10.0f, 331.0f), Port::INPUT, module, BORDL::EXTGATE1_INPUT));
@@ -1229,6 +1260,17 @@ struct BORDLPitchQuantizeModeItem : MenuItem {
 	}
 	void step() override {
 		rightText = bordlModule->pitchQuantizeMode ? "✔" : "";
+		MenuItem::step();
+	}
+};
+
+struct BORDLStepOutputsModeItem : MenuItem {
+	BORDL *bordlModule;
+	void onAction(EventAction &e) override {
+		bordlModule->stepOutputsMode = !bordlModule->stepOutputsMode;
+	}
+	void step() override {
+		rightText = bordlModule->stepOutputsMode ? "✔" : "";
 		MenuItem::step();
 	}
 };
@@ -1316,7 +1358,7 @@ struct BORDLPasteItem : MenuItem {
 				bordlWidget->pulseProbParams[i]->setValue(bordlModule->patterns[bordlModule->copyPattern].steps[i].gateProb);
 				bordlWidget->pitchRndParams[i]->setValue(bordlModule->patterns[bordlModule->copyPattern].steps[i].pitchRnd);
 				bordlWidget->accentParams[i]->setValue(bordlModule->patterns[bordlModule->copyPattern].steps[i].accent);
-				bordlWidget->rndAccentParams[i]->setValue(bordlModule->patterns[bordlModule->copyPattern].steps[i].rndAccent);
+				bordlWidget->rndAccentParams[i]->setValue(bordlModule->patterns[bordlModule->copyPattern].steps[i].accentRnd);
 			}
 			bordlModule->updateFlag = true;
 		}
@@ -1404,6 +1446,11 @@ Menu *BORDLWidget::createContextMenu() {
 	pitchQuantizeModeItem->text = "Pitch full quantize";
 	pitchQuantizeModeItem->bordlModule = bordlModule;
 	menu->addChild(pitchQuantizeModeItem);
+
+	BORDLStepOutputsModeItem *stepOutputsModeItem = new BORDLStepOutputsModeItem();
+	stepOutputsModeItem->text = "Step trigs on steps (vs. pulses)";
+	stepOutputsModeItem->bordlModule = bordlModule;
+	menu->addChild(stepOutputsModeItem);
 
 	return menu;
 }

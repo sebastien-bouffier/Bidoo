@@ -39,6 +39,14 @@ struct BidooBlueSnapKnob : RoundBlackSnapKnob  {
 	}
 };
 
+struct BidooBlueSnapTrimpot : Trimpot  {
+	BidooBlueSnapTrimpot() {
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueTrimpotBidoo.svg")));
+		snap = true;
+		smooth = false;
+	}
+};
+
 struct BidooBlueTrimpot : Trimpot {
 	BidooBlueTrimpot() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueTrimpotBidoo.svg")));

@@ -161,7 +161,7 @@ void ACNE::step() {
 			if (sum > 0) {
 				for (int j = 0; j < ACNE_NB_TRACKS; j ++) {
 					if ((inputs[TRACKS_INPUTS + j].active) && (inSolo[j])) {
-						outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value + (getRampedValue(i,j) * 0.1f) * inputs[TRACKS_INPUTS + j].value * 30517578125e-15f; //  / 32768.0f;
+						outputs[TRACKS_OUTPUTS + i].value += (getRampedValue(i,j) * 0.1f) * inputs[TRACKS_INPUTS + j].value * 30517578125e-15f;
 					}
 				}
 			}
@@ -174,7 +174,7 @@ void ACNE::step() {
 						else {
 							rampedValue = snapshots[currentSnapshot][i][j];
 						}
-						outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value + (getRampedValue(i,j) * 0.1f) * inputs[TRACKS_INPUTS + j].value * 30517578125e-15f; //  / 32768.0f;
+						outputs[TRACKS_OUTPUTS + i].value += (getRampedValue(i,j) * 0.1f) * inputs[TRACKS_INPUTS + j].value * 30517578125e-15f; 
 					}
 				}
 			}

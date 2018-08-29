@@ -36,7 +36,7 @@ size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *user
 {
   struct threadReadData *pData = (struct threadReadData *) userp;
   size_t realsize = size * nmemb;
-  if ((pData->dl->load()) && (realsize < pData->dataToDecodeRingBuffer->capacity()))   //
+  if ((pData->dl->load()) && (realsize < pData->dataToDecodeRingBuffer->capacity()))
   {
     memcpy(pData->dataToDecodeRingBuffer->endData(), contents, realsize);
     pData->dataToDecodeRingBuffer->endIncr(realsize);
