@@ -18,6 +18,8 @@ struct OUAIVE : Module {
 		TRIG_MODE_PARAM,
 		READ_MODE_PARAM,
 		SPEED_PARAM,
+		CVSLICES_PARAM,
+		CVSPEED_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -136,8 +138,8 @@ void OUAIVE::step() {
 	} else if (readModeTrigger.process(params[READ_MODE_PARAM].value + inputs[READ_MODE_INPUT].value)) {
 		readMode = (((int)readMode + 1) % 3);
 	}
-	nbSlices = clamp(roundl(params[NB_SLICES_PARAM].value + inputs[NB_SLICES_INPUT].value), 1, 128);
-	speed = clamp(params[SPEED_PARAM].value + inputs[SPEED_INPUT].value, 0.2f, 10.0f);
+	nbSlices = clamp(roundl(params[NB_SLICES_PARAM].value + params[CVSLICES_PARAM].value * inputs[NB_SLICES_INPUT].value), 1, 128);
+	speed = clamp(params[SPEED_PARAM].value + params[CVSPEED_PARAM].value * inputs[SPEED_INPUT].value, 0.2f, 10.0f);
 
 	if (!loading) {
 		sliceLength = clamp(totalSampleCount / nbSlices, 1, totalSampleCount);
@@ -437,9 +439,11 @@ struct OUAIVEWidget : ModuleWidget {
 		addInput(Port::create<TinyPJ301MPort>(Vec(portX0[2]+5, 222), Port::INPUT, module, OUAIVE::READ_MODE_INPUT));
 
 		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[1]-9, 250), module, OUAIVE::NB_SLICES_PARAM, 1.0, 128.01, 1.0));
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[1]+15, 250), module, OUAIVE::CVSLICES_PARAM, -1.0f, 1.0f, 0.0f));
 		addInput(Port::create<TinyPJ301MPort>(Vec(portX0[2]+5, 252), Port::INPUT, module, OUAIVE::NB_SLICES_INPUT));
 
 		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM, -0.05, 10, 1.0));
+		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(portX0[1]+15, 275), module, OUAIVE::CVSPEED_PARAM, -1.0f, 1.0f, 0.0f));
 		addInput(Port::create<TinyPJ301MPort>(Vec(portX0[2]+5, 277), Port::INPUT, module, OUAIVE::SPEED_INPUT));
 
 		addInput(Port::create<PJ301MPort>(Vec(portX0[0]-25, 321), Port::INPUT, module, OUAIVE::GATE_INPUT));

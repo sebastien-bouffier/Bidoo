@@ -63,13 +63,13 @@ struct PatternExtended {
 			steps[i].index = i%8;
 			steps[i].number = i;
 			if (((countMode == 0) && (i < numberOfSteps)) || ((countMode == 1) && (pCount < numberOfSteps))) {
-				steps[i].skip = (skips[i%8] == 't');
+				steps[i].skip = (skips[steps[i].index] == 't');
 			}	else {
 				steps[i].skip = true;
 			}
-			steps[i].skipParam = (skips[i%8] == 't');
-			steps[i].slide = (slides[i%8] == 't');
-			if ((countMode == 1) && ((pCount + (int)pulses[i%8].value) >= numberOfSteps)) {
+			steps[i].skipParam = (skips[steps[i].index] == 't');
+			steps[i].slide = (slides[steps[i].index] == 't');
+			if ((countMode == 1) && ((pCount + (int)pulses[steps[i].index].value) >= numberOfSteps)) {
 				steps[i].pulses = max(numberOfSteps - pCount, 0);
 			}	else {
 				steps[i].pulses = (int)(pulses + steps[i].index)->value;
@@ -185,8 +185,9 @@ struct PatternExtended {
 	int GetNextStepBackward(int pos)
 	{
 			for (int i = pos - 1; i > pos - 16; i--) {
-				if (!steps[i%16 + (i<0?16:0)].skip) {
-					return i%16 + (i<0?16:0);
+				int j = i/16;
+				if (!steps[j + (i<0?16:0)].skip) {
+					return j + (i<0?16:0);
 				}
 			}
 			return pos;
@@ -734,13 +735,13 @@ void BORDL::step() {
 			reStart = false;
 
 		if (((!stepOutputsMode) && (pulse == 0)) || (stepOutputsMode))
-			stepPulse[patterns[playedPattern].CurrentStep().number].trigger(10 * invESR);
+			stepPulse[patterns[playedPattern].CurrentStep().index].trigger(10 * invESR);
 
 		probGate = index != prevIndex ? randomUniform() <= patterns[playedPattern].CurrentStep().gateProb : probGate;
 		rndPitch = index != prevIndex ? rescale(randomUniform(),0.0f,1.0f,patterns[playedPattern].CurrentStep().pitchRnd * -5.0f, patterns[playedPattern].CurrentStep().pitchRnd * 5.0f) : rndPitch;
 		accent = index != prevIndex ? clamp(patterns[playedPattern].CurrentStep().accent + rescale(randomUniform(),0.0f,1.0f,patterns[playedPattern].CurrentStep().accentRnd * -5.0f,patterns[playedPattern].CurrentStep().accentRnd * 5.0f),0.0f,10.0f)  : accent;
 
-		lights[STEPS_LIGHTS+patterns[playedPattern].CurrentStep().number].value = 1.0f;
+		lights[STEPS_LIGHTS+patterns[playedPattern].CurrentStep().index].value = 1.0f;
 	}
 
 	// Lights & steps outputs
@@ -796,7 +797,7 @@ void BORDL::step() {
 	// Update Outputs
 	outputs[GATE_OUTPUT].value = gateOn ? (probGate ? gateValue : 0.0f) : 0.0f;
 	outputs[PITCH_OUTPUT].value = pitchMode ? pitch : (gateOn ? pitch : 0.0f);
-	outputs[ACC_OUTPUT].value = gateOn ? (probGate ? accent : 0.0f) : 0.0f;
+	outputs[ACC_OUTPUT].value = pitchMode ? accent : (gateOn ? accent : 0.0f);
 
 	if (nextStep && gateOn)
 		previousPitch = candidateForPreviousPitch;

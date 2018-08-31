@@ -210,6 +210,7 @@ void CANARD::step() {
 			mylock.lock();
 			playBuffer[0].clear();
 			playBuffer[1].clear();
+			totalSampleCount = 0;
 			slices.clear();
 			mylock.unlock();
 			lastPath = "";
@@ -273,7 +274,6 @@ void CANARD::step() {
 
 		if (recordTrigger.process(inputs[RECORD_INPUT].value + params[RECORD_PARAM].value))
 		{
-			lights[REC_LIGHT].value = 10.0f;
 			if(record) {
 				if (floor(params[MODE_PARAM].value) == 0) {
 					mylock.lock();
@@ -310,6 +310,7 @@ void CANARD::step() {
 		}
 
 		if (record) {
+			lights[REC_LIGHT].value = 10.0f;
 			mylock.lock();
 			recordBuffer[0].push_back(inputs[INL_INPUT].value/10);
 			recordBuffer[1].push_back(inputs[INR_INPUT].value/10);
@@ -502,12 +503,12 @@ struct CANARDDisplay : OpaqueWidget {
 		size_t nbSample = vL.size();
 
 		// Draw play line
-		if ((module->play) && (!module->loading)) {
+		if (!module->loading) {
 			nvgStrokeColor(vg, LIGHTBLUE_BIDOO);
 			{
 				nvgBeginPath(vg);
 				nvgStrokeWidth(vg, 2);
-				if (module->totalSampleCount>0) {
+				if (nbSample>0) {
 					nvgMoveTo(vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 0);
 					nvgLineTo(vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 2*height+10);
 				}

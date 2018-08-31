@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.6.12-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.6.13-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -13,7 +13,21 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-24/08/2018 => 0.6.12
+31/08/2018 => 0.6.13
+
+*BUGFIX* **dTrOY** and **bordL** crash when the number of steps is greater than 8 => FIXED.
+
+*UPDATE* **ACnE** input channels can be linked in order to create stereo busses for SOLO/MUTE (hit le little lights between SOLO/MUTE). All SOLO and MUTE can be turned off simultaneously by clicking on the buttons in the bottom left corner of the UI.
+
+*UPDATE* **lATe** Swing's CV input has a trim control.
+
+*UPDATE* **OUAIve** Speed and Slices's CV input have trim controls.
+
+*NEW* **MS** Mid/Side decoder/encoder.
+
+Minor changes on plugins to save some CPU.
+
+30/08/2018 => 0.6.12
 
 *REBORN* **dTrOY** and **bordL** have now a gate output on each step that fires on all step's pulses or just on the first pulse (configuration via menu => right click). Pattern management has been optimized to save many CPU cycles. **bordL**'s layout has been revamped to make it less .... "bordéLique".
 

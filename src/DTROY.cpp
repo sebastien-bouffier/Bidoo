@@ -709,9 +709,9 @@ void DTROY::step() {
 			reStart = false;
 
 		if (((!stepOutputsMode) && (pulse == 0)) || (stepOutputsMode))
-			stepPulse[patterns[playedPattern].CurrentStep().number].trigger(10 * invESR);
+			stepPulse[patterns[playedPattern].CurrentStep().index].trigger(10 * invESR);
 
-		lights[STEPS_LIGHTS+patterns[playedPattern].CurrentStep().number].value = 1.0f;
+		lights[STEPS_LIGHTS+patterns[playedPattern].CurrentStep().index].value = 1.0f;
 	}
 
 	// Lights & steps outputs

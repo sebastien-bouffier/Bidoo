@@ -26,6 +26,7 @@ extern Model *modelTOCANTE;
 extern Model *modelCHUTE;
 extern Model *modelLATE;
 extern Model *modelACNE;
+extern Model *modelMS;
 extern Model *modelOUAIVE;
 extern Model *modelEMILE;
 extern Model *modelFORK;

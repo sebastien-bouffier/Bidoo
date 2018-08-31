@@ -104,8 +104,8 @@ void RABBIT::step() {
     lights[BITREV_LIGHTS + i].value = bitRev[i] ? 1.0f : 0.0f;
   }
 
-  outputs[L_OUTPUT].value = clamp(((((float)red_L/255.0f))-0.5f)*10.0f,-10.0f,10.0f);
-  outputs[R_OUTPUT].value = clamp(((((float)red_R/255.0f))-0.5f)*10.0f,-10.0f,10.0f);
+  outputs[L_OUTPUT].value = clamp(((((float)red_L/255.0f))-0.5f)*20.0f,-10.0f,10.0f);
+  outputs[R_OUTPUT].value = clamp(((((float)red_R/255.0f))-0.5f)*20.0f,-10.0f,10.0f);
 }
 
 template <typename BASE>

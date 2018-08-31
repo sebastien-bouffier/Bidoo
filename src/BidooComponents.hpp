@@ -60,6 +60,20 @@ struct BlueCKD6 : SVGSwitch, MomentarySwitch {
 	}
 };
 
+struct MuteBtn : SVGSwitch, MomentarySwitch {
+	MuteBtn() {
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/MuteBtn_0.svg")));
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/MuteBtn_1.svg")));
+	}
+};
+
+struct SoloBtn : SVGSwitch, MomentarySwitch {
+	SoloBtn() {
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/SoloBtn_0.svg")));
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/SoloBtn_1.svg")));
+	}
+};
+
 struct BidooziNCColoredKnob : RoundKnob {
 	BidooziNCColoredKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/ziNCBlueKnobBidoo.svg")));
