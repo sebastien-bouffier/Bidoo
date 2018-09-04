@@ -161,7 +161,7 @@ struct GARCONDisplay : OpaqueWidget {
 
 			if (tmp.size()>0) {
 				for (size_t i = 0; i < tmp.size(); i++) {
-					float x, y;
+					float x,y;
 					x = (float)i * width / tmp.size();
 					if (tmp[i].size()>0) {
 						for (size_t j = 0; j < tmp[i].size(); j++) {
