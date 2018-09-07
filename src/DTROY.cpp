@@ -1,7 +1,6 @@
 #include "Bidoo.hpp"
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
-#include <ctime>
 #include <iostream>
 #include <vector>
 #include <random>
@@ -136,11 +135,11 @@ struct Pattern {
 		}
 	}
 
-	Step CurrentStep() {
+	inline Step CurrentStep() {
 		return this->steps[currentStep];
 	}
 
-	int GetFirstStep()
+	inline int GetFirstStep()
 	{
 			for (int i = 0; i < 16; i++) {
 				if (!steps[i].skip) {
@@ -150,7 +149,7 @@ struct Pattern {
 			return 0;
 	}
 
-	int GetLastStep()
+	inline int GetLastStep()
 	{
 			for (int i = 15; i >= 0  ; i--) {
 				if (!steps[i].skip) {
@@ -160,7 +159,7 @@ struct Pattern {
 			return 15;
 	}
 
-	int GetNextStepForward(int pos)
+	inline int GetNextStepForward(int pos)
 	{
 			for (int i = pos + 1; i < pos + 16; i++) {
 				int j = i%16;
@@ -171,7 +170,7 @@ struct Pattern {
 			return pos;
 	}
 
-	int GetNextStepBackward(int pos)
+	inline int GetNextStepBackward(int pos)
 	{
 			for (int i = pos - 1; i > pos - 16; i--) {
 				int j = i%16;
@@ -322,9 +321,8 @@ struct DTROY : Module {
 	float pitch = 0.0f;
 	float previousPitch = 0.0f;
 	float candidateForPreviousPitch = 0.0f;
-	clock_t tCurrent;
-	clock_t tLastTrig;
-	clock_t tPreviousTrig;
+	float tCurrent = 0.0f;
+	float tLastTrig = 0.0f;
 	std::vector<char> slideState = {'f','f','f','f','f','f','f','f'};
 	std::vector<char> skipState = {'f','f','f','f','f','f','f','f'};
 	int playMode = 0; // 0 forward, 1 backward, 2 pingpong, 3 random, 4 brownian
@@ -341,28 +339,14 @@ struct DTROY : Module {
 	PulseGenerator stepPulse[8];
 	bool stepOutputsMode = false;
 	bool gateOn = false;
+	const float invLightLambda = 13.333333333333333333333f;
 
 	Pattern patterns[16];
 
 	DTROY() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
 	}
 
-	void UpdatePattern() {
-		patterns[selectedPattern].Update(playMode,
-			countMode,
-			 numSteps,
-			 roundf(params[STEPS_PARAM].value),
-			 roundf(params[ROOT_NOTE_PARAM].value),
-			 roundf(params[SCALE_PARAM].value),
-			 params[GATE_TIME_PARAM].value,
-			 params[SLIDE_TIME_PARAM].value,
-			 params[SENSITIVITY_PARAM].value ,
-			 skipState,
-			 slideState,
-			 &params[TRIG_COUNT_PARAM],
-			 &params[TRIG_PITCH_PARAM],
-			 &params[TRIG_TYPE_PARAM]);
-	}
+	void UpdatePattern();
 
 	void step() override;
 
@@ -619,9 +603,15 @@ struct DTROY : Module {
 	}
 };
 
+inline void DTROY::UpdatePattern() {
+	patterns[selectedPattern].Update(playMode, countMode, numSteps, roundf(params[STEPS_PARAM].value),
+		 roundf(params[ROOT_NOTE_PARAM].value), roundf(params[SCALE_PARAM].value), params[GATE_TIME_PARAM].value,
+		 params[SLIDE_TIME_PARAM].value, params[SENSITIVITY_PARAM].value , skipState, slideState,
+		 &params[TRIG_COUNT_PARAM], &params[TRIG_PITCH_PARAM], &params[TRIG_TYPE_PARAM]);
+}
 
 void DTROY::step() {
-	const float invLightLambda = 13.333333333333333333333f;
+
 	float invESR = 1 / engineGetSampleRate();
 
 	// Run
@@ -633,18 +623,18 @@ void DTROY::step() {
 	// Phase calculation
 	if (running) {
 		if (inputs[EXT_CLOCK_INPUT].active) {
-			tCurrent = clock();
+			tCurrent += invESR;
 			float clockTime = powf(2.0f, params[CLOCK_PARAM].value + inputs[CLOCK_INPUT].value);
-			if (tLastTrig && tPreviousTrig) {
-				phase = float(tCurrent - tLastTrig) / float(tLastTrig - tPreviousTrig);
+			if (tLastTrig > 0.0f) {
+				phase = tCurrent / tLastTrig;
 			}
 			else {
 				phase += clockTime * invESR;
 			}
 			// External clock
 			if (clockTrigger.process(inputs[EXT_CLOCK_INPUT].value)) {
-				tPreviousTrig = tLastTrig;
-				tLastTrig = clock();
+				tLastTrig = tCurrent;
+				tCurrent = 0.0f;
 				phase = 0.0f;
 				nextStep = true;
 			}

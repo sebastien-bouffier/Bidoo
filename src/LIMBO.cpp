@@ -99,7 +99,7 @@ struct LIMBO : Module {
 };
 
 void LIMBO::step() {
-	float cfreq = pow(2.0f,rescale(clamp(params[CUTOFF_PARAM].value + params[CMOD_PARAM].value * inputs[CUTOFF_INPUT].value * 0.2f,0.0f,1.0f),0.0f,1.0f,4.5f,13.0f));
+	float cfreq = pow(2.0f,rescale(clamp(params[CUTOFF_PARAM].value + params[CMOD_PARAM].value * inputs[CUTOFF_INPUT].value * 0.2f,0.0f,1.0f),0.0f,1.0f,4.5f,14.0f));
 	float q = 3.5f * clamp(params[Q_PARAM].value + inputs[Q_INPUT].value * 0.2f, 0.0f, 1.0f);
 	float g = pow(2.0f,rescale(clamp(params[MUG_PARAM].value + inputs[MUG_INPUT].value * 0.2f,0.0f,1.0f),0.0f,1.0f,0.0f,3.0f));
 	int mode = (int)params[MODE_PARAM].value;

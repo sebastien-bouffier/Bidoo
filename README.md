@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.6.14-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.6.15-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -13,9 +13,15 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
+07/09/2018 => 0.6.15
+
+*UPDATE* **lIMbO** cutoff frequency max value changed (calibration).
+
+*UPDATE* **dTrOY** **bordL** phase calculation now based on engine sample rate instead of clock() <ctime>.
+
 03/09/2018 => 0.6.14
 
-*NEW* GarçOn is still under development. First attempt to use pffft library. Needs to log scale vertical freqs.
+*NEW* **GarçOn** is still under development. First attempt to use pffft library. Needs to log scale vertical freqs.
 
 31/08/2018 => 0.6.13
 
