@@ -139,7 +139,7 @@ struct Pattern {
 		return this->steps[currentStep];
 	}
 
-	inline int GetFirstStep()
+	int GetFirstStep()
 	{
 			for (int i = 0; i < 16; i++) {
 				if (!steps[i].skip) {
@@ -149,7 +149,7 @@ struct Pattern {
 			return 0;
 	}
 
-	inline int GetLastStep()
+	int GetLastStep()
 	{
 			for (int i = 15; i >= 0  ; i--) {
 				if (!steps[i].skip) {
@@ -159,7 +159,7 @@ struct Pattern {
 			return 15;
 	}
 
-	inline int GetNextStepForward(int pos)
+	int GetNextStepForward(int pos)
 	{
 			for (int i = pos + 1; i < pos + 16; i++) {
 				int j = i%16;
@@ -170,7 +170,7 @@ struct Pattern {
 			return pos;
 	}
 
-	inline int GetNextStepBackward(int pos)
+	int GetNextStepBackward(int pos)
 	{
 			for (int i = pos - 1; i > pos - 16; i--) {
 				int j = i%16;
@@ -330,8 +330,7 @@ struct DTROY : Module {
 	int numSteps = 8;
 	int selectedPattern = 0;
 	int playedPattern = 0;
-	bool pitchMode = false;
-	bool pitchQuantizeMode = true;
+	bool pitchMode = true;
 	bool updateFlag = false;
 	bool first = true;
 	bool loadedFromJson = false;
@@ -360,7 +359,6 @@ struct DTROY : Module {
 		json_object_set_new(rootJ, "countMode", json_integer(countMode));
 		json_object_set_new(rootJ, "pitchMode", json_boolean(pitchMode));
 		json_object_set_new(rootJ, "stepOutputsMode", json_boolean(stepOutputsMode));
-		json_object_set_new(rootJ, "pitchQuantizeMode", json_boolean(pitchQuantizeMode));
 		json_object_set_new(rootJ, "selectedPattern", json_integer(selectedPattern));
 		json_object_set_new(rootJ, "playedPattern", json_integer(playedPattern));
 
@@ -425,9 +423,6 @@ struct DTROY : Module {
 		json_t *stepOutputsModeJ = json_object_get(rootJ, "stepOutputsMode");
 		if (stepOutputsModeJ)
 			stepOutputsMode = json_is_true(stepOutputsModeJ);
-		json_t *pitchQuantizeModeJ = json_object_get(rootJ, "pitchQuantizeMode");
-		if (pitchQuantizeModeJ)
-			pitchQuantizeMode = json_is_true(pitchQuantizeModeJ);
 		json_t *trigsJ = json_object_get(rootJ, "trigs");
 		if (trigsJ) {
 			for (int i = 0; i < 8; i++) {
@@ -562,8 +557,8 @@ struct DTROY : Module {
 	}
 
 	float closestVoltageInScale(float voltsIn){
-		rootNote = clamp((int)(patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value), 0, DTROY::NUM_NOTES-1);
-		curScaleVal = clamp((int)(patterns[playedPattern].scale + inputs[SCALE_INPUT].value), 0, DTROY::NUM_SCALES-1);
+		rootNote = (int)clamp(patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value, 0.0f, 11.0f);
+		curScaleVal = (int)clamp(patterns[playedPattern].scale + inputs[SCALE_INPUT].value, 0.0f, 17.0f);
 		int *curScaleArr;
 		int notesInScale = 0;
 		switch(curScaleVal){
@@ -591,19 +586,18 @@ struct DTROY : Module {
 		float closestDist = 10.0f;
 		int octaveInVolts = int(voltsIn);
 		for (int i = 0; i < notesInScale; i++) {
-			float scaleNoteInVolts = octaveInVolts + (((pitchQuantizeMode ? rootNote : 0.0f) + curScaleArr[i]) * 0.083333f);
+			float scaleNoteInVolts = octaveInVolts +  curScaleArr[i] * 0.083333f;
 			float distAway = fabs(voltsIn - scaleNoteInVolts);
 			if(distAway < closestDist) {
 				closestVal = scaleNoteInVolts;
 				closestDist = distAway;
 			}
 		}
-		closestVal += pitchQuantizeMode ? 0.0f : (rootNote * 0.083333f);
-		return closestVal;
+		return closestVal + rootNote * 0.083333f;
 	}
 };
 
-inline void DTROY::UpdatePattern() {
+void DTROY::UpdatePattern() {
 	patterns[selectedPattern].Update(playMode, countMode, numSteps, roundf(params[STEPS_PARAM].value),
 		 roundf(params[ROOT_NOTE_PARAM].value), roundf(params[SCALE_PARAM].value), params[GATE_TIME_PARAM].value,
 		 params[SLIDE_TIME_PARAM].value, params[SENSITIVITY_PARAM].value , skipState, slideState,
@@ -723,7 +717,7 @@ void DTROY::step() {
 		else if (((patterns[playedPattern].CurrentStep().type == 1) && (pulse == 0))
 				|| (patterns[playedPattern].CurrentStep().type == 2)
 				|| ((patterns[playedPattern].CurrentStep().type == 3) && (pulse == patterns[playedPattern].CurrentStep().pulses))) {
-				float gateCoeff = clamp(patterns[playedPattern].gateTime - 0.02f + inputs[GATE_TIME_INPUT].value /10.0f, 0.0f, 0.99f);
+				float gateCoeff = clamp(patterns[playedPattern].gateTime - 0.02f + inputs[GATE_TIME_INPUT].value * 0.1f, 0.0f, 0.99f);
 			gateOn = phase < gateCoeff;
 			gateValue = 10.0f;
 		}
@@ -749,7 +743,7 @@ void DTROY::step() {
 	pitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch * patterns[playedPattern].sensitivity);
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
-			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].value /10.0f, -0.1f, 0.99f);
+			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].value * 0.1f, -0.1f, 0.99f);
 			pitch = pitch - (1.0f - powf(phase, slideCoeff)) * (pitch - previousPitch);
 		}
 	}
@@ -925,9 +919,9 @@ DTROYWidget::DTROYWidget(DTROY *module) : ModuleWidget(module) {
 	addInput(Port::create<PJ301MPort>(Vec(portX0[2], 90.0f), Port::INPUT, module, DTROY::RESET_INPUT));
 	addInput(Port::create<PJ301MPort>(Vec(portX0[3], 90.0f), Port::INPUT, module, DTROY::STEPS_INPUT));
 
-	rootNoteParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[0]-2.0f, 140.0f), module, DTROY::ROOT_NOTE_PARAM, 0.0f, DTROY::NUM_NOTES-0.9f, 0.0f);
+	rootNoteParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[0]-2.0f, 140.0f), module, DTROY::ROOT_NOTE_PARAM, 0.0f, 11.0f, 0.0f);
 	addParam(rootNoteParam);
-	scaleParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[1]-2.0f, 140.0f), module, DTROY::SCALE_PARAM, 0.0f, DTROY::NUM_SCALES-0.9f, 0.0f);
+	scaleParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[1]-2.0f, 140.0f), module, DTROY::SCALE_PARAM, 0.0f, 17.0f, 0.0f);
 	addParam(scaleParam);
 	gateTimeParam = ParamWidget::create<BidooBlueKnob>(Vec(portX0[2]-2.0f, 140.0f), module, DTROY::GATE_TIME_PARAM, 0.1f, 1.0f, 0.5f);
 	addParam(gateTimeParam);
@@ -1028,17 +1022,6 @@ struct DTROYPitchModeItem : MenuItem {
 	}
 	void step() override {
 		rightText = dtroyModule->pitchMode ? "✔" : "";
-		MenuItem::step();
-	}
-};
-
-struct DTROYPitchQuantizeModeItem : MenuItem {
-	DTROY *dtroyModule;
-	void onAction(EventAction &e) override {
-		dtroyModule->pitchQuantizeMode = !dtroyModule->pitchQuantizeMode;
-	}
-	void step() override {
-		rightText = dtroyModule->pitchQuantizeMode ? "✔" : "";
 		MenuItem::step();
 	}
 };
@@ -1216,11 +1199,6 @@ Menu *DTROYWidget::createContextMenu() {
 	pitchModeItem->text = "Pitch mode continuous (vs. triggered)";
 	pitchModeItem->dtroyModule = dtroyModule;
 	menu->addChild(pitchModeItem);
-
-	DTROYPitchQuantizeModeItem *pitchQuantizeModeItem = new DTROYPitchQuantizeModeItem();
-	pitchQuantizeModeItem->text = "Pitch full quantize";
-	pitchQuantizeModeItem->dtroyModule = dtroyModule;
-	menu->addChild(pitchQuantizeModeItem);
 
 	DTROYStepOutputsModeItem *stepOutputsModeItem = new DTROYStepOutputsModeItem();
 	stepOutputsModeItem->text = "Step trigs on steps (vs. pulses)";
