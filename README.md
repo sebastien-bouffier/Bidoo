@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.6.15-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.6.16-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -13,11 +13,14 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-07/09/2018 => 0.6.15
+09/09/2018 => 0.6.16
 
 *UPDATE* **lIMbO** cutoff frequency max value changed (calibration).
 
-*UPDATE* **dTrOY** **bordL** phase calculation now based on engine sample rate instead of clock() <ctime>.
+*UPDATE* **dTrOY** and **bordL** phase calculation now based on engine sample rate instead of clock() from ctime.
+
+*UPDATE* **dTrOY** V/Oct can't be synced with gates anymore it is continuous now. Quantization issue has been fixed. New input "Transpose" that comes after quantization (it is rescaled -4/+4 octaves on -10/+10V and sliced per 1/12 Volt). Copy/Paste is available in the UI => exit right click menu. "SHIFTS"
+allows you to move patterns left and right and pitch up and down. Once everything is stabilized those features will be translated on **bordL** in the next release.
 
 03/09/2018 => 0.6.14
 

@@ -74,6 +74,34 @@ struct SoloBtn : SVGSwitch, MomentarySwitch {
 	}
 };
 
+struct LeftBtn : SVGSwitch, MomentarySwitch {
+	LeftBtn() {
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/LeftBtn_0.svg")));
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/LeftBtn_1.svg")));
+	}
+};
+
+struct RightBtn : SVGSwitch, MomentarySwitch {
+	RightBtn() {
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/RightBtn_0.svg")));
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/RightBtn_1.svg")));
+	}
+};
+
+struct UpBtn : SVGSwitch, MomentarySwitch {
+	UpBtn() {
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/UpBtn_0.svg")));
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/UpBtn_1.svg")));
+	}
+};
+
+struct DownBtn : SVGSwitch, MomentarySwitch {
+	DownBtn() {
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/DownBtn_0.svg")));
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/DownBtn_1.svg")));
+	}
+};
+
 struct BidooziNCColoredKnob : RoundKnob {
 	BidooziNCColoredKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/ziNCBlueKnobBidoo.svg")));
