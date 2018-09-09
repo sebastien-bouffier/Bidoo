@@ -14,7 +14,7 @@
    height="380"
    width="75"
    sodipodi:docname="LOURDEtemp.svg"
-   inkscape:version="0.92.2 (5c3e80d, 2017-08-06)">
+   inkscape:version="0.92.3 (2405546, 2018-03-11)">
   <sodipodi:namedview
      pagecolor="#ffffff"
      bordercolor="#666666"
@@ -28,9 +28,9 @@
      inkscape:window-height="1017"
      id="namedview118"
      showgrid="true"
-     inkscape:zoom="3.1500914"
-     inkscape:cx="-88.41546"
-     inkscape:cy="124.40801"
+     inkscape:zoom="2.227451"
+     inkscape:cx="-215.81969"
+     inkscape:cy="192.94661"
      inkscape:window-x="-8"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
@@ -229,4 +229,32 @@
        d="M 9.5751182,54.303919 H 16.756457"
        style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
   </g>
+  <rect
+     style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:#b1b1b1;stroke-width:0.39680234;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:6.0999999;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+     id="rect847"
+     width="4.1320777"
+     height="8.8636141"
+     x="0.84414464"
+     y="12.847507" />
+  <rect
+     style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:#b1b1b1;stroke-width:0.39680234;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:6.0999999;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+     id="rect847-7"
+     width="4.1320777"
+     height="8.8636141"
+     x="0.84414464"
+     y="31.343973" />
+  <rect
+     style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:#b1b1b1;stroke-width:0.39680234;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:6.0999999;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+     id="rect847-5"
+     width="4.1320777"
+     height="8.8636141"
+     x="0.84414464"
+     y="49.840435" />
+  <rect
+     style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:#b1b1b1;stroke-width:0.42856207;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:6.0999999;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+     id="rect847-3"
+     width="4.100318"
+     height="10.419354"
+     x="0.86002451"
+     y="70.06842" />
 </svg>

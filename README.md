@@ -17,10 +17,9 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 *UPDATE* **lIMbO** cutoff frequency max value changed (calibration).
 
-*UPDATE* **dTrOY** and **bordL** phase calculation now based on engine sample rate instead of clock() from ctime.
+*UPDATE* **dTrOY** and **bordL** phase calculation now based on engine sample rate instead of clock() from ctime. V/Oct can't be synced with gates anymore it is continuous now. Quantization issue has been fixed. New input "Transpose" that comes after quantization (it is rescaled -4/+4 octaves on -10/+10V and sliced per 1/12 Volt). Copy/Paste is available in the UI => exit right click menu. "SHIFTS" allows you to move patterns left and right and pitch up and down. 
 
-*UPDATE* **dTrOY** V/Oct can't be synced with gates anymore it is continuous now. Quantization issue has been fixed. New input "Transpose" that comes after quantization (it is rescaled -4/+4 octaves on -10/+10V and sliced per 1/12 Volt). Copy/Paste is available in the UI => exit right click menu. "SHIFTS"
-allows you to move patterns left and right and pitch up and down. Once everything is stabilized those features will be translated on **bordL** in the next release.
+*UPDATE* **LoURdE** threshold and factors displays are now yellow on black background.
 
 03/09/2018 => 0.6.14
 

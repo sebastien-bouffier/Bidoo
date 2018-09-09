@@ -621,7 +621,16 @@ void DTROY::step() {
 	lights[COPY_LIGHT].value = copyState ? 1.0f : 0.0f;
 
 	//patternNumber
-	playedPattern = clamp((inputs[PATTERN_INPUT].active ? (int)(rescale(inputs[PATTERN_INPUT].value,0.0f,10.0f,1.0f,16.1f)) : (int)(params[PATTERN_PARAM].value)) - 1, 0, 15);
+	int newPattern = clamp((inputs[PATTERN_INPUT].active ? (int)(rescale(inputs[PATTERN_INPUT].value,0.0f,10.0f,1.0f,16.1f)) : (int)(params[PATTERN_PARAM].value)) - 1, 0, 15);
+	if (newPattern != playedPattern) {
+		int cStep = patterns[playedPattern].currentStep;
+		int cPulse = patterns[playedPattern].currentPulse;
+		playedPattern = newPattern;
+		patterns[playedPattern].currentStep = cStep;
+		patterns[playedPattern].currentPulse = cPulse;
+	}
+
+
 	// Update Pattern
 	if ((updateFlag) || (!loadedFromJson)) {
 		// Trigs Update
