@@ -36,8 +36,8 @@ struct DFUZE : Module {
 	enum LightIds {
 		NUM_LIGHTS
 	};
-	DoubleRingBuffer<float,4096> in_L_Buffer, in_R_Buffer;
-	DoubleRingBuffer<float,4096> pin_L_Buffer, pin_R_Buffer;
+	DoubleRingBuffer<float,2048> in_Buffer;
+	DoubleRingBuffer<float,2048> pin_Buffer;
 	revmodel revprocessor;
 	SchmittTrigger freezeTrigger;
 	bool freeze = false;
@@ -68,25 +68,21 @@ void DFUZE::step() {
 	inL = inputs[IN_L_INPUT].value;
 	inR = inputs[IN_R_INPUT].value;
 
-	if (pin_L_Buffer.size()>0) {
-		revprocessor.process(inL, inR, params[SHIMM_PARAM].value * (*pin_L_Buffer.startData()) * 5, clamp(params[SHIMM_PARAM].value+inputs[SHIMM_INPUT].value,0.0f,0.08f) * (*pin_R_Buffer.startData()) * 5, outL, outR, wOutL, wOutR);
-		pin_L_Buffer.startIncr(1);
-		pin_R_Buffer.startIncr(1);
+	if (pin_Buffer.size()>0) {
+		revprocessor.process(inL, inR, clamp(params[SHIMM_PARAM].value+inputs[SHIMM_INPUT].value,0.0f,0.08f) * (*pin_Buffer.startData()) * 5, outL, outR, wOutL, wOutR);
+		pin_Buffer.startIncr(1);
 	}
 	else {
-		revprocessor.process(inL, inR, 0.0f, 0.0f, outL, outR, wOutL, wOutR);
+		revprocessor.process(inL, inR, 0.0f, outL, outR, wOutL, wOutR);
 	}
 
-	in_L_Buffer.push(wOutL/10);
-	in_R_Buffer.push(wOutR/10);
+	in_Buffer.push((wOutL + wOutR)/20.0f);
 
-	if (in_L_Buffer.full())  {
-		smbPitchShift(2.0f, in_L_Buffer.size(), 2048, 4, engineGetSampleRate(), in_L_Buffer.startData(), pin_L_Buffer.endData());
-		smbPitchShift(2.0f, in_R_Buffer.size(), 2048, 4, engineGetSampleRate(), in_R_Buffer.startData(), pin_R_Buffer.endData());
-		pin_L_Buffer.endIncr(in_L_Buffer.size());
-		pin_R_Buffer.endIncr(in_L_Buffer.size());
-		in_L_Buffer.clear();
-		in_R_Buffer.clear();
+
+	if (in_Buffer.full())  {
+		smbPitchShift(2.0f, in_Buffer.size(), 2048, 4, engineGetSampleRate(), in_Buffer.startData(), pin_Buffer.endData());
+		pin_Buffer.endIncr(in_Buffer.size());
+		in_Buffer.clear();
 	}
 
 	outputs[OUT_L_OUTPUT].value = outL;

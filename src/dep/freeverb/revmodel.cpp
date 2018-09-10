@@ -142,7 +142,7 @@ void revmodel::processmix(float *inputL, float *inputR, float *outputL, float *o
 	}
 }
 
-void revmodel::process(const float inL, const float inR, const float fbInL, const float fbInR, float &outputL, float &outputR, float &wOutputL, float &wOutputR)
+void revmodel::process(const float inL, const float inR, const float fbIn, float &outputL, float &outputR, float &wOutputL, float &wOutputR)
 {
 	float outL = 0.0f, outR = 0.0f;
 	float input = (inL + inR) * gain;
@@ -156,8 +156,8 @@ void revmodel::process(const float inL, const float inR, const float fbInL, cons
 	// Feed through allpasses in series
 	for(int i=0; i<numallpasses; i++)
 	{
-		outL = allpassL[i].process((i==0 ? fbInL : 0.0f) + outL);
-		outR = allpassR[i].process((i==0 ? fbInR : 0.0f) + outR);
+		outL = allpassL[i].process((i==0 ? fbIn : 0.0f) + outL);
+		outR = allpassR[i].process((i==0 ? fbIn : 0.0f) + outR);
 	}
 
 	outputL = outL*wet1 + outR*wet2 + inL*dry;

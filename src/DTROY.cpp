@@ -558,8 +558,8 @@ struct DTROY : Module {
 				closestDist = distAway;
 			}
 		}
-		float transposeVolatge = inputs[TRANSPOSE_INPUT].active ? ((((int)rescale(clamp(inputs[TRANSPOSE_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-48.0f,48.0f)) * 0.083333f)) : 0.0f;
-		return clamp(closestVal + (rootNote * 0.083333f) + transposeVolatge,0.0f,10.0f);
+		float transposeVolatge = inputs[TRANSPOSE_INPUT].active ? ((((int)rescale(clamp(inputs[TRANSPOSE_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-48.0f,48.0f)) / 12.0f)) : 0.0f;
+		return clamp(closestVal + (rootNote / 12.0f) + transposeVolatge,0.0f,10.0f);
 	}
 };
 
@@ -754,15 +754,20 @@ struct DTROYDisplay : TransparentWidget {
 		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgText(vg, pos.x + 4.0f, pos.y + 8.0f, playMode.c_str(), NULL);
 		nvgFontSize(vg, 14.0f);
-		nvgFillColor(vg, YELLOW_BIDOO);
-		nvgText(vg, pos.x + 91.0f, pos.y + 7.0f, selectedPattern.c_str(), NULL);
-		nvgText(vg, pos.x + 31.0f, pos.y + 7.0f, steps.c_str(), NULL);
+		nvgText(vg, pos.x + 118.0f, pos.y + 7.0f, selectedPattern.c_str(), NULL);
+
+		nvgText(vg, pos.x + 27.0f, pos.y + 7.0f, steps.c_str(), NULL);
 		nvgText(vg, pos.x + 3.0f, pos.y + 21.0f, note.c_str(), NULL);
 		nvgText(vg, pos.x + 25.0f, pos.y + 21.0f, scale.c_str(), NULL);
-		nvgFillColor(vg, YELLOW_BIDOO);
-		nvgText(vg, pos.x + 116.0f, pos.y + 7.0f, playedPattern.c_str(), NULL);
-	}
 
+		if (++frame <= 30) {
+			nvgText(vg, pos.x + 89.0f, pos.y + 7.0f, playedPattern.c_str(), NULL);
+		}
+		else if (++frame>60) {
+			frame = 0;
+		}
+	}
+	
 	string displayRootNote(int value) {
 		switch(value){
 			case DTROY::NOTE_C:       return "C";
@@ -817,15 +822,12 @@ struct DTROYDisplay : TransparentWidget {
 	}
 
 	void draw(NVGcontext *vg) override {
-		if (++frame >= 8) {
-			frame = 0;
-			note = displayRootNote(module->patterns[module->selectedPattern].rootNote);
-			steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);
-			playMode = displayPlayMode(module->patterns[module->selectedPattern].playMode);
-			scale = displayScale(module->patterns[module->selectedPattern].scale);
-			selectedPattern = "P" + to_string(module->selectedPattern + 1);
-			playedPattern = "P" + to_string(module->playedPattern + 1);
-		}
+		note = displayRootNote(module->patterns[module->selectedPattern].rootNote);
+		steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);
+		playMode = displayPlayMode(module->patterns[module->selectedPattern].playMode);
+		scale = displayScale(module->patterns[module->selectedPattern].scale);
+		selectedPattern = "P" + to_string(module->selectedPattern + 1);
+		playedPattern = "P" + to_string(module->playedPattern + 1);
 		drawMessage(vg, Vec(0, 20), note, playMode, selectedPattern, playedPattern, steps, scale);
 	}
 };

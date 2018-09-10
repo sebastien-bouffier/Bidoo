@@ -82,7 +82,7 @@ struct GARCON : Module {
 
 void GARCON::step() {
 	if (inc0 < N) {
-		buff0[inc0] = inputs[L_INPUT].active ? inputs[L_INPUT].value * 100 * 0.5f * (1 - cos(2*3.14159265359f*inc0/(N-1))) : 0.0f;
+		buff0[inc0] = inputs[L_INPUT].active ? inputs[L_INPUT].value * 100 * 0.5f * (1 - cos(2*M_PI*inc0/(N-1))) : 0.0f;
 		inc0++;
 	}
 	else
@@ -96,7 +96,7 @@ void GARCON::step() {
 	}
 
 	if (start1) {
-		buff1[inc1] = inputs[L_INPUT].active ? inputs[L_INPUT].value * 100 * 0.5f * (1 - cos(2*3.14159265359f*inc1/(N-1))) : 0.0f;
+		buff1[inc1] = inputs[L_INPUT].active ? inputs[L_INPUT].value * 100 * 0.5f * (1 - cos(2*M_PI*inc1/(N-1))) : 0.0f;
 		inc1++;
 	}
 
@@ -110,7 +110,7 @@ void GARCON::step() {
 	}
 
 	if (start2) {
-		buff2[inc2] = inputs[L_INPUT].active ? inputs[L_INPUT].value * 100 * 0.5f * (1 - cos(2*3.14159265359f*inc2/(N-1))) : 0.0f;
+		buff2[inc2] = inputs[L_INPUT].active ? inputs[L_INPUT].value * 100 * 0.5f * (1 - cos(2*M_PI*inc2/(N-1))) : 0.0f;
 		inc2++;
 	}
 
@@ -124,7 +124,7 @@ void GARCON::step() {
 	}
 
 	if (start3) {
-		buff3[inc3] = inputs[L_INPUT].active ? inputs[L_INPUT].value * 100 * 0.5f * (1 - cos(2*3.14159265359f*inc3/(N-1))) : 0.0f;
+		buff3[inc3] = inputs[L_INPUT].active ? inputs[L_INPUT].value * 100 * 0.5f * (1 - cos(2*M_PI*inc3/(N-1))) : 0.0f;
 		inc3++;
 	}
 

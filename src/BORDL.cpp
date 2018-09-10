@@ -344,8 +344,8 @@ struct BORDL : Module {
 	float pitch = 0.0f;
 	float previousPitch = 0.0f;
 	float candidateForPreviousPitch = 0.0f;
-	clock_t tCurrent;
-	clock_t tLastTrig;
+	float tCurrent;
+	float tLastTrig;
 	std::vector<char> slideState = {'f','f','f','f','f','f','f','f'};
 	std::vector<char> skipState = {'f','f','f','f','f','f','f','f'};
 	int playMode = 0; // 0 forward, 1 backward, 2 pingpong, 3 random, 4 brownian
@@ -354,7 +354,6 @@ struct BORDL : Module {
 	int selectedPattern = 0;
 	int playedPattern = 0;
 	bool pitchMode = false;
-	bool pitchQuantizeMode = true;
 	bool updateFlag = false;
 	bool probGate = true;
 	float rndPitch = 0.0f;
@@ -404,8 +403,8 @@ struct BORDL : Module {
 			json_object_set_new(patternJ, "playMode", json_integer(patterns[i].playMode));
 			json_object_set_new(patternJ, "countMode", json_integer(patterns[i].countMode));
 			json_object_set_new(patternJ, "numSteps", json_integer(patterns[i].numberOfStepsParam));
-			json_object_set_new(patternJ, "rootNote", json_integer(patterns[i].rootNote));
-			json_object_set_new(patternJ, "scale", json_integer(patterns[i].scale));
+			json_object_set_new(patternJ, "rootNote", json_integer(patterns[i].rootNoteParam));
+			json_object_set_new(patternJ, "scale", json_integer(patterns[i].scaleParam));
 			json_object_set_new(patternJ, "gateTime", json_real(patterns[i].gateTime));
 			json_object_set_new(patternJ, "slideTime", json_real(patterns[i].slideTime));
 			json_object_set_new(patternJ, "sensitivity", json_real(patterns[i].sensitivity));
@@ -558,9 +557,9 @@ struct BORDL : Module {
 
 	// Quantization inspired from  https://github.com/jeremywen/JW-Modules
 
-	float closestVoltageInScale(float voltsIn){
-		rootNote = (int)clamp(patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value, 0.0f, 11.0f);
-		curScaleVal = (int)clamp(patterns[playedPattern].scale + inputs[SCALE_INPUT].value, 0.0f, 17.0f);
+	float closestVoltageInScale(float voltsIn, float rootNote, float scaleVal){
+		rootNote = (int)clamp(rootNote, 0.0f, 11.0f);
+		curScaleVal = (int)clamp(scaleVal, 0.0f, 17.0f);
 		int *curScaleArr;
 		int notesInScale = 0;
 		switch(curScaleVal){
@@ -595,8 +594,8 @@ struct BORDL : Module {
 				closestDist = distAway;
 			}
 		}
-		float transposeVolatge = inputs[TRANSPOSE_INPUT].active ? ((((int)rescale(clamp(inputs[TRANSPOSE_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-48.0f,48.0f)) * 0.083333f)) : 0.0f;
-		return clamp(closestVal + (rootNote * 0.083333f) + transposeVolatge,0.0f,10.0f);
+		float transposeVolatge = inputs[TRANSPOSE_INPUT].active ? ((((int)rescale(clamp(inputs[TRANSPOSE_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-48.0f,48.0f)) / 12.0f)) : 0.0f;
+		return clamp(closestVal + (rootNote / 12.0f) + transposeVolatge,0.0f,10.0f);
 	}
 };
 
@@ -698,7 +697,7 @@ void BORDL::step() {
 	// Steps && Pulses Management
 	if (nextStep) {
 		// Advance step
-		candidateForPreviousPitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch * patterns[playedPattern].sensitivity);
+		candidateForPreviousPitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch * patterns[playedPattern].sensitivity,patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value, patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
 
 		prevIndex = index;
 		auto nextT = patterns[playedPattern].GetNextStep(reStart);
@@ -727,6 +726,7 @@ void BORDL::step() {
 		outputs[STEP_OUTPUT+i].value = stepPulse[i].process(invESR) ? 10.0f : 0.0f;
 	}
 	lights[RESET_LIGHT].value -= lights[RESET_LIGHT].value * invLightLambda * invESR;
+	lights[COPY_LIGHT].value = (copyPattern >= 0) ? 1 : 0;
 
 	// Caclulate Outputs
 	gateOn = running && (!patterns[playedPattern].CurrentStep().skip);
@@ -738,7 +738,7 @@ void BORDL::step() {
 		else if (((patterns[playedPattern].CurrentStep().type == 1) && (pulse == 0))
 				|| (patterns[playedPattern].CurrentStep().type == 2)
 				|| ((patterns[playedPattern].CurrentStep().type == 3) && (pulse == patterns[playedPattern].CurrentStep().pulses))) {
-				float gateCoeff = clamp(patterns[playedPattern].gateTime - 0.02f + inputs[GATE_TIME_INPUT].value * 0.1f, 0.0f, 0.99f);
+			float gateCoeff = clamp(patterns[playedPattern].gateTime - 0.02f + inputs[GATE_TIME_INPUT].value * 0.1f, 0.0f, 0.99f);
 			gateOn = phase < gateCoeff;
 			gateValue = 10.0f;
 		}
@@ -760,7 +760,7 @@ void BORDL::step() {
 		}
 	}
 	//pitch management
-	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,0.0f,10.0f) * patterns[playedPattern].sensitivity);
+	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,0.0f,10.0f) * patterns[playedPattern].sensitivity,patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value,patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
 			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].value * 0.1f, -0.1f, 0.99f);
@@ -771,7 +771,7 @@ void BORDL::step() {
 	// Update Outputs
 	outputs[GATE_OUTPUT].value = gateOn ? (probGate ? gateValue : 0.0f) : 0.0f;
 	outputs[PITCH_OUTPUT].value = pitch;
-	outputs[ACC_OUTPUT].value = pitchMode ? accent : (gateOn ? accent : 0.0f);
+	outputs[ACC_OUTPUT].value = accent;
 
 	if (nextStep && gateOn)
 		previousPitch = candidateForPreviousPitch;
@@ -795,13 +795,19 @@ struct BORDLDisplay : TransparentWidget {
 		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgText(vg, pos.x + 4.0f, pos.y + 8.0f, playMode.c_str(), NULL);
 		nvgFontSize(vg, 14.0f);
-		nvgFillColor(vg, YELLOW_BIDOO);
-		nvgText(vg, pos.x + 91.0f, pos.y + 7.0f, selectedPattern.c_str(), NULL);
-		nvgText(vg, pos.x + 31.0f, pos.y + 7.0f, steps.c_str(), NULL);
+		nvgText(vg, pos.x + 118.0f, pos.y + 7.0f, selectedPattern.c_str(), NULL);
+
+		nvgText(vg, pos.x + 27.0f, pos.y + 7.0f, steps.c_str(), NULL);
 		nvgText(vg, pos.x + 3.0f, pos.y + 21.0f, note.c_str(), NULL);
 		nvgText(vg, pos.x + 25.0f, pos.y + 21.0f, scale.c_str(), NULL);
-		nvgFillColor(vg, YELLOW_BIDOO);
-		nvgText(vg, pos.x + 116.0f, pos.y + 7.0f, playedPattern.c_str(), NULL);
+
+		if (++frame <= 30) {
+			nvgText(vg, pos.x + 89.0f, pos.y + 7.0f, playedPattern.c_str(), NULL);
+		}
+		else if (++frame>60) {
+			frame = 0;
+		}
+
 	}
 
 	string displayRootNote(int value) {
@@ -858,15 +864,12 @@ struct BORDLDisplay : TransparentWidget {
 	}
 
 	void draw(NVGcontext *vg) override {
-		if (++frame >= 4) {
-			frame = 0;
-			note = displayRootNote(module->patterns[module->selectedPattern].rootNote);
-			steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);
-			playMode = displayPlayMode(module->patterns[module->selectedPattern].playMode);
-			scale = displayScale(module->patterns[module->selectedPattern].scale);
-			selectedPattern = "P" + to_string(module->selectedPattern + 1);
-			playedPattern = "P" + to_string(module->playedPattern + 1);
-		}
+		note = displayRootNote(module->patterns[module->selectedPattern].rootNote);
+		steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);
+		playMode = displayPlayMode(module->patterns[module->selectedPattern].playMode);
+		scale = displayScale(module->patterns[module->selectedPattern].scale);
+		selectedPattern = "P" + to_string(module->selectedPattern + 1);
+		playedPattern = "P" + to_string(module->playedPattern + 1);
 		drawMessage(vg, Vec(0.0f, 20.0f), note, playMode, selectedPattern, playedPattern, steps, scale);
 	}
 };
@@ -1002,7 +1005,7 @@ struct BORDLPitchDisplay : TransparentWidget {
 		nvgFontSize(vg, 16.0f);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2.0f);
-		nvgText(vg, pos.x, pos.y-9.0f, displayNote(module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].value * module->params[BORDL::SENSITIVITY_PARAM].value)).c_str(), NULL);
+		nvgText(vg, pos.x, pos.y-9.0f, displayNote(module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].value * module->params[BORDL::SENSITIVITY_PARAM].value , module->patterns[module->selectedPattern].rootNote, module->patterns[module->selectedPattern].scale)).c_str(), NULL);
 	}
 
 	void draw(NVGcontext *vg) override {

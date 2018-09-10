@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.6.16-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.6.17-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -13,47 +13,17 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
+10/09/2018 => 0.6.17
+
+*UPDATE* **dTrOY** and **bordL** fix quantization issue.
+
 09/09/2018 => 0.6.16
 
 *UPDATE* **lIMbO** cutoff frequency max value changed (calibration).
 
-*UPDATE* **dTrOY** and **bordL** phase calculation now based on engine sample rate instead of clock() from ctime. V/Oct can't be synced with gates anymore it is continuous now. Quantization issue has been fixed. New input "Transpose" that comes after quantization (it is rescaled -4/+4 octaves on -10/+10V and sliced per 1/12 Volt). Copy/Paste is available in the UI => exit right click menu. "SHIFTS" allows you to move patterns left and right and pitch up and down. 
+*UPDATE* **dTrOY** and **bordL** phase calculation now based on engine sample rate instead of clock() from ctime. V/Oct can't be synced with gates anymore it is continuous now. Quantization issue has been fixed. New input "Transpose" that comes after quantization (it is rescaled -4/+4 octaves on -10/+10V and sliced per 1/12 Volt). Copy/Paste is available in the UI => exit right click menu. "SHIFTS" allows you to move patterns left and right and pitch up and down.
 
 *UPDATE* **LoURdE** threshold and factors displays are now yellow on black background.
-
-03/09/2018 => 0.6.14
-
-*NEW* **GarçOn** is still under development. First attempt to use pffft library. Needs to log scale vertical freqs.
-
-31/08/2018 => 0.6.13
-
-*BUGFIX* **dTrOY** and **bordL** crash when the number of steps is greater than 8 => FIXED.
-
-*UPDATE* **ACnE** input channels can be linked in order to create stereo busses for SOLO/MUTE (hit le little lights between SOLO/MUTE). All SOLO and MUTE can be turned off simultaneously by clicking on the buttons in the bottom left corner of the UI.
-
-*UPDATE* **lATe** Swing's CV input has a trim control.
-
-*UPDATE* **OUAIve** Speed and Slices's CV input have trim controls.
-
-*NEW* **MS** Mid/Side decoder/encoder.
-
-Minor changes on plugins to save some CPU.
-
-30/08/2018 => 0.6.12
-
-*REBORN* **dTrOY** and **bordL** have now a gate output on each step that fires on all step's pulses or just on the first pulse (configuration via menu => right click). Pattern management has been optimized to save many CPU cycles. **bordL**'s layout has been revamped to make it less .... "bordéLique".
-
-*NEW* **EMILE** turns your images into sound. *WARNING* : Each line of your image is an oscillator so the taller is the image the higher is the CPU load. F. CURVE changes the way frequencies are distributed vertically. Low freqs are on top and high freqs at the bottom. To load an image => right click. Why **EMILE** ? ... because of "Emile et Images" :) I plan to put in place an auto rescaling feature (image resampling) to limit the height of the images.
-
-Minor changes on all plugins to save some CPU.
-
-24/08/2018 => 0.6.11
-
-*NEW* BIsTrot is a 8bit ADC<=>DAC converter. Do not hesitate to patch bit ports and mangle them. Can be used as a sample rate reducer with the help of clocks, bit reducer, random gate generation etc ...
-
-*REBORN* OUAIve has been rewritten, now it is as robust as cANARd.
-
-Minor changes on all plugins to save some CPU.
 
 ## License
 
