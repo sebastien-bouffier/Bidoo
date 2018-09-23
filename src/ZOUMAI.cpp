@@ -127,13 +127,17 @@ inline void trig::init(const bool fill, const bool pre, const bool nei) {
 inline float trig::getGateValue(const float trackPosition) {
 	if (isActive && !isSleeping) {
 		float rTTP = getRelativeTrackPosition(trackPosition);
-		if (rTTP<length) {
-			return 10.0f;
+		if (rTTP >= 0) {
+			if (rTTP<length) {
+				return 10.0f;
+			}
+			else {
+				size_t cPulses = (pulseDistance == 0) ? 0 : (int)(rTTP/(float)pulseDistance);
+				return ((cPulses<pulseCount) && (rTTP>=(cPulses*pulseDistance)) && (rTTP<=((cPulses*pulseDistance)+length))) ? 10.0f : 0.0f;
+			}
 		}
-		else {
-			size_t cPulses = (pulseDistance == 0) ? 0 : (int)(rTTP/(float)pulseDistance);
-			return ((cPulses<pulseCount) && (rTTP>=(cPulses*pulseDistance)) && (rTTP<=((cPulses*pulseDistance)+length))) ? 10.0f : 0.0f;
-		}
+		else
+			return 0.0f;
 	}
 	else
 		return 0.0f;
