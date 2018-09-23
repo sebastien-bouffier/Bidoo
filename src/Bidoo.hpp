@@ -22,6 +22,7 @@ extern Model *modelMyModule;
 
 extern Model *modelDTROY;
 extern Model *modelBORDL;
+extern Model *modelZOUMAI;
 extern Model *modelTOCANTE;
 extern Model *modelCHUTE;
 extern Model *modelLATE;

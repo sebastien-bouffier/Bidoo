@@ -9,6 +9,7 @@ void init(rack::Plugin *p) {
 
 	p->addModel(modelDTROY);
 	p->addModel(modelBORDL);
+	p->addModel(modelZOUMAI);
 	p->addModel(modelMU);
 	p->addModel(modelTOCANTE);
 	p->addModel(modelCHUTE);

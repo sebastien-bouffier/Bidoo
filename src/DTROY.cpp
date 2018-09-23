@@ -584,11 +584,11 @@ void DTROY::step() {
 	if (running) {
 		if (inputs[EXT_CLOCK_INPUT].active) {
 			tCurrent += invESR;
-			float clockTime = powf(2.0f, params[CLOCK_PARAM].value + inputs[CLOCK_INPUT].value);
 			if (tLastTrig > 0.0f) {
 				phase = tCurrent / tLastTrig;
 			}
 			else {
+				float clockTime = powf(2.0f, params[CLOCK_PARAM].value + inputs[CLOCK_INPUT].value);
 				phase += clockTime * invESR;
 			}
 			// External clock
@@ -652,6 +652,7 @@ void DTROY::step() {
 		}
 		// numSteps
 		numSteps = clamp((int)(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1, 16);
+
 		UpdatePattern();
 		if (!loadedFromJson) {
 			loadedFromJson = true;
@@ -767,7 +768,7 @@ struct DTROYDisplay : TransparentWidget {
 			frame = 0;
 		}
 	}
-	
+
 	string displayRootNote(int value) {
 		switch(value){
 			case DTROY::NOTE_C:       return "C";
