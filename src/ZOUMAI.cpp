@@ -311,10 +311,10 @@ inline void track::reset(const bool fill, const bool pNei) {
 	{
 		currentTrig = trigs+length-1;
 		currentTrig->init(fill,pre,pNei);
-		trackIndex = currentTrig->reference + currentTrig->trim + speed;
+		trackIndex = currentTrig->reference + speed;
 		if (currentTrig->isActive && !currentTrig->isSleeping) {
 			prevTrig = memTrig;
-			memTrig = currentTrig+length;
+			memTrig = currentTrig;
 		}
 		nextIndex = getNextIndex();
 	}
@@ -379,7 +379,7 @@ inline void track::moveNextForward(const bool fill, const bool pNei) {
 }
 
 inline void track::moveNextBackward(const bool fill, const bool pNei) {
-	if (trackIndex>(currentTrig->reference+192)) {
+	if (trackIndex>(currentTrig->reference+191)) {
 		pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
 		trigs[nextIndex].init(fill,pre,pNei);
 		currentTrig = trigs + nextIndex;
