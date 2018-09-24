@@ -47,7 +47,25 @@ struct trig {
 	void resetValues();
 	void randomize();
 	bool hasProbability();
+	void copy(const trig *t);
 };
+
+inline void trig::copy(const trig *t) {
+	isActive = t->isActive;
+	slide = t->slide;
+	swing = t->swing;
+	trigType = t->trigType;
+	trim = t->trim;
+	length = t->length;
+	pulseCount = t->pulseCount;
+	pulseDistance = t->pulseDistance;
+	VO = t->VO;
+	CV1 = t->CV1;
+	CV2 = t->CV2;
+	proba = t->proba;
+	count = t->count;
+	countReset = t->countReset;
+}
 
 inline void trig::resetValues() {
 	isActive = false;
@@ -68,7 +86,7 @@ inline void trig::resetValues() {
 
 inline void trig::randomize() {
 	isActive = randomUniform()>0.5f;
-	slide = randomUniform()*100.0f;
+	slide = randomUniform()*10.0f;
 	swing = randomUniform()>0.5f;
 	trigType = (int)(randomUniform()*2);
 	trim = (int)(randomUniform()*191) * (randomUniform()>0.5f ? -1 : 1);
@@ -172,8 +190,8 @@ struct track {
 	bool isActive = true;
 	size_t length = 16;
 	size_t readMode = 0;
-	float trackIndex = 0;
-	float speed = 1;
+	float trackIndex = 0.0f;
+	float speed = 1.0f;
 	float swing = 0.0f;
 	trig *prevTrig = trigs;
 	trig *memTrig = trigs;
@@ -208,7 +226,19 @@ struct track {
 	size_t getNextIndex();
 	void resetValues();
 	void randomize();
+	void copy(const track *t);
 };
+
+inline void track::copy(const track *t) {
+	isActive = t->isActive;
+	length = t->length;
+	readMode = t->readMode;
+	speed = t->speed;
+	swing = t->swing;
+	for (size_t i = 0; i < 64; i++) {
+		trigs[i].copy(t->trigs + i);
+	}
+}
 
 inline void track::resetValues() {
 	isActive = true;
@@ -431,7 +461,14 @@ struct pattern {
 
 	void moveNext(const bool fill);
 	void reset(const bool fill);
+	void copy(const pattern *p);
 };
+
+inline void pattern::copy(const pattern *p) {
+	for (size_t i = 0; i < 8; i++) {
+		tracks[i].copy(p->tracks + i);
+	}
+}
 
 inline void pattern::moveNext(const bool fill) {
 	for (size_t i = 0; i < 8; i++) {
@@ -452,6 +489,8 @@ struct ZOUMAI : Module {
 		FREE_PARAMS = TRACK_PARAMS + 8,
 		TRIG_PAGE_PARAM = FREE_PARAMS + 8,
 		FILL_PARAM = TRIG_PAGE_PARAM + 4,
+		PATTERN_PARAM,
+		COPY_PARAM,
 		NUM_PARAMS
 	};
 
@@ -479,7 +518,8 @@ struct ZOUMAI : Module {
 		STEPS_LIGHTS,
 		TRACKS_LIGHTS = STEPS_LIGHTS + 16*3,
 		TRIG_PAGE_LIGHTS = TRACKS_LIGHTS + 8*3,
-		FILL_LIGHT = TRIG_PAGE_LIGHTS + 4,
+		FILL_LIGHT = TRIG_PAGE_LIGHTS + 4*3,
+		COPY_LIGHT,
 		NUM_LIGHTS
 	};
 
@@ -489,8 +529,9 @@ struct ZOUMAI : Module {
 	SchmittTrigger trackResetTriggers[8];
 	SchmittTrigger trackActiveTriggers[8];
 	SchmittTrigger fillTrigger;
+	SchmittTrigger copyPasteTrigger;
 
-	pattern patterns[16];
+	pattern patterns[8];
 	float lastTickCount = 0.0f;
 	float currentTickCount = 0.0f;
 	float phase = 0.0f;
@@ -502,6 +543,9 @@ struct ZOUMAI : Module {
 	size_t ppqn = 0;
 	size_t pageIndex = 0;
 	bool fill = false;
+	size_t nextPattern = 0;
+	int copyTrackId = -1;
+	int copyPatternId = -1;
 
 	ZOUMAI() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
 		patterns[currentPattern].reset(fill);
@@ -510,7 +554,7 @@ struct ZOUMAI : Module {
 	json_t *toJson() override {
 		json_t *rootJ = json_object();
 		json_object_set_new(rootJ, "currentPattern", json_integer(currentPattern));
-		for (int i = 0; i<16; i++) {
+		for (int i = 0; i<8; i++) {
 			json_t *patternJ = json_object();
 			for (int j = 0; j < 8; j++) {
 				json_t *trackJ = json_object();
@@ -551,7 +595,7 @@ struct ZOUMAI : Module {
 		if (currentPatternJ)
 			currentPattern = json_integer_value(currentPatternJ);
 
-		for (int i=0; i<16;i++) {
+		for (int i=0; i<8;i++) {
 			json_t *patternJ = json_object_get(rootJ, ("pattern" + to_string(i)).c_str());
 			if (patternJ){
 				for(int j=0; j<8;j++) {
@@ -632,14 +676,14 @@ struct ZOUMAI : Module {
 	}
 
 	void randomize() override {
-		patterns[currentPattern].tracks[currentTrack].randomize();
+		//patterns[currentPattern].tracks[currentTrack].randomize();
 		for (size_t i = 0; i < 64; i++) {
 			patterns[currentPattern].tracks[currentTrack].trigs[i].randomize();
 		}
 	}
 
 	void reset() override {
-		patterns[currentPattern].tracks[currentTrack].resetValues();
+		//patterns[currentPattern].tracks[currentTrack].resetValues();
 		for (size_t i = 0; i < 64; i++) {
 			patterns[currentPattern].tracks[currentTrack].trigs[i].resetValues();
 		}
@@ -650,14 +694,15 @@ struct ZOUMAI : Module {
 };
 
 void ZOUMAI::step() {
+
+	currentPattern = (int)clamp((inputs[PATTERN_INPUT].active ? rescale(clamp(inputs[PATTERN_INPUT].value, 0.0f, 10.0f),0.0f,10.0f,0.0f,7.0f) : 0) + (int)params[PATTERN_PARAM].value, 0.0f, 7.0f);
+
 	if (inputs[FILL_INPUT].active) {
 		if (((inputs[FILL_INPUT].value > 0.0f) && !fill) || ((inputs[FILL_INPUT].value == 0.0f) && fill)) fill=!fill;
 	}
-
 	if (fillTrigger.process(params[FILL_PARAM].value)) {
 		fill = !fill;
 	}
-
 	lights[FILL_LIGHT].value = fill ? 10.0f : 0.0f;
 
 	if (inputs[EXT_CLOCK_INPUT].active) {
@@ -677,29 +722,48 @@ void ZOUMAI::step() {
 		if (resetTrigger.process(inputs[RESET_INPUT].value)) {
 			phase = 0.0f;
 			currentTickCount = 0.0f;
-			patterns[currentPattern].reset(fill);
+			for (size_t i = 0; i<8; i++) {
+				patterns[i].reset(fill);
+			}
 			ppqn = 0;
 		}
 		else if (phase*192>=ppqn) {
-			patterns[currentPattern].moveNext(fill);
+			for (size_t i = 0; i<8; i++) {
+				patterns[i].moveNext(fill);
+			}
 			ppqn++;
 		}
 	}
 
-	if (trigPageTriggers[0].process(params[TRIG_PAGE_PARAM].value)) trigPage = 0;
-	if (trigPageTriggers[1].process(params[TRIG_PAGE_PARAM+1].value)) trigPage = 1;
-	if (trigPageTriggers[2].process(params[TRIG_PAGE_PARAM+2].value)) trigPage = 2;
-	if (trigPageTriggers[3].process(params[TRIG_PAGE_PARAM+3].value)) trigPage = 3;
+	for (size_t i = 0; i<4; i++) {
+		if (trigPageTriggers[i].process(params[TRIG_PAGE_PARAM + i].value)) trigPage = i;
+		if (trigPage == i) {
+			lights[TRIG_PAGE_LIGHTS+(i*3)].value = 0.0f;
+			lights[TRIG_PAGE_LIGHTS+(i*3)+1].value = 0.0f;
+			lights[TRIG_PAGE_LIGHTS+(i*3)+2].value = 1.0f;
+		}
+		else if ((patterns[currentPattern].tracks[currentTrack].getCurrentTrig().index >= (i*16)) && (patterns[currentPattern].tracks[currentTrack].getCurrentTrig().index<(16*(i+1)-1))) {
+			lights[TRIG_PAGE_LIGHTS+(i*3)].value = 1.0f*(1-phase);
+			lights[TRIG_PAGE_LIGHTS+(i*3)+1].value = 0.5f*(1-phase);
+			lights[TRIG_PAGE_LIGHTS+(i*3)+2].value = 0.0f*(1-phase);
+		}
+		else {
+			lights[TRIG_PAGE_LIGHTS+(i*3)].value = 0.0f;
+			lights[TRIG_PAGE_LIGHTS+(i*3)+1].value = 0.0f;
+			lights[TRIG_PAGE_LIGHTS+(i*3)+2].value = 0.0f;
+		}
+	}
 
-	lights[TRIG_PAGE_LIGHTS].value = (trigPage == 0) ? 10.0 : 0.0f;
-	lights[TRIG_PAGE_LIGHTS+1].value = (trigPage == 1) ? 10.0 : 0.0f;
-	lights[TRIG_PAGE_LIGHTS+2].value = (trigPage == 2) ? 10.0 : 0.0f;
-	lights[TRIG_PAGE_LIGHTS+3].value = (trigPage == 3) ? 10.0 : 0.0f;
+	lights[COPY_LIGHT].value = copyTrackId > -1 ? 10.0f : 0.0f;
 
 	for (size_t i = 0; i<8; i++) {
+
 		if (trackResetTriggers[i].process(inputs[TRACK_RESET_INPUTS+i].value)) {
-			patterns[currentPattern].tracks[i].reset(fill,i==0?false:patterns[currentPattern].tracks[i-1].hasProbability);
+			for (size_t j = 0; j<8; j++) {
+				patterns[j].tracks[i].reset(fill,i==0?false:patterns[j].tracks[i-1].hasProbability);
+			}
 		}
+
 		if (trackActiveTriggers[i].process(inputs[TRACK_ACTIVE_INPUTS+i].value)) {
 			patterns[currentPattern].tracks[i].isActive = !patterns[currentPattern].tracks[i].isActive;
 		}
@@ -788,6 +852,20 @@ struct ZOUMAIDisplay : TransparentWidget {
 	ZOUMAI *module;
 	int frame = 0;
 	shared_ptr<Font> font;
+	const float noteC = 0.0f;
+	const float noteCs = 1.0f/12.0f;
+	const float noteD = 2.0f/12.0f;
+	const float noteDs = 3.0f/12.0f;
+	const float noteE = 4.0f/12.0f;
+	const float noteF = 5.0f/12.0f;
+	const float noteFs = 6.0f/12.0f;
+	const float noteG = 7.0f/12.0f;
+	const float noteGs = 8.0f/12.0f;
+	const float noteA = 9.0f/12.0f;
+	const float noteAs = 10.0f/12.0f;
+	const float noteB = 11.0f/12.0f;
+
+
 
 	ZOUMAIDisplay() {
 		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
@@ -846,9 +924,7 @@ struct ZOUMAIDisplay : TransparentWidget {
 				nvgText(vg, portX0[3], portY0[1], displayTrigType(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].trigType).c_str(), NULL);
 
 				nvgText(vg, portX0[0], portY0[2], "V/Oct", NULL);
-				stream.str("");
-				stream << fixed << setprecision(2) << module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].VO;
-				nvgText(vg, portX0[0], portY0[3], stream.str().c_str(), NULL);
+				nvgText(vg, portX0[0], portY0[3], displayNote(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].VO).c_str(), NULL);
 				nvgText(vg, portX0[1], portY0[2], "Slide", NULL);
 				stream.str("");
 				stream << fixed << setprecision(2) << module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].slide;
@@ -914,10 +990,40 @@ struct ZOUMAIDisplay : TransparentWidget {
 			default: return "";
 		}
 	}
+
+	string displayNote(float value) {
+		double fractpart, intpart;
+		fractpart = modf (value , &intpart);
+		string result = "";
+		if (fractpart < noteCs)
+			return "C" + to_string((int)intpart);
+		else if (fractpart < noteD)
+			return "C#" + to_string((int)intpart);
+		else if (fractpart < noteDs)
+			return "D" + to_string((int)intpart);
+		else if (fractpart < noteE)
+			return "D#" + to_string((int)intpart);
+		else if (fractpart < noteF)
+			return "E" + to_string((int)intpart);
+		else if (fractpart < noteFs)
+			return "F" + to_string((int)intpart);
+		else if (fractpart < noteG)
+			return "F#" + to_string((int)intpart);
+		else if (fractpart < noteGs)
+			return "G" + to_string((int)intpart);
+		else if (fractpart < noteA)
+			return "G#" + to_string((int)intpart);
+		else if (fractpart < noteAs)
+			return "A" + to_string((int)intpart);
+		else if (fractpart < noteB)
+			return "A#" + to_string((int)intpart);
+		else
+			return "B" + to_string((int)intpart);
+	}
 };
 
 struct ZOUMAIWidget : ModuleWidget {
-	ParamWidget *stepsParam[16], *tracksParam[8], *freeParam[8];
+	ParamWidget *stepsParam[16], *tracksParam[8], *freeParam[8], *patternParam;
 	TransparentWidget *selector[2];
 	ZOUMAIWidget(ZOUMAI *module);
 };
@@ -1226,6 +1332,31 @@ struct ZOUMAIFREEPARAMBlueKnob : BidooBlueKnob {
 	}
 };
 
+struct ZOUMAIPatternRoundBlackSnapKnob : RoundBlackSnapKnob {
+	void onChange(EventChange &e) override {
+			RoundBlackSnapKnob::onChange(e);
+
+	}
+};
+
+struct ZOUMAICOPYPASTECKD6 : BlueCKD6 {
+	void onMouseDown(EventMouseDown &e) override {
+		// ZOUMAIWidget *widget = dynamic_cast<ZOUMAIWidget*>(this->parent);
+		ZOUMAI *module = dynamic_cast<ZOUMAI*>(this->module);
+		if ((module->copyTrackId == -1) && (module->copyPatternId == -1)) {
+			module->copyTrackId = module->currentTrack;
+			module->copyPatternId = module->currentPattern;
+		}
+		else if ((module->copyTrackId > -1) && (module->copyPatternId > -1) && ((module->copyTrackId != (int)module->currentTrack) || (module->copyPatternId != (int)module->currentPattern)))
+		{
+			((module->patterns + module->currentPattern)->tracks + module->currentTrack)->copy((module->patterns + module->copyPatternId)->tracks + module->copyTrackId);
+			module->copyTrackId = -1;
+			module->copyPatternId = -1;
+		}
+		BlueCKD6::onMouseDown(e);
+	}
+};
+
 ZOUMAIWidget::ZOUMAIWidget(ZOUMAI *module) : ModuleWidget(module) {
 	setPanel(SVG::load(assetPlugin(plugin, "res/ZOUMAI.svg")));
 
@@ -1279,10 +1410,17 @@ ZOUMAIWidget::ZOUMAIWidget(ZOUMAI *module) : ModuleWidget(module) {
 	addParam(ParamWidget::create<MiniLEDButton>(Vec(portX0[1], 312.0f), module, ZOUMAI::TRIG_PAGE_PARAM+1, 0.0f, 10.0f,  0.0f));
 	addParam(ParamWidget::create<MiniLEDButton>(Vec(portX0[2], 312.0f), module, ZOUMAI::TRIG_PAGE_PARAM+2, 0.0f, 10.0f,  0.0f));
 	addParam(ParamWidget::create<MiniLEDButton>(Vec(portX0[3], 312.0f), module, ZOUMAI::TRIG_PAGE_PARAM+3, 0.0f, 10.0f,  0.0f));
-	addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(portX0[0], 312.0f), module, ZOUMAI::TRIG_PAGE_LIGHTS));
-	addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(portX0[1], 312.0f), module, ZOUMAI::TRIG_PAGE_LIGHTS+1));
-	addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(portX0[2], 312.0f), module, ZOUMAI::TRIG_PAGE_LIGHTS+2));
-	addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(portX0[3], 312.0f), module, ZOUMAI::TRIG_PAGE_LIGHTS+3));
+
+	addChild(ModuleLightWidget::create<SmallLight<RedGreenBlueLight>>(Vec(portX0[0], 312.0f), module, ZOUMAI::TRIG_PAGE_LIGHTS));
+	addChild(ModuleLightWidget::create<SmallLight<RedGreenBlueLight>>(Vec(portX0[1], 312.0f), module, ZOUMAI::TRIG_PAGE_LIGHTS+3));
+	addChild(ModuleLightWidget::create<SmallLight<RedGreenBlueLight>>(Vec(portX0[2], 312.0f), module, ZOUMAI::TRIG_PAGE_LIGHTS+6));
+	addChild(ModuleLightWidget::create<SmallLight<RedGreenBlueLight>>(Vec(portX0[3], 312.0f), module, ZOUMAI::TRIG_PAGE_LIGHTS+9));
+
+	patternParam = ParamWidget::create<ZOUMAIPatternRoundBlackSnapKnob>(Vec(115.0f,287.0f), module, ZOUMAI::PATTERN_PARAM, 0.0f, 7.0f, 0.0f);
+	addParam(patternParam);
+
+	addParam(ParamWidget::create<ZOUMAICOPYPASTECKD6>(Vec(400.0f, 270.0f), module, ZOUMAI::COPY_PARAM, 0.0f, 1.0f, 0.0f));
+	addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(433.0f,281.0f), module, ZOUMAI::COPY_LIGHT));
 
 	for (size_t i=0;i<16;i++){
 		stepsParam[i] = ParamWidget::create<ZOUMAITRIGLEDBezel>(Vec(12.0f+ 28.0f*i, 330.0f), module, ZOUMAI::STEPS_PARAMS + i, 0.0f, 2.0f, 0.0f);
@@ -1306,10 +1444,10 @@ ZOUMAIWidget::ZOUMAIWidget(ZOUMAI *module) : ModuleWidget(module) {
 		btnFree->index = i;
 		addParam(freeParam[i]);
 
-		addOutput(Port::create<TinyPJ301MPort>(Vec(375.0f, 50.0f + i * 22.0f), Port::OUTPUT, module, ZOUMAI::GATE_OUTPUTS + i));
-		addOutput(Port::create<TinyPJ301MPort>(Vec(395.0f, 50.0f + i * 22.0f), Port::OUTPUT, module, ZOUMAI::VO_OUTPUTS + i));
-		addOutput(Port::create<TinyPJ301MPort>(Vec(415.0f, 50.0f + i * 22.0f), Port::OUTPUT, module, ZOUMAI::CV1_OUTPUTS + i));
-		addOutput(Port::create<TinyPJ301MPort>(Vec(435.0f, 50.0f + i * 22.0f), Port::OUTPUT, module, ZOUMAI::CV2_OUTPUTS + i));
+		addOutput(Port::create<TinyPJ301MPort>(Vec(375.0f, 55.0f + i * 22.0f), Port::OUTPUT, module, ZOUMAI::GATE_OUTPUTS + i));
+		addOutput(Port::create<TinyPJ301MPort>(Vec(395.0f, 55.0f + i * 22.0f), Port::OUTPUT, module, ZOUMAI::VO_OUTPUTS + i));
+		addOutput(Port::create<TinyPJ301MPort>(Vec(415.0f, 55.0f + i * 22.0f), Port::OUTPUT, module, ZOUMAI::CV1_OUTPUTS + i));
+		addOutput(Port::create<TinyPJ301MPort>(Vec(435.0f, 55.0f + i * 22.0f), Port::OUTPUT, module, ZOUMAI::CV2_OUTPUTS + i));
 	}
 
 	freeParam[0]->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].length+0.5f,0.0f,3000.0f,1.0f,5.0f));

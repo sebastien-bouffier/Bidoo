@@ -15,7 +15,7 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 23/09/2018 => 0.6.18
 
-*NEW* Beta version of **zOù MAï** sequencer.
+*NEW* **zOù MAï** sequencer first candidate. 8 patterns x 8 tracks x 64 steps with trim and probability/condition. Global swing per track is not implemented.
 
 10/09/2018 => 0.6.17
 
