@@ -199,7 +199,6 @@ struct track {
 	size_t nextIndex;
 	bool fwd = true;
 	bool pre = false;
-	bool hasProbability = false;
 
 	track() {
 		for(size_t i=0;i<64;i++) {
@@ -246,7 +245,6 @@ inline void track::resetValues() {
 	speed = 1.0f;
 	swing = 0.0f;
 	pre = false;
-	hasProbability = false;
 }
 
 inline void track::randomize() {
@@ -297,7 +295,6 @@ inline float track::getCV2() {
 
 inline void track::reset(const bool fill, const bool pNei) {
 	pre = false;
-	hasProbability = false;
 	if (readMode != 1)
 	{
 		fwd = true;
@@ -307,7 +304,6 @@ inline void track::reset(const bool fill, const bool pNei) {
 		if (currentTrig->isActive && !currentTrig->isSleeping) {
 			prevTrig = memTrig;
 			memTrig = currentTrig;
-			hasProbability = currentTrig->hasProbability();
 		}
 		nextIndex = getNextIndex();
 	}
@@ -319,7 +315,6 @@ inline void track::reset(const bool fill, const bool pNei) {
 		if (currentTrig->isActive && !currentTrig->isSleeping) {
 			prevTrig = memTrig;
 			memTrig = currentTrig+length;
-			hasProbability = currentTrig->hasProbability();
 		}
 		nextIndex = getNextIndex();
 	}
@@ -377,7 +372,6 @@ inline void track::moveNextForward(const bool fill, const bool pNei) {
 			if (currentTrig->isActive && !currentTrig->isSleeping) {
 				prevTrig = memTrig;
 				memTrig = currentTrig;
-				hasProbability = memTrig->hasProbability() ? true : hasProbability;
 			}
 			nextIndex = getNextIndex();
 		}
@@ -392,7 +386,6 @@ inline void track::moveNextBackward(const bool fill, const bool pNei) {
 		if (currentTrig->isActive && !currentTrig->isSleeping) {
 			prevTrig = memTrig;
 			memTrig = currentTrig;
-			hasProbability = memTrig->hasProbability() ? true : hasProbability;
 		}
 		trackIndex = currentTrig->reference;
 		nextIndex = getNextIndex();
@@ -449,13 +442,13 @@ inline void pattern::copy(const pattern *p) {
 
 inline void pattern::moveNext(const bool fill) {
 	for (size_t i = 0; i < 8; i++) {
-		tracks[i].moveNext(fill, i==0?false:tracks[i-1].hasProbability);
+		tracks[i].moveNext(fill, i==0?false:tracks[i-1].pre);
 	}
 }
 
 inline void pattern::reset(const bool fill) {
 	for (size_t i = 0; i < 8; i++) {
-		tracks[i].reset(fill, i==0?false:tracks[i-1].hasProbability);
+		tracks[i].reset(fill, i==0?false:tracks[i-1].pre);
 	}
 }
 
@@ -737,7 +730,7 @@ void ZOUMAI::step() {
 
 		if (trackResetTriggers[i].process(inputs[TRACK_RESET_INPUTS+i].value)) {
 			for (size_t j = 0; j<8; j++) {
-				patterns[j].tracks[i].reset(fill,i==0?false:patterns[j].tracks[i-1].hasProbability);
+				patterns[j].tracks[i].reset(fill,i==0?false:patterns[j].tracks[i-1].pre);
 			}
 		}
 
