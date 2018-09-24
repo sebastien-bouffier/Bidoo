@@ -199,7 +199,6 @@ struct track {
 	size_t nextIndex;
 	bool fwd = true;
 	bool pre = false;
-	bool nei = false;
 	bool hasProbability = false;
 
 	track() {
@@ -247,7 +246,6 @@ inline void track::resetValues() {
 	speed = 1.0f;
 	swing = 0.0f;
 	pre = false;
-	nei = false;
 	hasProbability = false;
 }
 
@@ -299,13 +297,12 @@ inline float track::getCV2() {
 
 inline void track::reset(const bool fill, const bool pNei) {
 	pre = false;
-	nei = pNei;
 	hasProbability = false;
 	if (readMode != 1)
 	{
 		fwd = true;
 		currentTrig = trigs;
-		currentTrig->init(fill,pre,nei);
+		currentTrig->init(fill,pre,pNei);
 		trackIndex = speed;
 		if (currentTrig->isActive && !currentTrig->isSleeping) {
 			prevTrig = memTrig;
@@ -317,7 +314,7 @@ inline void track::reset(const bool fill, const bool pNei) {
 	else
 	{
 		currentTrig = trigs+length-1;
-		currentTrig->init(fill,pre,nei);
+		currentTrig->init(fill,pre,pNei);
 		trackIndex = currentTrig->reference + currentTrig->trim + speed;
 		if (currentTrig->isActive && !currentTrig->isSleeping) {
 			prevTrig = memTrig;
@@ -331,29 +328,13 @@ inline void track::reset(const bool fill, const bool pNei) {
 inline size_t track::getNextIndex() {
 	switch (readMode) {
 		case 0:
-			{
-				size_t idx = (currentTrig->index+1) > (length-1) ? 0 : (currentTrig->index+1);
-				if (idx == 0) {
-					pre = false;
-					nei = false;
-				}
-				return idx;
-			}
+				return (currentTrig->index+1) > (length-1) ? 0 : (currentTrig->index+1);
 		case 1:
-			{
-				size_t idx = ((int)currentTrig->index-1) < 0 ? (length-1) : (currentTrig->index-1);
-				if (idx == (length-1)) {
-					pre = false;
-					nei = false;
-				}
-				return idx;}
-
+				return ((int)currentTrig->index-1) < 0 ? (length-1) : (currentTrig->index-1);
 		case 2:
 			if(fwd) {
 				if (currentTrig->index == (length-1)) {
 					fwd=!fwd;
-					pre = false;
-					nei = false;
 					return ((int)currentTrig->index-1) < 0 ? (length-1) : (currentTrig->index-1);
 				}
 				else
@@ -362,8 +343,6 @@ inline size_t track::getNextIndex() {
 			else {
 				if (currentTrig->index == 0) {
 					fwd=!fwd;
-					pre = false;
-					nei = false;
 					return (currentTrig->index+1)%(length);
 				}
 				else
@@ -392,9 +371,8 @@ inline void track::moveNextForward(const bool fill, const bool pNei) {
 
 	if (((nextIndex != 0) && (trigs[nextIndex].getRelativeTrackPosition(trackIndex) >= 0)) || (trackIndex == 0.f)) {
 		if ((nextIndex != currentTrig->index) || (length == 1)) {
-			nei = pNei;
-			pre = memTrig->hasProbability() ? !memTrig->isSleeping : pre;
-			trigs[nextIndex].init(fill,pre,nei);
+			pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
+			trigs[nextIndex].init(fill,pre,pNei);
 			currentTrig = trigs + nextIndex;
 			if (currentTrig->isActive && !currentTrig->isSleeping) {
 				prevTrig = memTrig;
@@ -408,9 +386,8 @@ inline void track::moveNextForward(const bool fill, const bool pNei) {
 
 inline void track::moveNextBackward(const bool fill, const bool pNei) {
 	if (trackIndex>(currentTrig->reference+192)) {
-		nei = pNei;
-		pre = memTrig->hasProbability() ? !memTrig->isSleeping : pre;
-		trigs[nextIndex].init(fill,pre,nei);
+		pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
+		trigs[nextIndex].init(fill,pre,pNei);
 		currentTrig = trigs + nextIndex;
 		if (currentTrig->isActive && !currentTrig->isSleeping) {
 			prevTrig = memTrig;
