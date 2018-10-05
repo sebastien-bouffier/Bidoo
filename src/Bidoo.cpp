@@ -31,6 +31,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelPERCO);
 	p->addModel(modelBAR);
 	p->addModel(modelZINC);
+	p->addModel(modelHCTIP);
 	p->addModel(modelDFUZE);
 	p->addModel(modelRABBIT);
 	p->addModel(modelBISTROT);

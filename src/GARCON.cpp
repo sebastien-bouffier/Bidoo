@@ -202,14 +202,10 @@ GARCONWidget::GARCONWidget(GARCON *module) : ModuleWidget(module) {
 		addChild(display);
 	}
 
-	// addParam(ParamWidget::create<RoundHugeBlackKnob>(Vec(47, 61), module, GARCON::FREQ_PARAM, -54.0f, 54.0f, 0.0f));
-	// addParam(ParamWidget::create<RoundLargeBlackKnob>(Vec(23, 143), module, GARCON::FREQSPREAD_PARAM, -0.01f, 2.0f, 1.0f));
 
 	addInput(Port::create<PJ301MPort>(Vec(11, 330), Port::INPUT, module, GARCON::L_INPUT));
-	//addInput(Port::create<PJ301MPort>(Vec(45, 276), Port::INPUT, module, GARCON::R_INPUT));
 
-	//addOutput(Port::create<PJ301MPort>(Vec(114, 320), Port::OUTPUT, module, GARCON::OUT_OUTPUT));
 }
 
 
-Model *modelGARCON = Model::create<GARCON, GARCONWidget>("Bidoo", "Garçon", "Garçon additive oscillator", OSCILLATOR_TAG);
+Model *modelGARCON = Model::create<GARCON, GARCONWidget>("Bidoo", "Garçon", "Garçon fft display", VISUAL_TAG);

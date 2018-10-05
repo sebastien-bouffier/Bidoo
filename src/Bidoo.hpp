@@ -43,6 +43,7 @@ extern Model *modelDUKE;
 extern Model *modelMOIRE;
 extern Model *modelCANARD;
 extern Model *modelLOURDE;
+extern Model *modelHCTIP;
 extern Model *modelDFUZE;
 extern Model *modelMU;
 extern Model *modelSIGMA;
