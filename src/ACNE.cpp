@@ -105,7 +105,7 @@ struct ACNE : Module {
 							for (int k = 0; k < ACNE_NB_TRACKS; k++) {
 								json_t *inJ = json_array_get(outJ, k);
 								if (inJ) {
-									snapshots[i][j][k] = json_real_value(inJ);
+									snapshots[i][j][k] = json_number_value(inJ);
 								}
 							}
 						}
@@ -162,7 +162,7 @@ void ACNE::step() {
 	}
 
 	for (int i = 0; i < 8; i++) {
-		if (linksTriggers[i].process(params[TRACKLINK_PARAMS + i].value)) 
+		if (linksTriggers[i].process(params[TRACKLINK_PARAMS + i].value))
 			links[i] = !links[i];
 
 		lights[TRACKLINK_LIGHTS + i].value = (links[i] == true) ? 1 : 0;

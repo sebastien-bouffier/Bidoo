@@ -579,7 +579,7 @@ struct ZOUMAI : Module {
 							patterns[i].tracks[j].length = json_integer_value(lengthJ);
 						json_t *speedJ = json_object_get(trackJ, "speed");
 						if (speedJ)
-							patterns[i].tracks[j].speed = json_real_value(speedJ);
+							patterns[i].tracks[j].speed = json_number_value(speedJ);
 						json_t *readModeJ = json_object_get(trackJ, "readMode");
 						if (readModeJ)
 							patterns[i].tracks[j].readMode = json_integer_value(readModeJ);
@@ -588,7 +588,7 @@ struct ZOUMAI : Module {
 							patterns[i].tracks[j].trackIndex = json_integer_value(trackIndexJ);
 						json_t *swingJ = json_object_get(trackJ, "swing");
 						if (swingJ)
-							patterns[i].tracks[j].swing = json_real_value(swingJ);
+							patterns[i].tracks[j].swing = json_number_value(swingJ);
 						}
 						for(int k=0;k<64;k++) {
 							json_t *trigJ = json_object_get(trackJ, ("trig" + to_string(k)).c_str());
@@ -598,7 +598,7 @@ struct ZOUMAI : Module {
 									patterns[i].tracks[j].trigs[k].isActive = json_is_true(isActiveJ) ? 1 : 0;
 								json_t *slideJ = json_object_get(trigJ, "slide");
 								if (slideJ)
-									patterns[i].tracks[j].trigs[k].slide = json_real_value(slideJ);
+									patterns[i].tracks[j].trigs[k].slide = json_number_value(slideJ);
 								json_t *trigTypeJ = json_object_get(trigJ, "trigType");
 								if (trigTypeJ)
 									patterns[i].tracks[j].trigs[k].trigType = json_integer_value(trigTypeJ);
@@ -631,13 +631,13 @@ struct ZOUMAI : Module {
 									patterns[i].tracks[j].trigs[k].countReset = json_integer_value(countResetJ);
 								json_t *VOJ = json_object_get(trigJ, "VO");
 								if (VOJ)
-									patterns[i].tracks[j].trigs[k].VO = json_real_value(VOJ);
+									patterns[i].tracks[j].trigs[k].VO = json_number_value(VOJ);
 								json_t *CV1J = json_object_get(trigJ, "CV1");
 								if (CV1J)
-									patterns[i].tracks[j].trigs[k].CV1 = json_real_value(CV1J);
+									patterns[i].tracks[j].trigs[k].CV1 = json_number_value(CV1J);
 								json_t *CV2J = json_object_get(trigJ, "CV2");
 								if (CV2J)
-									patterns[i].tracks[j].trigs[k].CV2 = json_real_value(CV2J);
+									patterns[i].tracks[j].trigs[k].CV2 = json_number_value(CV2J);
 							}
 						}
 					}

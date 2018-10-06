@@ -480,13 +480,13 @@ struct BORDL : Module {
 					patterns[i].scale = json_integer_value(scaleJ);
 				json_t *gateTimeJ = json_object_get(patternJ, "gateTime");
 				if (gateTimeJ)
-					patterns[i].gateTime = json_real_value(gateTimeJ);
+					patterns[i].gateTime = json_number_value(gateTimeJ);
 				json_t *slideTimeJ = json_object_get(patternJ, "slideTime");
 				if (slideTimeJ)
-					patterns[i].slideTime = json_real_value(slideTimeJ);
+					patterns[i].slideTime = json_number_value(slideTimeJ);
 				json_t *sensitivityJ = json_object_get(patternJ, "sensitivity");
 				if (sensitivityJ)
-					patterns[i].sensitivity = json_real_value(sensitivityJ);
+					patterns[i].sensitivity = json_number_value(sensitivityJ);
 				for (int j = 0; j < 16; j++) {
 					json_t *stepJ = json_object_get(patternJ, ("step" + to_string(j)).c_str());
 					if (stepJ) {
@@ -513,22 +513,22 @@ struct BORDL : Module {
 							patterns[i].steps[j].pulsesParam = json_integer_value(pulsesParamJ);
 						json_t *pitchJ= json_object_get(stepJ, "pitch");
 						if (pitchJ)
-							patterns[i].steps[j].pitch = json_real_value(pitchJ);
+							patterns[i].steps[j].pitch = json_number_value(pitchJ);
 						json_t *typeJ= json_object_get(stepJ, "type");
 						if (typeJ)
 							patterns[i].steps[j].type = json_integer_value(typeJ);
 						json_t *probGateJ= json_object_get(stepJ, "gateProb");
 						if (probGateJ)
-							patterns[i].steps[j].gateProb = json_real_value(probGateJ);
+							patterns[i].steps[j].gateProb = json_number_value(probGateJ);
 						json_t *rndPitchJ= json_object_get(stepJ, "pitchRnd");
 						if (rndPitchJ)
-							patterns[i].steps[j].pitchRnd = json_real_value(rndPitchJ);
+							patterns[i].steps[j].pitchRnd = json_number_value(rndPitchJ);
 						json_t *accentJ= json_object_get(stepJ, "accent");
 						if (accentJ)
-							patterns[i].steps[j].accent = json_real_value(accentJ);
+							patterns[i].steps[j].accent = json_number_value(accentJ);
 						json_t *rndAccentJ= json_object_get(stepJ, "accentRnd");
 						if (rndAccentJ)
-							patterns[i].steps[j].accentRnd = json_real_value(rndAccentJ);
+							patterns[i].steps[j].accentRnd = json_number_value(rndAccentJ);
 					}
 				}
 			}
