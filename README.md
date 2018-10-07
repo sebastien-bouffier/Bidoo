@@ -15,11 +15,13 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 05/10/2018 => 0.6.19
 
-*UPDATE* **dFUZE** as no shimmer param anymore, I was unsatisfied with the pitch shifting part of the plugins.
+*UPDATE* **dFUZE** has no shimmer param anymore, I was unsatisfied with the pitch shifting part of the plugin.
 
 *UPDATE* **Garçon** is flagged as VISUAL.
 
-*New* **HCTIP** is a pitch shifter, it is a test on fft pitch shifting technique.
+*UPDATE* **EMILE** does not use a sin wave table anymore, it is now based on IDFT.
+
+*NEW* **HCTIP** is a pitch shifter, it is a test on fft pitch shifting technique.
 
 23/09/2018 => 0.6.18
 
