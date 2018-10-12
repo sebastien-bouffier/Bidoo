@@ -9,7 +9,7 @@
 #include "dsp/ringbuffer.hpp"
 #include <algorithm>
 
-#define FFT_SIZE 1024
+#define FFT_SIZE 8192
 #define STEPS 8
 using namespace std;
 
@@ -126,7 +126,7 @@ void EMILE::step() {
         float volume = (0.33f * image[samplePos * 3 + (height - i - 1) * width * 3] + 0.5f * image[samplePos * 3 + (height - i - 1) * width * 3 + 1] +  0.16f * image[samplePos * 3 + (height - i - 1) * width * 3 + 2]) / 255.0f;
   			if (volume > 0.0f) {
           float fact = fastPow(10.0f,i*params[CURVE_PARAM].value/height)*0.1f;
-          size_t index = clamp((int)(i * fact * fftSize2 * iHeight),0,fftSize2);
+          size_t index = clamp((int)(i * fact * fftSize2 * iHeight * 0.5f),0,fftSize2/2);
           magn[index] = clamp(volume,0.0f,1.0f);
   			}
   		}
@@ -252,8 +252,8 @@ struct EMILEWidget : ModuleWidget {
 		static const float portX0[4] = {34, 67, 101};
 
     addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[1]-15, 180), module, EMILE::GAIN_PARAM, 0.1f, 10.0f, 1.0f));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[1]-15, 220), module, EMILE::CURVE_PARAM, 0.5f, 8.0f, 1.0f));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[1]-15, 260), module, EMILE::SPEED_PARAM, 200.0f, 1.0f, 50.0f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[1]-15, 235), module, EMILE::CURVE_PARAM, 0.5f, 8.0f, 1.0f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX0[1]-15, 290), module, EMILE::SPEED_PARAM, 200.0f, 1.0f, 50.0f));
 		addInput(Port::create<PJ301MPort>(Vec(portX0[0]-25, 321), Port::INPUT, module, EMILE::GATE_INPUT));
 
 		addOutput(Port::create<PJ301MPort>(Vec(portX0[2], 321), Port::OUTPUT, module, EMILE::OUT));

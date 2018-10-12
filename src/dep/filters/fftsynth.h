@@ -54,21 +54,16 @@ struct FftSynth {
 		memset(gFFTworksp, 0, 2*fftFrameSize*sizeof(float));
 		memset(gFFTworkspOut, 0, 2*fftFrameSize*sizeof(float));
 
-		/* ***************** SYNTHESIS ******************* */
-		/* this is the synthesis step */
 		for (k = 0; k <= fftFrameSize2; k++) {
 			/* get real and imag part and re-interleave */
 			gFFTworksp[2*k] = magn[k]*cos(phase[k]);
 			gFFTworksp[2*k+1] = magn[k]*sin(phase[k]);
 		}
 
-		/* zero negative frequencies */
 		for (k = fftFrameSize+2; k < 2*fftFrameSize; k++) gFFTworksp[k] = 0.0f;
 
-		/* do inverse transform */
 		pffft_transform_ordered(pffftSetup, gFFTworksp, gFFTworkspOut , NULL, PFFFT_BACKWARD);
 
-		/* do windowing and add to output accumulator */
 		for(k=0; k < fftFrameSize; k++) {
 			window = -0.5f * cos(2.0f * M_PI *(double)k * invFftFrameSize) + 0.5f;
 			gOutputAccum[k] += 2.0f * window * gFFTworkspOut[2*k] * invFftFrameSize2;
@@ -76,7 +71,6 @@ struct FftSynth {
 
 		for (k = 0; k < stepSize; k++) output[k] = gOutputAccum[k];
 
-		/* shift accumulator */
 		memmove(gOutputAccum, gOutputAccum+stepSize, fftFrameSize*sizeof(float));
 	}
 };

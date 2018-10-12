@@ -11,7 +11,7 @@
 
 using namespace std;
 
-const int N = 512;
+const int N = 4096;
 
 struct GARCON : Module {
 	enum ParamIds {
@@ -35,7 +35,7 @@ struct GARCON : Module {
 	std::mutex mylock;
 
 	GARCON() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-		processor = new FfftAnalysis(N, 8, engineGetSampleRate());
+		processor = new FfftAnalysis(N, 4, engineGetSampleRate());
 	}
 
 	~GARCON() {
@@ -79,20 +79,21 @@ struct GARCONDisplay : OpaqueWidget {
 			module->mylock.unlock();
 
 			if (tmp.size()>0) {
-				for (size_t i = 0; i < tmp.size(); i++) {
-					float x,y;
-					x = (float)i * width / tmp.size();
-					if (tmp[i].size()>0) {
-						for (size_t j = 0; j < tmp[i].size(); j++) {
-							y = height - float(j) * height / tmp[i].size();
-							nvgBeginPath(vg);
-							nvgStrokeColor(vg, getColor(tmp[i][j]));
-							nvgMoveTo(vg, x, y);
-							nvgLineTo(vg, x, y + 1);
-							nvgLineCap(vg, NVG_MITER);
-							nvgClosePath(vg);
-							nvgStrokeWidth(vg, 1);
-							nvgStroke(vg);
+				for (size_t i = 0; i < width; i++) {
+					if (i < tmp.size()) {
+						if (tmp[i].size()>0) {
+							float iHeith =  1.0f / height;
+							for (size_t j = 0; j < height; j++) {
+								nvgBeginPath(vg);
+								float index = (height - j) * iHeith * (height - j) * iHeith * tmp[i].size();
+								nvgStrokeColor(vg, getColor(interpolateLinear(&tmp[i][0], index)));
+								nvgMoveTo(vg, i, j);
+								nvgLineTo(vg, i, j + 1);
+								nvgLineCap(vg, NVG_MITER);
+								nvgClosePath(vg);
+								nvgStrokeWidth(vg, 1);
+								nvgStroke(vg);
+							}
 						}
 					}
 				}

@@ -35,6 +35,7 @@ extern Model *modelGARCON;
 extern Model *modelTIARE;
 extern Model *modelCLACOS;
 extern Model *modelANTN;
+extern Model *modelPENEQUE;
 extern Model *modelLIMBO;
 extern Model *modelPERCO;
 extern Model *modelBAR;

@@ -27,6 +27,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelTIARE);
 	p->addModel(modelCLACOS);
 	p->addModel(modelANTN);
+	p->addModel(modelPENEQUE);
 	p->addModel(modelLIMBO);
 	p->addModel(modelPERCO);
 	p->addModel(modelBAR);

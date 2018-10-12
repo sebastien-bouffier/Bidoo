@@ -120,7 +120,7 @@ struct FfftAnalysis {
 					if (result->size() == 0) {
 						result->push_back(v);
 					}
-					else if (result->size() >= (size_t)fftFrameSize) {
+					else if (result->size() >= 200) {
 						std::rotate(result->rbegin(), result->rbegin() + 1, result->rend());
 						vector<vector<float>>& resultRef = *result;
 						resultRef[0] = v;

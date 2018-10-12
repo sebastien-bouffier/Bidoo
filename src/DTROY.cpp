@@ -192,7 +192,6 @@ struct Pattern {
 		static std::mt19937 gen(rd());
 		return select_randomly(start, end, gen);
 	}
-
 };
 
 struct DTROY : Module {
