@@ -582,50 +582,51 @@ struct CANARDDisplay : OpaqueWidget {
 			nvgSave(vg);
 			Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, height));
 			nvgScissor(vg, 0, b.pos.y, width, height);
+			float invNbSample = 1.0f / nbSample;
 			nvgBeginPath(vg);
-				float invNbSample = 1.0f / nbSample;
-				for (size_t i = 0; i < vL.size(); i++) {
-					float x, y;
-					x = (float)i * invNbSample ;
-					y = vL[i] * 0.5f + 0.5f;
-					Vec p;
-					p.x = b.pos.x + b.size.x * x;
-					p.y = b.pos.y + b.size.y * (1.0f - y);
-					if (i == 0) {
-						nvgMoveTo(vg, p.x, p.y);
-					}
-					else {
-						nvgLineTo(vg, p.x, p.y);
-					}
+			for (size_t i = 0; i < vL.size(); i++) {
+				float x, y;
+				x = (float)i * invNbSample ;
+				y = vL[i] * 0.5f + 0.5f;
+				Vec p;
+				p.x = b.pos.x + b.size.x * x;
+				p.y = b.pos.y + b.size.y * (1.0f - y);
+				if (i == 0) {
+					nvgMoveTo(vg, p.x, p.y);
 				}
-				nvgClosePath(vg);
-				nvgLineCap(vg, NVG_MITER);
-				nvgStrokeWidth(vg, 1);
-				nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
-				nvgStroke(vg);
-
-				b = Rect(Vec(zoomLeftAnchor, height+10), Vec(zoomWidth, height));
-				nvgScissor(vg, 0, b.pos.y, width, height);
-				nvgBeginPath(vg);
-				for (size_t i = 0; i < vR.size(); i++) {
-					float x, y;
-					x = (float)i * invNbSample;
-					y = vR[i] * 0.5f + 0.5f;
-					Vec p;
-					p.x = b.pos.x + b.size.x * x;
-					p.y = b.pos.y + b.size.y * (1.0f - y);
-					if (i == 0)
-						nvgMoveTo(vg, p.x, p.y);
-					else
-						nvgLineTo(vg, p.x, p.y);
+				else {
+					nvgLineTo(vg, p.x, p.y);
 				}
-				nvgClosePath(vg);
-				nvgLineCap(vg, NVG_MITER);
-				nvgStrokeWidth(vg, 1);
-				nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
-				nvgStroke(vg);
-				nvgResetScissor(vg);
 			}
+			//nvgClosePath(vg);
+			nvgLineCap(vg, NVG_MITER);
+			nvgStrokeWidth(vg, 1);
+			nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
+			nvgStroke(vg);
+
+			b = Rect(Vec(zoomLeftAnchor, height+10), Vec(zoomWidth, height));
+			nvgScissor(vg, 0, b.pos.y, width, height);
+			nvgBeginPath(vg);
+			for (size_t i = 0; i < vR.size(); i++) {
+				float x, y;
+				x = (float)i * invNbSample;
+				y = vR[i] * 0.5f + 0.5f;
+				Vec p;
+				p.x = b.pos.x + b.size.x * x;
+				p.y = b.pos.y + b.size.y * (1.0f - y);
+				if (i == 0)
+					nvgMoveTo(vg, p.x, p.y);
+				else {
+					nvgLineTo(vg, p.x, p.y);
+				}
+			}
+			//nvgClosePath(vg);
+			nvgLineCap(vg, NVG_MITER);
+			nvgStrokeWidth(vg, 1);
+			nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
+			nvgStroke(vg);
+			nvgResetScissor(vg);
+		}
 
 			//draw slices
 

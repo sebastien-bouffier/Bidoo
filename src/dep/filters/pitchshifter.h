@@ -87,7 +87,8 @@ struct PitchShifter {
 					/* do windowing and re,im interleave */
 					for (k = 0; k < fftFrameSize;k++) {
 						window = -0.5 * cos(2.0f * M_PI * (double)k * invFftFrameSize) + 0.5f;
-						gFFTworksp[k] = gInFIFO[k] * window;
+						gFFTworksp[2*k] = gInFIFO[k] * window;
+						gFFTworksp[2*k+1] = gInFIFO[k] * window;
 					}
 
 					/* ***************** ANALYSIS ******************* */

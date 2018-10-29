@@ -137,7 +137,6 @@ struct PENEQUE : Module {
 	threadSynthData sData;
 	SchmittTrigger resetTrigger;
 	WavOscillator<16, 16> oscillator;
-	size_t tmpo = 0;
 
 	PENEQUE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
     magn = (float*)calloc(BINS,sizeof(float));
@@ -323,19 +322,20 @@ struct PENEQUEMagnDisplay : OpaqueWidget {
 				tag *=2;
 			}
 
-			nvgBeginPath(vg);
-			nvgStrokeColor(vg, YELLOW_BIDOO);
-			nvgFillColor(vg, YELLOW_BIDOO);
-			nvgRect(vg, p.x, heightMagn - p.y, b.size.x * invBins, p.y);
-			y = module->phas[i+1]/M_PI;
-			p.x = b.pos.x + b.size.x * x;
-			p.y = heightPhas * 0.5 * y;
-			nvgRect(vg, p.x, heightMagn + graphGap + heightPhas * 0.5f - p.y, b.size.x * invBins, p.y);
-			nvgClosePath(vg);
-			nvgLineCap(vg, NVG_MITER);
-			nvgStrokeWidth(vg, 1);
-			nvgStroke(vg);
-			nvgFill(vg);
+			if (p.x < width) {
+				nvgBeginPath(vg);
+				nvgStrokeColor(vg, YELLOW_BIDOO);
+				nvgFillColor(vg, YELLOW_BIDOO);
+				nvgRect(vg, p.x, heightMagn - p.y, b.size.x * invBins, p.y);
+				y = module->phas[i+1]/M_PI;
+				p.y = heightPhas * 0.5 * y;
+				nvgRect(vg, p.x, heightMagn + graphGap + heightPhas * 0.5f - p.y, b.size.x * invBins, p.y);
+				nvgClosePath(vg);
+				nvgLineCap(vg, NVG_MITER);
+				nvgStrokeWidth(vg, 1);
+				nvgStroke(vg);
+				nvgFill(vg);
+			}			
 		}
 		nvgResetScissor(vg);
 		nvgRestore(vg);

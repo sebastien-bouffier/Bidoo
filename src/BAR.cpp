@@ -196,6 +196,7 @@ void draw(NVGcontext *vg) override {
 	float peakR = rescale(module->peakR,0.0f,-97.0f,0.0f,height);
 	float inL = rescale(module->in_L_dBFS,-97.0f,0.0f,0.0f,height);
 	float inR = rescale(module->in_R_dBFS,-97.0f,0.0f,0.0f,height);
+	nvgSave(vg);
 	nvgStrokeWidth(vg, 0.0f);
 	nvgBeginPath(vg);
 	nvgFillColor(vg, BLUE_BIDOO);
@@ -282,6 +283,7 @@ void draw(NVGcontext *vg) override {
 	nvgText(vg, 40.0f, height+63.0f, tMakeUp, NULL);
 	nvgText(vg, 75.0f, height+63.0f, tMix, NULL);
 	nvgText(vg, 107.0f, height+63.0f, tLookAhead, NULL);
+	nvgRestore(vg);
 }
 };
 
