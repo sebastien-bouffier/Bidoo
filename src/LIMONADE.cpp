@@ -29,8 +29,7 @@ struct WavOscillator {
 	Decimator<OVERSAMPLE, QUALITY> wavDecimator;
 	float pitchSlew = 0.0f;
 	int pitchSlewIndex = 0;
-	size_t pIndex;
-
+	size_t pIndex=0;
 	float wavBuffer[OVERSAMPLE] = {};
 
 	void setPitch(float pitchKnob, float pitchCv) {
@@ -76,14 +75,8 @@ struct WavOscillator {
 				}
 			}
 
-			if (index != pIndex) {
-				wavBuffer[i] = 1.66f * (interpolateLinear(wt[index], phase * 2047.f) + interpolateLinear(wt[pIndex], phase * 2047.f))* 0.5f;
-			}
-			else {
-				wavBuffer[i] = 1.66f * interpolateLinear(wt[index], phase * 2047.f);
-			}
+			wavBuffer[i] = 1.66f * interpolateLinear(wt[index], phase * 2047.f);
 			pIndex = index;
-
 			phase += deltaPhase / OVERSAMPLE;
 			phase = eucmod(phase, 1.0f);
 		}
@@ -103,32 +96,38 @@ inline void doWindowing(float *in, float *out) {
 
 void doFFT(float *frame, float *magn, float *phase) {
 	PFFFT_Setup *pffftSetup;
-	pffftSetup = pffft_new_setup(frameSize, PFFFT_COMPLEX);
+	pffftSetup = pffft_new_setup(frameSize, PFFFT_REAL);
 	float *fftIn;
 	float *fftOut;
-	fftIn = (float*)pffft_aligned_malloc(2*frameSize*sizeof(float));
-	fftOut = (float*)pffft_aligned_malloc(2*frameSize*sizeof(float));
+	fftIn = (float*)pffft_aligned_malloc(frameSize*sizeof(float));
+	fftOut = (float*)pffft_aligned_malloc(frameSize*sizeof(float));
 
 	memset(magn, 0, frameSize2*sizeof(float));
 	memset(phase, 0, frameSize2*sizeof(float));
-	memset(fftIn, 0, 2*frameSize*sizeof(float));
-	memset(fftOut, 0, 2*frameSize*sizeof(float));
+	memset(fftIn, 0, frameSize*sizeof(float));
+	memset(fftOut, 0, frameSize*sizeof(float));
 
-	for (size_t k = 0; k < frameSize; k++) {
-		fftIn[2*k] = frame[k];
-		fftIn[2*k+1] = frame[k];
-	}
+	// for (size_t k = 0; k < frameSize; k++) {
+	// 	fftIn[k] = frame[k];
+	// }
 
-	pffft_transform_ordered(pffftSetup, fftIn, fftOut, 0, PFFFT_FORWARD);
+	pffft_transform_ordered(pffftSetup, frame, fftOut, 0, PFFFT_FORWARD);
 
 	for (size_t k = 0; k < frameSize2; k++) {
-		if ((abs(fftOut[2*k])>1e-2f) && (abs(fftOut[2*k+1])>1e-2f)) {
+		if ((abs(fftOut[2*k])>1e-2f) || (abs(fftOut[2*k+1])>1e-2f)) {
 			float real = fftOut[2*k];
 			float imag = fftOut[2*k+1];
-			magn[k] = sqrt(real*real + imag*imag)/(frameSize2-1);
-			phase[k] = imag == 0 ? 0 : (atan2(imag,real)+(M_PI/4));
+			phase[k] = atan2(imag,real);
+			magn[k] = 2.0f*sqrt(real*real+imag*imag)/frameSize;
 		}
 	}
+
+  // ofstream myfile;
+  // myfile.open ("C:/Temp/fft.csv");
+	// for (size_t k = 0; k < frameSize; k++) {
+	// 	myfile << fftOut[k] << "\n";
+	// }
+  // myfile.close();
 
 	pffft_destroy_setup(pffftSetup);
 	pffft_aligned_free(fftIn);
@@ -137,25 +136,25 @@ void doFFT(float *frame, float *magn, float *phase) {
 
 void doIFFT(float *frame, float *magn, float *phase) {
 	PFFFT_Setup *pffftSetup;
-	pffftSetup = pffft_new_setup(frameSize, PFFFT_COMPLEX);
+	pffftSetup = pffft_new_setup(frameSize, PFFFT_REAL);
 	float *fftIn;
 	float *fftOut;
-	fftIn = (float*)pffft_aligned_malloc(2*frameSize*sizeof(float));
-	fftOut =  (float*)pffft_aligned_malloc(2*frameSize*sizeof(float));
+	fftIn = (float*)pffft_aligned_malloc(frameSize*sizeof(float));
+	fftOut =  (float*)pffft_aligned_malloc(frameSize*sizeof(float));
 
 	memset(frame, 0, frameSize*sizeof(float));
-	memset(fftIn, 0, 2*frameSize*sizeof(float));
-	memset(fftOut, 0, 2*frameSize*sizeof(float));
+	memset(fftIn, 0, frameSize*sizeof(float));
+	memset(fftOut, 0, frameSize*sizeof(float));
 
 	for (size_t k = 0; k < frameSize2; k++) {
-		fftIn[2*k] = magn[k]*cos(phase[k]+M_PI/4);
-		fftIn[2*k+1] = magn[k]*sin(phase[k]+M_PI/4);
+		fftIn[2*k] = magn[k]*cos(phase[k]);
+		fftIn[2*k+1] = magn[k]*sin(phase[k]);
 	}
 
 	pffft_transform_ordered(pffftSetup, fftIn, fftOut, 0, PFFFT_BACKWARD);
 
 	for (size_t k = 0; k < frameSize; k++) {
-		frame[k]=fftOut[2*k];
+		frame[k]=fftOut[k]*0.5f;
 	}
 
 	pffft_destroy_setup(pffftSetup);
@@ -178,7 +177,7 @@ void calcWavFromBins(float *magn, float *phase, float *wav) {
 	tWav = (float*)calloc(frameSize,sizeof(float));
 	for(size_t i = 0 ; i < frameSize; i++) {
 		for(size_t j = 0; j < frameSize2; j++) {
-			if (magn[j]>0) tWav[i] += magn[j] * sin(i*j*aCoeff + phase[j]);
+			if (magn[j]>0) tWav[i] += magn[j] * cos(i*j*aCoeff + phase[j]);
 		}
 	}
 	memcpy(wav,tWav,frameSize*sizeof(float));
@@ -197,8 +196,7 @@ struct threadData {
 	mutex *sLock;
 };
 
-void * threadSynthTask(threadData data)
-{
+void * threadSynthTask(threadData data) {
 	if (data.index>=0)
 		calcWavFromBins(*(data.magn+data.index),*(data.phas+data.index),*(data.wav+data.index));
 	else {
@@ -209,8 +207,7 @@ void * threadSynthTask(threadData data)
   return 0;
 }
 
-void * threadAnalysisTask(threadData data)
-{
+void * threadAnalysisTask(threadData data) {
 	size_t sCount = 0;
 	size_t fCount = 0;
 
@@ -227,8 +224,7 @@ void * threadAnalysisTask(threadData data)
   return 0;
 }
 
-void * threadChopSampleTask(threadData data)
-{
+void * threadChopSampleTask(threadData data) {
 	for(size_t i=0;(i<data.sc) && (i/frameSize<256);i++) {
 		data.wav[i/frameSize][i%frameSize] = data.sample[i];
 	}
@@ -236,23 +232,20 @@ void * threadChopSampleTask(threadData data)
   return 0;
 }
 
-void * threadWindowSampleTask(threadData data)
-{
+void * threadWindowSampleTask(threadData data) {
 	for (size_t i=0; i<*(data.nFrames); i++) {
 		doWindowing(*(data.wav+i),*(data.wav+i));
 	}
   return 0;
 }
 
-void * threadNormalizeFrame(threadData data)
-{
+void * threadNormalizeFrame(threadData data) {
 	normalize(data.wav[data.index]);
   return 0;
 }
 
-void * threadNormalizeWt(threadData data)
-{
-	float amp=1.0f;
+void * threadNormalizeWt(threadData data) {
+	float amp=0.0f;
 	for (size_t i=0; i<*(data.nFrames); i++) {
 		for (size_t j = 0; j < frameSize; j++) {
 			amp = max(amp,abs(data.wav[i][j]));
@@ -266,20 +259,17 @@ void * threadNormalizeWt(threadData data)
   return 0;
 }
 
-void * threadFFTSampleTask(threadData data)
-{
+void * threadFFTSampleTask(threadData data) {
 	doFFT(*(data.wav+data.index),*(data.magn+data.index),*(data.phas+data.index));
   return 0;
 }
 
-void * threadIFFTSampleTask(threadData data)
-{
+void * threadIFFTSampleTask(threadData data) {
 	doIFFT(*(data.wav+data.index),*(data.magn+data.index),*(data.phas+data.index));
   return 0;
 }
 
-void * threadMorphSampleTask(threadData data)
-{
+void * threadMorphSampleTask(threadData data) {
 	size_t inF = (float)(256 - (*(data.nFrames)))/(float)(*(data.nFrames)-1);
 	size_t tF = inF * (*(data.nFrames)-1) + (*(data.nFrames));
 
@@ -328,8 +318,7 @@ void * threadMorphSampleTask(threadData data)
   return 0;
 }
 
-void * threadMorphSpectrumTask(threadData data)
-{
+void * threadMorphSpectrumTask(threadData data) {
 	size_t inF = (float)(256 - (*(data.nFrames)))/(float)(*(data.nFrames)-1);
 	size_t tF = inF * (*(data.nFrames)-1) + (*(data.nFrames));
 
@@ -954,7 +943,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 					z = 50.0f * (float)(module->nFrames-n)/(float)module->nFrames;
 					x = 0.5f * (float)i * invNbBins;
 					if (module->displayMode==1) {
-						y = 0.5f * (module->magn[module->nFrames-1-n][i] * 0.48f + 0.5f);
+						y = module->magn[module->nFrames-1-n][i] * 0.48f;
 					}
 					else {
 						y = 0.5f * (module->phas[module->nFrames-1-n][i] * 0.48f / M_PI + 0.5f);

@@ -29,7 +29,7 @@ struct PitchShifter {
 		this->fftFrameSize = fftFrameSize;
 		this->osamp = osamp;
 		this->sampleRate = sampleRate;
-		pffftSetup = pffft_new_setup(fftFrameSize, PFFFT_COMPLEX);
+		pffftSetup = pffft_new_setup(fftFrameSize, PFFFT_REAL);
 		fftFrameSize2 = fftFrameSize/2;
 		stepSize = fftFrameSize/osamp;
 		freqPerBin = sampleRate/(double)fftFrameSize;
@@ -42,8 +42,8 @@ struct PitchShifter {
 
 		gInFIFO = (float*)calloc(fftFrameSize,sizeof(float));
 		gOutFIFO =  (float*)calloc(fftFrameSize,sizeof(float));
-		gFFTworksp = (float*)pffft_aligned_malloc(2*fftFrameSize*sizeof(float));
-		gFFTworkspOut =  (float*)pffft_aligned_malloc(2*fftFrameSize*sizeof(float));
+		gFFTworksp = (float*)pffft_aligned_malloc(fftFrameSize*sizeof(float));
+		gFFTworkspOut =  (float*)pffft_aligned_malloc(fftFrameSize*sizeof(float));
 		gLastPhase = (float*)calloc((fftFrameSize/2+1),sizeof(float));
 		gSumPhase = (float*)calloc((fftFrameSize/2+1),sizeof(float));
 		gOutputAccum = (float*)calloc(2*fftFrameSize,sizeof(float));
@@ -81,14 +81,13 @@ struct PitchShifter {
 				if (gRover >= fftFrameSize) {
 					gRover = inFifoLatency;
 
-					memset(gFFTworksp, 0, 2*fftFrameSize*sizeof(float));
-					memset(gFFTworkspOut, 0, 2*fftFrameSize*sizeof(float));
+					memset(gFFTworksp, 0, fftFrameSize*sizeof(float));
+					memset(gFFTworkspOut, 0, fftFrameSize*sizeof(float));
 
 					/* do windowing and re,im interleave */
 					for (k = 0; k < fftFrameSize;k++) {
 						window = -0.5 * cos(2.0f * M_PI * (double)k * invFftFrameSize) + 0.5f;
-						gFFTworksp[2*k] = gInFIFO[k] * window;
-						gFFTworksp[2*k+1] = gInFIFO[k] * window;
+						gFFTworksp[k] = gInFIFO[k] * window;
 					}
 
 					/* ***************** ANALYSIS ******************* */
@@ -145,8 +144,8 @@ struct PitchShifter {
 						}
 					}
 
-					memset(gFFTworksp, 0, 2*fftFrameSize*sizeof(float));
-					memset(gFFTworkspOut, 0, 2*fftFrameSize*sizeof(float));
+					memset(gFFTworksp, 0, fftFrameSize*sizeof(float));
+					memset(gFFTworkspOut, 0, fftFrameSize*sizeof(float));
 
 					/* ***************** SYNTHESIS ******************* */
 					/* this is the synthesis step */
@@ -177,8 +176,8 @@ struct PitchShifter {
 						gFFTworksp[2*k+1] = magn*sin(phase);
 					}
 
-					/* zero negative frequencies */
-					for (k = fftFrameSize+2; k < 2*fftFrameSize; k++) gFFTworksp[k] = 0.0f;
+					// /* zero negative frequencies */
+					// for (k = fftFrameSize+2; k < 2*fftFrameSize; k++) gFFTworksp[k] = 0.0f;
 
 					/* do inverse transform */
 					pffft_transform_ordered(pffftSetup, gFFTworksp, gFFTworkspOut , NULL, PFFFT_BACKWARD);
@@ -186,7 +185,7 @@ struct PitchShifter {
 					/* do windowing and add to output accumulator */
 					for(k=0; k < fftFrameSize; k++) {
 						window = -0.5f * cos(2.0f * M_PI *(double)k * invFftFrameSize) + 0.5f;
-						gOutputAccum[k] += 2.0f * window * gFFTworkspOut[2*k] * invFftFrameSize2 * invOsamp;
+						gOutputAccum[k] += 2.0f * window * gFFTworkspOut[k] * invFftFrameSize2 * invOsamp;
 					}
 					for (k = 0; k < stepSize; k++) gOutFIFO[k] = gOutputAccum[k];
 

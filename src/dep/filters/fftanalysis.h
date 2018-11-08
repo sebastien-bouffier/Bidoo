@@ -26,7 +26,7 @@ struct FfftAnalysis {
 		this->fftFrameSize = fftFrameSize;
 		this->osamp = osamp;
 		this->sampleRate = sampleRate;
-		pffftSetup = pffft_new_setup(fftFrameSize, PFFFT_COMPLEX);
+		pffftSetup = pffft_new_setup(fftFrameSize, PFFFT_REAL);
 		fftFrameSize2 = fftFrameSize/2;
 		stepSize = fftFrameSize/osamp;
 		freqPerBin = sampleRate/(double)fftFrameSize;
@@ -38,8 +38,8 @@ struct FfftAnalysis {
 		invPi = 1.0f/M_PI;
 
 		gInFIFO = (float*)calloc(fftFrameSize,sizeof(float));
-		gFFTworksp = (float*)pffft_aligned_malloc(2*fftFrameSize*sizeof(float));
-		gFFTworkspOut =  (float*)pffft_aligned_malloc(2*fftFrameSize*sizeof(float));
+		gFFTworksp = (float*)pffft_aligned_malloc(fftFrameSize*sizeof(float));
+		gFFTworkspOut =  (float*)pffft_aligned_malloc(fftFrameSize*sizeof(float));
 		gLastPhase = (float*)calloc((fftFrameSize/2+1),sizeof(float));
 		gAnaFreq = (float*)calloc(fftFrameSize,sizeof(float));
 		gAnaMagn = (float*)calloc(fftFrameSize,sizeof(float));
@@ -67,14 +67,13 @@ struct FfftAnalysis {
 				if (gRover >= fftFrameSize) {
 					gRover = inFifoLatency;
 
-					memset(gFFTworksp, 0, 2*fftFrameSize*sizeof(float));
-					memset(gFFTworkspOut, 0, 2*fftFrameSize*sizeof(float));
+					memset(gFFTworksp, 0, fftFrameSize*sizeof(float));
+					memset(gFFTworkspOut, 0, fftFrameSize*sizeof(float));
 
 					/* do windowing and re,im interleave */
 					for (k = 0; k < fftFrameSize;k++) {
 						window = -0.5 * cos(2.0f * M_PI * (double)k * invFftFrameSize) + 0.5f;
-						gFFTworksp[2*k] = gInFIFO[k] * window;
-						gFFTworksp[2*k+1] = gInFIFO[k] * window;
+						gFFTworksp[k] = gInFIFO[k] * window;
 					}
 
 					/* ***************** ANALYSIS ******************* */
