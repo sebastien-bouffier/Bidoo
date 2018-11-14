@@ -7,6 +7,7 @@
 #include "dsp/fir.hpp"
 #include "osdialog.h"
 #include "dep/dr_wav/dr_wav.h"
+#include "dep/osc/wtOsc.h"
 #include "../pffft/pffft.h"
 #include <iostream>
 #include <fstream>
@@ -17,359 +18,66 @@ using namespace std;
 #define aCoeff 2.0*M_PI/frameSize
 #define frameSize2 1024
 
-template <int OVERSAMPLE, int QUALITY>
-struct WavOscillator {
-	bool soft = false;
-	float lastSyncValue = 0.0f;
-	float phase = 0.0f;
-	float freq;
-	float pitch;
-	bool syncEnabled = false;
-	bool syncDirection = false;
-	Decimator<OVERSAMPLE, QUALITY> wavDecimator;
-	float pitchSlew = 0.0f;
-	int pitchSlewIndex = 0;
-	size_t pIndex=0;
-	float wavBuffer[OVERSAMPLE] = {};
-
-	void setPitch(float pitchKnob, float pitchCv) {
-		// Compute frequency
-		pitch = pitchKnob;
-		pitch = roundf(pitch);
-		pitch += pitchCv;
-		// Note C4
-		freq = 261.626f * powf(2.0f, pitch / 12.0f);
-	}
-
-	void process(float deltaTime, float syncValue, float **wt, size_t index) {
-		// Advance phase
-		float deltaPhase = clamp(freq * deltaTime, 1e-6, 0.5f);
-
-		// Detect sync
-		int syncIndex = -1; // Index in the oversample loop where sync occurs [0, OVERSAMPLE)
-		float syncCrossing = 0.0f; // Offset that sync occurs [0.0f, 1.0f)
-		if (syncEnabled) {
-			syncValue -= 0.01f;
-			if (syncValue > 0.0f && lastSyncValue <= 0.0f) {
-				float deltaSync = syncValue - lastSyncValue;
-				syncCrossing = 1.0f - syncValue / deltaSync;
-				syncCrossing *= OVERSAMPLE;
-				syncIndex = (int)syncCrossing;
-				syncCrossing -= syncIndex;
-			}
-			lastSyncValue = syncValue;
-		}
-
-		if (syncDirection)
-			deltaPhase *= -1.0f;
-
-		for (int i = 0; i < OVERSAMPLE; i++) {
-			if (syncIndex == i) {
-				if (soft) {
-					syncDirection = !syncDirection;
-					deltaPhase *= -1.0f;
-				}
-				else {
-					// phase = syncCrossing * deltaPhase / OVERSAMPLE;
-					phase = 0.0f;
-				}
-			}
-
-			wavBuffer[i] = 1.66f * interpolateLinear(wt[index], phase * 2047.f);
-			pIndex = index;
-			phase += deltaPhase / OVERSAMPLE;
-			phase = eucmod(phase, 1.0f);
-		}
-	}
-
-	float wav() {
-		return wavDecimator.process(wavBuffer);
-	}
-};
-
-inline void doWindowing(float *in, float *out) {
-	for (size_t k = 0; k < frameSize;k++) {
-		float window = min(-10.0f * cos(2.0f * M_PI * (double)k / frameSize) + 10.0f, 1.0f);
-		out[k] = in[k] * window;
-	}
-}
-
-void doFFT(float *frame, float *magn, float *phase) {
-	PFFFT_Setup *pffftSetup;
-	pffftSetup = pffft_new_setup(frameSize, PFFFT_REAL);
-	float *fftIn;
-	float *fftOut;
-	fftIn = (float*)pffft_aligned_malloc(frameSize*sizeof(float));
-	fftOut = (float*)pffft_aligned_malloc(frameSize*sizeof(float));
-
-	memset(magn, 0, frameSize2*sizeof(float));
-	memset(phase, 0, frameSize2*sizeof(float));
-	memset(fftIn, 0, frameSize*sizeof(float));
-	memset(fftOut, 0, frameSize*sizeof(float));
-
-	// for (size_t k = 0; k < frameSize; k++) {
-	// 	fftIn[k] = frame[k];
-	// }
-
-	pffft_transform_ordered(pffftSetup, frame, fftOut, 0, PFFFT_FORWARD);
-
-	for (size_t k = 0; k < frameSize2; k++) {
-		if ((abs(fftOut[2*k])>1e-2f) || (abs(fftOut[2*k+1])>1e-2f)) {
-			float real = fftOut[2*k];
-			float imag = fftOut[2*k+1];
-			phase[k] = atan2(imag,real);
-			magn[k] = 2.0f*sqrt(real*real+imag*imag)/frameSize;
-		}
-	}
-
-  // ofstream myfile;
-  // myfile.open ("C:/Temp/fft.csv");
-	// for (size_t k = 0; k < frameSize; k++) {
-	// 	myfile << fftOut[k] << "\n";
-	// }
-  // myfile.close();
-
-	pffft_destroy_setup(pffftSetup);
-	pffft_aligned_free(fftIn);
-	pffft_aligned_free(fftOut);
-}
-
-void doIFFT(float *frame, float *magn, float *phase) {
-	PFFFT_Setup *pffftSetup;
-	pffftSetup = pffft_new_setup(frameSize, PFFFT_REAL);
-	float *fftIn;
-	float *fftOut;
-	fftIn = (float*)pffft_aligned_malloc(frameSize*sizeof(float));
-	fftOut =  (float*)pffft_aligned_malloc(frameSize*sizeof(float));
-
-	memset(frame, 0, frameSize*sizeof(float));
-	memset(fftIn, 0, frameSize*sizeof(float));
-	memset(fftOut, 0, frameSize*sizeof(float));
-
-	for (size_t k = 0; k < frameSize2; k++) {
-		fftIn[2*k] = magn[k]*cos(phase[k]);
-		fftIn[2*k+1] = magn[k]*sin(phase[k]);
-	}
-
-	pffft_transform_ordered(pffftSetup, fftIn, fftOut, 0, PFFFT_BACKWARD);
-
-	for (size_t k = 0; k < frameSize; k++) {
-		frame[k]=fftOut[k]*0.5f;
-	}
-
-	pffft_destroy_setup(pffftSetup);
-	pffft_aligned_free(fftIn);
-	pffft_aligned_free(fftOut);
-}
-
-void normalize(float *wav) {
-	float amp = 0.0f;
-	for(size_t i = 0 ; i < frameSize; i++) {
-		amp = max(amp,abs(wav[i]));
-	}
-	for(size_t i=0 ; i<frameSize; i++) {
-		wav[i] /= amp;
-	}
-}
-
-void calcWavFromBins(float *magn, float *phase, float *wav) {
-	float *tWav;
-	tWav = (float*)calloc(frameSize,sizeof(float));
-	for(size_t i = 0 ; i < frameSize; i++) {
-		for(size_t j = 0; j < frameSize2; j++) {
-			if (magn[j]>0) tWav[i] += magn[j] * cos(i*j*aCoeff + phase[j]);
-		}
-	}
-	memcpy(wav,tWav,frameSize*sizeof(float));
-	free(tWav);
-}
-
 struct threadData {
-	float **magn;
-	float **phas;
-	float **wav;
+	wtOscillator *osc;
 	int index;
 	float *sample;
-	size_t sr;
 	size_t sc;
-	size_t *nFrames;
-	mutex *sLock;
 };
 
-void * threadSynthTask(threadData data) {
+void * tSynthetize(threadData data) {
 	if (data.index>=0)
-		calcWavFromBins(*(data.magn+data.index),*(data.phas+data.index),*(data.wav+data.index));
+		data.osc->table.frames[data.index].calcWav();
 	else {
-		for (size_t i=0; i<*(data.nFrames);i++) {
-			calcWavFromBins(*(data.magn+i),*(data.phas+i),*(data.wav+i));
+		for (size_t i=0; i<data.osc->table.frames.size(); i++) {
+			data.osc->table.frames[i].calcWav();
 		}
 	}
   return 0;
 }
 
-void * threadAnalysisTask(threadData data) {
-	size_t sCount = 0;
-	size_t fCount = 0;
-
-	while ((sCount<(data.sc-frameSize)) && (fCount<*(data.nFrames))) {
-		doFFT(data.sample+sCount, data.magn[fCount], data.phas[fCount]);
-		sCount += frameSize;
-		fCount++;
-	}
-
-	for(size_t i=0; i<*(data.nFrames);i++) {
-		calcWavFromBins(*(data.magn+i),*(data.phas+i),*(data.wav+i));
-	}
-
+void * tChopSample(threadData data) {
+	data.osc->table.loadSample(data.sc, 2048, false, data.sample);
   return 0;
 }
 
-void * threadChopSampleTask(threadData data) {
-	for(size_t i=0;(i<data.sc) && (i/frameSize<256);i++) {
-		data.wav[i/frameSize][i%frameSize] = data.sample[i];
-	}
-	*(data.nFrames)=min(data.sc/frameSize,256);
+void * tWindowSample(threadData data) {
+	data.osc->table.window();
   return 0;
 }
 
-void * threadWindowSampleTask(threadData data) {
-	for (size_t i=0; i<*(data.nFrames); i++) {
-		doWindowing(*(data.wav+i),*(data.wav+i));
-	}
+void * tSmoothSample(threadData data) {
+	data.osc->table.smooth();
   return 0;
 }
 
-void * threadNormalizeFrame(threadData data) {
-	normalize(data.wav[data.index]);
+void * tNormalizeFrame(threadData data) {
+	data.osc->table.frames[data.index].normalize();
   return 0;
 }
 
-void * threadNormalizeWt(threadData data) {
-	float amp=0.0f;
-	for (size_t i=0; i<*(data.nFrames); i++) {
-		for (size_t j = 0; j < frameSize; j++) {
-			amp = max(amp,abs(data.wav[i][j]));
-		}
-	}
-	for (size_t i=0; i<*(data.nFrames); i++) {
-		for (size_t j = 0; j < frameSize; j++) {
-			data.wav[i][j] /= amp;
-		}
-	}
+void * tNormalizeWt(threadData data) {
+	data.osc->table.normalize();
   return 0;
 }
 
-void * threadFFTSampleTask(threadData data) {
-	doFFT(*(data.wav+data.index),*(data.magn+data.index),*(data.phas+data.index));
+void * tFFTSample(threadData data) {
+	data.osc->table.frames[data.index].calcFFT();
   return 0;
 }
 
-void * threadIFFTSampleTask(threadData data) {
-	doIFFT(*(data.wav+data.index),*(data.magn+data.index),*(data.phas+data.index));
+void * tIFFTSample(threadData data) {
+	data.osc->table.frames[data.index].calcIFFT();
   return 0;
 }
 
-void * threadMorphSampleTask(threadData data) {
-	size_t inF = (float)(256 - (*(data.nFrames)))/(float)(*(data.nFrames)-1);
-	size_t tF = inF * (*(data.nFrames)-1) + (*(data.nFrames));
-
-	float **tMagn = (float **)calloc(*(data.nFrames), sizeof(float*));
-	float **tPhas = (float **)calloc(*(data.nFrames), sizeof(float*));
-	float **tWav = (float **)calloc(*(data.nFrames), sizeof(float*));
-
-	for (size_t i=0; i<*(data.nFrames); i++) {
-		*(tMagn+i) = (float*)calloc(frameSize2,sizeof(float));
-		memcpy(*(tMagn+i),*(data.magn+i),frameSize2*sizeof(float));
-		*(tPhas+i) = (float*)calloc(frameSize2,sizeof(float));
-		memcpy(*(tPhas+i),*(data.phas+i),frameSize2*sizeof(float));
-		*(tWav+i) = (float*)calloc(frameSize, sizeof(float));
-		memcpy(*(tWav+i),*(data.wav+i),frameSize*sizeof(float));
-	}
-
-	size_t wPos=0;
-	for (size_t i=0; i<*(data.nFrames)-1; i++) {
-		memcpy(*(data.magn+wPos),*(tMagn+i),frameSize2*sizeof(float));
-		memcpy(*(data.phas+wPos),*(tPhas+i),frameSize2*sizeof(float));
-		memcpy(*(data.wav+wPos),*(tWav+i),frameSize*sizeof(float));
-		wPos++;
-		for (size_t j=0; j<inF; j++) {
-			for (size_t k=0; k<frameSize; k++) {
-				data.wav[wPos][k] = rescale(j,0,inF,tWav[i][k],tWav[i+1][k]);
-			}
-			wPos++;
-		}
-	}
-	memcpy(*(data.magn+wPos),*(tMagn+(*(data.nFrames)-1)),frameSize2*sizeof(float));
-	memcpy(*(data.phas+wPos),*(tPhas+(*(data.nFrames)-1)),frameSize2*sizeof(float));
-	memcpy(*(data.wav+wPos),*(tWav+(*(data.nFrames)-1)),frameSize*sizeof(float));
-
-	for (size_t i=0; i<*(data.nFrames)-1; i++) {
-		delete(*(tMagn+i));
-		delete(*(tPhas+i));
-		delete(*(tWav+i));
-	}
-
-	delete(tMagn);
-	delete(tPhas);
-	delete(tWav);
-
-	*(data.nFrames) = tF;
-
+void * tMorphSample(threadData data) {
+	data.osc->table.morphFrames();
   return 0;
 }
 
-void * threadMorphSpectrumTask(threadData data) {
-	size_t inF = (float)(256 - (*(data.nFrames)))/(float)(*(data.nFrames)-1);
-	size_t tF = inF * (*(data.nFrames)-1) + (*(data.nFrames));
-
-	float **tMagn = (float **)calloc(*(data.nFrames), sizeof(float*));
-	float **tPhas = (float **)calloc(*(data.nFrames), sizeof(float*));
-	float **tWav = (float **)calloc(*(data.nFrames), sizeof(float*));
-
-	for (size_t i=0; i<*(data.nFrames); i++) {
-		doFFT(*(data.wav+i),*(data.magn+i),*(data.phas+i));
-		*(tMagn+i) = (float*)calloc(frameSize2,sizeof(float));
-		memcpy(*(tMagn+i),*(data.magn+i),frameSize2*sizeof(float));
-		*(tPhas+i) = (float*)calloc(frameSize2,sizeof(float));
-		memcpy(*(tPhas+i),*(data.phas+i),frameSize2*sizeof(float));
-		*(tWav+i) = (float*)calloc(frameSize, sizeof(float));
-		memcpy(*(tWav+i),*(data.wav+i),frameSize*sizeof(float));
-	}
-
-	size_t wPos=0;
-	for (size_t i=0; i<*(data.nFrames)-1; i++) {
-		memcpy(*(data.magn+wPos),*(tMagn+i),frameSize2*sizeof(float));
-		memcpy(*(data.phas+wPos),*(tPhas+i),frameSize2*sizeof(float));
-		memcpy(*(data.wav+wPos),*(tWav+i),frameSize*sizeof(float));
-		wPos++;
-		for (size_t j=0; j<inF; j++) {
-			for (size_t k=0; k<frameSize2; k++) {
-				if ((tMagn[i][k] != 0) && (tMagn[i+1][k] !=0)) {
-					data.magn[wPos][k] = rescale(j,0,inF,tMagn[i][k],tMagn[i+1][k]);
-					data.phas[wPos][k] = rescale(j,0,inF,tPhas[i][k],tPhas[i+1][k]);
-				}
-			}
-			calcWavFromBins(*(data.magn+wPos),*(data.phas+wPos),*(data.wav+wPos));
-			//doIFFT(*(data.wav+wPos),*(data.magn+wPos),*(data.phas+wPos));
-			wPos++;
-		}
-	}
-	memcpy(*(data.magn+wPos),*(tMagn+(*(data.nFrames)-1)),frameSize2*sizeof(float));
-	memcpy(*(data.phas+wPos),*(tPhas+(*(data.nFrames)-1)),frameSize2*sizeof(float));
-	memcpy(*(data.wav+wPos),*(tWav+(*(data.nFrames)-1)),frameSize*sizeof(float));
-
-	for (size_t i=0; i<*(data.nFrames)-1; i++) {
-		delete(*(tMagn+i));
-		delete(*(tPhas+i));
-		delete(*(tWav+i));
-	}
-
-	delete(tMagn);
-	delete(tPhas);
-	delete(tWav);
-
-	*(data.nFrames) = tF;
-
+void * tMorphSpectrum(threadData data) {
+	data.osc->table.morphSpectrum();
 	return 0;
 }
 
@@ -381,12 +89,11 @@ struct LIMONADE : Module {
 		FINE_PARAM,
 		FM_PARAM,
 		INDEX_PARAM,
-		PWINDEX_PARAM,
-		PWINDEXATT_PARAM,
+		wtIndex_PARAM,
+		wtIndexATT_PARAM,
 		COPYPASTE_PARAM,
 		ADDFRAME_PARAM,
 		DELETEFRAME_PARAM,
-		DISPLAYMODE_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -394,7 +101,7 @@ struct LIMONADE : Module {
 		FM_INPUT = PITCH_INPUT+4,
 		SYNC_INPUT,
 		SYNCMODE_INPUT,
-		PWINDEX_INPUT,
+		wtIndex_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -406,10 +113,6 @@ struct LIMONADE : Module {
 		NUM_LIGHTS
 	};
 
-	size_t nFrames = 0;
-  float **magn;
-  float **phas;
-  float **wav;
 	thread sThread;
 	threadData sData;
 	mutex sLock;
@@ -417,38 +120,20 @@ struct LIMONADE : Module {
 	SchmittTrigger copyTrigger;
 	SchmittTrigger addFrameTrigger;
 	SchmittTrigger deleteFrameTrigger;
-	SchmittTrigger displayModeTrigger;
-	WavOscillator<16, 16> oscillator;
+
 	size_t index = 0;
-	size_t pWIndex = 0;
+	size_t wtIndex = 0;
 	int cpyPstIndex = -1;
 	string lastPath;
-	int displayMode = 0;
+
+	wtOscillator osc;
 
 	LIMONADE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-		magn = (float **)calloc(256, sizeof(float*));
-		phas = (float **)calloc(256, sizeof(float*));
-		wav = (float **)calloc(256, sizeof(float*));
-
-		for (size_t i=0; i<256; i++) {
-			*(magn+i) = (float*)calloc(frameSize2,sizeof(float));
-			*(phas+i) = (float*)calloc(frameSize2,sizeof(float));
-			*(wav+i) = (float*)calloc(frameSize, sizeof(float));
-		}
-		nFrames = 1;
 		syncThreadData();
 	}
 
   ~LIMONADE() {
-		for (size_t i=0; i<256; i++) {
-			delete(*(magn+i));
-			delete(*(phas+i));
-			delete(*(wav+i));
-		}
 
-    delete(magn);
-		delete(phas);
-		delete(wav);
 	}
 
 	void step() override;
@@ -468,32 +153,31 @@ struct LIMONADE : Module {
 	json_t *toJson() override {
 		json_t *rootJ = json_object();
 		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
-		json_object_set_new(rootJ, "nFrames", json_integer(nFrames));
 
-		json_t *magnSJ = json_array();
-		json_t *phasSJ = json_array();
-		//json_t *wavSJ = json_array();
-
-		for (size_t i=0; i<nFrames; i++) {
-			json_t *magnI = json_array();
-			json_t *phasI = json_array();
-			//json_t *wavI = json_array();
-			for (size_t j=0; j<frameSize2; j++) {
-				json_t *magnJ = json_real(magn[i][j]);
-				json_array_append_new(magnI, magnJ);
-				json_t *phasJ = json_real(phas[i][j]);
-				json_array_append_new(phasI, phasJ);
-				// json_t *wavJ = json_real(wav[i][j]);
-				// json_array_append_new(wavI, wavJ);
-			}
-			json_array_append_new(magnSJ, magnI);
-			json_array_append_new(phasSJ, phasI);
-			//json_array_append_new(wavSJ, wavI);
-		}
-
-		json_object_set_new(rootJ, "magnS", magnSJ);
-		json_object_set_new(rootJ, "phasS", phasSJ);
-		//json_object_set_new(rootJ, "wavS", wavSJ);
+		// json_t *magnSJ = json_array();
+		// json_t *phasSJ = json_array();
+		// //json_t *wavSJ = json_array();
+		//
+		// for (size_t i=0; i<osc.table.frames.size(); i++) {
+		// 	json_t *magnI = json_array();
+		// 	json_t *phasI = json_array();
+		// 	//json_t *wavI = json_array();
+		// 	for (size_t j=0; j<frameSize2; j++) {
+		// 		json_t *magnJ = json_real(magn[i][j]);
+		// 		json_array_append_new(magnI, magnJ);
+		// 		json_t *phasJ = json_real(phas[i][j]);
+		// 		json_array_append_new(phasI, phasJ);
+		// 		// json_t *wavJ = json_real(wav[i][j]);
+		// 		// json_array_append_new(wavI, wavJ);
+		// 	}
+		// 	json_array_append_new(magnSJ, magnI);
+		// 	json_array_append_new(phasSJ, phasI);
+		// 	//json_array_append_new(wavSJ, wavI);
+		// }
+		//
+		// json_object_set_new(rootJ, "magnS", magnSJ);
+		// json_object_set_new(rootJ, "phasS", phasSJ);
+		// //json_object_set_new(rootJ, "wavS", wavSJ);
 		return rootJ;
 	}
 
@@ -504,116 +188,89 @@ struct LIMONADE : Module {
 			loadSample(lastPath);
 		}
 		else {
-			json_t *nFramesJ = json_object_get(rootJ, "nFrames");
-			if (nFramesJ) {
-				nFrames = json_integer_value(nFramesJ);
-			}
-
-			json_t *magnSJ = json_object_get(rootJ, "magnS");
-			json_t *phasSJ = json_object_get(rootJ, "phasS");
-			//json_t *wavSJ = json_object_get(rootJ, "wavS");
-			if (magnSJ && phasSJ) {
-				for (size_t i=0; i<nFrames; i++) {
-					json_t *magnI = json_array_get(magnSJ, i);
-					json_t *phasI = json_array_get(phasSJ, i);
-					//json_t *wavI = json_array_get(wavSJ, i);
-					if (magnI && phasI) {
-						for (size_t j=0; j<frameSize2; j++) {
-							magn[i][j] = json_number_value(json_array_get(magnI, j));
-							phas[i][j] = json_number_value(json_array_get(phasI, j));
-							//wav[i][j] = json_number_value(json_array_get(wavI, j));
-						}
-					}
-				}
-			}
+			// json_t *nFramesJ = json_object_get(rootJ, "osc.table.frames.size()");
+			// if (nFramesJ) {
+			// 	osc.table.frames.size() = json_integer_value(nFramesJ);
+			// }
+			//
+			// json_t *magnSJ = json_object_get(rootJ, "magnS");
+			// json_t *phasSJ = json_object_get(rootJ, "phasS");
+			// //json_t *wavSJ = json_object_get(rootJ, "wavS");
+			// if (magnSJ && phasSJ) {
+			// 	for (size_t i=0; i<osc.table.frames.size(); i++) {
+			// 		json_t *magnI = json_array_get(magnSJ, i);
+			// 		json_t *phasI = json_array_get(phasSJ, i);
+			// 		//json_t *wavI = json_array_get(wavSJ, i);
+			// 		if (magnI && phasI) {
+			// 			for (size_t j=0; j<frameSize2; j++) {
+			// 				magn[i][j] = json_number_value(json_array_get(magnI, j));
+			// 				phas[i][j] = json_number_value(json_array_get(phasI, j));
+			// 				//wav[i][j] = json_number_value(json_array_get(wavI, j));
+			// 			}
+			// 		}
+			// 	}
+			// }
 		}
 	}
 
 	void randomize() override {
-		for (size_t i=0; i<frameSize; i++) {
-			magn[index][i]=randomUniform()*100.0f;
-			phas[index][i]=randomUniform()*M_PI;
-		}
-		updateWaveTable(index);
+		// for (size_t i=0; i<frameSize; i++) {
+		// 	magn[index][i]=randomUniform()*100.0f;
+		// 	phas[index][i]=randomUniform()*M_PI;
+		// }
+		// updateWaveTable(index);
 	}
 
 	void reset() override {
-		for (size_t i=0; i<256; i++) {
-			memset(magn[i], 0, frameSize2*sizeof(float));
-			memset(phas[i], 0, frameSize2*sizeof(float));
-			memset(wav[i], 0, frameSize*sizeof(float));
-		}
-		lastPath = "";
-		nFrames = 1;
+		// for (size_t i=0; i<256; i++) {
+		// 	memset(magn[i], 0, frameSize2*sizeof(float));
+		// 	memset(phas[i], 0, frameSize2*sizeof(float));
+		// 	memset(wav[i], 0, frameSize*sizeof(float));
+		// }
+		// lastPath = "";
+		// osc.table.frames.size() = 1;
 	}
 };
 
 inline void LIMONADE::syncThreadData() {
-	sData.magn = magn;
-	sData.phas = phas;
-	sData.wav = wav;
-	sData.nFrames = &nFrames;
-	sData.sLock = &sLock;
+	sData.osc = &osc;
 }
 
 inline void LIMONADE::updateWaveTable(size_t i) {
 	syncThreadData();
 	sData.index = i;
-	sThread = thread(threadSynthTask, std::ref(sData));
+	sThread = thread(tSynthetize, std::ref(sData));
 	sThread.detach();
 }
 
 inline void LIMONADE::fftSample(size_t i) {
-	syncThreadData();
 	sData.index = i;
-	sThread = thread(threadFFTSampleTask, std::ref(sData));
+	sThread = thread(tFFTSample, std::ref(sData));
 	sThread.detach();
 }
 
 inline void LIMONADE::ifftSample(size_t i) {
-	syncThreadData();
 	sData.index = i;
-	sThread = thread(threadIFFTSampleTask, std::ref(sData));
+	sThread = thread(tIFFTSample, std::ref(sData));
 	sThread.detach();
 }
 
 inline void LIMONADE::morphSample() {
-	syncThreadData();
-	sThread = thread(threadMorphSampleTask, std::ref(sData));
+	sThread = thread(tMorphSample, std::ref(sData));
 	sThread.detach();
 }
 
 inline void LIMONADE::morphSpectrum() {
-	syncThreadData();
-	sThread = thread(threadMorphSpectrumTask, std::ref(sData));
+	sThread = thread(tMorphSpectrum, std::ref(sData));
 	sThread.detach();
 }
 
 void LIMONADE::addFrame(size_t i) {
-	if (nFrames<256) {
-		for (size_t j=255; (j>=i) && (j>0); j--) {
-			memcpy(*(magn+j),*(magn+j-1),frameSize2*sizeof(float));
-			memcpy(*(phas+j),*(phas+j-1),frameSize2*sizeof(float));
-			memcpy(*(wav+j),*(wav+j-1),frameSize*sizeof(float));
-		}
-		memset(phas[i], 0, frameSize2*sizeof(float));
-	  memset(magn[i], 0, frameSize2*sizeof(float));
-		memset(wav[i], 0, frameSize*sizeof(float));
-		nFrames++;
-		index++;
-	}
+	osc.table.addFrame(i);
 }
 
 void LIMONADE::deleteFrame(size_t i) {
-	if (nFrames>1) {
-		for (size_t j=i; j<255; j++) {
-			memcpy(*(magn+j),*(magn+j+1),frameSize2*sizeof(float));
-			memcpy(*(phas+j),*(phas+j+1),frameSize2*sizeof(float));
-			memcpy(*(wav+j),*(wav+j+1),frameSize*sizeof(float));
-		}
-		nFrames--;
-		index--;
-	}
+	osc.table.removeFrame(i);
 }
 
 void LIMONADE::loadSample(std::string path) {
@@ -623,13 +280,6 @@ void LIMONADE::loadSample(std::string path) {
 	float* pSampleData;
   pSampleData = drwav_open_and_read_file_f32(path.c_str(), &c, &sr, &sc);
   if (pSampleData != NULL)  {
-		sData.sr = sr;
-
-		for (size_t i=0; i<256; i++) {
-			memset(magn[i], 0, frameSize2*sizeof(float));
-			memset(phas[i], 0, frameSize2*sizeof(float));
-			memset(wav[i], 0, frameSize*sizeof(float));
-		}
 		if (sData.sample != NULL) {
 			delete(sData.sample);
 		}
@@ -639,16 +289,16 @@ void LIMONADE::loadSample(std::string path) {
 				sData.sample[i] = pSampleData[i];
 			}
 			sData.sc = sc;
-			sThread = thread(threadChopSampleTask, std::ref(sData));
+			sThread = thread(tChopSample, std::ref(sData));
 			sThread.detach();
 		}
 		else if (c == 2) {
-			sData.sample = (float*)calloc(sc/2,sizeof(float));
-			for (unsigned int i=0; i<sc/2; i++) {
+			sData.sc = sc/2;
+			sData.sample = (float*)calloc(sData.sc,sizeof(float));
+			for (unsigned int i=0; i<sData.sc; i++) {
 				sData.sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
 			}
-			sData.sc = sc/2;
-			sThread = thread(threadChopSampleTask, std::ref(sData));
+			sThread = thread(tChopSample, std::ref(sData));
 			sThread.detach();
 		}
 		drwav_free(pSampleData);
@@ -656,27 +306,22 @@ void LIMONADE::loadSample(std::string path) {
 }
 
 void LIMONADE::windowSample() {
-	sThread = thread(threadWindowSampleTask, std::ref(sData));
+	sThread = thread(tWindowSample, std::ref(sData));
 	sThread.detach();
 }
 
 void LIMONADE::normalizeFrame(size_t i) {
 	sData.index = i;
-	sThread = thread(threadNormalizeFrame, std::ref(sData));
+	sThread = thread(tNormalizeFrame, std::ref(sData));
 	sThread.detach();
 }
 
 void LIMONADE::normalizeWt() {
-	sThread = thread(threadNormalizeWt, std::ref(sData));
+	sThread = thread(tNormalizeWt, std::ref(sData));
 	sThread.detach();
 }
 
 void LIMONADE::step() {
-	if (displayModeTrigger.process(params[DISPLAYMODE_PARAM].value))
-	{
-		displayMode = (displayMode+1)%3;
-	}
-
 	if (addFrameTrigger.process(params[ADDFRAME_PARAM].value))
 	{
 		addFrame(index);
@@ -689,41 +334,25 @@ void LIMONADE::step() {
 
 	if (resetTrigger.process(params[RESET_PARAM].value))
 	{
-		memset(phas[index], 0, frameSize2*sizeof(float));
-	  memset(magn[index], 0, frameSize2*sizeof(float));
-		updateWaveTable(index);
+		osc.table.reset();
 	}
 
-	if (copyTrigger.process(params[COPYPASTE_PARAM].value))
-	{
-		if (cpyPstIndex<0) {
-			cpyPstIndex = index;
-			lights[COPYPASTE_LIGHT].value=10.0f;
-		}
-		else {
-			memcpy(*(magn+index),*(magn+cpyPstIndex),frameSize2*sizeof(float));
-			memcpy(*(phas+index),*(phas+cpyPstIndex),frameSize2*sizeof(float));
-			updateWaveTable(index);
-			cpyPstIndex = -1;
-			lights[COPYPASTE_LIGHT].value=0.0f;
-		}
-	}
+	index = max((int)rescale(params[INDEX_PARAM].value,0.0f,10.0f,0.0f,osc.table.frames.size()-1),0);
+	wtIndex = max((int)(rescale(params[wtIndex_PARAM].value,0.0f,10.0f,0.0f,osc.table.frames.size()-1) + rescale(inputs[wtIndex_INPUT].value*params[wtIndexATT_PARAM].value,0.0f,10.0f,0.0f,osc.table.frames.size()-1)),0);
 
-	index = max((int)rescale(params[INDEX_PARAM].value,0.0f,10.0f,0.0f,nFrames-1),0);
-	pWIndex = max((int)(rescale(params[PWINDEX_PARAM].value,0.0f,10.0f,0.0f,nFrames-1) + rescale(inputs[PWINDEX_INPUT].value*params[PWINDEXATT_PARAM].value,0.0f,10.0f,0.0f,nFrames-1)),0);
-
-	oscillator.soft = (params[SYNC_PARAM].value + inputs[SYNCMODE_INPUT].value) <= 0.0f;
+	osc.soft = (params[SYNC_PARAM].value + inputs[SYNCMODE_INPUT].value) <= 0.0f;
 	float pitchFine = 3.0f * quadraticBipolar(params[FINE_PARAM].value);
 	float pitchCv = 12.0f * inputs[PITCH_INPUT].value;
 	if (inputs[FM_INPUT].active) {
 		pitchCv += quadraticBipolar(params[FM_PARAM].value) * 12.0f * inputs[FM_INPUT].value;
 	}
-	oscillator.setPitch(params[FREQ_PARAM].value, pitchFine + pitchCv);
-	oscillator.syncEnabled = inputs[SYNC_INPUT].active;
+	osc.setPitch(params[FREQ_PARAM].value, pitchFine + pitchCv);
+	osc.syncEnabled = inputs[SYNC_INPUT].active;
 
-	oscillator.process(engineGetSampleTime(), inputs[SYNC_INPUT].value, wav, pWIndex);
-	if (outputs[OUT].active) 	outputs[OUT].value = 5.0f * oscillator.wav();
-
+	if (outputs[OUT].active) {
+		osc.process(engineGetSampleTime(), inputs[SYNC_INPUT].value, wtIndex);
+		outputs[OUT].value = 5.0f * osc.out();
+	}
 }
 
 struct LIMONADEWidget : ModuleWidget {
@@ -731,7 +360,7 @@ struct LIMONADEWidget : ModuleWidget {
 	Menu *createContextMenu() override;
 };
 
-struct LIMONADEMagnDisplay : OpaqueWidget {
+struct LIMONADEBinsDisplay : OpaqueWidget {
 	LIMONADE *module;
 	shared_ptr<Font> font;
 	const float width = 400.0f;
@@ -745,7 +374,7 @@ struct LIMONADEMagnDisplay : OpaqueWidget {
 	float refX = 0.0f;
 	bool write = false;
 
-	LIMONADEMagnDisplay() {
+	LIMONADEBinsDisplay() {
 		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
 	}
 
@@ -762,23 +391,23 @@ struct LIMONADEMagnDisplay : OpaqueWidget {
 	}
 
 	void onDragMove(EventDragMove &e) override {
-		if (!windowIsShiftPressed() && (module->nFrames>0)) {
+		if (!windowIsShiftPressed() && (module->osc.table.frames.size()>0)) {
 			if (refY<=heightMagn) {
 				if (windowIsModPressed()) {
-					module->magn[module->index][refIdx] = 0.0f;
+					module->osc.table.frames[module->index].magnitude[refIdx] = 0.0f;
 				}
 				else {
-					module->magn[module->index][refIdx] -= e.mouseRel.y/500.0f;
-					module->magn[module->index][refIdx] = clamp(module->magn[module->index][refIdx],0.0f, 1.0f);
+					module->osc.table.frames[module->index].magnitude[refIdx] -= e.mouseRel.y/500.0f;
+					module->osc.table.frames[module->index].magnitude[refIdx] = clamp(module->osc.table.frames[module->index].magnitude[refIdx],0.0f, 1.0f);
 				}
 			}
 			else if (refY>=heightMagn+graphGap) {
 				if (windowIsModPressed()) {
-					module->phas[module->index][refIdx] = 0.0f;
+					module->osc.table.frames[module->index].phase[refIdx] = 0.0f;
 				}
 				else {
-					module->phas[module->index][refIdx] -= e.mouseRel.y/500.0f;
-					module->phas[module->index][refIdx] = clamp(module->phas[module->index][refIdx],-1.0f*M_PI, M_PI);
+					module->osc.table.frames[module->index].phase[refIdx] -= e.mouseRel.y/500.0f;
+					module->osc.table.frames[module->index].phase[refIdx] = clamp(module->osc.table.frames[module->index].phase[refIdx],-1.0f*M_PI, M_PI);
 				}
 			}
 			module->updateWaveTable(module->index);
@@ -798,7 +427,7 @@ struct LIMONADEMagnDisplay : OpaqueWidget {
 		nvgSave(vg);
 		Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, heightMagn + graphGap + heightPhas));
 		nvgScissor(vg, 0, b.pos.y, width, heightMagn + graphGap + heightPhas);
-		float invframeSize = 1.0f/frameSize2;
+		float invframeSize = 1.0f/FS2;
 		size_t tag=1;
 
 		nvgFillColor(vg, YELLOW_BIDOO);
@@ -806,45 +435,51 @@ struct LIMONADEMagnDisplay : OpaqueWidget {
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2.0f);
 		nvgFillColor(vg, YELLOW_BIDOO);
-		nvgText(vg, 0.0f, heightMagn + graphGap/2+4, ("Frame " + to_string(module->index+1) + " / " + to_string(module->nFrames)).c_str(), NULL);
+		nvgText(vg, 0.0f, heightMagn + graphGap/2+4, ("Frame " + to_string(module->index+1) + " / " + to_string(module->osc.table.frames.size())).c_str(), NULL);
 		nvgText(vg, 130.0f, heightMagn + graphGap/2+4, "▲ Magnitude ▼ Phase", NULL);
 
-		for (size_t i = 0; i < frameSize2; i++) {
-			float x, y;
-			x = (float)i * invframeSize;
-			y = module->magn[module->index][i];
-			Vec p;
-			p.x = b.pos.x + b.size.x * x;
-			p.y = heightMagn * y;
+		if (module->index<module->osc.table.frames.size()) {
+			module->osc.table.mtx.lock();
+			wtFrame frame = module->osc.table.frames[module->index];
+			module->osc.table.mtx.unlock();
+			for (size_t i = 0; i < FS2; i++) {
+				float x, y;
+				x = (float)i * invframeSize;
+				y = frame.magnitude[i];
+				Vec p;
+				p.x = b.pos.x + b.size.x * x;
+				p.y = heightMagn * y;
 
-			if (i==tag){
-				nvgBeginPath(vg);
-				nvgFillColor(vg, nvgRGBA(45, 114, 143, 100));
-				nvgRect(vg, p.x, 0, b.size.x * invframeSize, heightMagn);
-				nvgRect(vg, p.x, heightMagn + graphGap, b.size.x * invframeSize, heightPhas);
-				nvgClosePath(vg);
-				nvgLineCap(vg, NVG_MITER);
-				nvgStrokeWidth(vg, 0);
-				//nvgStroke(vg);
-				nvgFill(vg);
-				tag *=2;
-			}
+				if (i==tag){
+					nvgBeginPath(vg);
+					nvgFillColor(vg, nvgRGBA(45, 114, 143, 100));
+					nvgRect(vg, p.x, 0, b.size.x * invframeSize, heightMagn);
+					nvgRect(vg, p.x, heightMagn + graphGap, b.size.x * invframeSize, heightPhas);
+					nvgClosePath(vg);
+					nvgLineCap(vg, NVG_MITER);
+					nvgStrokeWidth(vg, 0);
+					//nvgStroke(vg);
+					nvgFill(vg);
+					tag *=2;
+				}
 
-			if (p.x < width) {
-				nvgStrokeColor(vg, YELLOW_BIDOO);
-				nvgFillColor(vg, YELLOW_BIDOO);
-				nvgLineCap(vg, NVG_MITER);
-				nvgStrokeWidth(vg, 1);
-				nvgBeginPath(vg);
-				nvgRect(vg, p.x, heightMagn - p.y, b.size.x * invframeSize, p.y);
-				y = module->phas[module->index][i]/M_PI;
-				p.y = heightPhas * 0.5f * y;
-				nvgRect(vg, p.x, heightMagn + graphGap + heightPhas * 0.5f - p.y, b.size.x * invframeSize, p.y);
-				nvgClosePath(vg);
-				nvgStroke(vg);
-				nvgFill(vg);
+				if (p.x < width) {
+					nvgStrokeColor(vg, YELLOW_BIDOO);
+					nvgFillColor(vg, YELLOW_BIDOO);
+					nvgLineCap(vg, NVG_MITER);
+					nvgStrokeWidth(vg, 1);
+					nvgBeginPath(vg);
+					nvgRect(vg, p.x, heightMagn - p.y, b.size.x * invframeSize, p.y);
+					y = module->osc.table.frames[module->index].phase[i]/M_PI;
+					p.y = heightPhas * 0.5f * y;
+					nvgRect(vg, p.x, heightMagn + graphGap + heightPhas * 0.5f - p.y, b.size.x * invframeSize, p.y);
+					nvgClosePath(vg);
+					nvgStroke(vg);
+					nvgFill(vg);
+				}
 			}
 		}
+
 		nvgResetScissor(vg);
 		nvgRestore(vg);
 	}
@@ -855,17 +490,15 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 	shared_ptr<Font> font;
 	const float width = 150.0f;
 	const float height = 100.0f;
-	float zoomWidth = width;
-	float zoomLeftAnchor = 0.0f;
 	int refIdx = 0;
-	float refX = 0.0f;
+	float alpha1 = 25.0f;
+	float alpha2 = 35.0f;
 
 	LIMONADEWavDisplay() {
 		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
 	}
 
 	void onMouseDown(EventMouseDown &e) override {
-			refX = e.pos.x;
 			OpaqueWidget::onMouseDown(e);
 	}
 
@@ -875,15 +508,12 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 	}
 
 	void onDragMove(EventDragMove &e) override {
-		float zoom = 1.0f;
-		if (e.mouseRel.y > 0.0f) {
-			zoom = 1.0f/(windowIsShiftPressed() ? 2.0f : 1.1f);
-		}
-		else if (e.mouseRel.y < 0.0f) {
-			zoom = windowIsShiftPressed() ? 2.0f : 1.1f;
-		}
-		zoomWidth = clamp(zoomWidth*zoom,width,zoomWidth*(windowIsShiftPressed() ? 2.0f : 1.1f));
-		zoomLeftAnchor = clamp(refX - (refX - zoomLeftAnchor)*zoom + e.mouseRel.x, width - zoomWidth,0.0f);
+		alpha1+=e.mouseRel.y;
+		alpha2-=e.mouseRel.x;
+		if (alpha1>90) alpha1=90;
+		if (alpha1<-90) alpha1=-90;
+		if (alpha2>360) alpha2-=360;
+		if (alpha2<0) alpha2+=360;
 		OpaqueWidget::onDragMove(e);
 	}
 
@@ -892,91 +522,95 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 		OpaqueWidget::onDragEnd(e);
 	}
 
-	void draw(NVGcontext *vg) override {
-		nvgSave(vg);
-		Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, height));
-		nvgScissor(vg, 0, b.pos.y, width, height);
-		float invNbSample = 1.0f/frameSize;
-		float invNbBins = 1.0f/256;
-		float dx = -1.0f;
-    float dy = 1.0f;
-    float dz = 1.0f;
-		if (module->displayMode==0) {
-			for (size_t n=0; n<(module->nFrames); n++) {
-				nvgBeginPath(vg);
-				for (size_t i=0; i<frameSize; i++) {
-					float x, y, z;
-					z = 50.0f * (float)(module->nFrames-n)/(float)module->nFrames;
-					x = 0.5f * (float)i * invNbSample;
-					y = 0.5f * (module->wav[module->nFrames-1-n][i] * 0.48f + 0.5f);
-					Vec p;
-					p.x = b.pos.x + b.size.x * x - dx * z / dz;
-					p.y = b.pos.y + b.size.y * (1.0f - y) - dy * z / dz;
-					if (i == 0) {
-						nvgMoveTo(vg, p.x, p.y);
-					}
-					else {
-						nvgLineTo(vg, p.x, p.y);
-					}
-				}
-				nvgLineCap(vg, NVG_MITER);
-				if ((module->nFrames-1-n) == module->pWIndex)	{
-					nvgStrokeColor(vg, RED_BIDOO);
-					nvgStrokeWidth(vg, 1);
-				}
-				else if ((module->nFrames-1-n) == (module->index))	{
-					nvgStrokeColor(vg, YELLOW_BIDOO);
-					nvgStrokeWidth(vg, 1);
-				}
-				else {
-					nvgStrokeColor(vg, YELLOW_BIDOO_LIGHT);
-					nvgStrokeWidth(vg, 1);
-				}
-				nvgStroke(vg);
-			}
-		}
-		else {
-			for (size_t n=0; n<(module->nFrames); n++) {
-				nvgBeginPath(vg);
-				for (size_t i=0; i<256; i++) {
-					float x, y, z;
-					z = 50.0f * (float)(module->nFrames-n)/(float)module->nFrames;
-					x = 0.5f * (float)i * invNbBins;
-					if (module->displayMode==1) {
-						y = module->magn[module->nFrames-1-n][i] * 0.48f;
-					}
-					else {
-						y = 0.5f * (module->phas[module->nFrames-1-n][i] * 0.48f / M_PI + 0.5f);
-					}
-					Vec p;
-					p.x = b.pos.x + b.size.x * x - dx * z / dz;
-					p.y = b.pos.y + b.size.y * (1.0f - y) - dy * z / dz;
-					if (i == 0) {
-						nvgMoveTo(vg, p.x, p.y);
-					}
-					else {
-						nvgLineTo(vg, p.x, p.y);
-					}
-				}
-				nvgLineCap(vg, NVG_MITER);
-				if ((module->nFrames-1-n) == module->pWIndex)	{
-					nvgStrokeColor(vg, RED_BIDOO);
-					nvgStrokeWidth(vg, 1);
-				}
-				else if ((module->nFrames-1-n) == (module->index))	{
-					nvgStrokeColor(vg, YELLOW_BIDOO);
-					nvgStrokeWidth(vg, 1);
-				}
-				else {
-					nvgStrokeColor(vg, YELLOW_BIDOO_LIGHT);
-					nvgStrokeWidth(vg, 1);
-				}
-				nvgStroke(vg);
-			}
-		}
-		nvgResetScissor(vg);
-		nvgRestore(vg);
+	void point2D(float x3D, float y3D, float z3D, float w, float h, float a1, float a2, float &x2D, float &y2D) {
+		a1 *= M_PI/180.0f;
+		a2 *= M_PI/180.0f;
+		y2D = z3D*cos(a1)-(cos(a2)*y3D-sin(a2)*x3D)*sin(a1)+h/2.0f;
+		x2D = cos(a2)*x3D+sin(a2)*y3D+w/2.0f;
 	}
+
+	void draw(NVGcontext *vg) override {
+		module->osc.table.mtx.lock();
+		wtTable table;
+		for (size_t i=0; i<module->osc.table.frames.size(); i++) {
+			wtFrame frame;
+			frame.morphed = module->osc.table.frames[i].morphed;
+			frame.sample=module->osc.table.frames[i].sample;
+			table.frames.push_back(frame);
+		}
+		module->osc.table.mtx.unlock();
+
+		nvgSave(vg);
+		float invNbSample = 1.0f/FS;
+
+		for (size_t n=0; n<table.frames.size(); n++) {
+			nvgBeginPath(vg);
+			for (size_t i=0; i<FS; i++) {
+				float x3D, y3D, z3D, x2D, y2D;
+				y3D = 10.0f * (table.frames.size()-n)/table.frames.size()-5.0f;
+				x3D = 10.0f * i * invNbSample-5.0f;
+				z3D = table.frames[table.frames.size()-1-n].sample[i];
+				point2D(x3D, y3D, z3D, 15, 10, alpha1, alpha2, x2D, y2D);
+				if (i == 0) {
+					nvgMoveTo(vg, 10.0f * x2D, 10.0f * y2D);
+				}
+				else {
+					nvgLineTo(vg, 10.0f * x2D, 10.0f * y2D);
+				}
+			}
+			if (table.frames[table.frames.size()-1-n].morphed) {
+				nvgStrokeColor(vg, YELLOW_BIDOO_LIGHT);
+				nvgStrokeWidth(vg, 1.0f);
+			}
+			else {
+				nvgStrokeColor(vg, YELLOW_BIDOO);
+				nvgStrokeWidth(vg, 1.0f);
+			}
+			nvgStroke(vg);
+		}
+
+		if (table.frames.size()>0) {
+			nvgBeginPath(vg);
+			for (size_t i=0; i<FS; i++) {
+				float x3D, y3D, z3D, x2D, y2D;
+				y3D = 10.0f * (module->index)/table.frames.size()-5.0f;
+				x3D = 10.0f * i * invNbSample-5.0f;
+				z3D = table.frames[module->index].sample[i];
+				point2D(x3D, y3D, z3D, 15, 10, alpha1, alpha2, x2D, y2D);
+				if (i == 0) {
+					nvgMoveTo(vg, 10.0f * x2D, 10.0f * y2D);
+				}
+				else {
+					nvgLineTo(vg, 10.0f * x2D, 10.0f * y2D);
+				}
+			}
+			nvgStrokeColor(vg, GREEN_BIDOO);
+			nvgStrokeWidth(vg, 1.0f);
+			nvgStroke(vg);
+
+			nvgBeginPath(vg);
+			for (size_t i=0; i<FS; i++) {
+				float x3D, y3D, z3D, x2D, y2D;
+				y3D = 10.0f * (module->wtIndex)/table.frames.size()-5.0f;
+				x3D = 10.0f * i * invNbSample-5.0f;
+				z3D = table.frames[module->wtIndex].sample[i];
+				point2D(x3D, y3D, z3D, 15, 10, alpha1, alpha2, x2D, y2D);
+				if (i == 0) {
+					nvgMoveTo(vg, 10.0f * x2D, 10.0f * y2D);
+				}
+				else {
+					nvgLineTo(vg, 10.0f * x2D, 10.0f * y2D);
+				}
+			}
+			nvgStrokeColor(vg, RED_BIDOO);
+			nvgStrokeWidth(vg, 1.0f);
+			nvgStroke(vg);
+		}
+
+
+
+		nvgRestore(vg);
+ 	}
 };
 
 LIMONADEWidget::LIMONADEWidget(LIMONADE *module) : ModuleWidget(module) {
@@ -988,7 +622,7 @@ LIMONADEWidget::LIMONADEWidget(LIMONADE *module) : ModuleWidget(module) {
 	addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 	{
-		LIMONADEMagnDisplay *display = new LIMONADEMagnDisplay();
+		LIMONADEBinsDisplay *display = new LIMONADEBinsDisplay();
 		display->module = module;
 		display->box.pos = Vec(24, 50);
 		display->box.size = Vec(500, 160);
@@ -1003,8 +637,6 @@ LIMONADEWidget::LIMONADEWidget(LIMONADE *module) : ModuleWidget(module) {
 		addChild(display);
 	}
 
-	addParam(ParamWidget::create<BlueCKD6>(Vec(205, 235), module, LIMONADE::DISPLAYMODE_PARAM, 0.0f, 1.0f, 1.0f));
-
 	addParam(ParamWidget::create<CKSS>(Vec(255, 240), module, LIMONADE::SYNC_PARAM, 0.0f, 1.0f, 1.0f));
 	addParam(ParamWidget::create<BidooBlueKnob>(Vec(287, 235), module, LIMONADE::FREQ_PARAM, -54.0f, 54.0f, 0.0f));
 	addParam(ParamWidget::create<BidooBlueKnob>(Vec(327, 235), module, LIMONADE::FINE_PARAM, -1.0f, 1.0f, 0.0f));
@@ -1018,9 +650,9 @@ LIMONADEWidget::LIMONADEWidget(LIMONADE *module) : ModuleWidget(module) {
 	addParam(ParamWidget::create<BlueCKD6>(Vec(446.0f, 160), module, LIMONADE::DELETEFRAME_PARAM, 0.0f, 1.0f, 0.0f));
 	addParam(ParamWidget::create<BlueCKD6>(Vec(446.0f, 195), module, LIMONADE::RESET_PARAM, 0.0f, 1.0f, 0.0f));
 
-	addParam(ParamWidget::create<BidooBlueKnob>(Vec(407.0f, 235), module, LIMONADE::PWINDEX_PARAM, 0.0f, 10.0f, 0.0f));
-	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(412.0f, 275), module, LIMONADE::PWINDEXATT_PARAM, -1.0f, 1, 0.0f));
-	addInput(Port::create<PJ301MPort>(Vec(410, 300), Port::INPUT, module, LIMONADE::PWINDEX_INPUT));
+	addParam(ParamWidget::create<BidooBlueKnob>(Vec(407.0f, 235), module, LIMONADE::wtIndex_PARAM, 0.0f, 10.0f, 0.0f));
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(412.0f, 275), module, LIMONADE::wtIndexATT_PARAM, -1.0f, 1, 0.0f));
+	addInput(Port::create<PJ301MPort>(Vec(410, 300), Port::INPUT, module, LIMONADE::wtIndex_INPUT));
 
 	addInput(Port::create<PJ301MPort>(Vec(250, 300), Port::INPUT, module, LIMONADE::SYNCMODE_INPUT));
 	addInput(Port::create<PJ301MPort>(Vec(290, 300), Port::INPUT, module, LIMONADE::PITCH_INPUT));
@@ -1139,4 +771,4 @@ Menu *LIMONADEWidget::createContextMenu() {
 	return menu;
 }
 
-Model *modelLIMONADE = Model::create<LIMONADE, LIMONADEWidget>("Bidoo","LIMONADE", "LIMONADE additive osc", OSCILLATOR_TAG);
+Model *modelLIMONADE = Model::create<LIMONADE, LIMONADEWidget>("Bidoo","liMonADe", "liMonADe additive osc", OSCILLATOR_TAG);
