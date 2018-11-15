@@ -11,6 +11,7 @@
 #include "../pffft/pffft.h"
 #include <iostream>
 #include <fstream>
+#include "dep/lodepng/lodepng.h"
 
 using namespace std;
 
@@ -21,11 +22,13 @@ using namespace std;
 struct threadData {
 	wtOscillator *osc;
 	int index;
-	float *sample;
 	size_t sc;
+	size_t frameCount;
+	bool interpolate;
+	string path;
 };
 
-void * tSynthetize(threadData data) {
+void * tUpdateWaveTable(threadData data) {
 	if (data.index>=0)
 		data.osc->table.frames[data.index].calcWav();
 	else {
@@ -36,8 +39,76 @@ void * tSynthetize(threadData data) {
   return 0;
 }
 
-void * tChopSample(threadData data) {
-	data.osc->table.loadSample(data.sc, 2048, false, data.sample);
+void * tLoadSample(threadData data) {
+	unsigned int c;
+  unsigned int sr;
+  drwav_uint64 sc;
+	float *pSampleData;
+	float *sample;
+
+  pSampleData = drwav_open_and_read_file_f32(data.path.c_str(), &c, &sr, &sc);
+  if (pSampleData != NULL)  {
+		sc = sc/c;
+		sample = (float*)calloc(sc,sizeof(float));
+		for (unsigned int i=0; i < sc; i++) {
+			if (c == 1) sample[i] = pSampleData[i];
+			else sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
+		}
+		drwav_free(pSampleData);
+		data.osc->table.loadSample(sc, 2048, data.interpolate, sample);
+		free(sample);
+	}
+
+  return 0;
+}
+
+void * tLoadPNG(threadData data) {
+	std::vector<unsigned char> image;
+	float *sample;
+	unsigned width = 0;
+	unsigned height = 0;
+	size_t sc = 0;
+	unsigned error = lodepng::decode(image, width, height, data.path, LCT_RGB);
+	if(error != 0)
+  {
+    std::cout << "error " << error << ": " << lodepng_error_text(error) << std::endl;
+	}
+  else {
+		sc = width*height;
+		sample = (float*)calloc(width*height,sizeof(float));
+		for(size_t i=0; i<height; i++) {
+			for (size_t j=0; j<width; j++) {
+				sample[i*width+j] = (0.299f*image[3*j + 3*(height-i-1)*width] + 0.587f*image[3*j + 3*(height-i-1)*width +1] +  0.114f*image[3*j + 3*(height-i-1)*width +2])/255.0f - 0.5f;
+			}
+		}
+		data.osc->table.loadSample(sc, width, data.interpolate, sample);
+		free(sample);
+  }
+  return 0;
+}
+
+void * tLoadMagnitude(threadData data) {
+	std::vector<unsigned char> image;
+	float *sample;
+	unsigned width = 0;
+	unsigned height = 0;
+	size_t sc = 0;
+	unsigned error = lodepng::decode(image, width, height, data.path, LCT_RGB);
+	if(error != 0)
+  {
+    std::cout << "error " << error << ": " << lodepng_error_text(error) << std::endl;
+	}
+  else {
+		sc = width*height;
+		sample = (float*)calloc(width*height,sizeof(float));
+		for(size_t i=0; i<height; i++) {
+			for (size_t j=0; j<width; j++) {
+				sample[i*width+j] = 1.0f - clamp((0.299f*image[3*j + 3*(height-i-1)*width] + 0.587f*image[3*j + 3*(height-i-1)*width +1] +  0.114f*image[3*j + 3*(height-i-1)*width +2])/255.0f,0.0f,1.0f);
+			}
+		}
+		data.osc->table.loadMagnitude(sc, width, data.interpolate, sample);
+		free(sample);
+  }
   return 0;
 }
 
@@ -51,6 +122,11 @@ void * tSmoothSample(threadData data) {
   return 0;
 }
 
+void * tRemoveDCOffset(threadData data) {
+	data.osc->table.removeDCOffset();
+  return 0;
+}
+
 void * tNormalizeFrame(threadData data) {
 	data.osc->table.frames[data.index].normalize();
   return 0;
@@ -58,6 +134,11 @@ void * tNormalizeFrame(threadData data) {
 
 void * tNormalizeWt(threadData data) {
 	data.osc->table.normalize();
+  return 0;
+}
+
+void * tNormalizeAllFrames(threadData data) {
+	data.osc->table.normalizeAllFrames();
   return 0;
 }
 
@@ -78,6 +159,11 @@ void * tMorphSample(threadData data) {
 
 void * tMorphSpectrum(threadData data) {
 	data.osc->table.morphSpectrum();
+	return 0;
+}
+
+void * tMorphSpectrumConstantPhase(threadData data) {
+	data.osc->table.morphSpectrumConstantPhase();
 	return 0;
 }
 
@@ -138,16 +224,22 @@ struct LIMONADE : Module {
 
 	void step() override;
 	void syncThreadData();
-	void loadSample(std::string path);
+	void loadSample(std::string path, bool interpolate);
+	void loadPNG(std::string path, bool interpolate);
+	void loadMagnitude(std::string path, bool interpolate);
 	void windowSample();
+	void smoothSample();
+	void removeDCOffset();
 	void fftSample(size_t i);
 	void ifftSample(size_t i);
 	void morphSample();
 	void morphSpectrum();
+	void morphSpectrumConstantPhase();
 	void updateWaveTable(size_t i);
 	void addFrame(size_t i);
 	void deleteFrame(size_t i);
 	void normalizeFrame(size_t i);
+	void normalizeAllFrames();
 	void normalizeWt();
 
 	json_t *toJson() override {
@@ -185,7 +277,7 @@ struct LIMONADE : Module {
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		if (lastPathJ) {
 			lastPath = json_string_value(lastPathJ);
-			loadSample(lastPath);
+			loadSample(lastPath, false);
 		}
 		else {
 			// json_t *nFramesJ = json_object_get(rootJ, "osc.table.frames.size()");
@@ -239,7 +331,7 @@ inline void LIMONADE::syncThreadData() {
 inline void LIMONADE::updateWaveTable(size_t i) {
 	syncThreadData();
 	sData.index = i;
-	sThread = thread(tSynthetize, std::ref(sData));
+	sThread = thread(tUpdateWaveTable, std::ref(sData));
 	sThread.detach();
 }
 
@@ -265,6 +357,11 @@ inline void LIMONADE::morphSpectrum() {
 	sThread.detach();
 }
 
+inline void LIMONADE::morphSpectrumConstantPhase() {
+	sThread = thread(tMorphSpectrumConstantPhase, std::ref(sData));
+	sThread.detach();
+}
+
 void LIMONADE::addFrame(size_t i) {
 	osc.table.addFrame(i);
 }
@@ -273,42 +370,42 @@ void LIMONADE::deleteFrame(size_t i) {
 	osc.table.removeFrame(i);
 }
 
-void LIMONADE::loadSample(std::string path) {
-	unsigned int c;
-  unsigned int sr;
-  drwav_uint64 sc;
-	float* pSampleData;
-  pSampleData = drwav_open_and_read_file_f32(path.c_str(), &c, &sr, &sc);
-  if (pSampleData != NULL)  {
-		if (sData.sample != NULL) {
-			delete(sData.sample);
-		}
-		if (c == 1) {
-			sData.sample = (float*)calloc(sc,sizeof(float));
-			for (unsigned int i=0; i < sc; i++) {
-				sData.sample[i] = pSampleData[i];
-			}
-			sData.sc = sc;
-			sThread = thread(tChopSample, std::ref(sData));
-			sThread.detach();
-		}
-		else if (c == 2) {
-			sData.sc = sc/2;
-			sData.sample = (float*)calloc(sData.sc,sizeof(float));
-			for (unsigned int i=0; i<sData.sc; i++) {
-				sData.sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
-			}
-			sThread = thread(tChopSample, std::ref(sData));
-			sThread.detach();
-		}
-		drwav_free(pSampleData);
-	}
+void LIMONADE::loadSample(std::string path, bool interpolate) {
+	sData.path = path;
+	sData.interpolate = interpolate;
+	sThread = thread(tLoadSample, std::ref(sData));
+	sThread.detach();
+}
+
+void LIMONADE::loadPNG(std::string path, bool interpolate) {
+	sData.path = path;
+	sData.interpolate = interpolate;
+	sThread = thread(tLoadPNG, std::ref(sData));
+	sThread.detach();
+}
+
+void LIMONADE::loadMagnitude(std::string path, bool interpolate) {
+	sData.path = path;
+	sData.interpolate = interpolate;
+	sThread = thread(tLoadMagnitude, std::ref(sData));
+	sThread.detach();
 }
 
 void LIMONADE::windowSample() {
 	sThread = thread(tWindowSample, std::ref(sData));
 	sThread.detach();
 }
+
+void LIMONADE::smoothSample() {
+	sThread = thread(tSmoothSample, std::ref(sData));
+	sThread.detach();
+}
+
+void LIMONADE::removeDCOffset() {
+	sThread = thread(tRemoveDCOffset, std::ref(sData));
+	sThread.detach();
+}
+
 
 void LIMONADE::normalizeFrame(size_t i) {
 	sData.index = i;
@@ -318,6 +415,11 @@ void LIMONADE::normalizeFrame(size_t i) {
 
 void LIMONADE::normalizeWt() {
 	sThread = thread(tNormalizeWt, std::ref(sData));
+	sThread.detach();
+}
+
+void LIMONADE::normalizeAllFrames() {
+	sThread = thread(tNormalizeAllFrames, std::ref(sData));
 	sThread.detach();
 }
 
@@ -547,7 +649,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 			nvgBeginPath(vg);
 			for (size_t i=0; i<FS; i++) {
 				float x3D, y3D, z3D, x2D, y2D;
-				y3D = 10.0f * (table.frames.size()-n)/table.frames.size()-5.0f;
+				y3D = 10.0f * (table.frames.size()-n-1)/table.frames.size()-5.0f;
 				x3D = 10.0f * i * invNbSample-5.0f;
 				z3D = table.frames[table.frames.size()-1-n].sample[i];
 				point2D(x3D, y3D, z3D, 15, 10, alpha1, alpha2, x2D, y2D);
@@ -559,11 +661,11 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 				}
 			}
 			if (table.frames[table.frames.size()-1-n].morphed) {
-				nvgStrokeColor(vg, YELLOW_BIDOO_LIGHT);
+				nvgStrokeColor(vg, nvgRGBA(255, 233, 0, 15));
 				nvgStrokeWidth(vg, 1.0f);
 			}
 			else {
-				nvgStrokeColor(vg, YELLOW_BIDOO);
+				nvgStrokeColor(vg, nvgRGBA(255, 233, 0, 50));
 				nvgStrokeWidth(vg, 1.0f);
 			}
 			nvgStroke(vg);
@@ -624,7 +726,7 @@ LIMONADEWidget::LIMONADEWidget(LIMONADE *module) : ModuleWidget(module) {
 	{
 		LIMONADEBinsDisplay *display = new LIMONADEBinsDisplay();
 		display->module = module;
-		display->box.pos = Vec(24, 50);
+		display->box.pos = Vec(23, 50);
 		display->box.size = Vec(500, 160);
 		addChild(display);
 	}
@@ -632,7 +734,7 @@ LIMONADEWidget::LIMONADEWidget(LIMONADE *module) : ModuleWidget(module) {
 	{
 		LIMONADEWavDisplay *display = new LIMONADEWavDisplay();
 		display->module = module;
-		display->box.pos = Vec(23, 220);
+		display->box.pos = Vec(10, 240);
 		display->box.size = Vec(150, 110);
 		addChild(display);
 	}
@@ -668,7 +770,43 @@ struct LIMONADELoadSample : MenuItem {
 		char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
 		if (path) {
 			limonadeModule->lastPath=path;
-			limonadeModule->loadSample(path);
+			limonadeModule->loadSample(path, false);
+			free(path);
+		}
+	}
+};
+
+struct LIMONADELoadSampleInterpolate : MenuItem {
+	LIMONADE *limonadeModule;
+	void onAction(EventAction &e) override {
+		char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
+		if (path) {
+			limonadeModule->lastPath=path;
+			limonadeModule->loadSample(path, true);
+			free(path);
+		}
+	}
+};
+
+struct LIMONADELoadPNG : MenuItem {
+	LIMONADE *limonadeModule;
+	void onAction(EventAction &e) override {
+		char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
+		if (path) {
+			limonadeModule->lastPath=path;
+			limonadeModule->loadPNG(path, true);
+			free(path);
+		}
+	}
+};
+
+struct LIMONADELoadMagnitude : MenuItem {
+	LIMONADE *limonadeModule;
+	void onAction(EventAction &e) override {
+		char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
+		if (path) {
+			limonadeModule->lastPath=path;
+			limonadeModule->loadMagnitude(path, true);
 			free(path);
 		}
 	}
@@ -678,6 +816,20 @@ struct LIMONADEWindowSample : MenuItem {
 	LIMONADE *limonadeModule;
 	void onAction(EventAction &e) override {
 	limonadeModule->windowSample();
+	}
+};
+
+struct LIMONADESmoothSample : MenuItem {
+	LIMONADE *limonadeModule;
+	void onAction(EventAction &e) override {
+	limonadeModule->smoothSample();
+	}
+};
+
+struct LIMONADERemoveDCOffset : MenuItem {
+	LIMONADE *limonadeModule;
+	void onAction(EventAction &e) override {
+	limonadeModule->removeDCOffset();
 	}
 };
 
@@ -709,10 +861,24 @@ struct LIMONADEMorphSpectrum : MenuItem {
 	}
 };
 
+struct LIMONADEMorphSpectrumConstantPhase : MenuItem {
+	LIMONADE *limonadeModule;
+	void onAction(EventAction &e) override {
+	limonadeModule->morphSpectrumConstantPhase();
+	}
+};
+
 struct LIMONADENormalizeFrame : MenuItem {
 	LIMONADE *limonadeModule;
 	void onAction(EventAction &e) override {
 	limonadeModule->normalizeFrame(limonadeModule->index);
+	}
+};
+
+struct LIMONADENormalizeAllFrames : MenuItem {
+	LIMONADE *limonadeModule;
+	void onAction(EventAction &e) override {
+	limonadeModule->normalizeAllFrames();
 	}
 };
 
@@ -733,10 +899,35 @@ Menu *LIMONADEWidget::createContextMenu() {
 	loadItem->limonadeModule = limonadeModule;
 	menu->addChild(loadItem);
 
+	LIMONADELoadSampleInterpolate *loadItemI = new LIMONADELoadSampleInterpolate();
+	loadItemI->text = "Load sample interpolate";
+	loadItemI->limonadeModule = limonadeModule;
+	menu->addChild(loadItemI);
+
+	LIMONADELoadPNG *loadItemPNG = new LIMONADELoadPNG();
+	loadItemPNG->text = "Load PNG";
+	loadItemPNG->limonadeModule = limonadeModule;
+	menu->addChild(loadItemPNG);
+
+	LIMONADELoadMagnitude *loadItemM = new LIMONADELoadMagnitude();
+	loadItemM->text = "Load Magnitude";
+	loadItemM->limonadeModule = limonadeModule;
+	menu->addChild(loadItemM);
+
 	LIMONADEWindowSample *windowItem = new LIMONADEWindowSample();
 	windowItem->text = "Window sample";
 	windowItem->limonadeModule = limonadeModule;
 	menu->addChild(windowItem);
+
+	LIMONADESmoothSample *sItem = new LIMONADESmoothSample();
+	sItem->text = "Smooth sample";
+	sItem->limonadeModule = limonadeModule;
+	menu->addChild(sItem);
+
+	LIMONADERemoveDCOffset *rDCOItem = new LIMONADERemoveDCOffset();
+	rDCOItem->text = "Remove DC offset";
+	rDCOItem->limonadeModule = limonadeModule;
+	menu->addChild(rDCOItem);
 
 	LIMONADEFFTSample *fftItem = new LIMONADEFFTSample();
 	fftItem->text = "FFT sample";
@@ -758,10 +949,20 @@ Menu *LIMONADEWidget::createContextMenu() {
 	morphSpItem->limonadeModule = limonadeModule;
 	menu->addChild(morphSpItem);
 
+	LIMONADEMorphSpectrumConstantPhase *morphSpItemCP = new LIMONADEMorphSpectrumConstantPhase();
+	morphSpItemCP->text = "Morph spectrum constant phase";
+	morphSpItemCP->limonadeModule = limonadeModule;
+	menu->addChild(morphSpItemCP);
+
 	LIMONADENormalizeFrame *normFItem = new LIMONADENormalizeFrame();
 	normFItem->text = "Normalize frame";
 	normFItem->limonadeModule = limonadeModule;
 	menu->addChild(normFItem);
+
+	LIMONADENormalizeAllFrames *normAFItem = new LIMONADENormalizeAllFrames();
+	normAFItem->text = "Normalize all frames";
+	normAFItem->limonadeModule = limonadeModule;
+	menu->addChild(normAFItem);
 
 	LIMONADENormalizeWt *normWtItem = new LIMONADENormalizeWt();
 	normWtItem->text = "Normalize wavetable";

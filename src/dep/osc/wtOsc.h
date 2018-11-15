@@ -31,6 +31,7 @@ struct wtFrame {
   void window();
   void removeDCOffset();
   void loadSample(size_t sCount, bool interpolate, float *wav);
+  void loadMagnitude(size_t sCount, bool interpolate, float *magn);
   float maxAmp();
   void gain(float g);
 };
@@ -141,10 +142,29 @@ void wtFrame::loadSample(size_t sCount, bool interpolate, float *wav) {
     }
   }
   else {
-    for(size_t i=0;i<sCount;i++) {
+    for(size_t i=0;i<(size_t)min(sCount,FS);i++) {
       sample[i]=*(wav+i);
     }
   }
+}
+
+void wtFrame::loadMagnitude(size_t sCount, bool interpolate, float *magn) {
+  std::fill(magnitude.begin(), magnitude.end(), 0);
+  std::fill(phase.begin(), phase.end(), 0);
+  if (interpolate) {
+    for(size_t i=0;i<FS2/2;i++) {
+      size_t index = i*((float)max(sCount-1,0)/(float)FS2);
+      float pos = (float)i*((float)max(sCount-1,0)/(float)FS2);
+      magnitude[i]=rescale(pos,index,index+1,*(magn+index),*(magn+index+1));
+    }
+  }
+  else {
+    for(size_t i=0;i<(size_t)min(sCount,FS2/2);i++) {
+      magnitude[i]=*(magn+i);
+    }
+  }
+  magnitude[0]=0;
+  calcIFFT();
 }
 
 float wtFrame::maxAmp() {
@@ -166,8 +186,10 @@ struct wtTable {
   mutex mtx;
 
   void loadSample(size_t sCount, size_t frameSize, bool interpolate, float *sample);
+  void loadMagnitude(size_t sCount, size_t frameSize, bool interpolate, float *magn);
   void normalize();
   void normalizeFrame(size_t index);
+  void normalizeAllFrames();
   void smooth();
   void smoothFrame(size_t index);
   void window();
@@ -178,6 +200,7 @@ struct wtTable {
   void removeFrame(size_t index);
   void morphFrames();
   void morphSpectrum();
+  void morphSpectrumConstantPhase();
   void reset();
   void deleteMorphing();
   void init();
@@ -198,6 +221,23 @@ void wtTable::loadSample(size_t sCount, size_t frameSize, bool interpolate, floa
   mtx.unlock();
 }
 
+void wtTable::loadMagnitude(size_t sCount, size_t frameSize, bool interpolate, float *magn) {
+  reset();
+
+  mtx.lock();
+  size_t sUsed=0;
+  while ((sUsed != sCount) && (frames.size()<256)) {
+    size_t lenFrame = min(frameSize,sCount-sUsed);
+    wtFrame frame;
+    frame.loadMagnitude(lenFrame,interpolate,magn+sUsed);
+    frames.push_back(frame);
+    sUsed+=lenFrame;
+  }
+  normalizeAllFrames();
+  mtx.unlock();
+}
+
+
 void wtTable::normalize() {
   float amp = 0.0f;
   for(size_t i=0; i<frames.size(); i++) {
@@ -211,6 +251,12 @@ void wtTable::normalize() {
 
 void wtTable::normalizeFrame(size_t index) {
   frames[index].normalize();
+}
+
+void wtTable::normalizeAllFrames() {
+  for(size_t i=0; i<frames.size(); i++) {
+    frames[i].normalize();
+  }
 }
 
 void wtTable::smooth() {
@@ -254,28 +300,19 @@ void wtTable::removeFrame(size_t index) {
 
 void wtTable::morphFrames() {
   deleteMorphing();
-
   mtx.lock();
   if (frames.size()>1) {
-    size_t fCount = 256 - frames.size();
-    size_t fIndex = 0;
-    size_t pCount = frames.size()-1;
-    size_t cIndex = 0;
-    while (fCount>0) {
-      wtFrame frame;
-      frame.morphed=true;
-      for(size_t i=0; i<FS; i++) {
-        frame.sample[i]=(frames[fIndex].sample[i] + frames[fIndex+1].sample[i])*0.5f;
+    size_t fs = frames.size();
+    size_t fCount = (256 - fs)/(fs-1);
+    for (size_t i=0; i<(fs-1); i++) {
+      for (size_t j=0; j<fCount; j++) {
+        wtFrame frame;
+        frame.morphed=true;
+        for(size_t k=0; k<FS; k++) {
+          frame.sample[k]=rescale(j,0,fCount-1,frames[i*(fCount+1)].sample[k],frames[i*(fCount+1)+j+1].sample[k]);
+        }
+        frames.insert(frames.begin()+i*(fCount+1)+j+1, frame);
       }
-      frames.insert(frames.begin()+fIndex+1, frame);
-      fIndex += 2;
-      cIndex++;
-      if (cIndex>=pCount) {
-        fIndex=0;
-        pCount+=cIndex-1;
-        cIndex=0;
-      }
-      fCount--;
     }
   }
   mtx.unlock();
@@ -283,33 +320,55 @@ void wtTable::morphFrames() {
 
 void wtTable::morphSpectrum() {
   deleteMorphing();
-
   mtx.lock();
   if (frames.size()>1) {
     for(size_t i=0; i<frames.size(); i++) {
       frames[i].calcFFT();
     }
-    size_t fCount = 256 - frames.size();
-    size_t fIndex = 0;
-    size_t pCount = frames.size()-1;
-    size_t cIndex = 0;
-    while (fCount>0) {
-      wtFrame frame;
-      frame.morphed=true;
-      for(size_t i=0; i<FS2; i++) {
-        frame.magnitude[i]=(frames[fIndex].magnitude[i] + frames[fIndex+1].magnitude[i])*0.5f;
-        frame.phase[i]=(frames[fIndex].phase[i] + frames[fIndex+1].phase[i])*0.5f;
+    size_t fs = frames.size();
+    size_t fCount = (256 - fs)/(fs-1);
+    for (size_t i=0; i<(fs-1); i++) {
+      for (size_t j=0; j<fCount; j++) {
+        wtFrame frame;
+        frame.morphed=true;
+        for(size_t k=0; k<FS2; k++) {
+          frame.magnitude[k]=rescale(j,0,fCount-1,frames[i*(fCount+1)].magnitude[k],frames[i*(fCount+1)+j+1].magnitude[k]);
+          frame.phase[k]=rescale(j,0,fCount-1,frames[i*(fCount+1)].phase[k],frames[i*(fCount+1)+j+1].phase[k]);
+        }
+        frame.calcIFFT();
+        frames.insert(frames.begin()+i*(fCount+1)+j+1, frame);
       }
-      frame.calcIFFT();
-      frames.insert(frames.begin()+fIndex+1, frame);
-      fIndex += 2;
-      cIndex++;
-      if (cIndex>=pCount) {
-        fIndex=0;
-        pCount+=cIndex-1;
-        cIndex=0;
+    }
+  }
+  mtx.unlock();
+}
+
+void wtTable::morphSpectrumConstantPhase() {
+  deleteMorphing();
+  mtx.lock();
+  if (frames.size()>1) {
+    for(size_t i=0; i<frames.size(); i++) {
+      frames[i].calcFFT();
+      if (i>0) {
+        for(size_t k=0; k<FS2; k++) {
+          frames[i].phase[k]=frames[0].phase[k];
+        }
+        frames[i].calcIFFT();
       }
-      fCount--;
+    }
+    size_t fs = frames.size();
+    size_t fCount = (256 - fs)/(fs-1);
+    for (size_t i=0; i<(fs-1); i++) {
+      for (size_t j=0; j<fCount; j++) {
+        wtFrame frame;
+        frame.morphed=true;
+        for(size_t k=0; k<FS2; k++) {
+          frame.magnitude[k]=rescale(j,0,fCount-1,frames[i*(fCount+1)].magnitude[k],frames[i*(fCount+1)+j+1].magnitude[k]);
+          frame.phase[k]=frames[0].phase[k];
+        }
+        frame.calcIFFT();
+        frames.insert(frames.begin()+i*(fCount+1)+j+1, frame);
+      }
     }
   }
   mtx.unlock();
