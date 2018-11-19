@@ -304,6 +304,7 @@ struct ANTNTextField : LedDisplayTextField {
     font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
   	color = YELLOW_BIDOO;
   	textOffset = Vec(3, 3);
+    text = module->url;
   }
 	void onTextChange() override;
 	ANTN *module;

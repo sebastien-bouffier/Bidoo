@@ -60,6 +60,17 @@ struct BlueCKD6 : SVGSwitch, MomentarySwitch {
 	}
 };
 
+struct BlueBtn : SVGSwitch, MomentarySwitch {
+	string caption;
+	shared_ptr<Font> font;
+
+	BlueBtn() {
+		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueBtn_0.svg")));
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueBtn_1.svg")));
+	}
+};
+
 struct MuteBtn : SVGSwitch, MomentarySwitch {
 	MuteBtn() {
 		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/MuteBtn_0.svg")));

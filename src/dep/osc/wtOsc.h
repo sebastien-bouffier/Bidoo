@@ -4,10 +4,15 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
+#include <atomic>
 
 #define FS 2048
 #define AC 2.0*M_PI/FS
 #define FS2 1024
+#define NF 256
+#define IFS 1.0f/FS
+#define IFS2 1.0f/FS2
+#define IM_PI 1.0f/M_PI
 
 using namespace std;
 
@@ -43,8 +48,6 @@ void wtFrame::calcFFT() {
 	float *fftOut;
 	fftIn = (float*)pffft_aligned_malloc(FS*sizeof(float));
 	fftOut = (float*)pffft_aligned_malloc(FS*sizeof(float));
-  std::fill(magnitude.begin(), magnitude.end(), 0);
-  std::fill(phase.begin(), phase.end(), 0);
 	memset(fftIn, 0, FS*sizeof(float));
 	memset(fftOut, 0, FS*sizeof(float));
 
@@ -61,6 +64,10 @@ void wtFrame::calcFFT() {
 			phase[k] = atan2(imag,real);
 			magnitude[k] = 2.0f*sqrt(real*real+imag*imag)/FS;
 		}
+    else {
+      phase[k] = 0.0f;
+			magnitude[k] = 0.0f;
+    }
 	}
 
 	pffft_destroy_setup(pffftSetup);
@@ -105,13 +112,13 @@ void wtFrame::calcWav() {
   }
 }
 
-void wtFrame::normalize() {
+inline void wtFrame::normalize() {
   float amp = maxAmp();
   float g= amp>0?1.0f/amp:0.0f;
 	gain(g);
 }
 
-void wtFrame::smooth() {
+inline void wtFrame::smooth() {
   for(size_t i=0; i<16;i++) {
     float avg=(sample[i]+sample[FS-i-1])/2.0f;
     sample[i]= ((16-i)*avg+i*sample[i])/16.0f;
@@ -119,7 +126,7 @@ void wtFrame::smooth() {
   }
 }
 
-void wtFrame::window() {
+inline void wtFrame::window() {
   for (size_t i = 0; i < FS;i++) {
 		float window = min(-10.0f * cos(2.0f * M_PI * (double)i / FS) + 10.0f, 1.0f);
 		sample[i] *= window;
@@ -133,7 +140,6 @@ void wtFrame::removeDCOffset() {
 }
 
 void wtFrame::loadSample(size_t sCount, bool interpolate, float *wav) {
-  std::fill(sample.begin(), sample.end(), 0);
   if (interpolate) {
     for(size_t i=0;i<FS;i++) {
       size_t index = i*((float)max(sCount-1,0)/(float)FS);
@@ -142,32 +148,18 @@ void wtFrame::loadSample(size_t sCount, bool interpolate, float *wav) {
     }
   }
   else {
-    for(size_t i=0;i<(size_t)min(sCount,FS);i++) {
-      sample[i]=*(wav+i);
+    for(size_t i=0;i<FS;i++) {
+      if (i<sCount) {
+        sample[i]=*(wav+i);
+      }
+      else {
+        sample[i]=0.0f;
+      }
     }
   }
 }
 
-void wtFrame::loadMagnitude(size_t sCount, bool interpolate, float *magn) {
-  std::fill(magnitude.begin(), magnitude.end(), 0);
-  std::fill(phase.begin(), phase.end(), 0);
-  if (interpolate) {
-    for(size_t i=0;i<FS2/2;i++) {
-      size_t index = i*((float)max(sCount-1,0)/(float)FS2);
-      float pos = (float)i*((float)max(sCount-1,0)/(float)FS2);
-      magnitude[i]=rescale(pos,index,index+1,*(magn+index),*(magn+index+1));
-    }
-  }
-  else {
-    for(size_t i=0;i<(size_t)min(sCount,FS2/2);i++) {
-      magnitude[i]=*(magn+i);
-    }
-  }
-  magnitude[0]=0;
-  calcIFFT();
-}
-
-float wtFrame::maxAmp() {
+inline float wtFrame::maxAmp() {
   float amp = 0.0f;
 	for(size_t i = 0 ; i < FS; i++) {
 		amp = max(amp,abs(sample[i]));
@@ -175,7 +167,7 @@ float wtFrame::maxAmp() {
 	return amp;
 }
 
-void wtFrame::gain(float g) {
+inline void wtFrame::gain(float g) {
 	for(size_t i = 0 ; i < FS; i++) {
 		sample[i]*=g;
 	}
@@ -183,7 +175,10 @@ void wtFrame::gain(float g) {
 
 struct wtTable {
   std::vector<wtFrame> frames;
-  mutex mtx;
+
+  wtTable() {
+
+  }
 
   void loadSample(size_t sCount, size_t frameSize, bool interpolate, float *sample);
   void loadMagnitude(size_t sCount, size_t frameSize, bool interpolate, float *magn);
@@ -207,36 +202,16 @@ struct wtTable {
 };
 
 void wtTable::loadSample(size_t sCount, size_t frameSize, bool interpolate, float *sample) {
-  reset();
-
-  mtx.lock();
+  frames.clear();
   size_t sUsed=0;
-  while ((sUsed != sCount) && (frames.size()<256)) {
+  while ((sUsed != sCount) && (frames.size()<NF)) {
     size_t lenFrame = min(frameSize,sCount-sUsed);
     wtFrame frame;
     frame.loadSample(lenFrame,interpolate,sample+sUsed);
     frames.push_back(frame);
     sUsed+=lenFrame;
   }
-  mtx.unlock();
 }
-
-void wtTable::loadMagnitude(size_t sCount, size_t frameSize, bool interpolate, float *magn) {
-  reset();
-
-  mtx.lock();
-  size_t sUsed=0;
-  while ((sUsed != sCount) && (frames.size()<256)) {
-    size_t lenFrame = min(frameSize,sCount-sUsed);
-    wtFrame frame;
-    frame.loadMagnitude(lenFrame,interpolate,magn+sUsed);
-    frames.push_back(frame);
-    sUsed+=lenFrame;
-  }
-  normalizeAllFrames();
-  mtx.unlock();
-}
-
 
 void wtTable::normalize() {
   float amp = 0.0f;
@@ -249,103 +224,106 @@ void wtTable::normalize() {
   }
 }
 
-void wtTable::normalizeFrame(size_t index) {
+inline void wtTable::normalizeFrame(size_t index) {
   frames[index].normalize();
 }
 
-void wtTable::normalizeAllFrames() {
+inline void wtTable::normalizeAllFrames() {
   for(size_t i=0; i<frames.size(); i++) {
     frames[i].normalize();
   }
 }
 
-void wtTable::smooth() {
+inline void wtTable::smooth() {
   for(size_t i=0; i<frames.size();i++) {
     frames[i].smooth();
   }
 }
 
-void wtTable::smoothFrame(size_t index) {
+inline void wtTable::smoothFrame(size_t index) {
   frames[index].smooth();
 }
 
-void wtTable::window() {
+inline void wtTable::window() {
   for(size_t i=0; i<frames.size();i++) {
     frames[i].window();
   }
 }
 
-void wtTable::windowFrame(size_t index) {
+inline void wtTable::windowFrame(size_t index) {
   frames[index].window();
 }
 
-void wtTable::removeDCOffset() {
+inline void wtTable::removeDCOffset() {
   for(size_t i=0; i<frames.size();i++) {
     frames[i].removeDCOffset();
   }
 }
 
-void wtTable::removeFrameDCOffset(size_t index) {
+inline void wtTable::removeFrameDCOffset(size_t index) {
   frames[index].removeDCOffset();
 }
 
-void wtTable::addFrame(size_t index) {
-  wtFrame nFrame;
-  frames.insert(frames.begin()+index,nFrame);
+inline void wtTable::addFrame(size_t index) {
+  if (frames.size()<NF) {
+    wtFrame nFrame;
+    if ((frames.size()>1) && (index<frames.size()-1)) {
+      frames.insert(frames.begin()+index+1,nFrame);
+    }
+    else {
+      frames.push_back(nFrame);
+    }
+  }
 }
 
-void wtTable::removeFrame(size_t index) {
-  frames.erase(frames.begin()+index);
+inline void wtTable::removeFrame(size_t index) {
+  if ((frames.size()>0) && (index<frames.size())) {
+    frames.erase(frames.begin()+index);
+  }
 }
 
 void wtTable::morphFrames() {
   deleteMorphing();
-  mtx.lock();
   if (frames.size()>1) {
     size_t fs = frames.size();
-    size_t fCount = (256 - fs)/(fs-1);
+    size_t fCount = (NF - fs)/(fs-1);
     for (size_t i=0; i<(fs-1); i++) {
       for (size_t j=0; j<fCount; j++) {
         wtFrame frame;
         frame.morphed=true;
         for(size_t k=0; k<FS; k++) {
-          frame.sample[k]=rescale(j,0,fCount-1,frames[i*(fCount+1)].sample[k],frames[i*(fCount+1)+j+1].sample[k]);
+          frame.sample[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].sample[k],frames[i*(fCount+1)+j+1].sample[k]);
         }
         frames.insert(frames.begin()+i*(fCount+1)+j+1, frame);
       }
     }
   }
-  mtx.unlock();
 }
 
 void wtTable::morphSpectrum() {
   deleteMorphing();
-  mtx.lock();
   if (frames.size()>1) {
     for(size_t i=0; i<frames.size(); i++) {
       frames[i].calcFFT();
     }
     size_t fs = frames.size();
-    size_t fCount = (256 - fs)/(fs-1);
+    size_t fCount = (NF - fs)/(fs-1);
     for (size_t i=0; i<(fs-1); i++) {
       for (size_t j=0; j<fCount; j++) {
         wtFrame frame;
         frame.morphed=true;
         for(size_t k=0; k<FS2; k++) {
-          frame.magnitude[k]=rescale(j,0,fCount-1,frames[i*(fCount+1)].magnitude[k],frames[i*(fCount+1)+j+1].magnitude[k]);
-          frame.phase[k]=rescale(j,0,fCount-1,frames[i*(fCount+1)].phase[k],frames[i*(fCount+1)+j+1].phase[k]);
+          frame.magnitude[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[i*(fCount+1)+j+1].magnitude[k]);
+          frame.phase[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[i*(fCount+1)+j+1].phase[k]);
         }
         frame.calcIFFT();
         frames.insert(frames.begin()+i*(fCount+1)+j+1, frame);
       }
     }
   }
-  mtx.unlock();
 }
 
 void wtTable::morphSpectrumConstantPhase() {
-  deleteMorphing();
-  mtx.lock();
   if (frames.size()>1) {
     for(size_t i=0; i<frames.size(); i++) {
       frames[i].calcFFT();
@@ -357,13 +335,13 @@ void wtTable::morphSpectrumConstantPhase() {
       }
     }
     size_t fs = frames.size();
-    size_t fCount = (256 - fs)/(fs-1);
+    size_t fCount = (NF - fs)/(fs-1);
     for (size_t i=0; i<(fs-1); i++) {
       for (size_t j=0; j<fCount; j++) {
         wtFrame frame;
         frame.morphed=true;
         for(size_t k=0; k<FS2; k++) {
-          frame.magnitude[k]=rescale(j,0,fCount-1,frames[i*(fCount+1)].magnitude[k],frames[i*(fCount+1)+j+1].magnitude[k]);
+          frame.magnitude[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[i*(fCount+1)+j+1].magnitude[k]);
           frame.phase[k]=frames[0].phase[k];
         }
         frame.calcIFFT();
@@ -371,37 +349,34 @@ void wtTable::morphSpectrumConstantPhase() {
       }
     }
   }
-  mtx.unlock();
 }
 
-void wtTable::reset() {
-  mtx.lock();
+inline void wtTable::reset() {
   frames.clear();
-  mtx.unlock();
 }
 
-void wtTable::init() {
+inline void wtTable::init() {
   reset();
-  mtx.lock();
-  for(size_t i=0; i<256; i++) {
+  for(size_t i=0; i<NF; i++) {
     wtFrame frame;
     frames.push_back(frame);
   }
-  mtx.unlock();
 }
 
-void wtTable::deleteMorphing() {
-  mtx.lock();
+inline void wtTable::deleteMorphing() {
   frames.erase(std::remove_if(
     frames.begin(), frames.end(),
     [](const wtFrame& x) {
         return x.morphed;
     }), frames.end());
-  mtx.unlock();
 }
 
 struct wtOscillator {
   wtTable table;
+
+  wtOscillator() {
+
+  }
 
 	bool soft = false;
 	float lastSyncValue = 0.0f;
@@ -415,8 +390,7 @@ struct wtOscillator {
 	int pitchSlewIndex = 0;
 	size_t pIndex=0;
 	float wavBuffer[16] = {};
-
-  wtOscillator() { }
+  float pValue = 0.0f;
 
 	void setPitch(float pitchKnob, float pitchCv) {
 		pitch = pitchKnob;
@@ -425,7 +399,7 @@ struct wtOscillator {
 		freq = 261.626f * powf(2.0f, pitch / 12.0f);
 	}
 
-	void process(float deltaTime, float syncValue, size_t index) {
+	void process(float deltaTime, float syncValue, float index, std::mutex &mtx) {
 		// Advance phase
 		float deltaPhase = clamp(freq * deltaTime, 1e-6, 0.5f);
 
@@ -458,16 +432,13 @@ struct wtOscillator {
 				}
 			}
 
-      if (index<table.frames.size()) {
-        table.mtx.lock();
-			  wavBuffer[i] = 1.66f * interpolateLinear(table.frames[index].sample.data(), phase * 2047.f);
-        table.mtx.unlock();
-      }
-      else {
-        wavBuffer[i] =  0.0f;
+      {
+        std::lock_guard<std::mutex> lck {mtx};
+        size_t idx = index*(table.frames.size()-1);
+        wavBuffer[i] = idx<table.frames.size() ? 1.66f * interpolateLinear(table.frames[idx].sample.data(), phase * 2047.f) : pValue;
+        pValue = wavBuffer[i];
       }
 
-			pIndex = index;
 			phase += deltaPhase / 16;
 			phase = eucmod(phase, 1.0f);
 		}
@@ -477,5 +448,4 @@ struct wtOscillator {
 	float out() {
 		return wavDecimator.process(wavBuffer);
 	}
-
 };
