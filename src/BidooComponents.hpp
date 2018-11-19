@@ -15,6 +15,18 @@ struct BidooBlueKnob : RoundKnob {
 	}
 };
 
+struct BidooGreenKnob : RoundKnob {
+	BidooGreenKnob() {
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/GreenKnobBidoo.svg")));
+	}
+};
+
+struct BidooRedKnob : RoundKnob {
+	BidooRedKnob() {
+		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/RedKnobBidoo.svg")));
+	}
+};
+
 struct BidooHugeBlueKnob : RoundKnob {
 	BidooHugeBlueKnob() {
 		setSVG(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/HugeBlueKnobBidoo.svg")));

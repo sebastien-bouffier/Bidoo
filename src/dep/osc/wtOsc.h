@@ -372,10 +372,9 @@ inline void wtTable::deleteMorphing() {
 }
 
 struct wtOscillator {
-  wtTable table;
+  wtTable *table;
 
   wtOscillator() {
-
   }
 
 	bool soft = false;
@@ -390,7 +389,8 @@ struct wtOscillator {
 	int pitchSlewIndex = 0;
 	size_t pIndex=0;
 	float wavBuffer[16] = {};
-  float pValue = 0.0f;
+  float deltaPhase = 0.0f;
+  int syncIndex = -1;
 
 	void setPitch(float pitchKnob, float pitchCv) {
 		pitch = pitchKnob;
@@ -399,12 +399,12 @@ struct wtOscillator {
 		freq = 261.626f * powf(2.0f, pitch / 12.0f);
 	}
 
-	void process(float deltaTime, float syncValue, float index, std::mutex &mtx) {
+	void prepare(float deltaTime, float syncValue) {
 		// Advance phase
-		float deltaPhase = clamp(freq * deltaTime, 1e-6, 0.5f);
+		 deltaPhase = clamp(freq * deltaTime, 1e-6, 0.5f);
 
 		// Detect sync
-		int syncIndex = -1; // Index in the oversample loop where sync occurs [0, OVERSAMPLE)
+		syncIndex = -1; // Index in the oversample loop where sync occurs [0, OVERSAMPLE)
 		float syncCrossing = 0.0f; // Offset that sync occurs [0.0f, 1.0f)
 		if (syncEnabled) {
 			syncValue -= 0.01f;
@@ -420,8 +420,11 @@ struct wtOscillator {
 
 		if (syncDirection)
 			deltaPhase *= -1.0f;
+	}
 
-		for (int i = 0; i < 16; i++) {
+  void updateBuffer(float index) {
+    size_t idx = index*(table->frames.size()-1);
+    for (int i = 0; i < 16; i++) {
 			if (syncIndex == i) {
 				if (soft) {
 					syncDirection = !syncDirection;
@@ -431,19 +434,11 @@ struct wtOscillator {
 					phase = 0.0f;
 				}
 			}
-
-      {
-        std::lock_guard<std::mutex> lck {mtx};
-        size_t idx = index*(table.frames.size()-1);
-        wavBuffer[i] = idx<table.frames.size() ? 1.66f * interpolateLinear(table.frames[idx].sample.data(), phase * 2047.f) : pValue;
-        pValue = wavBuffer[i];
-      }
-
+      wavBuffer[i] = idx<table->frames.size()? 1.66f * interpolateLinear(table->frames[idx].sample.data(), phase * 2047.f) : 0.0f;
 			phase += deltaPhase / 16;
 			phase = eucmod(phase, 1.0f);
 		}
-
-	}
+  }
 
 	float out() {
 		return wavDecimator.process(wavBuffer);

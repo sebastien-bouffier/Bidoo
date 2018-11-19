@@ -114,6 +114,16 @@ void tSmoothWt(wtTable &table) {
 	table.smooth();
 }
 
+void tWindowFrame(wtTable &table, float index) {
+	size_t i = index*(table.frames.size()-1);
+	table.windowFrame(i);
+}
+
+void tSmoothFrame(wtTable &table, float index) {
+	size_t i = index*(table.frames.size()-1);
+	table.smoothFrame(i);
+}
+
 void tRemoveDCOffset(wtTable &table) {
 	table.removeDCOffset();
 }
@@ -188,6 +198,8 @@ struct LIMONADE : Module {
 		INDEX_PARAM,
 		WTINDEX_PARAM,
 		WTINDEXATT_PARAM,
+		UNISSON_PARAM,
+		UNISSONRANGE_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -196,6 +208,8 @@ struct LIMONADE : Module {
 		SYNC_INPUT,
 		SYNCMODE_INPUT,
 		WTINDEX_INPUT,
+		IN,
+		UNISSONRANGE_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -211,10 +225,13 @@ struct LIMONADE : Module {
 	std::mutex mtx;
 	int morphType = -1;
 
-	wtOscillator osc;
+	wtTable table;
+	wtOscillator osc[3];
 
 	LIMONADE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-
+		for(size_t i=0; i<3; i++) {
+			osc[i].table = &table;
+		}
 	}
 
   ~LIMONADE() {
@@ -228,6 +245,8 @@ struct LIMONADE : Module {
 	void loadPNG();
 	void windowWt();
 	void smoothWt();
+	void windowFrame();
+	void smoothFrame();
 	void removeDCOffset();
 	void fftSample();
 	void ifftSample();
@@ -249,11 +268,11 @@ struct LIMONADE : Module {
 		size_t nFrames = 0;
 		{
 			std::lock_guard<std::mutex> lck {mtx};
-			for (size_t i=0; i<osc.table.frames.size(); i++) {
-				if (!osc.table.frames[i].morphed) {
+			for (size_t i=0; i<table.frames.size(); i++) {
+				if (!table.frames[i].morphed) {
 					json_t *frameI = json_array();
 					for (size_t j=0; j<FS; j++) {
-						json_t *frameJ = json_real(osc.table.frames[i].sample[j]);
+						json_t *frameJ = json_real(table.frames[i].sample[j]);
 						json_array_append_new(frameI, frameJ);
 					}
 					json_array_append_new(framesJ, frameI);
@@ -291,7 +310,7 @@ struct LIMONADE : Module {
 						wav[i*FS+j] = json_number_value(json_array_get(frameJ, j));
 					}
 				}
-				osc.table.loadSample(nFrames*FS, FS, false, wav);
+				table.loadSample(nFrames*FS, FS, false, wav);
 				if (morphType==0) {
 					morphWavetable();
 				}
@@ -313,63 +332,63 @@ struct LIMONADE : Module {
 	void reset() override {
 		{
 			std::lock_guard<std::mutex> lck {mtx};
-			osc.table.reset();
+			table.reset();
 		}
 		lastPath = "";
 	}
 };
 
 inline void LIMONADE::updateWaveTable() {
-	thread t = thread(tUpdateWaveTable, std::ref(osc.table), params[INDEX_PARAM].value);
+	thread t = thread(tUpdateWaveTable, std::ref(table), params[INDEX_PARAM].value);
 	t.detach();
 }
 
 inline void LIMONADE::fftSample() {
-	thread t = thread(tFFTSample, std::ref(osc.table), params[INDEX_PARAM].value);
+	thread t = thread(tFFTSample, std::ref(table), params[INDEX_PARAM].value);
 	t.detach();
 }
 
 inline void LIMONADE::ifftSample() {
-	thread t = thread(tIFFTSample, std::ref(osc.table), params[INDEX_PARAM].value);
+	thread t = thread(tIFFTSample, std::ref(table), params[INDEX_PARAM].value);
 	t.detach();
 }
 
 inline void LIMONADE::morphWavetable() {
-	thread t = thread(tMorphWaveTable, std::ref(osc.table), std::ref(mtx));
+	thread t = thread(tMorphWaveTable, std::ref(table), std::ref(mtx));
 	morphType = 0;
 	t.detach();
 }
 
 inline void LIMONADE::morphSpectrum() {
-	thread t = thread(tMorphSpectrum, std::ref(osc.table), std::ref(mtx));
+	thread t = thread(tMorphSpectrum, std::ref(table), std::ref(mtx));
 	morphType = 1;
 	t.detach();
 }
 
 inline void LIMONADE::morphSpectrumConstantPhase() {
-	thread t = thread(tMorphSpectrumConstantPhase, std::ref(osc.table), std::ref(mtx));
+	thread t = thread(tMorphSpectrumConstantPhase, std::ref(table), std::ref(mtx));
 	morphType = 2;
 	t.detach();
 }
 
 inline void LIMONADE::deleteMorphing() {
-	thread t = thread(tDeleteMorphing, std::ref(osc.table), std::ref(mtx));
+	thread t = thread(tDeleteMorphing, std::ref(table), std::ref(mtx));
 	morphType = -1;
 	t.detach();
 }
 
 void LIMONADE::addFrame() {
-	thread t = thread(tAddFrame, std::ref(osc.table), params[INDEX_PARAM].value, std::ref(mtx));
+	thread t = thread(tAddFrame, std::ref(table), params[INDEX_PARAM].value, std::ref(mtx));
 	t.detach();
 }
 
 void LIMONADE::deleteFrame() {
-	thread t = thread(tDeleteFrame, std::ref(osc.table), params[INDEX_PARAM].value, std::ref(mtx));
+	thread t = thread(tDeleteFrame, std::ref(table), params[INDEX_PARAM].value, std::ref(mtx));
 	t.detach();
 }
 
 void LIMONADE::resetWaveTable() {
-	thread t = thread(tResetWaveTable, std::ref(osc.table), std::ref(mtx));
+	thread t = thread(tResetWaveTable, std::ref(table), std::ref(mtx));
 	t.detach();
 }
 
@@ -377,7 +396,7 @@ void LIMONADE::loadSample() {
 	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
 	if (path) {
 		lastPath=path;
-		thread t = thread(tLoadSample, std::ref(osc.table), path, frameSize, true, std::ref(mtx));
+		thread t = thread(tLoadSample, std::ref(table), path, frameSize, true, std::ref(mtx));
 		t.detach();
 		free(path);
 	}
@@ -387,7 +406,7 @@ void LIMONADE::loadFrame() {
 	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
 	if (path) {
 		lastPath=path;
-		thread t = thread(tLoadFrame, std::ref(osc.table), path, params[INDEX_PARAM].value, true, std::ref(mtx));
+		thread t = thread(tLoadFrame, std::ref(table), path, params[INDEX_PARAM].value, true, std::ref(mtx));
 		t.detach();
 		free(path);
 	}
@@ -397,55 +416,100 @@ void LIMONADE::loadPNG() {
 	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
 	if (path) {
 		lastPath=path;
-		thread t = thread(tLoadPNG, std::ref(osc.table), path, std::ref(mtx));
+		thread t = thread(tLoadPNG, std::ref(table), path, std::ref(mtx));
 		t.detach();
 		free(path);
 	}
 }
 
 void LIMONADE::windowWt() {
-	thread t = thread(tWindowWt, std::ref(osc.table));
+	thread t = thread(tWindowWt, std::ref(table));
 	t.detach();
 }
 
 void LIMONADE::smoothWt() {
-	thread t = thread(tSmoothWt, std::ref(osc.table));
+	thread t = thread(tSmoothWt, std::ref(table));
+	t.detach();
+}
+
+void LIMONADE::windowFrame() {
+	thread t = thread(tWindowFrame, std::ref(table), params[INDEX_PARAM].value);
+	t.detach();
+}
+
+void LIMONADE::smoothFrame() {
+	thread t = thread(tSmoothFrame, std::ref(table), params[INDEX_PARAM].value);
 	t.detach();
 }
 
 void LIMONADE::removeDCOffset() {
-	thread t = thread(tRemoveDCOffset, std::ref(osc.table));
+	thread t = thread(tRemoveDCOffset, std::ref(table));
 	t.detach();
 }
 
 
 void LIMONADE::normalizeFrame() {
-	thread t = thread(tNormalizeFrame, std::ref(osc.table), params[INDEX_PARAM].value);
+	thread t = thread(tNormalizeFrame, std::ref(table), params[INDEX_PARAM].value);
 	t.detach();
 }
 
 void LIMONADE::normalizeWt() {
-	thread t = thread(tNormalizeWt, std::ref(osc.table));
+	thread t = thread(tNormalizeWt, std::ref(table));
 	t.detach();
 }
 
 void LIMONADE::normalizeAllFrames() {
-	thread t = thread(tNormalizeAllFrames, std::ref(osc.table));
+	thread t = thread(tNormalizeAllFrames, std::ref(table));
 	t.detach();
 }
 
 void LIMONADE::step() {
-  osc.soft = (params[SYNC_PARAM].value + inputs[SYNCMODE_INPUT].value) <= 0.0f;
-	float pitchFine = 3.0f * quadraticBipolar(params[FINE_PARAM].value);
 	float pitchCv = 12.0f * inputs[PITCH_INPUT].value;
+	float pitchFine = 3.0f * quadraticBipolar(params[FINE_PARAM].value);
 	if (inputs[FM_INPUT].active) {
 		pitchCv += quadraticBipolar(params[FM_PARAM].value) * 12.0f * inputs[FM_INPUT].value;
 	}
-	osc.setPitch(params[FREQ_PARAM].value, pitchFine + pitchCv);
-	osc.syncEnabled = inputs[SYNC_INPUT].active;
+	float idx=clamp(params[WTINDEX_PARAM].value+inputs[WTINDEX_INPUT].value*0.1f*params[WTINDEXATT_PARAM].value,0.0f,1.0f);
+	outputs[OUT].value = 0.0f;
 
-	osc.process(engineGetSampleTime(), inputs[SYNC_INPUT].value, clamp(params[WTINDEX_PARAM].value+inputs[WTINDEX_INPUT].value*0.1f*params[WTINDEXATT_PARAM].value,0.0f,1.0f), mtx);
-	outputs[OUT].value = 5.0f * osc.out();
+	float ur = clamp(params[UNISSONRANGE_PARAM].value + inputs[UNISSONRANGE_INPUT].value / 10.0f,0.0f,0.1f);
+	for (size_t i=0; i<(size_t)params[UNISSON_PARAM].value; i++) {
+		float pFC = pitchFine;
+		if (params[UNISSON_PARAM].value>2) {
+			if (i==1) {
+				pFC += ur;
+			}
+			else if (i==2) {
+				pFC -= ur;
+			}
+		}
+		else if (params[UNISSON_PARAM].value>1) {
+			if (i==0) {
+				pFC += ur;
+			}
+			else {
+				pFC -= ur;
+			}
+		}
+
+		osc[i].soft = (params[SYNC_PARAM].value + inputs[SYNCMODE_INPUT].value) <= 0.0f;
+		osc[i].setPitch(params[FREQ_PARAM].value, pFC + pitchCv);
+		osc[i].syncEnabled = inputs[SYNC_INPUT].active;
+		osc[i].prepare(engineGetSampleTime(), inputs[SYNC_INPUT].value);
+	}
+
+	{
+		std::lock_guard<std::mutex> lck {mtx};
+		for(size_t i=0; i<(size_t)params[UNISSON_PARAM].value; i++) {
+			osc[i].updateBuffer(idx);
+		}
+	}
+
+	for(size_t i=0; i<(size_t)params[UNISSON_PARAM].value; i++) {
+			outputs[OUT].value += osc[i].out();
+	}
+
+	outputs[OUT].value *= 3.0 / sqrt(params[UNISSON_PARAM].value);
 }
 
 struct LIMONADEWidget : ModuleWidget {
@@ -493,27 +557,27 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 	}
 
 	void onDragMove(EventDragMove &e) override {
-		if ((!scroll) && (module->osc.table.frames.size()>0)) {
-			size_t i = module->params[LIMONADE::INDEX_PARAM].value*(module->osc.table.frames.size()-1);
+		if ((!scroll) && (module->table.frames.size()>0)) {
+			size_t i = module->params[LIMONADE::INDEX_PARAM].value*(module->table.frames.size()-1);
 			if (refY<=heightMagn) {
 				if (windowIsModPressed()) {
-					module->osc.table.frames[i].magnitude[refIdx] = 0.0f;
+					module->table.frames[i].magnitude[refIdx] = 0.0f;
 				}
 				else {
-					module->osc.table.frames[i].magnitude[refIdx] -= e.mouseRel.y/(250/gRackScene->zoomWidget->zoom);
-					module->osc.table.frames[i].magnitude[refIdx] = clamp(module->osc.table.frames[i].magnitude[refIdx],0.0f, 1.0f);
+					module->table.frames[i].magnitude[refIdx] -= e.mouseRel.y/(250/gRackScene->zoomWidget->zoom);
+					module->table.frames[i].magnitude[refIdx] = clamp(module->table.frames[i].magnitude[refIdx],0.0f, 1.0f);
 				}
 			}
 			else if (refY>=heightMagn+graphGap) {
 				if (windowIsModPressed()) {
-					module->osc.table.frames[i].phase[refIdx] = 0.0f;
+					module->table.frames[i].phase[refIdx] = 0.0f;
 				}
 				else {
-					module->osc.table.frames[i].phase[refIdx] -= e.mouseRel.y/(250/gRackScene->zoomWidget->zoom);
-					module->osc.table.frames[i].phase[refIdx] = clamp(module->osc.table.frames[i].phase[refIdx],-1.0f*M_PI, M_PI);
+					module->table.frames[i].phase[refIdx] -= e.mouseRel.y/(250/gRackScene->zoomWidget->zoom);
+					module->table.frames[i].phase[refIdx] = clamp(module->table.frames[i].phase[refIdx],-1.0f*M_PI, M_PI);
 				}
 			}
-			module->osc.table.frames[i].morphed = false;
+			module->table.frames[i].morphed = false;
 			module->updateWaveTable();
 		}
 		else {
@@ -536,11 +600,11 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 
 		{
 			std::lock_guard<std::mutex> lck {module->mtx};
-			fs = module->osc.table.frames.size();
+			fs = module->table.frames.size();
 			if (fs>0) {
 				idx = module->params[LIMONADE::INDEX_PARAM].value*(fs-1);
-				frame.magnitude = module->osc.table.frames[idx].magnitude;
-				frame.phase = module->osc.table.frames[idx].phase;
+				frame.magnitude = module->table.frames[idx].magnitude;
+				frame.phase = module->table.frames[idx].phase;
 			}
 		}
 
@@ -593,7 +657,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 					nvgStrokeWidth(vg, 1);
 					nvgBeginPath(vg);
 					nvgRect(vg, p.x, heightMagn - p.y, b.size.x * IFS2, p.y);
-					y = module->osc.table.frames[idx].phase[i]*IM_PI;
+					y = module->table.frames[idx].phase[i]*IM_PI;
 					p.y = heightPhas * 0.5f * y;
 					nvgRect(vg, p.x, heightMagn + graphGap + heightPhas * 0.5f - p.y, b.size.x * IFS2, p.y);
 					nvgStroke(vg);
@@ -610,8 +674,8 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 struct LIMONADEWavDisplay : OpaqueWidget {
 	LIMONADE *module;
 	shared_ptr<Font> font;
-	const float width = 150.0f;
-	const float height = 100.0f;
+	const float width = 130.0f;
+	const float height = 130.0f;
 	int refIdx = 0;
 	float alpha1 = 25.0f;
 	float alpha2 = 35.0f;
@@ -665,20 +729,28 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 		size_t wtidx = 0;
 		{
 			std::lock_guard<std::mutex> lck {module->mtx};
-			fs = module->osc.table.frames.size();
+			fs = module->table.frames.size();
 			if (fs>0) {
 				idx = module->params[LIMONADE::INDEX_PARAM].value*(fs-1);
 				wtidx = clamp(module->params[LIMONADE::WTINDEX_PARAM].value+module->inputs[LIMONADE::WTINDEX_INPUT].value*0.1f*module->params[LIMONADE::WTINDEXATT_PARAM].value,0.0f,1.0f)*(fs-1);
 				for (size_t i=0; i< fs; i++) {
 					wtFrame frame;
-					frame.morphed = module->osc.table.frames[i].morphed;
-					frame.sample = module->osc.table.frames[i].sample;
+					frame.morphed = module->table.frames[i].morphed;
+					frame.sample = module->table.frames[i].sample;
 					table.frames.push_back(frame);
 				}
 			}
 		}
 
 		nvgSave(vg);
+
+		nvgFontSize(vg, 8.0f);
+		nvgFontFaceId(vg, font->handle);
+		nvgTextLetterSpacing(vg, -2.0f);
+		nvgFillColor(vg, YELLOW_BIDOO);
+
+		nvgText(vg, width+6, height-10, ("V=" + to_string((int)module->params[LIMONADE::UNISSON_PARAM].value)).c_str(), NULL);
+
 
 		for (size_t n=0; n<fs; n++) {
 			nvgBeginPath(vg);
@@ -826,47 +898,47 @@ LIMONADEWidget::LIMONADEWidget(LIMONADE *module) : ModuleWidget(module) {
 
 	{
 		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(170, 250);
-		btn->caption = "Õ";
+		btn->box.pos = Vec(170, 235);
+		btn->caption = "≈";
 		btn->module = module;
 		btn->fncPtr = module->loadSample;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(190, 250);
-		btn->caption = "P";
+		btn->box.pos = Vec(190, 235);
+		btn->caption = "☺";
 		btn->module = module;
 		btn->fncPtr = module->loadPNG;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(210, 250);
-		btn->caption = "Ö";
+		btn->box.pos = Vec(210, 235);
+		btn->caption = "~";
 		btn->module = module;
 		btn->fncPtr = module->loadFrame;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(170, 270);
-		btn->caption = "~";
+		btn->box.pos = Vec(170, 255);
+		btn->caption = "≡";
 		btn->module = module;
 		btn->fncPtr = module->morphWavetable;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(190, 270);
-		btn->caption = "Š";
+		btn->box.pos = Vec(190, 255);
+		btn->caption = "∞";
 		btn->module = module;
 		btn->fncPtr = module->morphSpectrum;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(210, 270);
+		btn->box.pos = Vec(210, 255);
 		btn->caption = "Փ";
 		btn->module = module;
 		btn->fncPtr = module->morphSpectrumConstantPhase;
@@ -874,63 +946,79 @@ LIMONADEWidget::LIMONADEWidget(LIMONADE *module) : ModuleWidget(module) {
 	}
 	{
 		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(230, 270);
-		btn->caption = "D";
+		btn->box.pos = Vec(230, 255);
+		btn->caption = "Ø";
 		btn->module = module;
 		btn->fncPtr = module->deleteMorphing;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(170, 290);
-		btn->caption = "¦¦";
+		btn->box.pos = Vec(170, 275);
+		btn->caption = "↕";
 		btn->module = module;
 		btn->fncPtr = module->normalizeAllFrames;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(190, 290);
-		btn->caption = "~";
-		btn->module = module;
-		btn->fncPtr = module->normalizeWt;
-		addChild(btn);
-	}
-	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(210, 290);
-		btn->caption = "¦";
-		btn->module = module;
-		btn->fncPtr = module->normalizeFrame;
-		addChild(btn);
-	}
-	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(170, 310);
-		btn->caption = "‡";
+		btn->box.pos = Vec(190, 275);
+		btn->caption = "↨";
 		btn->module = module;
 		btn->fncPtr = module->removeDCOffset;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(190, 310);
-		btn->caption = "ƒ";
+		btn->box.pos = Vec(210, 275);
+		btn->caption = "↕≈";
+		btn->module = module;
+		btn->fncPtr = module->normalizeWt;
+		addChild(btn);
+	}
+	{
+		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		btn->box.pos = Vec(230, 275);
+		btn->caption = "↕~";
+		btn->module = module;
+		btn->fncPtr = module->normalizeFrame;
+		addChild(btn);
+	}
+	{
+		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		btn->box.pos = Vec(170, 295);
+		btn->caption = "∩≈";
 		btn->module = module;
 		btn->fncPtr = module->windowWt;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(210, 310);
-		btn->caption = "¬";
+		btn->box.pos = Vec(190, 295);
+		btn->caption = "ƒ≈";
 		btn->module = module;
 		btn->fncPtr = module->smoothWt;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(170, 330);
+		btn->box.pos = Vec(210, 295);
+		btn->caption = "∩~";
+		btn->module = module;
+		btn->fncPtr = module->windowFrame;
+		addChild(btn);
+	}
+	{
+		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		btn->box.pos = Vec(230, 295);
+		btn->caption = "ƒ~";
+		btn->module = module;
+		btn->fncPtr = module->smoothFrame;
+		addChild(btn);
+	}
+	{
+		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		btn->box.pos = Vec(170, 315);
 		btn->caption = "+";
 		btn->module = module;
 		btn->fncPtr = module->addFrame;
@@ -938,7 +1026,7 @@ LIMONADEWidget::LIMONADEWidget(LIMONADE *module) : ModuleWidget(module) {
 	}
 	{
 		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
-		btn->box.pos = Vec(190, 330);
+		btn->box.pos = Vec(190, 315);
 		btn->caption = "-";
 		btn->module = module;
 		btn->fncPtr = module->deleteFrame;
@@ -946,23 +1034,27 @@ LIMONADEWidget::LIMONADEWidget(LIMONADE *module) : ModuleWidget(module) {
 	}
 
 
-	addParam(ParamWidget::create<CKSS>(Vec(275, 230), module, LIMONADE::SYNC_PARAM, 0.0f, 1.0f, 1.0f));
-	addParam(ParamWidget::create<BidooBlueKnob>(Vec(302, 225), module, LIMONADE::FREQ_PARAM, -108.0f, 54.0f, 0.0f));
-	addParam(ParamWidget::create<BidooBlueKnob>(Vec(337, 225), module, LIMONADE::FINE_PARAM, -1.0f, 1.0f, 0.0f));
-	addParam(ParamWidget::create<BidooBlueKnob>(Vec(372, 225), module, LIMONADE::FM_PARAM, 0.0f, 1.0f, 0.0f));
+	addParam(ParamWidget::create<CKSS>(Vec(280, 230), module, LIMONADE::SYNC_PARAM, 0.0f, 1.0f, 1.0f));
+	addParam(ParamWidget::create<BidooBlueKnob>(Vec(307, 225), module, LIMONADE::FREQ_PARAM, -108.0f, 54.0f, 0.0f));
+	addParam(ParamWidget::create<BidooBlueKnob>(Vec(342, 225), module, LIMONADE::FINE_PARAM, -1.0f, 1.0f, 0.0f));
+	addParam(ParamWidget::create<BidooBlueKnob>(Vec(377, 225), module, LIMONADE::FM_PARAM, 0.0f, 1.0f, 0.0f));
 
-	addParam(ParamWidget::create<BidooBlueKnob>(Vec(220.0f, 208.0f), module, LIMONADE::INDEX_PARAM, 0.0f, 1.0f, 0.0f));
+	addParam(ParamWidget::create<BidooGreenKnob>(Vec(235.0f, 208.0f), module, LIMONADE::INDEX_PARAM, 0.0f, 1.0f, 0.0f));
+	addParam(ParamWidget::create<BidooRedKnob>(Vec(412.0f, 225), module, LIMONADE::WTINDEX_PARAM, 0.0f, 1.0f, 0.0f));
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(417.0f, 265), module, LIMONADE::WTINDEXATT_PARAM, -1.0f, 1.0f, 0.0f));
 
-	addParam(ParamWidget::create<BidooBlueKnob>(Vec(407.0f, 225), module, LIMONADE::WTINDEX_PARAM, 0.0f, 1.0f, 0.0f));
-	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(412.0f, 265), module, LIMONADE::WTINDEXATT_PARAM, -1.0f, 1.0f, 0.0f));
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(170.0f, 335.0f), module, LIMONADE::UNISSON_PARAM, 1.0f, 3.0f, 1.0f));
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(195.0f, 335.0f), module, LIMONADE::UNISSONRANGE_PARAM, 0.0f, 0.1f, 0.0f));
+	addInput(Port::create<TinyPJ301MPort>(Vec(220, 337), Port::INPUT, module, LIMONADE::UNISSONRANGE_INPUT));
 
-	addInput(Port::create<PJ301MPort>(Vec(270, 290), Port::INPUT, module, LIMONADE::SYNCMODE_INPUT));
-	addInput(Port::create<PJ301MPort>(Vec(305, 290), Port::INPUT, module, LIMONADE::PITCH_INPUT));
-	addInput(Port::create<PJ301MPort>(Vec(340, 290), Port::INPUT, module, LIMONADE::SYNC_INPUT));
-	addInput(Port::create<PJ301MPort>(Vec(375, 290), Port::INPUT, module, LIMONADE::FM_INPUT));
-	addInput(Port::create<PJ301MPort>(Vec(410, 290), Port::INPUT, module, LIMONADE::WTINDEX_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(275, 290), Port::INPUT, module, LIMONADE::SYNCMODE_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(310, 290), Port::INPUT, module, LIMONADE::PITCH_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(345, 290), Port::INPUT, module, LIMONADE::SYNC_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(380, 290), Port::INPUT, module, LIMONADE::FM_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(415, 290), Port::INPUT, module, LIMONADE::WTINDEX_INPUT));
 
-	addOutput(Port::create<PJ301MPort>(Vec(340, 340), Port::OUTPUT, module, LIMONADE::OUT));
+	addInput(Port::create<PJ301MPort>(Vec(345, 340), Port::INPUT, module, LIMONADE::IN));
+	addOutput(Port::create<PJ301MPort>(Vec(380, 340), Port::OUTPUT, module, LIMONADE::OUT));
 }
 
 struct LIMONADELoadSample : MenuItem {
