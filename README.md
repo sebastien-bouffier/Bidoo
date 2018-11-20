@@ -13,6 +13,19 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
+20/11/2018 => 0.6.22
+
+*NEW* **liMonADe** additive osc + wavetable synth. On the right side stand the usual controls for the oscillator. On the left side stand commands to manipulate the frames and the wavetable. From top to bottom and left to right :
+samples per frame (textbox) - frame selector
+load sample into wavetable - load png into wavetable - load sample into frame
+morph frames - morph spectrum - morph spectrum phase constant - delete morphing
+normalize all frames - remove DC offset of all frames - normalize wavetable - normalize frame
+window wavetable - smooth wavetable - window frame - smooth frame
+add frame - remove frame
+number of voices - voices detuning (voices detuning input)
+
+there is one unused input it will be the entry point for sampling.
+
 05/10/2018 => 0.6.19
 
 *NEW* **PeNEqUe** additive osc. To scroll horizontally in bins => Shift + mouse. To set a bin to 0 Ctrl + Click. Top chart is magnitude and middle chart is phase.
