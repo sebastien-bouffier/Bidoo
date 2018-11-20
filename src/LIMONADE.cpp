@@ -16,11 +16,11 @@
 using namespace std;
 
 void tUpdateWaveTable(wtTable &table, float index) {
-	size_t i = index*(table.frames.size()-1);
+	size_t i = index*(table.nFrames-1);
 	table.frames[i].calcWav();
 }
 
-void tLoadSample(wtTable &table, string path, size_t frameLen, bool interpolate, std::mutex &mtx) {
+void tLoadSample(wtTable &table, string path, size_t frameLen, bool interpolate) {
 	unsigned int c;
   unsigned int sr;
   drwav_uint64 sc;
@@ -36,16 +36,27 @@ void tLoadSample(wtTable &table, string path, size_t frameLen, bool interpolate,
 			else sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
 		}
 		drwav_free(pSampleData);
-
-		{
-			std::lock_guard<std::mutex> lck {mtx};
-			table.loadSample(sc, frameLen, interpolate, sample);
-		}
+		table.loadSample(sc, frameLen, interpolate, sample);
 		free(sample);
 	}
 }
 
-void tLoadFrame(wtTable &table, string path, float index, bool interpolate, std::mutex &mtx) {
+void tLoadISample(wtTable &table, float *iRec, size_t sc, size_t frameLen, bool interpolate) {
+	table.loadSample(sc, frameLen, interpolate, iRec);
+}
+
+void tLoadIFrame(wtTable &table, float *iRec, float index, size_t frameLen, bool interpolate) {
+	size_t i = index*(table.nFrames-1);
+	if (i<table.nFrames) {
+		table.frames[i].loadSample(frameLen, interpolate, iRec);
+	}
+	else if (table.nFrames==0) {
+		table.addFrame(0);
+		table.frames[0].loadSample(frameLen, interpolate, iRec);
+	}
+}
+
+void tLoadFrame(wtTable &table, string path, float index, bool interpolate) {
 	unsigned int c;
   unsigned int sr;
   drwav_uint64 sc;
@@ -61,24 +72,19 @@ void tLoadFrame(wtTable &table, string path, float index, bool interpolate, std:
 			else sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
 		}
 		drwav_free(pSampleData);
-
-		{
-			std::lock_guard<std::mutex> lck {mtx};
-			size_t i = index*(table.frames.size()-1);
-			if (i<table.frames.size()) {
-				table.frames[i].loadSample(sc, interpolate, sample);
-			}
-			else if (table.frames.size()==0) {
-				table.addFrame(0);
-				table.frames[0].loadSample(sc, interpolate, sample);
-			}
+		size_t i = index*(table.nFrames-1);
+		if (i<table.nFrames) {
+			table.frames[i].loadSample(sc, interpolate, sample);
 		}
-
+		else if (table.nFrames==0) {
+			table.addFrame(0);
+			table.frames[0].loadSample(sc, interpolate, sample);
+		}
 		free(sample);
 	}
 }
 
-void tLoadPNG(wtTable &table, string path, std::mutex &mtx) {
+void tLoadPNG(wtTable &table, string path) {
 	std::vector<unsigned char> image;
 	float *sample;
 	unsigned width = 0;
@@ -97,11 +103,7 @@ void tLoadPNG(wtTable &table, string path, std::mutex &mtx) {
 				sample[i*width+j] = (0.299f*image[3*j + 3*(height-i-1)*width] + 0.587f*image[3*j + 3*(height-i-1)*width +1] +  0.114f*image[3*j + 3*(height-i-1)*width +2])/255.0f - 0.5f;
 			}
 		}
-
-		{
-			std::lock_guard<std::mutex> lck {mtx};
-			table.loadSample(sc, width, true, sample);
-		}
+		table.loadSample(sc, width, true, sample);
 		free(sample);
   }
 }
@@ -115,12 +117,12 @@ void tSmoothWt(wtTable &table) {
 }
 
 void tWindowFrame(wtTable &table, float index) {
-	size_t i = index*(table.frames.size()-1);
+	size_t i = index*(table.nFrames-1);
 	table.windowFrame(i);
 }
 
 void tSmoothFrame(wtTable &table, float index) {
-	size_t i = index*(table.frames.size()-1);
+	size_t i = index*(table.nFrames-1);
 	table.smoothFrame(i);
 }
 
@@ -129,7 +131,7 @@ void tRemoveDCOffset(wtTable &table) {
 }
 
 void tNormalizeFrame(wtTable &table, float index) {
-	size_t i = index*(table.frames.size()-1);
+	size_t i = index*(table.nFrames-1);
 	table.frames[i].normalize();
 }
 
@@ -142,49 +144,42 @@ void tNormalizeAllFrames(wtTable &table) {
 }
 
 void tFFTSample(wtTable &table, float index) {
-	size_t i = index*(table.frames.size()-1);
+	size_t i = index*(table.nFrames-1);
 	table.frames[i].calcFFT();
 }
 
 void tIFFTSample(wtTable &table, float index) {
-	size_t i = index*(table.frames.size()-1);
+	size_t i = index*(table.nFrames-1);
 	table.frames[i].calcIFFT();
 }
 
-void tMorphWaveTable(wtTable &table, std::mutex &mtx) {
-	std::lock_guard<std::mutex> lck {mtx};
+void tMorphWaveTable(wtTable &table) {
 	table.morphFrames();
 }
 
-void tMorphSpectrum(wtTable &table, std::mutex &mtx) {
-	std::lock_guard<std::mutex> lck {mtx};
+void tMorphSpectrum(wtTable &table) {
 	table.morphSpectrum();
 }
 
-void tMorphSpectrumConstantPhase(wtTable &table, std::mutex &mtx) {
-	std::lock_guard<std::mutex> lck {mtx};
+void tMorphSpectrumConstantPhase(wtTable &table) {
 	table.morphSpectrumConstantPhase();
 }
 
-void tAddFrame(wtTable &table, float index, std::mutex &mtx) {
-	std::lock_guard<std::mutex> lck {mtx};
-	size_t i = index*(table.frames.size()-1);
+void tAddFrame(wtTable &table, float index) {
+	size_t i = index*(table.nFrames-1);
 	table.addFrame(i);
 }
 
-void tDeleteFrame(wtTable &table, float index, std::mutex &mtx) {
-	std::lock_guard<std::mutex> lck {mtx};
-	size_t i = index*(table.frames.size()-1);
+void tDeleteFrame(wtTable &table, float index) {
+	size_t i = index*(table.nFrames-1);
 	table.removeFrame(i);
 }
 
-void tResetWaveTable(wtTable &table, std::mutex &mtx) {
-	std::lock_guard<std::mutex> lck {mtx};
+void tResetWaveTable(wtTable &table) {
 	table.reset();
 }
 
-void tDeleteMorphing(wtTable &table, std::mutex &mtx) {
-	std::lock_guard<std::mutex> lck {mtx};
+void tDeleteMorphing(wtTable &table) {
 	table.deleteMorphing();
 }
 
@@ -200,6 +195,8 @@ struct LIMONADE : Module {
 		WTINDEXATT_PARAM,
 		UNISSON_PARAM,
 		UNISSONRANGE_PARAM,
+		RECWT_PARAM,
+		RECFRAME_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -217,13 +214,20 @@ struct LIMONADE : Module {
 		NUM_OUTPUTS = OUT+4
 	};
 	enum LightIds {
+		RECWT_LIGHT,
+		RECFRAME_LIGHT,
 		NUM_LIGHTS
 	};
 
 	string lastPath;
 	size_t frameSize = FS;
-	std::mutex mtx;
 	int morphType = -1;
+	bool recWt = false;
+	bool recFrame = false;
+	float *iRec;
+	SchmittTrigger recTrigger;
+	size_t recIndex=0;
+
 
 	wtTable table;
 	wtOscillator osc[3];
@@ -232,10 +236,11 @@ struct LIMONADE : Module {
 		for(size_t i=0; i<3; i++) {
 			osc[i].table = &table;
 		}
+		iRec=(float*)calloc(4*NF*FS,sizeof(float));
 	}
 
   ~LIMONADE() {
-
+		delete(iRec);
 	}
 
 	void step() override;
@@ -266,18 +271,15 @@ struct LIMONADE : Module {
 		json_t *rootJ = json_object();
 		json_t *framesJ = json_array();
 		size_t nFrames = 0;
-		{
-			std::lock_guard<std::mutex> lck {mtx};
-			for (size_t i=0; i<table.frames.size(); i++) {
-				if (!table.frames[i].morphed) {
-					json_t *frameI = json_array();
-					for (size_t j=0; j<FS; j++) {
-						json_t *frameJ = json_real(table.frames[i].sample[j]);
-						json_array_append_new(frameI, frameJ);
-					}
-					json_array_append_new(framesJ, frameI);
-					nFrames++;
+		for (size_t i=0; i<table.nFrames; i++) {
+			if (!table.frames[i].morphed) {
+				json_t *frameI = json_array();
+				for (size_t j=0; j<FS; j++) {
+					json_t *frameJ = json_real(table.frames[i].sample[j]);
+					json_array_append_new(frameI, frameJ);
 				}
+				json_array_append_new(framesJ, frameI);
+				nFrames++;
 			}
 		}
 		json_object_set_new(rootJ, "nFrames", json_integer(nFrames));
@@ -300,26 +302,22 @@ struct LIMONADE : Module {
 		if (nFrames>0)
 		{
 			float *wav = (float*)calloc(nFrames*FS, sizeof(float));
-			{
-				std::lock_guard<std::mutex> lck {mtx};
-
-				json_t *framesJ = json_object_get(rootJ, "frames");
-				for (size_t i = 0; i < nFrames; i++) {
-					json_t *frameJ = json_array_get(framesJ, i);
-					for (size_t j=0; j<FS; j++) {
-						wav[i*FS+j] = json_number_value(json_array_get(frameJ, j));
-					}
+			json_t *framesJ = json_object_get(rootJ, "frames");
+			for (size_t i = 0; i < nFrames; i++) {
+				json_t *frameJ = json_array_get(framesJ, i);
+				for (size_t j=0; j<FS; j++) {
+					wav[i*FS+j] = json_number_value(json_array_get(frameJ, j));
 				}
-				table.loadSample(nFrames*FS, FS, false, wav);
-				if (morphType==0) {
-					morphWavetable();
-				}
-				else if (morphType==1) {
-					morphSpectrum();
-				}
-				else if (morphType==2) {
-					morphSpectrumConstantPhase();
-				}
+			}
+			table.loadSample(nFrames*FS, FS, false, wav);
+			if (morphType==0) {
+				morphWavetable();
+			}
+			else if (morphType==1) {
+				morphSpectrum();
+			}
+			else if (morphType==2) {
+				morphSpectrumConstantPhase();
 			}
 			delete(wav);
 		}
@@ -330,10 +328,7 @@ struct LIMONADE : Module {
 	}
 
 	void reset() override {
-		{
-			std::lock_guard<std::mutex> lck {mtx};
-			table.reset();
-		}
+		table.reset();
 		lastPath = "";
 	}
 };
@@ -354,41 +349,41 @@ inline void LIMONADE::ifftSample() {
 }
 
 inline void LIMONADE::morphWavetable() {
-	thread t = thread(tMorphWaveTable, std::ref(table), std::ref(mtx));
+	thread t = thread(tMorphWaveTable, std::ref(table));
 	morphType = 0;
 	t.detach();
 }
 
 inline void LIMONADE::morphSpectrum() {
-	thread t = thread(tMorphSpectrum, std::ref(table), std::ref(mtx));
+	thread t = thread(tMorphSpectrum, std::ref(table));
 	morphType = 1;
 	t.detach();
 }
 
 inline void LIMONADE::morphSpectrumConstantPhase() {
-	thread t = thread(tMorphSpectrumConstantPhase, std::ref(table), std::ref(mtx));
+	thread t = thread(tMorphSpectrumConstantPhase, std::ref(table));
 	morphType = 2;
 	t.detach();
 }
 
 inline void LIMONADE::deleteMorphing() {
-	thread t = thread(tDeleteMorphing, std::ref(table), std::ref(mtx));
+	thread t = thread(tDeleteMorphing, std::ref(table));
 	morphType = -1;
 	t.detach();
 }
 
 void LIMONADE::addFrame() {
-	thread t = thread(tAddFrame, std::ref(table), params[INDEX_PARAM].value, std::ref(mtx));
+	thread t = thread(tAddFrame, std::ref(table), params[INDEX_PARAM].value);
 	t.detach();
 }
 
 void LIMONADE::deleteFrame() {
-	thread t = thread(tDeleteFrame, std::ref(table), params[INDEX_PARAM].value, std::ref(mtx));
+	thread t = thread(tDeleteFrame, std::ref(table), params[INDEX_PARAM].value);
 	t.detach();
 }
 
 void LIMONADE::resetWaveTable() {
-	thread t = thread(tResetWaveTable, std::ref(table), std::ref(mtx));
+	thread t = thread(tResetWaveTable, std::ref(table));
 	t.detach();
 }
 
@@ -396,7 +391,7 @@ void LIMONADE::loadSample() {
 	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
 	if (path) {
 		lastPath=path;
-		thread t = thread(tLoadSample, std::ref(table), path, frameSize, true, std::ref(mtx));
+		thread t = thread(tLoadSample, std::ref(table), path, frameSize, true);
 		t.detach();
 		free(path);
 	}
@@ -406,7 +401,7 @@ void LIMONADE::loadFrame() {
 	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
 	if (path) {
 		lastPath=path;
-		thread t = thread(tLoadFrame, std::ref(table), path, params[INDEX_PARAM].value, true, std::ref(mtx));
+		thread t = thread(tLoadFrame, std::ref(table), path, params[INDEX_PARAM].value, true);
 		t.detach();
 		free(path);
 	}
@@ -416,7 +411,7 @@ void LIMONADE::loadPNG() {
 	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
 	if (path) {
 		lastPath=path;
-		thread t = thread(tLoadPNG, std::ref(table), path, std::ref(mtx));
+		thread t = thread(tLoadPNG, std::ref(table), path);
 		t.detach();
 		free(path);
 	}
@@ -464,6 +459,38 @@ void LIMONADE::normalizeAllFrames() {
 }
 
 void LIMONADE::step() {
+	if (recTrigger.process(params[RECWT_PARAM].value) && !recWt && !recFrame) {
+		recWt = true;
+		recIndex=0;
+		lights[RECWT_LIGHT].value=10.0f;
+	}
+
+	if (recTrigger.process(params[RECFRAME_PARAM].value) && !recWt && !recFrame) {
+		recFrame = true;
+		recIndex=0;
+		lights[RECFRAME_LIGHT].value=10.0f;
+	}
+
+	if (recWt || recFrame) {
+		iRec[recIndex]=inputs[IN].value/10.0f;
+		recIndex++;
+
+		if (recWt && (recIndex==frameSize*NF)) {
+			thread t = thread(tLoadISample, std::ref(table), std::ref(iRec), frameSize*NF, frameSize, true);
+			t.detach();
+			recWt = false;
+			recIndex = 0;
+			lights[RECWT_LIGHT].value=00.0f;
+		}
+		else if (recFrame && (recIndex==frameSize)) {
+			thread t = thread(tLoadIFrame, std::ref(table), std::ref(iRec), params[INDEX_PARAM].value, frameSize, true);
+			t.detach();
+			recFrame = false;
+			recIndex = 0;
+			lights[RECFRAME_LIGHT].value=0.0f;
+		}
+	}
+
 	float pitchCv = 12.0f * inputs[PITCH_INPUT].value;
 	float pitchFine = 3.0f * quadraticBipolar(params[FINE_PARAM].value);
 	if (inputs[FM_INPUT].active) {
@@ -476,33 +503,19 @@ void LIMONADE::step() {
 	for (size_t i=0; i<(size_t)params[UNISSON_PARAM].value; i++) {
 		float pFC = pitchFine;
 		if (params[UNISSON_PARAM].value>2) {
-			if (i==1) {
-				pFC += ur;
-			}
-			else if (i==2) {
-				pFC -= ur;
-			}
+			if (i==1) {	pFC += ur;} else if (i==2) { pFC -= ur;}
 		}
 		else if (params[UNISSON_PARAM].value>1) {
-			if (i==0) {
-				pFC += ur;
-			}
-			else {
-				pFC -= ur;
-			}
+			i==0 ? pFC+=ur : pFC-=ur;
 		}
-
 		osc[i].soft = (params[SYNC_PARAM].value + inputs[SYNCMODE_INPUT].value) <= 0.0f;
 		osc[i].setPitch(params[FREQ_PARAM].value, pFC + pitchCv);
 		osc[i].syncEnabled = inputs[SYNC_INPUT].active;
 		osc[i].prepare(engineGetSampleTime(), inputs[SYNC_INPUT].value);
 	}
 
-	{
-		std::lock_guard<std::mutex> lck {mtx};
-		for(size_t i=0; i<(size_t)params[UNISSON_PARAM].value; i++) {
-			osc[i].updateBuffer(idx);
-		}
+	for(size_t i=0; i<(size_t)params[UNISSON_PARAM].value; i++) {
+		osc[i].updateBuffer(idx);
 	}
 
 	for(size_t i=0; i<(size_t)params[UNISSON_PARAM].value; i++) {
@@ -557,8 +570,8 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 	}
 
 	void onDragMove(EventDragMove &e) override {
-		if ((!scroll) && (module->table.frames.size()>0)) {
-			size_t i = module->params[LIMONADE::INDEX_PARAM].value*(module->table.frames.size()-1);
+		if ((!scroll) && (module->table.nFrames>0)) {
+			size_t i = module->params[LIMONADE::INDEX_PARAM].value*(module->table.nFrames-1);
 			if (refY<=heightMagn) {
 				if (windowIsModPressed()) {
 					module->table.frames[i].magnitude[refIdx] = 0.0f;
@@ -598,14 +611,11 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 		size_t idx = 0;
 		size_t tag=1;
 
-		{
-			std::lock_guard<std::mutex> lck {module->mtx};
-			fs = module->table.frames.size();
-			if (fs>0) {
-				idx = module->params[LIMONADE::INDEX_PARAM].value*(fs-1);
-				frame.magnitude = module->table.frames[idx].magnitude;
-				frame.phase = module->table.frames[idx].phase;
-			}
+		fs = module->table.nFrames;
+		if (fs>0) {
+			idx = module->params[LIMONADE::INDEX_PARAM].value*(fs-1);
+			frame.magnitude = module->table.frames[idx].magnitude;
+			frame.phase = module->table.frames[idx].phase;
 		}
 
 		nvgSave(vg);
@@ -723,23 +733,13 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 	}
 
 	void draw(NVGcontext *vg) override {
-		wtTable table;
-		size_t fs = 0;
+
+		size_t fs = module->table.nFrames;
 		size_t idx = 0;
 		size_t wtidx = 0;
-		{
-			std::lock_guard<std::mutex> lck {module->mtx};
-			fs = module->table.frames.size();
-			if (fs>0) {
-				idx = module->params[LIMONADE::INDEX_PARAM].value*(fs-1);
-				wtidx = clamp(module->params[LIMONADE::WTINDEX_PARAM].value+module->inputs[LIMONADE::WTINDEX_INPUT].value*0.1f*module->params[LIMONADE::WTINDEXATT_PARAM].value,0.0f,1.0f)*(fs-1);
-				for (size_t i=0; i< fs; i++) {
-					wtFrame frame;
-					frame.morphed = module->table.frames[i].morphed;
-					frame.sample = module->table.frames[i].sample;
-					table.frames.push_back(frame);
-				}
-			}
+		if (fs>0) {
+			idx = module->params[LIMONADE::INDEX_PARAM].value*(fs-1);
+			wtidx = clamp(module->params[LIMONADE::WTINDEX_PARAM].value+module->inputs[LIMONADE::WTINDEX_INPUT].value*0.1f*module->params[LIMONADE::WTINDEXATT_PARAM].value,0.0f,1.0f)*(fs-1);
 		}
 
 		nvgSave(vg);
@@ -757,7 +757,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 			for (size_t i=0; i<FS; i++) {
 				y3D = 10.0f * (fs-n-1)/fs-5.0f;
 				x3D = 10.0f * i * IFS -5.0f;
-				z3D = table.frames[fs-1-n].sample[i];
+				z3D = module->table.frames[fs-1-n].sample[i];
 				y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
 				x2D = ca2*x3D+sa2*y3D+7.5f;
 				if (i == 0) {
@@ -767,7 +767,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 					nvgLineTo(vg, 10.0f * x2D, 10.0f * y2D);
 				}
 			}
-			if (table.frames[fs-1-n].morphed) {
+			if (module->table.frames[fs-1-n].morphed) {
 				nvgStrokeColor(vg, nvgRGBA(255, 233, 0, 15));
 				nvgStrokeWidth(vg, 1.0f);
 			}
@@ -784,7 +784,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 				float x3D, y3D, z3D, x2D, y2D;
 				y3D = 10.0f * idx/fs -5.0f;
 				x3D = 10.0f * i * IFS -5.0f;
-				z3D = table.frames[idx].sample[i];
+				z3D = module->table.frames[idx].sample[i];
 				y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
 				x2D = ca2*x3D+sa2*y3D+7.5f;
 				if (i == 0) {
@@ -803,7 +803,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 				float x3D, y3D, z3D, x2D, y2D;
 				y3D = 10.0f * wtidx/fs -5.0f;
 				x3D = 10.0f * i * IFS -5.0f;
-				z3D = table.frames[wtidx].sample[i];
+				z3D = module->table.frames[wtidx].sample[i];
 				y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
 				x2D = ca2*x3D+sa2*y3D+7.5f;
 				if (i == 0) {
@@ -842,140 +842,132 @@ void LIMONADETextField::onTextChange() {
 	}
 }
 
-struct LimonadeBlueBtn : BlueBtn {
-	LIMONADE *module;
-	void (LIMONADE::*fncPtr)();
+// struct LimonadeBlueBtn : BlueBtn {
+// 	void draw(NVGcontext *vg) override {
+// 		BlueBtn::draw(vg);
+// 		nvgFontSize(vg, 12.0f);
+// 		nvgFontFaceId(vg, font->handle);
+// 		nvgTextAlign(vg, NVG_ALIGN_CENTER);
+// 		nvgText(vg, 8.0f, 12.0f, (caption).c_str(), NULL);
+// 		nvgStroke(vg);
+// 	}
+// };
 
+struct LimonadeBlueBtnLoadSample : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		(module->*fncPtr)();
-		BlueBtn::onMouseDown(e);
-	}
-
-	void draw(NVGcontext *vg) override {
-		BlueBtn::draw(vg);
-		nvgFontSize(vg, 12.0f);
-		nvgFontFaceId(vg, font->handle);
-		nvgTextAlign(vg, NVG_ALIGN_CENTER);
-		nvgText(vg, 8.0f, 12.0f, (caption).c_str(), NULL);
-		nvgStroke(vg);
-	}
-};
-
-struct LimonadeBlueBtnLoadSample : LimonadeBlueBtn {
-	virtual void onMouseDown(EventMouseDown &e) override {
-		module->loadSample();
+		dynamic_cast<LIMONADE*>(this->module)->loadSample();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnLoadPNG : LimonadeBlueBtn {
+struct LimonadeBlueBtnLoadPNG : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->loadPNG();
+		dynamic_cast<LIMONADE*>(this->module)->loadPNG();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnLoadFrame : LimonadeBlueBtn {
+struct LimonadeBlueBtnLoadFrame : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->loadFrame();
+		dynamic_cast<LIMONADE*>(this->module)->loadFrame();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnMorphWavetable : LimonadeBlueBtn {
+struct LimonadeBlueBtnMorphWavetable : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->morphWavetable();
+		dynamic_cast<LIMONADE*>(this->module)->morphWavetable();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnMorphSpectrum : LimonadeBlueBtn {
+struct LimonadeBlueBtnMorphSpectrum : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->morphSpectrum();
+		dynamic_cast<LIMONADE*>(this->module)->morphSpectrum();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnMorphSpectrumConstantPhase : LimonadeBlueBtn {
+struct LimonadeBlueBtnMorphSpectrumConstantPhase : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->morphSpectrumConstantPhase();
+		dynamic_cast<LIMONADE*>(this->module)->morphSpectrumConstantPhase();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnDeleteMorphing : LimonadeBlueBtn {
+struct LimonadeBlueBtnDeleteMorphing : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->deleteMorphing();
+		dynamic_cast<LIMONADE*>(this->module)->deleteMorphing();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnNormalizeAllFrames : LimonadeBlueBtn {
+struct LimonadeBlueBtnNormalizeAllFrames : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->normalizeAllFrames();
+		dynamic_cast<LIMONADE*>(this->module)->normalizeAllFrames();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnRemoveDCOffset : LimonadeBlueBtn {
+struct LimonadeBlueBtnRemoveDCOffset : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->removeDCOffset();
+		dynamic_cast<LIMONADE*>(this->module)->removeDCOffset();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnNormalizeWt : LimonadeBlueBtn {
+struct LimonadeBlueBtnNormalizeWt : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->normalizeWt();
+		dynamic_cast<LIMONADE*>(this->module)->normalizeWt();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnNormalizeFrame : LimonadeBlueBtn {
+struct LimonadeBlueBtnNormalizeFrame : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->normalizeFrame();
+		dynamic_cast<LIMONADE*>(this->module)->normalizeFrame();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnWindowWt : LimonadeBlueBtn {
+struct LimonadeBlueBtnWindowWt : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->windowWt();
+		dynamic_cast<LIMONADE*>(this->module)->windowWt();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnSmoothWt : LimonadeBlueBtn {
+struct LimonadeBlueBtnSmoothWt : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->smoothWt();
+		dynamic_cast<LIMONADE*>(this->module)->smoothWt();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnWindowFrame : LimonadeBlueBtn {
+struct LimonadeBlueBtnWindowFrame : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->windowFrame();
+		dynamic_cast<LIMONADE*>(this->module)->windowFrame();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnSmoothFrame : LimonadeBlueBtn {
+struct LimonadeBlueBtnSmoothFrame : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->smoothFrame();
+		dynamic_cast<LIMONADE*>(this->module)->smoothFrame();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnAddFrame : LimonadeBlueBtn {
+struct LimonadeBlueBtnAddFrame : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->addFrame();
+		dynamic_cast<LIMONADE*>(this->module)->addFrame();
 		BlueBtn::onMouseDown(e);
 	}
 };
 
-struct LimonadeBlueBtnDeleteFrame : LimonadeBlueBtn {
+struct LimonadeBlueBtnDeleteFrame : BlueBtn {
 	virtual void onMouseDown(EventMouseDown &e) override {
-		module->deleteFrame();
+		dynamic_cast<LIMONADE*>(this->module)->deleteFrame();
 		BlueBtn::onMouseDown(e);
 	}
 };
@@ -1014,146 +1006,159 @@ LIMONADEWidget::LIMONADEWidget(LIMONADE *module) : ModuleWidget(module) {
 
 	{
 		LimonadeBlueBtnLoadSample *btn = new LimonadeBlueBtnLoadSample();
-		btn->box.pos = Vec(170, 235);
+		btn->box.pos = Vec(170, 240);
 		btn->caption = "≈";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnLoadPNG *btn = new LimonadeBlueBtnLoadPNG();
-		btn->box.pos = Vec(190, 235);
+		btn->box.pos = Vec(190, 240);
 		btn->caption = "☺";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnLoadFrame *btn = new LimonadeBlueBtnLoadFrame();
-		btn->box.pos = Vec(210, 235);
+		btn->box.pos = Vec(210, 240);
 		btn->caption = "~";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnMorphWavetable *btn = new LimonadeBlueBtnMorphWavetable();
-		btn->box.pos = Vec(170, 255);
+		btn->box.pos = Vec(170, 260);
 		btn->caption = "≡";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnMorphSpectrum *btn = new LimonadeBlueBtnMorphSpectrum();
-		btn->box.pos = Vec(190, 255);
+		btn->box.pos = Vec(190, 260);
 		btn->caption = "∞";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnMorphSpectrumConstantPhase *btn = new LimonadeBlueBtnMorphSpectrumConstantPhase();
-		btn->box.pos = Vec(210, 255);
+		btn->box.pos = Vec(210, 260);
 		btn->caption = "Փ";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnDeleteMorphing *btn = new LimonadeBlueBtnDeleteMorphing();
-		btn->box.pos = Vec(230, 255);
+		btn->box.pos = Vec(230, 260);
 		btn->caption = "Ø";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnNormalizeAllFrames *btn = new LimonadeBlueBtnNormalizeAllFrames();
-		btn->box.pos = Vec(170, 275);
+		btn->box.pos = Vec(170, 280);
 		btn->caption = "↕";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnRemoveDCOffset *btn = new LimonadeBlueBtnRemoveDCOffset();
-		btn->box.pos = Vec(190, 275);
+		btn->box.pos = Vec(190, 280);
 		btn->caption = "↨";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnNormalizeWt *btn = new LimonadeBlueBtnNormalizeWt();
-		btn->box.pos = Vec(210, 275);
+		btn->box.pos = Vec(210, 280);
 		btn->caption = "↕≈";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnNormalizeFrame *btn = new LimonadeBlueBtnNormalizeFrame();
-		btn->box.pos = Vec(230, 275);
+		btn->box.pos = Vec(230, 280);
 		btn->caption = "↕~";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnWindowWt *btn = new LimonadeBlueBtnWindowWt();
-		btn->box.pos = Vec(170, 295);
+		btn->box.pos = Vec(170, 300);
 		btn->caption = "∩≈";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnSmoothWt *btn = new LimonadeBlueBtnSmoothWt();
-		btn->box.pos = Vec(190, 295);
+		btn->box.pos = Vec(190, 300);
 		btn->caption = "ƒ≈";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnWindowFrame *btn = new LimonadeBlueBtnWindowFrame();
-		btn->box.pos = Vec(210, 295);
+		btn->box.pos = Vec(210, 300);
 		btn->caption = "∩~";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnSmoothFrame *btn = new LimonadeBlueBtnSmoothFrame();
-		btn->box.pos = Vec(230, 295);
+		btn->box.pos = Vec(230, 300);
 		btn->caption = "ƒ~";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnAddFrame *btn = new LimonadeBlueBtnAddFrame();
-		btn->box.pos = Vec(170, 315);
+		btn->box.pos = Vec(170, 320);
 		btn->caption = "+";
 		btn->module = module;
 		addChild(btn);
 	}
 	{
 		LimonadeBlueBtnDeleteFrame *btn = new LimonadeBlueBtnDeleteFrame();
-		btn->box.pos = Vec(190, 315);
+		btn->box.pos = Vec(190, 320);
 		btn->caption = "-";
 		btn->module = module;
 		addChild(btn);
 	}
 
+	addParam(ParamWidget::create<BidooGreenKnob>(Vec(230.0f, 208.0f), module, LIMONADE::INDEX_PARAM, 0.0f, 1.0f, 0.0f));
 
-	addParam(ParamWidget::create<CKSS>(Vec(280, 230), module, LIMONADE::SYNC_PARAM, 0.0f, 1.0f, 1.0f));
-	addParam(ParamWidget::create<BidooBlueKnob>(Vec(307, 225), module, LIMONADE::FREQ_PARAM, -108.0f, 54.0f, 0.0f));
-	addParam(ParamWidget::create<BidooBlueKnob>(Vec(342, 225), module, LIMONADE::FINE_PARAM, -1.0f, 1.0f, 0.0f));
-	addParam(ParamWidget::create<BidooBlueKnob>(Vec(377, 225), module, LIMONADE::FM_PARAM, 0.0f, 1.0f, 0.0f));
+	addParam(ParamWidget::create<BidooBlueKnob>(Vec(274.0f, 219.0f), module, LIMONADE::UNISSON_PARAM, 1.0f, 3.0f, 1.0f));
+	addParam(ParamWidget::create<BidooBlueKnob>(Vec(274.0f, 262.0f), module, LIMONADE::UNISSONRANGE_PARAM, 0.0f, 0.1f, 0.0f));
+	addParam(ParamWidget::create<BidooBlueKnob>(Vec(309, 219), module, LIMONADE::FREQ_PARAM, -108.0f, 54.0f, 0.0f));
+	addParam(ParamWidget::create<BidooBlueKnob>(Vec(344, 219), module, LIMONADE::FINE_PARAM, -1.0f, 1.0f, 0.0f));
+	addParam(ParamWidget::create<BidooBlueKnob>(Vec(379, 219), module, LIMONADE::FM_PARAM, 0.0f, 1.0f, 0.0f));
+	addParam(ParamWidget::create<BidooRedKnob>(Vec(414.0f, 219), module, LIMONADE::WTINDEX_PARAM, 0.0f, 1.0f, 0.0f));
+	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(419.0f, 265), module, LIMONADE::WTINDEXATT_PARAM, -1.0f, 1.0f, 0.0f));
 
-	addParam(ParamWidget::create<BidooGreenKnob>(Vec(235.0f, 208.0f), module, LIMONADE::INDEX_PARAM, 0.0f, 1.0f, 0.0f));
-	addParam(ParamWidget::create<BidooRedKnob>(Vec(412.0f, 225), module, LIMONADE::WTINDEX_PARAM, 0.0f, 1.0f, 0.0f));
-	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(417.0f, 265), module, LIMONADE::WTINDEXATT_PARAM, -1.0f, 1.0f, 0.0f));
+	addParam(ParamWidget::create<CKSS>(Vec(352, 336), module, LIMONADE::SYNC_PARAM, 0.0f, 1.0f, 1.0f));
+	addInput(Port::create<TinyPJ301MPort>(Vec(317, 339), Port::INPUT, module, LIMONADE::SYNCMODE_INPUT));
 
-	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(170.0f, 335.0f), module, LIMONADE::UNISSON_PARAM, 1.0f, 3.0f, 1.0f));
-	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(195.0f, 335.0f), module, LIMONADE::UNISSONRANGE_PARAM, 0.0f, 0.1f, 0.0f));
-	addInput(Port::create<TinyPJ301MPort>(Vec(220, 337), Port::INPUT, module, LIMONADE::UNISSONRANGE_INPUT));
+	{
+		RedBtn *btn = ParamWidget::create<RedBtn>(Vec(254.0f, 324), module, LIMONADE::RECWT_PARAM, 0.0f, 10.0f, 0.0f);
+		btn->caption = "≈";
+		addParam(btn);
+	}
+	addChild(ModuleLightWidget::create<SmallLight<RedLight>>(Vec(244.0f, 329), module, LIMONADE::RECWT_LIGHT));
 
-	addInput(Port::create<PJ301MPort>(Vec(275, 290), Port::INPUT, module, LIMONADE::SYNCMODE_INPUT));
-	addInput(Port::create<PJ301MPort>(Vec(310, 290), Port::INPUT, module, LIMONADE::PITCH_INPUT));
-	addInput(Port::create<PJ301MPort>(Vec(345, 290), Port::INPUT, module, LIMONADE::SYNC_INPUT));
-	addInput(Port::create<PJ301MPort>(Vec(380, 290), Port::INPUT, module, LIMONADE::FM_INPUT));
-	addInput(Port::create<PJ301MPort>(Vec(415, 290), Port::INPUT, module, LIMONADE::WTINDEX_INPUT));
+	{
+		RedBtn *btn = ParamWidget::create<RedBtn>(Vec(254.0f, 344), module, LIMONADE::RECFRAME_PARAM, 0.0f, 10.0f, 0.0f);
+		btn->caption = "~";
+		addParam(btn);
+	}
+	addChild(ModuleLightWidget::create<SmallLight<RedLight>>(Vec(244.0f, 349), module, LIMONADE::RECFRAME_LIGHT));
 
-	addInput(Port::create<PJ301MPort>(Vec(345, 340), Port::INPUT, module, LIMONADE::IN));
-	addOutput(Port::create<PJ301MPort>(Vec(380, 340), Port::OUTPUT, module, LIMONADE::OUT));
+	addInput(Port::create<PJ301MPort>(Vec(277, 295), Port::INPUT, module, LIMONADE::UNISSONRANGE_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(312, 295), Port::INPUT, module, LIMONADE::PITCH_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(347, 295), Port::INPUT, module, LIMONADE::SYNC_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(382, 295), Port::INPUT, module, LIMONADE::FM_INPUT));
+	addInput(Port::create<PJ301MPort>(Vec(417, 295), Port::INPUT, module, LIMONADE::WTINDEX_INPUT));
+
+	addInput(Port::create<PJ301MPort>(Vec(277, 335), Port::INPUT, module, LIMONADE::IN));
+	addOutput(Port::create<PJ301MPort>(Vec(417, 335), Port::OUTPUT, module, LIMONADE::OUT));
 }
 
 struct LIMONADELoadSample : MenuItem {

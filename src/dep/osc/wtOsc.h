@@ -21,6 +21,7 @@ struct wtFrame {
   vector<float> magnitude;
   vector<float> phase;
   bool morphed=false;
+  bool used=false;
 
   wtFrame() {
     sample.resize(FS,0);
@@ -39,7 +40,21 @@ struct wtFrame {
   void loadMagnitude(size_t sCount, bool interpolate, float *magn);
   float maxAmp();
   void gain(float g);
+  void reset();
 };
+
+inline void wtFrame::reset() {
+  for(size_t i=0; i<FS2; i++) {
+    sample[i]=0.0f;
+    magnitude[i]=0.0f;
+    phase[i]=0.0f;
+  }
+  for(size_t i=FS2; i<FS; i++) {
+    sample[i]=0.0f;
+  }
+  used=false;
+  morphed=false;
+}
 
 void wtFrame::calcFFT() {
   PFFFT_Setup *pffftSetup;
@@ -175,9 +190,13 @@ inline void wtFrame::gain(float g) {
 
 struct wtTable {
   std::vector<wtFrame> frames;
+  size_t nFrames=0;
 
   wtTable() {
-
+    for(size_t i=0; i<NF; i++) {
+      wtFrame frame;
+      frames.push_back(frame);
+    }
   }
 
   void loadSample(size_t sCount, size_t frameSize, bool interpolate, float *sample);
@@ -199,27 +218,38 @@ struct wtTable {
   void reset();
   void deleteMorphing();
   void init();
+  void copyFrame(size_t from, size_t to);
 };
 
+void wtTable::copyFrame(size_t from, size_t to) {
+  for(size_t i=0; i<FS2; i++) {
+    frames[to].sample[i]=frames[from].sample[i];
+    frames[to].magnitude[i]=frames[from].magnitude[i];
+    frames[to].phase[i]=frames[from].phase[i];
+  }
+  for(size_t i=FS2; i<FS; i++) {
+    frames[to].sample[i]=frames[from].sample[i];
+  }
+}
+
 void wtTable::loadSample(size_t sCount, size_t frameSize, bool interpolate, float *sample) {
-  frames.clear();
+  reset();
   size_t sUsed=0;
-  while ((sUsed != sCount) && (frames.size()<NF)) {
+  while ((sUsed != sCount) && (nFrames<NF)) {
     size_t lenFrame = min(frameSize,sCount-sUsed);
-    wtFrame frame;
-    frame.loadSample(lenFrame,interpolate,sample+sUsed);
-    frames.push_back(frame);
+    frames[nFrames].loadSample(lenFrame,interpolate,sample+sUsed);
     sUsed+=lenFrame;
+    nFrames++;
   }
 }
 
 void wtTable::normalize() {
   float amp = 0.0f;
-  for(size_t i=0; i<frames.size(); i++) {
+  for(size_t i=0; i<nFrames; i++) {
     amp = max(amp,frames[i].maxAmp());
   }
   float g=amp>0?1.0f/amp:0.0f;
-  for(size_t i=0; i<frames.size(); i++) {
+  for(size_t i=0; i<nFrames; i++) {
     frames[i].gain(g);
   }
 }
@@ -229,13 +259,13 @@ inline void wtTable::normalizeFrame(size_t index) {
 }
 
 inline void wtTable::normalizeAllFrames() {
-  for(size_t i=0; i<frames.size(); i++) {
+  for(size_t i=0; i<nFrames; i++) {
     frames[i].normalize();
   }
 }
 
 inline void wtTable::smooth() {
-  for(size_t i=0; i<frames.size();i++) {
+  for(size_t i=0; i<nFrames;i++) {
     frames[i].smooth();
   }
 }
@@ -245,7 +275,7 @@ inline void wtTable::smoothFrame(size_t index) {
 }
 
 inline void wtTable::window() {
-  for(size_t i=0; i<frames.size();i++) {
+  for(size_t i=0; i<nFrames;i++) {
     frames[i].window();
   }
 }
@@ -255,7 +285,7 @@ inline void wtTable::windowFrame(size_t index) {
 }
 
 inline void wtTable::removeDCOffset() {
-  for(size_t i=0; i<frames.size();i++) {
+  for(size_t i=0; i<nFrames;i++) {
     frames[i].removeDCOffset();
   }
 }
@@ -265,36 +295,49 @@ inline void wtTable::removeFrameDCOffset(size_t index) {
 }
 
 inline void wtTable::addFrame(size_t index) {
-  if (frames.size()<NF) {
-    wtFrame nFrame;
-    if ((frames.size()>1) && (index<frames.size()-1)) {
-      frames.insert(frames.begin()+index+1,nFrame);
+  if (nFrames<NF) {
+    if ((nFrames>1) && (index<nFrames-1)) {
+      for (size_t i=nFrames-1; i>=index+1; i--) {
+        copyFrame(i,i+1);
+        frames[i+1].used=frames[i].used;
+        frames[i+1].morphed=frames[i].morphed;
+      }
     }
-    else {
-      frames.push_back(nFrame);
-    }
+    frames[index+1].reset();
+    frames[index+1].used=true;
+    frames[index+1].morphed=false;
+    nFrames++;
   }
 }
 
 inline void wtTable::removeFrame(size_t index) {
-  if ((frames.size()>0) && (index<frames.size())) {
-    frames.erase(frames.begin()+index);
+  if ((nFrames>0) && (index<nFrames)) {
+    for (size_t i=index; i<nFrames-1; i++) { copyFrame(i+1,i);}
+    nFrames--;
   }
 }
 
 void wtTable::morphFrames() {
   deleteMorphing();
-  if (frames.size()>1) {
-    size_t fs = frames.size();
+  if (nFrames>1) {
+    size_t fs = nFrames;
     size_t fCount = (NF - fs)/(fs-1);
+
+    for (size_t i=0; i<fs; i++) {
+      copyFrame(i, i*(fCount+1));
+      frames[i*(fCount+1)].morphed = false;
+      frames[i*(fCount+1)].used = true;
+    }
+
     for (size_t i=0; i<(fs-1); i++) {
       for (size_t j=0; j<fCount; j++) {
-        wtFrame frame;
-        frame.morphed=true;
+        size_t idx = i*(fCount+1) + j + 1;
         for(size_t k=0; k<FS; k++) {
-          frame.sample[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].sample[k],frames[i*(fCount+1)+j+1].sample[k]);
+          frames[idx].sample[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].sample[k],frames[(i+1)*(fCount+1)].sample[k]);
         }
-        frames.insert(frames.begin()+i*(fCount+1)+j+1, frame);
+        frames[idx].morphed=true;
+        frames[idx].used=true;
+        nFrames++;
       }
     }
   }
@@ -302,30 +345,39 @@ void wtTable::morphFrames() {
 
 void wtTable::morphSpectrum() {
   deleteMorphing();
-  if (frames.size()>1) {
-    for(size_t i=0; i<frames.size(); i++) {
-      frames[i].calcFFT();
-    }
-    size_t fs = frames.size();
+  if (nFrames>1) {
+    size_t fs = nFrames;
     size_t fCount = (NF - fs)/(fs-1);
+
+    for (size_t i=0; i<fs; i++) {
+      copyFrame(i, i*(fCount+1));
+      frames[i*(fCount+1)].morphed = false;
+      frames[i*(fCount+1)].used = true;
+    }
+
     for (size_t i=0; i<(fs-1); i++) {
       for (size_t j=0; j<fCount; j++) {
-        wtFrame frame;
-        frame.morphed=true;
+        size_t idx = i*(fCount+1) + j + 1;
         for(size_t k=0; k<FS2; k++) {
-          frame.magnitude[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[i*(fCount+1)+j+1].magnitude[k]);
-          frame.phase[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[i*(fCount+1)+j+1].phase[k]);
+          frames[idx].magnitude[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[(i+1)*(fCount+1)].magnitude[k]);
+          frames[idx].phase[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[(i+1)*(fCount+1)].phase[k]);
         }
-        frame.calcIFFT();
-        frames.insert(frames.begin()+i*(fCount+1)+j+1, frame);
+        frames[idx].calcIFFT();
+        frames[idx].morphed=true;
+        frames[idx].used=true;
+        nFrames++;
       }
     }
   }
 }
 
 void wtTable::morphSpectrumConstantPhase() {
-  if (frames.size()>1) {
-    for(size_t i=0; i<frames.size(); i++) {
+  deleteMorphing();
+  if (nFrames>1) {
+    size_t fs = nFrames;
+    size_t fCount = (NF - fs)/(fs-1);
+
+    for (size_t i=0; i<fs; i++) {
       frames[i].calcFFT();
       if (i>0) {
         for(size_t k=0; k<FS2; k++) {
@@ -333,42 +385,55 @@ void wtTable::morphSpectrumConstantPhase() {
         }
         frames[i].calcIFFT();
       }
+      copyFrame(i, i*(fCount+1));
+      frames[i*(fCount+1)].morphed = false;
+      frames[i*(fCount+1)].used = true;
     }
-    size_t fs = frames.size();
-    size_t fCount = (NF - fs)/(fs-1);
+
     for (size_t i=0; i<(fs-1); i++) {
       for (size_t j=0; j<fCount; j++) {
-        wtFrame frame;
-        frame.morphed=true;
+        size_t idx = i*(fCount+1) + j + 1;
         for(size_t k=0; k<FS2; k++) {
-          frame.magnitude[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[i*(fCount+1)+j+1].magnitude[k]);
-          frame.phase[k]=frames[0].phase[k];
+          frames[idx].magnitude[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[(i+1)*(fCount+1)].magnitude[k]);
+          frames[idx].phase[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[(i+1)*(fCount+1)].phase[k]);
         }
-        frame.calcIFFT();
-        frames.insert(frames.begin()+i*(fCount+1)+j+1, frame);
+        frames[idx].calcIFFT();
+        frames[idx].morphed=true;
+        frames[idx].used=true;
+        nFrames++;
       }
     }
   }
 }
 
 inline void wtTable::reset() {
-  frames.clear();
+  for(auto& frame : frames) { frame.reset();}
+  nFrames=0;
 }
 
 inline void wtTable::init() {
   reset();
-  for(size_t i=0; i<NF; i++) {
-    wtFrame frame;
-    frames.push_back(frame);
-  }
+  nFrames=NF;
 }
 
-inline void wtTable::deleteMorphing() {
-  frames.erase(std::remove_if(
-    frames.begin(), frames.end(),
-    [](const wtFrame& x) {
-        return x.morphed;
-    }), frames.end());
+void wtTable::deleteMorphing() {
+  size_t cm=0;
+  size_t cu=0;
+  for(size_t i=0; i<nFrames;i++) {
+    if (frames[i].morphed) {
+      frames[i].used = false;
+      cm++;
+    }
+    else {
+      if (i!=cu) {
+        copyFrame(i,cu);
+        frames[cu].used=true;
+        frames[cu].morphed=false;
+      }
+      cu++;
+    }
+  }
+  nFrames-=cm;
 }
 
 struct wtOscillator {
@@ -400,10 +465,8 @@ struct wtOscillator {
 	}
 
 	void prepare(float deltaTime, float syncValue) {
-		// Advance phase
 		 deltaPhase = clamp(freq * deltaTime, 1e-6, 0.5f);
 
-		// Detect sync
 		syncIndex = -1; // Index in the oversample loop where sync occurs [0, OVERSAMPLE)
 		float syncCrossing = 0.0f; // Offset that sync occurs [0.0f, 1.0f)
 		if (syncEnabled) {
@@ -423,7 +486,7 @@ struct wtOscillator {
 	}
 
   void updateBuffer(float index) {
-    size_t idx = index*(table->frames.size()-1);
+    size_t idx = index*(table->nFrames-1);
     for (int i = 0; i < 16; i++) {
 			if (syncIndex == i) {
 				if (soft) {

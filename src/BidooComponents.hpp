@@ -81,6 +81,35 @@ struct BlueBtn : SVGSwitch, MomentarySwitch {
 		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueBtn_0.svg")));
 		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/BlueBtn_1.svg")));
 	}
+
+	void draw(NVGcontext *vg) override {
+		SVGSwitch::draw(vg);
+		nvgFontSize(vg, 12.0f);
+		nvgFontFaceId(vg, font->handle);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER);
+		nvgText(vg, 8.0f, 12.0f, (caption).c_str(), NULL);
+		nvgStroke(vg);
+	}
+};
+
+struct RedBtn : SVGSwitch, MomentarySwitch {
+	string caption;
+	shared_ptr<Font> font;
+
+	RedBtn() {
+		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/RedBtn_0.svg")));
+		addFrame(SVG::load(assetPlugin(plugin,"res/ComponentLibrary/RedBtn_1.svg")));
+	}
+
+	void draw(NVGcontext *vg) override {
+		SVGSwitch::draw(vg);
+		nvgFontSize(vg, 12.0f);
+		nvgFontFaceId(vg, font->handle);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER);
+		nvgText(vg, 8.0f, 12.0f, (caption).c_str(), NULL);
+		nvgStroke(vg);
+	}
 };
 
 struct MuteBtn : SVGSwitch, MomentarySwitch {
