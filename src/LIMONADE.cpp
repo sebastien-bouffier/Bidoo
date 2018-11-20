@@ -853,14 +853,130 @@ struct LimonadeBlueBtn : BlueBtn {
 
 	void draw(NVGcontext *vg) override {
 		BlueBtn::draw(vg);
-		//
-		// nvgSave(vg);
 		nvgFontSize(vg, 12.0f);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER);
 		nvgText(vg, 8.0f, 12.0f, (caption).c_str(), NULL);
 		nvgStroke(vg);
-		// nvgRestore(vg);
+	}
+};
+
+struct LimonadeBlueBtnLoadSample : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->loadSample();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnLoadPNG : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->loadPNG();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnLoadFrame : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->loadFrame();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnMorphWavetable : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->morphWavetable();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnMorphSpectrum : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->morphSpectrum();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnMorphSpectrumConstantPhase : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->morphSpectrumConstantPhase();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnDeleteMorphing : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->deleteMorphing();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnNormalizeAllFrames : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->normalizeAllFrames();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnRemoveDCOffset : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->removeDCOffset();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnNormalizeWt : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->normalizeWt();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnNormalizeFrame : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->normalizeFrame();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnWindowWt : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->windowWt();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnSmoothWt : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->smoothWt();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnWindowFrame : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->windowFrame();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnSmoothFrame : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->smoothFrame();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnAddFrame : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->addFrame();
+		BlueBtn::onMouseDown(e);
+	}
+};
+
+struct LimonadeBlueBtnDeleteFrame : LimonadeBlueBtn {
+	virtual void onMouseDown(EventMouseDown &e) override {
+		module->deleteFrame();
+		BlueBtn::onMouseDown(e);
 	}
 };
 
@@ -897,139 +1013,122 @@ LIMONADEWidget::LIMONADEWidget(LIMONADE *module) : ModuleWidget(module) {
 	}
 
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnLoadSample *btn = new LimonadeBlueBtnLoadSample();
 		btn->box.pos = Vec(170, 235);
 		btn->caption = "≈";
 		btn->module = module;
-		btn->fncPtr = module->loadSample;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnLoadPNG *btn = new LimonadeBlueBtnLoadPNG();
 		btn->box.pos = Vec(190, 235);
 		btn->caption = "☺";
 		btn->module = module;
-		btn->fncPtr = module->loadPNG;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnLoadFrame *btn = new LimonadeBlueBtnLoadFrame();
 		btn->box.pos = Vec(210, 235);
 		btn->caption = "~";
 		btn->module = module;
-		btn->fncPtr = module->loadFrame;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnMorphWavetable *btn = new LimonadeBlueBtnMorphWavetable();
 		btn->box.pos = Vec(170, 255);
 		btn->caption = "≡";
 		btn->module = module;
-		btn->fncPtr = module->morphWavetable;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnMorphSpectrum *btn = new LimonadeBlueBtnMorphSpectrum();
 		btn->box.pos = Vec(190, 255);
 		btn->caption = "∞";
 		btn->module = module;
-		btn->fncPtr = module->morphSpectrum;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnMorphSpectrumConstantPhase *btn = new LimonadeBlueBtnMorphSpectrumConstantPhase();
 		btn->box.pos = Vec(210, 255);
 		btn->caption = "Փ";
 		btn->module = module;
-		btn->fncPtr = module->morphSpectrumConstantPhase;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnDeleteMorphing *btn = new LimonadeBlueBtnDeleteMorphing();
 		btn->box.pos = Vec(230, 255);
 		btn->caption = "Ø";
 		btn->module = module;
-		btn->fncPtr = module->deleteMorphing;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnNormalizeAllFrames *btn = new LimonadeBlueBtnNormalizeAllFrames();
 		btn->box.pos = Vec(170, 275);
 		btn->caption = "↕";
 		btn->module = module;
-		btn->fncPtr = module->normalizeAllFrames;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnRemoveDCOffset *btn = new LimonadeBlueBtnRemoveDCOffset();
 		btn->box.pos = Vec(190, 275);
 		btn->caption = "↨";
 		btn->module = module;
-		btn->fncPtr = module->removeDCOffset;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnNormalizeWt *btn = new LimonadeBlueBtnNormalizeWt();
 		btn->box.pos = Vec(210, 275);
 		btn->caption = "↕≈";
 		btn->module = module;
-		btn->fncPtr = module->normalizeWt;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnNormalizeFrame *btn = new LimonadeBlueBtnNormalizeFrame();
 		btn->box.pos = Vec(230, 275);
 		btn->caption = "↕~";
 		btn->module = module;
-		btn->fncPtr = module->normalizeFrame;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnWindowWt *btn = new LimonadeBlueBtnWindowWt();
 		btn->box.pos = Vec(170, 295);
 		btn->caption = "∩≈";
 		btn->module = module;
-		btn->fncPtr = module->windowWt;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnSmoothWt *btn = new LimonadeBlueBtnSmoothWt();
 		btn->box.pos = Vec(190, 295);
 		btn->caption = "ƒ≈";
 		btn->module = module;
-		btn->fncPtr = module->smoothWt;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnWindowFrame *btn = new LimonadeBlueBtnWindowFrame();
 		btn->box.pos = Vec(210, 295);
 		btn->caption = "∩~";
 		btn->module = module;
-		btn->fncPtr = module->windowFrame;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnSmoothFrame *btn = new LimonadeBlueBtnSmoothFrame();
 		btn->box.pos = Vec(230, 295);
 		btn->caption = "ƒ~";
 		btn->module = module;
-		btn->fncPtr = module->smoothFrame;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnAddFrame *btn = new LimonadeBlueBtnAddFrame();
 		btn->box.pos = Vec(170, 315);
 		btn->caption = "+";
 		btn->module = module;
-		btn->fncPtr = module->addFrame;
 		addChild(btn);
 	}
 	{
-		LimonadeBlueBtn *btn = new LimonadeBlueBtn();
+		LimonadeBlueBtnDeleteFrame *btn = new LimonadeBlueBtnDeleteFrame();
 		btn->box.pos = Vec(190, 315);
 		btn->caption = "-";
 		btn->module = module;
-		btn->fncPtr = module->deleteFrame;
 		addChild(btn);
 	}
 
