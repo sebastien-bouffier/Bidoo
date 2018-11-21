@@ -13,7 +13,7 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
-20/11/2018 => 0.6.22
+20/11/2018 => 0.6.23
 
 *NEW* **liMonADe** additive osc + wavetable synth. On the right side stand the usual controls for the oscillator. On the left side stand commands to manipulate the frames and the wavetable. From top to bottom and left to right :
 * samples per frame (textbox) - frame selector
