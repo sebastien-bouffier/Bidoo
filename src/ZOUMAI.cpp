@@ -359,12 +359,9 @@ inline size_t track::getNextIndex() {
 }
 
 inline void track::moveNextForward(const bool fill, const bool pNei) {
-
 	if ((length>1) && (trackIndex>192) && (currentTrig->index==0) && (nextIndex==0)) nextIndex = getNextIndex();
-
 	if (trackIndex>(length*192)) trackIndex=0.0f;
-
-	if (((nextIndex != 0) && (trigs[nextIndex].getRelativeTrackPosition(trackIndex) >= 0)) || (trackIndex == 0.f)) {
+	if (((nextIndex != 0) && (nextIndex<64) && (trigs[nextIndex].getRelativeTrackPosition(trackIndex) >= 0)) || (trackIndex == 0.f)) {
 		if ((nextIndex != currentTrig->index) || (length == 1)) {
 			pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
 			trigs[nextIndex].init(fill,pre,pNei);
