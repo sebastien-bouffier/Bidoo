@@ -350,6 +350,7 @@ void wtTable::morphSpectrum() {
     size_t fCount = (NF - fs)/(fs-1);
 
     for (size_t i=0; i<fs; i++) {
+      frames[i].calcFFT();
       copyFrame(i, i*(fCount+1));
       frames[i*(fCount+1)].morphed = false;
       frames[i*(fCount+1)].used = true;
@@ -497,10 +498,20 @@ struct wtOscillator {
 					phase = 0.0f;
 				}
 			}
-      wavBuffer[i] = idx<table->frames.size()? 1.66f * interpolateLinear(table->frames[idx].sample.data(), phase * 2047.f) : 0.0f;
+
+      if (pIndex != idx) {
+        wavBuffer[i] = idx<table->frames.size()? 1.66f * interpolateLinear(table->frames[idx].sample.data(), phase * 2047.f) : 0.0f;
+        float p = pIndex<table->frames.size()? 1.66f * interpolateLinear(table->frames[pIndex].sample.data(), phase * 2047.f) : 0.0f;
+        wavBuffer[i]=rescale(i,0,15,p,wavBuffer[i]);
+      }
+      else {
+        wavBuffer[i] = idx<table->frames.size()? 1.66f * interpolateLinear(table->frames[idx].sample.data(), phase * 2047.f) : 0.0f;
+      }
+
 			phase += deltaPhase / 16;
 			phase = eucmod(phase, 1.0f);
 		}
+    pIndex = idx;
   }
 
 	float out() {
