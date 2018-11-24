@@ -39,6 +39,7 @@ extern Model *modelPENEQUE;
 extern Model *modelLIMONADE;
 extern Model *modelLIMBO;
 extern Model *modelPERCO;
+extern Model *modelFILTREU;
 extern Model *modelBAR;
 extern Model *modelZINC;
 extern Model *modelDUKE;
