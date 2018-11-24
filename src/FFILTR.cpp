@@ -8,7 +8,7 @@
 
 using namespace std;
 
-struct FILTREU : Module {
+struct FFILTR : Module {
 	enum ParamIds {
 		PITCH_PARAM,
 		NUM_PARAMS
@@ -30,11 +30,11 @@ struct FILTREU : Module {
 	DoubleRingBuffer<float,BUFF_SIZE> out_Buffer;
 	FFTFilter *pShifter = NULL;
 
-	FILTREU() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
+	FFILTR() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
 		pShifter = new FFTFilter(BUFF_SIZE, 4, engineGetSampleRate());
 	}
 
-	~FILTREU() {
+	~FFILTR() {
 		delete pShifter;
 	}
 
@@ -42,7 +42,7 @@ struct FILTREU : Module {
 };
 
 
-void FILTREU::step() {
+void FFILTR::step() {
 	in_Buffer.push(inputs[INPUT].value/10.0f);
 
 	if (in_Buffer.full()) {
@@ -58,9 +58,9 @@ void FILTREU::step() {
 
 }
 
-struct FILTREUWidget : ModuleWidget {
-	FILTREUWidget(FILTREU *module) : ModuleWidget(module) {
-		setPanel(SVG::load(assetPlugin(plugin, "res/HCTIP.svg")));
+struct FFILTRWidget : ModuleWidget {
+	FFILTRWidget(FFILTR *module) : ModuleWidget(module) {
+		setPanel(SVG::load(assetPlugin(plugin, "res/FFILTR.svg")));
 
 		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
@@ -68,14 +68,14 @@ struct FILTREUWidget : ModuleWidget {
 		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(8, 100), module, FILTREU::PITCH_PARAM, 2.0f, 32.0f, 32.0f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(8, 100), module, FFILTR::PITCH_PARAM, 2.0f, 32.0f, 32.0f));
 
-		addInput(Port::create<PJ301MPort>(Vec(10, 150.66f), Port::INPUT, module, FILTREU::PITCH_INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(10, 150.66f), Port::INPUT, module, FFILTR::PITCH_INPUT));
 
-		addInput(Port::create<PJ301MPort>(Vec(10, 242.66f), Port::INPUT, module, FILTREU::INPUT));
+		addInput(Port::create<PJ301MPort>(Vec(10, 242.66f), Port::INPUT, module, FFILTR::INPUT));
 
-		addOutput(Port::create<PJ301MPort>(Vec(10, 299), Port::OUTPUT, module, FILTREU::OUTPUT));
+		addOutput(Port::create<PJ301MPort>(Vec(10, 299), Port::OUTPUT, module, FFILTR::OUTPUT));
 	}
 };
 
-Model *modelFILTREU = Model::create<FILTREU, FILTREUWidget>("Bidoo", "FILTREU", "FILTREU pitch shifter", EFFECT_TAG);
+Model *modelFFILTR = Model::create<FFILTR, FFILTRWidget>("Bidoo", "FFILTR", "FFILTR linear phase filter", FILTER_TAG);
