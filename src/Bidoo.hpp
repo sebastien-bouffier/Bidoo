@@ -48,6 +48,7 @@ extern Model *modelCANARD;
 extern Model *modelLOURDE;
 extern Model *modelHCTIP;
 extern Model *modelDFUZE;
+//extern Model *modelSHYM;
 extern Model *modelMU;
 extern Model *modelSIGMA;
 extern Model *modelRABBIT;

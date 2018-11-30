@@ -2,7 +2,7 @@
 #include "BidooComponents.hpp"
 #include "dsp/digital.hpp"
 #include "dsp/ringbuffer.hpp"
-#include "dep/filters/fftfilter.h"
+#include "dep/filters/vocode.h"
 
 #define BUFF_SIZE 128
 
@@ -28,14 +28,14 @@ struct FFILTR : Module {
 
 	DoubleRingBuffer<float,BUFF_SIZE> in_Buffer;
 	DoubleRingBuffer<float,BUFF_SIZE> out_Buffer;
-	FFTFilter *pShifter = NULL;
+	Vocoder *vocoder = NULL;
 
 	FFILTR() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-		pShifter = new FFTFilter(BUFF_SIZE, 4, engineGetSampleRate());
+		vocoder = new Vocoder(BUFF_SIZE, 4, engineGetSampleRate());
 	}
 
 	~FFILTR() {
-		delete pShifter;
+		//delete pShifter;
 	}
 
 	void step() override;
@@ -46,7 +46,7 @@ void FFILTR::step() {
 	in_Buffer.push(inputs[INPUT].value/10.0f);
 
 	if (in_Buffer.full()) {
-		pShifter->process(clamp(params[PITCH_PARAM].value + inputs[PITCH_INPUT].value ,1.0f,32.0), in_Buffer.startData(), out_Buffer.endData());
+		vocoder->process(clamp(params[PITCH_PARAM].value + inputs[PITCH_INPUT].value ,1.0f,32.0), in_Buffer.startData(), out_Buffer.endData());
 		out_Buffer.endIncr(BUFF_SIZE);
 		in_Buffer.clear();
 	}

@@ -184,7 +184,7 @@ struct PatternExtended {
 	inline int GetNextStepBackward(int pos)
 	{
 			for (int i = pos - 1; i > pos - 16; i--) {
-				int j = i/16;
+				int j = i%16;
 				if (!steps[j + (i<0?16:0)].skip) {
 					return j + (i<0?16:0);
 				}
