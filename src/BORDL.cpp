@@ -558,8 +558,8 @@ struct BORDL : Module {
 	// Quantization inspired from  https://github.com/jeremywen/JW-Modules
 
 	float closestVoltageInScale(float voltsIn, float rootNote, float scaleVal){
-		rootNote = (int)clamp(rootNote, 0.0f, 11.0f);
-		curScaleVal = (int)clamp(scaleVal, 0.0f, 17.0f);
+		rootNote = rootNote;
+		curScaleVal = scaleVal;
 		int *curScaleArr;
 		int notesInScale = 0;
 		switch(curScaleVal){
@@ -583,11 +583,11 @@ struct BORDL : Module {
 			case NONE:           return voltsIn;
 		}
 
-		float closestVal = 10.0f;
-		float closestDist = 10.0f;
-		int octaveInVolts = int(voltsIn);
+		float closestVal = 0.0f;
+		float closestDist = 1.0f;
+		int octaveInVolts = sgn(voltsIn) == 1.0f ? int(voltsIn) : (int(voltsIn)-1);
 		for (int i = 0; i < notesInScale; i++) {
-			float scaleNoteInVolts = octaveInVolts +  curScaleArr[i] / 12.0f;
+			float scaleNoteInVolts = octaveInVolts + curScaleArr[i] / 12.0f;
 			float distAway = fabs(voltsIn - scaleNoteInVolts);
 			if(distAway < closestDist) {
 				closestVal = scaleNoteInVolts;
@@ -595,7 +595,7 @@ struct BORDL : Module {
 			}
 		}
 		float transposeVolatge = inputs[TRANSPOSE_INPUT].active ? ((((int)rescale(clamp(inputs[TRANSPOSE_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-48.0f,48.0f)) / 12.0f)) : 0.0f;
-		return clamp(closestVal + (rootNote / 12.0f) + transposeVolatge,0.0f,10.0f);
+		return clamp(closestVal + (rootNote / 12.0f) + transposeVolatge,-4.0f,6.0f);
 	}
 };
 
@@ -760,7 +760,7 @@ void BORDL::step() {
 		}
 	}
 	//pitch management
-	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,0.0f,10.0f) * patterns[playedPattern].sensitivity,patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value,patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
+	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * patterns[playedPattern].sensitivity,patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value,patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
 			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].value * 0.1f, -0.1f, 0.99f);
@@ -978,22 +978,23 @@ struct BORDLPitchDisplay : TransparentWidget {
 	}
 
 	string displayNote(float value) {
-		int octave = value;
+		int octave = sgn(value) == 1.0f ? value : (value-1);
 		int note = (value-octave)*1000;
 		switch(note){
-			case 0:  return "C" + to_string(octave);
-			case 83: return "C#" + to_string(octave);
-			case 166: return "D" + to_string(octave);
-			case 250: return "D#" + to_string(octave);
-			case 333: return "E" + to_string(octave);
-			case 416: return "F" + to_string(octave);
-			case 500: return "F#" + to_string(octave);
-			case 583: return "G" + to_string(octave);
-			case 666: return "G#" + to_string(octave);
-			case 750: return "A" + to_string(octave);
-			case 833: return "A#" + to_string(octave);
-			case 916: return "B" + to_string(octave);
-			default: return to_string(octave);
+			case 0:  return "C" + to_string(octave+4);
+			case 83: return "C#" + to_string(octave+4);
+			case 166: return "D" + to_string(octave+4);
+			case 250: return "D#" + to_string(octave+4);
+			case 333: return "E" + to_string(octave+4);
+			case 416: return "F" + to_string(octave+4);
+			case 500: return "F#" + to_string(octave+4);
+			case 583: return "G" + to_string(octave+4);
+			case 666: return "G#" + to_string(octave+4);
+			case 750: return "A" + to_string(octave+4);
+			case 833: return "A#" + to_string(octave+4);
+			case 916: return "B" + to_string(octave+4);
+			case 1000: return "C" + to_string(octave+5);
+			default: return to_string(octave+4);
 		}
 	}
 
@@ -1244,9 +1245,9 @@ BORDLWidget::BORDLWidget(BORDL *module) : ModuleWidget(module) {
 	addInput(Port::create<PJ301MPort>(Vec(portX0[2], 69.0f), Port::INPUT, module, BORDL::RESET_INPUT));
 	addInput(Port::create<PJ301MPort>(Vec(portX0[3], 69.0f), Port::INPUT, module, BORDL::STEPS_INPUT));
 
-	rootNoteParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[0]-2.0f, 116.0f), module, BORDL::ROOT_NOTE_PARAM, 0.0f, BORDL::NUM_NOTES-0.9f, 0.0f);
+	rootNoteParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[0]-2.0f, 116.0f), module, BORDL::ROOT_NOTE_PARAM, 0.0f, BORDL::NUM_NOTES-1.0f, 0.0f);
 	addParam(rootNoteParam);
-	scaleParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[1]-2.0f, 116.0f), module, BORDL::SCALE_PARAM, 0.0f, BORDL::NUM_SCALES-0.9f, 0.0f);
+	scaleParam = ParamWidget::create<BidooBlueSnapKnob>(Vec(portX0[1]-2.0f, 116.0f), module, BORDL::SCALE_PARAM, 0.0f, BORDL::NUM_SCALES-1.0f, 0.0f);
 	addParam(scaleParam);
 	gateTimeParam = ParamWidget::create<BidooBlueKnob>(Vec(portX0[2]-2.0f, 116.0f), module, BORDL::GATE_TIME_PARAM, 0.1f, 1.0f, 0.5f);
 	addParam(gateTimeParam);
@@ -1281,7 +1282,7 @@ BORDLWidget::BORDLWidget(BORDL *module) : ModuleWidget(module) {
 	addParam(ParamWidget::create<BORDLShiftDownBtn>(Vec(119.0f, 297.0f), module, BORDL::DOWN_PARAM, 0.0f, 1.0f, 0.0f));
 
 	for (int i = 0; i < 8; i++) {
-		pitchParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]+1.0f, 56.0f), module, BORDL::TRIG_PITCH_PARAM + i, 0.0f, 10.001f, 3.0f);
+		pitchParams[i] = ParamWidget::create<BidooBlueKnob>(Vec(portX1[i]+1.0f, 56.0f), module, BORDL::TRIG_PITCH_PARAM + i, -4.0f, 6.0f, 0.0f);
 		addParam(pitchParams[i]);
 		pitchRndParams[i] = ParamWidget::create<BidooBlueTrimpot>(Vec(portX1[i]+27.0f, 81.0f), module, BORDL::TRIG_PITCHRND_PARAM + i, 0.0f, 1.0f, 0.0f);
 		addParam(pitchRndParams[i]);

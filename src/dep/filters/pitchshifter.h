@@ -152,7 +152,7 @@ struct PitchShifter {
 					for (k = 0; k <= fftFrameSize2; k++) {
 
 						/* get magnitude and true frequency from synthesis arrays */
-						magn = gSynMagn[k];
+						magn = k==0?0:gSynMagn[k];
 						tmp = gSynFreq[k];
 
 						/* subtract bin mid frequency */

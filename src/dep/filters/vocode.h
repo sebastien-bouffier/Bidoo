@@ -68,7 +68,7 @@ struct Vocoder {
 		pffft_aligned_free(gFFTworkspOut);
 	}
 
-	void process(const float pitchShift, const float *input, float *output) {
+	void process(const float cutoff, const float res, const float *input, float *output) {
 
 			for (i = 0; i < fftFrameSize; i++) {
 
@@ -137,10 +137,10 @@ struct Vocoder {
 					memset(gSynFreq, 0, fftFrameSize*sizeof(float));
 
 					for (k = 0; k <= fftFrameSize2; k++) {
-						index = k*pitchShift;
+						index = k;
 						if (index <= fftFrameSize2) {
-							gSynMagn[index] += gAnaMagn[k];
-							gSynFreq[index] = gAnaFreq[k] * pitchShift;
+							gSynMagn[index] += (k <= cutoff ? (k == (int)cutoff ? (res*gAnaMagn[k]) : gAnaMagn[k]) : 0.0f);
+							gSynFreq[index] = gAnaFreq[k];
 						}
 					}
 

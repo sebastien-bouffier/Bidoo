@@ -145,7 +145,7 @@ void revmodel::processmix(float *inputL, float *inputR, float *outputL, float *o
 void revmodel::process(const float inL, const float inR, const float fbIn, float &outputL, float &outputR, float &wOutputL, float &wOutputR)
 {
 	float outL = 0.0f, outR = 0.0f;
-	float input = (inL + inR) * gain;
+	float input = (inL + inR + fbIn) * gain;
 	// Accumulate comb filters in parallel
 	for(int i=0; i<numcombs; i++)
 	{
@@ -156,8 +156,8 @@ void revmodel::process(const float inL, const float inR, const float fbIn, float
 	// Feed through allpasses in series
 	for(int i=0; i<numallpasses; i++)
 	{
-		outL = allpassL[i].process((i==0 ? fbIn : 0.0f) + outL);
-		outR = allpassR[i].process((i==0 ? fbIn : 0.0f) + outR);
+		outL = allpassL[i].process(outL);
+		outR = allpassR[i].process(outR);
 	}
 
 	outputL = outL*wet1 + outR*wet2 + inL*dry;

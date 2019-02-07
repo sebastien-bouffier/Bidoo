@@ -196,7 +196,7 @@ struct track {
 	trig *prevTrig = trigs;
 	trig *memTrig = trigs;
 	trig *currentTrig = trigs;
-	size_t nextIndex;
+	size_t nextIndex = 0;
 	bool fwd = true;
 	bool pre = false;
 

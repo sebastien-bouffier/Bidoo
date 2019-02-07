@@ -52,7 +52,7 @@ void HCTIP::step() {
 	}
 
 	if (out_Buffer.size()>0) {
-		outputs[OUTPUT].value = *out_Buffer.startData() * 10.0f;
+		outputs[OUTPUT].value = *out_Buffer.startData() * 5.0f;
 		out_Buffer.startIncr(1);
 	}
 
@@ -68,7 +68,7 @@ struct HCTIPWidget : ModuleWidget {
 		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(8, 100), module, HCTIP::PITCH_PARAM, 0.5f, 2.0f, 0.5f));
+		addParam(ParamWidget::create<BidooBlueKnob>(Vec(8, 100), module, HCTIP::PITCH_PARAM, 0.5f, 2.0f, 1.0f));
 
 		addInput(Port::create<PJ301MPort>(Vec(10, 150.66f), Port::INPUT, module, HCTIP::PITCH_INPUT));
 

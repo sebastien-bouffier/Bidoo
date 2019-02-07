@@ -55,7 +55,6 @@ struct DFUZE : Module {
 };
 
 void DFUZE::step() {
-
 	gverb_set_roomsize(verb, clamp(params[SIZE_PARAM].value+inputs[SIZE_INPUT].value,0.0f,6.0f));
 	gverb_set_revtime(verb, clamp(params[REVTIME_PARAM].value+inputs[REVTIME_INPUT].value,0.0f,10.0f));
 	gverb_set_damping(verb, clamp(params[DAMP_PARAM].value+inputs[DAMP_INPUT].value,0.0f,0.9f));
@@ -63,7 +62,7 @@ void DFUZE::step() {
 	gverb_set_earlylevel(verb, clamp(params[EARLYLEVEL_PARAM].value+inputs[EARLYLEVEL_INPUT].value,0.0f,10.0f));
 	gverb_set_taillevel(verb, clamp(params[TAIL_PARAM].value+inputs[TAIL_INPUT].value,0.0f,10.0f));
 
-	gverb_do(verb, inputs[IN_INPUT].value, &outputs[OUT_L_OUTPUT].value, &outputs[OUT_R_OUTPUT].value);
+	gverb_do(verb, inputs[IN_INPUT].value/10.0f, &outputs[OUT_L_OUTPUT].value, &outputs[OUT_R_OUTPUT].value);
 }
 
 struct DFUZEWidget : ModuleWidget {
