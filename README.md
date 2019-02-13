@@ -1,7 +1,7 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-0.6.25-green.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.6.26-green.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
@@ -12,6 +12,12 @@
 You can find information on that plugins pack in the [wiki](https://github.com/sebastien-bouffier/Bidoo/wiki). When doing tests it happens that I record a video so you may find some ideas on how to use those modules [here](https://www.youtube.com/bidoo).
 
 ## Last changes
+
+13/02/2019 => 0.6.26
+**bordL** pitch calibration and KEY input fix.
+**REI** reverberator (based on freeverb with a pitchshifter in the feedback loop) has been redesigned and the control calibration is better than before, it still needs some adjustments.
+**OUAIve** has a new input in the top right corner. When this input is triggered it overrides the sample position and take it back to 0 (I use it with **OUAIve** in grid mode without any POS input signal, so slices are read one after another at each trig, if I need to go back to 0 to sync with a sequencer I trig the new input :)).
+**FFILTR** low pass filter based on FFT has a resonance control now.
 
 20/11/2018 => 0.6.23
 

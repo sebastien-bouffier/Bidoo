@@ -339,7 +339,6 @@ struct BORDL : Module {
 	int prevIndex = 0;
 	bool reStart = true;
 	int pulse = 0;
-	int rootNote = 0;
 	int curScaleVal = 0;
 	float pitch = 0.0f;
 	float previousPitch = 0.0f;
@@ -557,8 +556,7 @@ struct BORDL : Module {
 
 	// Quantization inspired from  https://github.com/jeremywen/JW-Modules
 
-	float closestVoltageInScale(float voltsIn, float rootNote, float scaleVal){
-		rootNote = rootNote;
+	float closestVoltageInScale(float voltsIn, int rootNote, float scaleVal){
 		curScaleVal = scaleVal;
 		int *curScaleArr;
 		int notesInScale = 0;
@@ -582,7 +580,6 @@ struct BORDL : Module {
 			case TURKISH:        curScaleArr = SCALE_TURKISH;       notesInScale=LENGTHOF(SCALE_TURKISH); break;
 			case NONE:           return voltsIn;
 		}
-
 		float closestVal = 0.0f;
 		float closestDist = 1.0f;
 		int octaveInVolts = sgn(voltsIn) == 1.0f ? int(voltsIn) : (int(voltsIn)-1);
@@ -594,8 +591,8 @@ struct BORDL : Module {
 				closestDist = distAway;
 			}
 		}
-		float transposeVolatge = inputs[TRANSPOSE_INPUT].active ? ((((int)rescale(clamp(inputs[TRANSPOSE_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-48.0f,48.0f)) / 12.0f)) : 0.0f;
-		return clamp(closestVal + (rootNote / 12.0f) + transposeVolatge,-4.0f,6.0f);
+		float transposeVoltage = inputs[TRANSPOSE_INPUT].active ? ((((int)rescale(clamp(inputs[TRANSPOSE_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-48.0f,48.0f)) / 12.0f)) : 0.0f;
+		return clamp(closestVal + (rootNote / 12.0f) + transposeVoltage,-4.0f,6.0f);
 	}
 };
 
@@ -697,7 +694,7 @@ void BORDL::step() {
 	// Steps && Pulses Management
 	if (nextStep) {
 		// Advance step
-		candidateForPreviousPitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch * patterns[playedPattern].sensitivity,patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value, patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
+		candidateForPreviousPitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch * patterns[playedPattern].sensitivity, clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].value, 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f,11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
 
 		prevIndex = index;
 		auto nextT = patterns[playedPattern].GetNextStep(reStart);
@@ -760,7 +757,7 @@ void BORDL::step() {
 		}
 	}
 	//pitch management
-	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * patterns[playedPattern].sensitivity,patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value,patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
+	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * patterns[playedPattern].sensitivity,clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].value, 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
 			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].value * 0.1f, -0.1f, 0.99f);
@@ -864,7 +861,7 @@ struct BORDLDisplay : TransparentWidget {
 	}
 
 	void draw(NVGcontext *vg) override {
-		note = displayRootNote(module->patterns[module->selectedPattern].rootNote);
+		note = displayRootNote(clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].value,0.0f,10.0f),0.0f,10.0f,0.0f,11.0f),0.0f, 11.0f));
 		steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);
 		playMode = displayPlayMode(module->patterns[module->selectedPattern].playMode);
 		scale = displayScale(module->patterns[module->selectedPattern].scale);
@@ -1006,7 +1003,7 @@ struct BORDLPitchDisplay : TransparentWidget {
 		nvgFontSize(vg, 16.0f);
 		nvgFontFaceId(vg, font->handle);
 		nvgTextLetterSpacing(vg, -2.0f);
-		nvgText(vg, pos.x, pos.y-9.0f, displayNote(module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].value * module->params[BORDL::SENSITIVITY_PARAM].value , module->patterns[module->selectedPattern].rootNote, module->patterns[module->selectedPattern].scale)).c_str(), NULL);
+		nvgText(vg, pos.x, pos.y-9.0f, displayNote(module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].value * module->params[BORDL::SENSITIVITY_PARAM].value , clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].value, 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), module->patterns[module->selectedPattern].scale)).c_str(), NULL);
 	}
 
 	void draw(NVGcontext *vg) override {

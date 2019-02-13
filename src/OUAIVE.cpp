@@ -28,6 +28,7 @@ struct OUAIVE : Module {
 		NB_SLICES_INPUT,
 		READ_MODE_INPUT,
 		SPEED_INPUT,
+		POS_RESET_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -59,6 +60,7 @@ struct OUAIVE : Module {
 	SchmittTrigger playTrigger;
 	SchmittTrigger trigModeTrigger;
 	SchmittTrigger readModeTrigger;
+	SchmittTrigger posResetTrigger;
 	std::mutex mylock;
 
 
@@ -167,6 +169,11 @@ void OUAIVE::step() {
 				samplePos = clamp(sliceIndex*sliceLength, 0, totalSampleCount);
 			else
 				samplePos = clamp((sliceIndex + 1) * sliceLength - 1, 0 , totalSampleCount);
+		}
+
+		if (posResetTrigger.process(inputs[POS_RESET_INPUT].value)) {
+			sliceIndex = 0;
+			samplePos = 0;
 		}
 
 		if ((!loading) && (play) && (samplePos>=0) && (samplePos < totalSampleCount)) {
@@ -432,6 +439,8 @@ struct OUAIVEWidget : ModuleWidget {
 		}
 
 		static const float portX0[4] = {34, 67, 101};
+
+		addInput(Port::create<TinyPJ301MPort>(Vec(10, 18), Port::INPUT, module, OUAIVE::POS_RESET_INPUT));
 
 		addParam(ParamWidget::create<BlueCKD6>(Vec(portX0[0]-25, 215), module, OUAIVE::TRIG_MODE_PARAM, 0.0, 2.0, 0.0));
 
