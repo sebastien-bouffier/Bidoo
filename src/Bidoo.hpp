@@ -49,6 +49,7 @@ extern Model *modelLOURDE;
 extern Model *modelHCTIP;
 extern Model *modelDFUZE;
 extern Model *modelREI;
+extern Model *modelCURT;
 extern Model *modelMU;
 extern Model *modelSIGMA;
 extern Model *modelRABBIT;

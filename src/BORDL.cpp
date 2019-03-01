@@ -204,6 +204,26 @@ struct PatternExtended {
 		return select_randomly(start, end, gen);
 	}
 
+	inline float MinVoltage() {
+		float result = 0.0f;
+		for (int i = 0; i < 16; i++) {
+			if (steps[i].pitch<result) {
+				result = steps[i].pitch;
+			}
+		}
+		return result;
+	}
+
+	inline float MaxVoltage() {
+		float result = 0.0f;
+		for (int i = 0; i < 16; i++) {
+			if (steps[i].pitch>result) {
+				result = steps[i].pitch;
+			}
+		}
+		return result;
+	}
+
 };
 
 struct BORDL : Module {
@@ -1097,7 +1117,7 @@ struct BORDLShiftUpBtn : UpBtn {
 	void onMouseDown(EventMouseDown &e) override {
 		BORDLWidget *bordlWidget = dynamic_cast<BORDLWidget*>(this->parent);
 		BORDL *bordlModule = dynamic_cast<BORDL*>(this->module);
-		if (bordlModule && bordlWidget && bordlModule->updateFlag)
+		if (bordlModule && bordlWidget && bordlModule->updateFlag && (bordlModule->patterns[bordlModule->selectedPattern].MaxVoltage()<6.0f))
 		{
 			bordlModule->updateFlag = false;
 			for (int i = 0; i < 8; i++) {
@@ -1113,11 +1133,11 @@ struct BORDLShiftDownBtn : DownBtn {
 	void onMouseDown(EventMouseDown &e) override {
 		BORDLWidget *bordlWidget = dynamic_cast<BORDLWidget*>(this->parent);
 		BORDL *bordlModule = dynamic_cast<BORDL*>(this->module);
-		if (bordlModule && bordlWidget && bordlModule->updateFlag)
+		if (bordlModule && bordlWidget && bordlModule->updateFlag && (bordlModule->patterns[bordlModule->selectedPattern].MinVoltage()>-4.0f))
 		{
 			bordlModule->updateFlag = false;
 			for (int i = 0; i < 8; i++) {
-				bordlWidget->pitchParams[i]->setValue(max(bordlWidget->pitchParams[i]->value - 0.1f,0.0f));
+				bordlWidget->pitchParams[i]->setValue(max(bordlWidget->pitchParams[i]->value - 0.1f,-10.0f));
 			}
 			bordlModule->updateFlag = true;
 		}
