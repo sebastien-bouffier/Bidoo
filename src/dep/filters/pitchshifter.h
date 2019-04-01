@@ -74,7 +74,12 @@ struct PitchShifter {
 
 				/* As long as we have not yet collected enough data just read in */
 				gInFIFO[gRover] = input[i];
-				output[i] = gOutFIFO[gRover-inFifoLatency];
+
+				if(gRover >= inFifoLatency)  // [bsp] 09Mar2019: this fixes the noise burst issue in REI
+					 output[i] = gOutFIFO[gRover-inFifoLatency];
+				else
+					 output[i] = 0.0f;
+					 
 				gRover++;
 
 				/* now we have enough data for processing */
