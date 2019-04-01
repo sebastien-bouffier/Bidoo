@@ -14,7 +14,7 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 ## Last changes
 
 01/04/2019 => 0.6.28
-**dFUZE** fix, big thanks to Bastian.
+**REI** fix, big thanks to Bastian.
 *NEW* **cuRt** v0.1 still under dev but already operational.
 
 13/02/2019 => 0.6.26
