@@ -1,4 +1,4 @@
-#include "Bidoo.hpp"
+#include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/digital.hpp"
 #include "dsp/ringbuffer.hpp"
@@ -31,17 +31,23 @@ struct CURT : Module {
 		NUM_LIGHTS
 	};
 
-	DoubleRingBuffer<float,BUFF_SIZE> in_Buffer;
-	DoubleRingBuffer<float, 2*BUFF_SIZE> out_Buffer;
+	dsp::DoubleRingBuffer<float,BUFF_SIZE> in_Buffer;
+	dsp::DoubleRingBuffer<float, 2*BUFF_SIZE> out_Buffer;
 	float bins[OVERLAP][BUFF_SIZE];
 	int index=-1;
 	size_t readSteps=0;
 	size_t writeSteps=0;
-	SchmittTrigger modeTrigger;
+	dsp::SchmittTrigger modeTrigger;
 	bool mode=0;
 	size_t overlap, buff_size;
 
-	CURT() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
+	CURT() {
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configParam(PITCH_PARAM, 0.2f, 2.0f, 1.0f, "Pitch");
+		configParam(MODE_PARAM, 0.f, 1.f, 0.f, "Mode");
+		configParam(BUFF_SIZE_PARAM, 6.0f, 8.0f, 8.0f, "Buffer size");
+		configParam(OVERLAP_PARAM, 1.0f, 4.0f, 2.0f, "Overlap");
+
 		overlap = OVERLAP;
 		buff_size = BUFF_SIZE;
 		for(int i=0; i<OVERLAP; i++) {
@@ -74,22 +80,22 @@ struct CURT : Module {
 		}
 	}
 
-	json_t *toJson() override {
+	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
 		json_object_set_new(rootJ, "mode", json_boolean(mode));
 		return rootJ;
 	}
 
-	void fromJson(json_t *rootJ) override {
+	void dataFromJson(json_t *rootJ) override {
 		json_t *modeJ = json_object_get(rootJ, "mode");
 		if (modeJ)
 			mode = json_is_true(modeJ);
 	}
 
-	void step() override;
+	void process(const ProcessArgs &args) override;
 };
 
-void CURT::step() {
+void CURT::process(const ProcessArgs &args) {
 	if (modeTrigger.process(params[MODE_PARAM].value)) {
 		mode = !mode;
 	}
@@ -113,7 +119,7 @@ void CURT::step() {
 		for(size_t i=0; i<buff_size; i++) {
 			bins[index][i]=*(in_Buffer.startData()+i);
 		}
-		blackmanHarrisWindow(bins[index],buff_size);
+		dsp::blackmanHarrisWindow(bins[index],buff_size);
 		readSteps = 0;
 	}
 
@@ -140,24 +146,24 @@ void CURT::step() {
 }
 
 struct CURTWidget : ModuleWidget {
-	CURTWidget(CURT *module) : ModuleWidget(module) {
-		setPanel(SVG::load(assetPlugin(plugin, "res/CURT.svg")));
+	CURTWidget(CURT *module) {
+		setModule(module);
+		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/CURT.svg")));
 
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
+		addParam(createParam<BidooBlueKnob>(Vec(8, 90), module, CURT::PITCH_PARAM));
+		addParam(createParam<BlueCKD6>(Vec(8, 175.0f), module, CURT::MODE_PARAM));
+		addParam(createParam<BidooBlueSnapTrimpot>(Vec(2, 205), module, CURT::BUFF_SIZE_PARAM));
+		addParam(createParam<BidooBlueSnapTrimpot>(Vec(24, 205), module, CURT::OVERLAP_PARAM));
 
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(8, 90), module, CURT::PITCH_PARAM, 0.2f, 2.0f, 1.0f));
-		addInput(Port::create<PJ301MPort>(Vec(10, 140.0f), Port::INPUT, module, CURT::PITCH_INPUT));
-		addParam(ParamWidget::create<BlueCKD6>(Vec(8, 175.0f), module, CURT::MODE_PARAM, 0.0f, 1.0f, 0.0f));
-		addParam(ParamWidget::create<BidooBlueSnapTrimpot>(Vec(2, 205), module, CURT::BUFF_SIZE_PARAM, 6.0f, 8.0f, 8.0f));
-		addParam(ParamWidget::create<BidooBlueSnapTrimpot>(Vec(25, 205), module, CURT::OVERLAP_PARAM, 1.0f, 4.0f, 2.0f));
-
-		addInput(Port::create<PJ301MPort>(Vec(10, 245.66f), Port::INPUT, module, CURT::INPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(10, 299), Port::OUTPUT, module, CURT::OUTPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 140.0f), module, CURT::PITCH_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 245.66f), module, CURT::INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10, 299), module, CURT::OUTPUT));
 	}
 };
 
-Model *modelCURT = Model::create<CURT, CURTWidget>("Bidoo", "cuRt", "cuRt .......", EFFECT_TAG);
+Model *modelCURT = createModel<CURT, CURTWidget>("cuRt");

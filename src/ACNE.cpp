@@ -1,4 +1,4 @@
-#include "Bidoo.hpp"
+#include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/digital.hpp"
 #include <iomanip>
@@ -50,24 +50,52 @@ struct ACNE : Module {
 	bool  outMutes[ACNE_NB_OUTS] = {0};
 	bool  inMutes[ACNE_NB_TRACKS] = {0};
 	bool  inSolo[ACNE_NB_TRACKS] = {0};
-	SchmittTrigger outMutesTriggers[ACNE_NB_OUTS];
-	SchmittTrigger inMutesTriggers[ACNE_NB_TRACKS];
-	SchmittTrigger inSoloTriggers[ACNE_NB_TRACKS];
-	SchmittTrigger snapshotTriggers[ACNE_NB_SNAPSHOTS];
-	SchmittTrigger muteTrigger;
-	SchmittTrigger soloTrigger;
+	dsp::SchmittTrigger outMutesTriggers[ACNE_NB_OUTS];
+	dsp::SchmittTrigger inMutesTriggers[ACNE_NB_TRACKS];
+	dsp::SchmittTrigger inSoloTriggers[ACNE_NB_TRACKS];
+	dsp::SchmittTrigger snapshotTriggers[ACNE_NB_SNAPSHOTS];
+	dsp::SchmittTrigger muteTrigger;
+	dsp::SchmittTrigger soloTrigger;
 	int rampSteps = 0;
 	int rampSize = 1;
 	float rampedValue = 0.0;
 	int version = 0;
-	SchmittTrigger linksTriggers[8];
+	dsp::SchmittTrigger linksTriggers[8];
 	bool links[8] = {0,0,0,0,0,0,0,0};
 
-	ACNE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
+	ACNE() {
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configParam(MAIN_OUT_GAIN_PARAM, 0.f, 10.f, 7.f, "Out gain", "%", 0.f,100.f);
+		configParam(COPY_PARAM, 0.f, 1.f, 0.f, "Copy/Paste");
+		configParam(RAMP_PARAM, 0.f, 0.01f, 0.001f, "Snapshots ramp", "%", 0.f,100.f);
+		configParam(SEND_MUTE_PARAM, 0.f, 1.f, 0.f, "Sends mute");
+		configParam(MUTE_PARAM, 0.f, 1.f, 0.f, "Mute");
+		configParam(SOLO_PARAM, 0.f, 1.f, 0.f, "Solo");
 
-	void step() override;
+		for (int i = 0; i < ACNE_NB_OUTS; i++) {
+			configParam(OUT_MUTE_PARAMS + i, 0.f, 1.f, 0.f, "Mute output " + std::to_string(i));
+		}
 
-	json_t *toJson() override {
+		for (int i = 0; i < ACNE_NB_TRACKS; i++) {
+			configParam(SNAPSHOT_PARAMS + i, 0.f, 1.f, 0.f, "Snapshot " + std::to_string(i));
+			configParam(IN_MUTE_PARAMS + i, 0.f, 1.f, 0.f, "Mute track " + std::to_string(i));
+			configParam(IN_SOLO_PARAMS + i, 0.f, 1.f, 0.f, "Solo track " + std::to_string(i));
+		}
+
+		for (int i = 0; i < 8; i++) {
+			configParam(TRACKLINK_PARAMS + i, 0.f, 1.f, 0.f, "Track link " + std::to_string(i));
+		}
+
+		for (int i = 0; i < ACNE_NB_OUTS; i++) {
+			for (int j = 0; j < ACNE_NB_TRACKS; j++) {
+				configParam(FADERS_PARAMS + j + i * (ACNE_NB_TRACKS), 0.f, 10.f, 0.f, "Volume " + std::to_string(i) + std::to_string(j));
+			}
+		}
+	}
+
+	void process(const ProcessArgs &args) override;
+
+	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
 		// scenes
 		json_t *snapShotsJ = json_array();
@@ -92,7 +120,7 @@ struct ACNE : Module {
 		return rootJ;
 	}
 
-	void fromJson(json_t *rootJ) override {
+	void dataFromJson(json_t *rootJ) override {
 		// scenes
 		json_t *snapShotsJ = json_object_get(rootJ, "snapshots");
 		if (snapShotsJ) {
@@ -132,8 +160,8 @@ struct ACNE : Module {
 
 };
 
-void ACNE::step() {
-	rampSize = static_cast<int>(engineGetSampleRate()*params[RAMP_PARAM].value);
+void ACNE::process(const ProcessArgs &args) {
+	rampSize = static_cast<int>(args.sampleRate*params[RAMP_PARAM].value);
 
 	if (inputs[SNAPSHOT_INPUT].active) {
 		int newSnapshot = clamp((int)(inputs[SNAPSHOT_INPUT].value * 16 * 0.1f),0,ACNE_NB_SNAPSHOTS-1);
@@ -269,44 +297,44 @@ struct ACNEWidget : ModuleWidget {
 };
 
 struct ACNETrimPot : BidooColoredTrimpot {
-	void onChange(EventChange &e) override {
+	void onChange(const event::Change &e) override {
 			ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
-			ACNE *module = dynamic_cast<ACNE*>(this->module);
+			ACNE *module = dynamic_cast<ACNE*>(this->paramQuantity->module);
 			if (parent && module) {
-				module->snapshots[module->currentSnapshot][(int)((this->paramId - ACNE::FADERS_PARAMS) / ACNE_NB_TRACKS)][(this->paramId - ACNE::FADERS_PARAMS) % ACNE_NB_TRACKS] = value;
+				module->snapshots[module->currentSnapshot][(int)((this->paramQuantity->paramId - ACNE::FADERS_PARAMS) / ACNE_NB_TRACKS)][(this->paramQuantity->paramId - ACNE::FADERS_PARAMS) % ACNE_NB_TRACKS] = this->paramQuantity->getValue();
 			}
 			BidooColoredTrimpot::onChange(e);
 	}
 
-	virtual void onMouseDown(EventMouseDown &e) override {
-		BidooColoredTrimpot::onMouseDown(e);
+	virtual void onButton(const event::Button &e) override {
+		BidooColoredTrimpot::onButton(e);
 		ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
-		ACNE *module = dynamic_cast<ACNE*>(this->module);
+		ACNE *module = dynamic_cast<ACNE*>(this->paramQuantity->module);
 		if (parent && module) {
-			if ((e.button == GLFW_MOUSE_BUTTON_MIDDLE) || ((e.button == GLFW_MOUSE_BUTTON_LEFT) && (windowIsShiftPressed()))) {
-				this->setValue(10);
-				module->snapshots[module->currentSnapshot][(int)((this->paramId - ACNE::FADERS_PARAMS) / ACNE_NB_TRACKS)][(this->paramId - ACNE::FADERS_PARAMS) % ACNE_NB_TRACKS] = 10;
+			if ((e.button == GLFW_MOUSE_BUTTON_MIDDLE) || ((e.button == GLFW_MOUSE_BUTTON_LEFT) && ((e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)))) {
+				this->paramQuantity->setValue(10);
+				module->snapshots[module->currentSnapshot][(int)((this->paramQuantity->paramId - ACNE::FADERS_PARAMS) / ACNE_NB_TRACKS)][(this->paramQuantity->paramId - ACNE::FADERS_PARAMS) % ACNE_NB_TRACKS] = 10;
 			}
 		}
 	}
 };
 
 struct ACNEChoseSceneLedButton : LEDButton {
-	void onMouseDown(EventMouseDown &e) override {
+	void onButton(const event::Button &e) override {
 		ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
-		ACNE *module = dynamic_cast<ACNE*>(this->module);
+		ACNE *module = dynamic_cast<ACNE*>(this->paramQuantity->module);
 		if (parent && module) {
-			module->currentSnapshot = this->paramId - ACNE::SNAPSHOT_PARAMS;
+			module->currentSnapshot = this->paramQuantity->paramId - ACNE::SNAPSHOT_PARAMS;
 			parent->UpdateSnapshot(module->currentSnapshot);
 		}
-		LEDButton::onMouseDown(e);
+		LEDButton::onButton(e);
 	}
 };
 
 struct ACNECOPYPASTECKD6 : BlueCKD6 {
-	void onMouseDown(EventMouseDown &e) override {
+	void onButton(const event::Button &e) override {
 		ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
-		ACNE *module = dynamic_cast<ACNE*>(this->module);
+		ACNE *module = dynamic_cast<ACNE*>(this->paramQuantity->module);
 		if (parent && module) {
 			if (!module->copyState) {
 				module->copySnapshot = module->currentSnapshot;
@@ -321,93 +349,100 @@ struct ACNECOPYPASTECKD6 : BlueCKD6 {
 				module->copyState = false;
 			}
 		}
-		BlueCKD6::onMouseDown(e);
+		BlueCKD6::onButton(e);
 	}
 };
 
-ACNEWidget::ACNEWidget(ACNE *module) : ModuleWidget(module) {
-	setPanel(SVG::load(assetPlugin(plugin, "res/ACNE.svg")));
+ACNEWidget::ACNEWidget(ACNE *module) {
+	setModule(module);
+	setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/ACNE.svg")));
 
-	addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-	addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-	addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-	addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+	addChild(createWidget<ScrewSilver>(Vec(15, 0)));
+	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
+	addChild(createWidget<ScrewSilver>(Vec(15, 365)));
+	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
-	addParam(ParamWidget::create<BidooBlueKnob>(Vec(474.0f, 39.0f), module, ACNE::MAIN_OUT_GAIN_PARAM, 0.0f, 10.0f, 7.0f));
+	addParam(createParam<BidooBlueKnob>(Vec(474.0f, 39.0f), module, ACNE::MAIN_OUT_GAIN_PARAM));
 
-	addParam(ParamWidget::create<ACNECOPYPASTECKD6>(Vec(7.0f, 39.0f), module, ACNE::COPY_PARAM, 0.0f, 1.0f, 0.0f));
-	addChild(ModuleLightWidget::create<SmallLight<GreenLight>>(Vec(18.0f, 28.0f), module, ACNE::COPY_LIGHT));
+	addParam(createParam<ACNECOPYPASTECKD6>(Vec(7.0f, 39.0f), module, ACNE::COPY_PARAM));
+	addChild(createLight<SmallLight<GreenLight>>(Vec(18.0f, 28.0f), module, ACNE::COPY_LIGHT));
 
-	addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(432.0f, 28.0f), module, ACNE::RAMP_PARAM, 0.0f, 0.01f, 0.001f));
+	addParam(createParam<BidooBlueTrimpot>(Vec(432.0f, 28.0f), module, ACNE::RAMP_PARAM));
 
-	addInput(Port::create<TinyPJ301MPort>(Vec(58.0f, 30.0f), Port::INPUT, module, ACNE::SNAPSHOT_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(58.0f, 30.0f), module, ACNE::SNAPSHOT_INPUT));
 
-	addParam(ParamWidget::create<MuteBtn>(Vec(2.0f, 293.0f), module, ACNE::SEND_MUTE_PARAM, 0.0f, 1.0f, 0.0f));
-	addParam(ParamWidget::create<MuteBtn>(Vec(21.0f, 293.0f), module, ACNE::MUTE_PARAM, 0.0f, 1.0f, 0.0f));
-	addParam(ParamWidget::create<SoloBtn>(Vec(11.0f, 314.0f), module, ACNE::SOLO_PARAM, 0.0f, 1.0f, 0.0f));
+	addParam(createParam<MuteBtn>(Vec(2.0f, 293.0f), module, ACNE::SEND_MUTE_PARAM));
+	addParam(createParam<MuteBtn>(Vec(21.0f, 293.0f), module, ACNE::MUTE_PARAM));
+	addParam(createParam<SoloBtn>(Vec(11.0f, 314.0f), module, ACNE::SOLO_PARAM));
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
-		addOutput(Port::create<TinyPJ301MPort>(Vec(482.0f, 79.0f+i*27.0f),Port::OUTPUT, module, ACNE::TRACKS_OUTPUTS + i));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(482.0f, 79.0f+i*27.0f), module, ACNE::TRACKS_OUTPUTS + i));
 
-		addParam(ParamWidget::create<LEDButton>(Vec(10.0f, 77.0f+i*27.0f), module, ACNE::OUT_MUTE_PARAMS + i, 0.0f, 1.0f,  0.0f));
-		addChild(ModuleLightWidget::create<SmallLight<RedLight>>(Vec(16.0f, 82.0f+i*27.0f), module, ACNE::OUT_MUTE_LIGHTS + i));
+		addParam(createParam<LEDButton>(Vec(10.0f, 77.0f+i*27.0f), module, ACNE::OUT_MUTE_PARAMS + i));
+		addChild(createLight<SmallLight<RedLight>>(Vec(16.0f, 82.0f+i*27.0f), module, ACNE::OUT_MUTE_LIGHTS + i));
 	}
 
 	for (int i = 0; i < ACNE_NB_TRACKS; i++) {
-		addParam(ParamWidget::create<ACNEChoseSceneLedButton>(Vec(43.0f+i*27.0f, 49.0f), module, ACNE::SNAPSHOT_PARAMS + i, 0.0f, 1.0f,  0.0f));
-		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(49.0f+i*27.0f, 55.0f), module, ACNE::SNAPSHOT_LIGHTS + i));
+		addParam(createParam<ACNEChoseSceneLedButton>(Vec(43.0f+i*27.0f, 49.0f), module, ACNE::SNAPSHOT_PARAMS + i));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(49.0f+i*27.0f, 55.0f), module, ACNE::SNAPSHOT_LIGHTS + i));
 
-		addInput(Port::create<TinyPJ301MPort>(Vec(45.0f+i*27.0f, 338.0f),Port::INPUT, module, ACNE::TRACKS_INPUTS + i));
+		addInput(createInput<TinyPJ301MPort>(Vec(45.0f+i*27.0f, 338.0f), module, ACNE::TRACKS_INPUTS + i));
 
-		addParam(ParamWidget::create<LEDButton>(Vec(43.0f+i*27.0f, 292.0f), module, ACNE::IN_MUTE_PARAMS + i, 0.0f, 1.0f,  0.0f));
-		addChild(ModuleLightWidget::create<SmallLight<RedLight>>(Vec(49.0f+i*27.0f, 297.0f), module, ACNE::IN_MUTE_LIGHTS + i));
+		addParam(createParam<LEDButton>(Vec(43.0f+i*27.0f, 292.0f), module, ACNE::IN_MUTE_PARAMS + i));
+		addChild(createLight<SmallLight<RedLight>>(Vec(49.0f+i*27.0f, 297.0f), module, ACNE::IN_MUTE_LIGHTS + i));
 
-		addParam(ParamWidget::create<LEDButton>(Vec(43.0f+i*27.0f, 314.0f), module, ACNE::IN_SOLO_PARAMS + i, 0.0f, 1.0f,  0.0f));
-		addChild(ModuleLightWidget::create<SmallLight<GreenLight>>(Vec(49.0f+i*27.0f, 320.0f), module, ACNE::IN_SOLO_LIGHTS + i));
+		addParam(createParam<LEDButton>(Vec(43.0f+i*27.0f, 314.0f), module, ACNE::IN_SOLO_PARAMS + i));
+		addChild(createLight<SmallLight<GreenLight>>(Vec(49.0f+i*27.0f, 320.0f), module, ACNE::IN_SOLO_LIGHTS + i));
 	}
 
 	for (int i = 0; i < 8; i++) {
-		addParam(ParamWidget::create<MiniLEDButton>(Vec(62.0f+i*54.0f, 309.0f), module, ACNE::TRACKLINK_PARAMS + i, 0.0f, 10.0f,  0.0f));
-		addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(62.0f+i*54.0f, 309.0f), module, ACNE::TRACKLINK_LIGHTS + i));
+		addParam(createParam<MiniLEDButton>(Vec(62.0f+i*54.0f, 309.0f), module, ACNE::TRACKLINK_PARAMS + i));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(62.0f+i*54.0f, 309.0f), module, ACNE::TRACKLINK_LIGHTS + i));
 	}
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
 		for (int j = 0; j < ACNE_NB_TRACKS; j++) {
-				faders[i][j] = ParamWidget::create<ACNETrimPot>(Vec(43.0f+j*27.0f, 77.0f+i*27.0f), module, ACNE::FADERS_PARAMS + j + i * (ACNE_NB_TRACKS), 0.0f, 10.0f, 0.0f);
+				faders[i][j] = createParam<ACNETrimPot>(Vec(43.0f+j*27.0f, 77.0f+i*27.0f), module, ACNE::FADERS_PARAMS + j + i * (ACNE_NB_TRACKS));
 				addParam(faders[i][j]);
 		}
 	}
-	module->currentSnapshot = 0;
-	UpdateSnapshot(module->currentSnapshot);
-}
 
+  if (module != NULL) {
+    module->currentSnapshot = 0;
+  	UpdateSnapshot(module->currentSnapshot);
+  }
+}
 
 void ACNEWidget::UpdateSnapshot(int snapshot) {
 	ACNE *module = dynamic_cast<ACNE*>(this->module);
-	for (int i = 0; i < ACNE_NB_OUTS; i++) {
-		for (int j = 0; j < ACNE_NB_TRACKS; j++) {
-			if (faders[i][j]->value != module->snapshots[module->currentSnapshot][i][j])
-				faders[i][j]->setValue(module->snapshots[module->currentSnapshot][i][j]);
-		}
-	}
+  if (module != NULL) {
+    for (int i = 0; i < ACNE_NB_OUTS; i++) {
+  		for (int j = 0; j < ACNE_NB_TRACKS; j++) {
+  			if (faders[i][j]->paramQuantity->getValue() != module->snapshots[module->currentSnapshot][i][j])
+  				faders[i][j]->paramQuantity->setValue(module->snapshots[module->currentSnapshot][i][j]);
+  		}
+  	}
+  }
 }
 
 void ACNEWidget::step() {
 	frames++;
 	if (frames>2){
 		ACNE *module = dynamic_cast<ACNE*>(this->module);
-		if (module->version != moduleVersion) {
-			for (int i = 0; i < ACNE_NB_OUTS; i++) {
-				for (int j = 0; j < ACNE_NB_TRACKS; j++) {
-					if (faders[i][j]->value != module->snapshots[module->currentSnapshot][i][j])
-						faders[i][j]->setValue(module->snapshots[module->currentSnapshot][i][j]);
-				}
-			}
-			moduleVersion = module->version;
-		}
+    if (module != NULL) {
+      if (module->version != moduleVersion) {
+  			for (int i = 0; i < ACNE_NB_OUTS; i++) {
+  				for (int j = 0; j < ACNE_NB_TRACKS; j++) {
+  					if (faders[i][j]->paramQuantity->getValue() != module->snapshots[module->currentSnapshot][i][j])
+  						faders[i][j]->paramQuantity->setValue(module->snapshots[module->currentSnapshot][i][j]);
+  				}
+  			}
+  			moduleVersion = module->version;
+  		}
+    }
 		frames = 0;
 	}
 	ModuleWidget::step();
 }
 
-Model *modelACNE = Model::create<ACNE, ACNEWidget>("Bidoo", "ACnE", "ACnE mixer", MIXER_TAG);
+Model *modelACNE = createModel<ACNE, ACNEWidget>("ACnE");

@@ -1,4 +1,4 @@
-#include "Bidoo.hpp"
+#include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/digital.hpp"
 
@@ -28,23 +28,23 @@ struct BISTROT : Module {
 		NUM_LIGHTS = BIT_OUTPUT_LIGHTS + 8
 	};
 
-  SchmittTrigger linkTrigger, acdClockTrigger, dacClockTrigger;
+  dsp::SchmittTrigger linkTrigger, acdClockTrigger, dacClockTrigger;
 
   unsigned char in = 0;
   unsigned char out = 0;
 
-	BISTROT() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
-
+	BISTROT() {
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 	}
 
 	~BISTROT() {
   }
 
-	void step() override;
+	void process(const ProcessArgs &args) override;
 };
 
 
-void BISTROT::step() {
+void BISTROT::process(const ProcessArgs &args) {
     if ((!inputs[ADCCLOCK_INPUT].active) || (acdClockTrigger.process(inputs[ADCCLOCK_INPUT].value)))
     {
       in = roundf(clamp(clamp(inputs[INPUT].value,-10.0f,10.0f) / 20.0f + 0.5f, 0.0f, 1.0f) * 255);
@@ -74,31 +74,28 @@ void BISTROT::step() {
 }
 
 struct BISTROTWidget : ModuleWidget {
-	BISTROTWidget(BISTROT *module) : ModuleWidget(module) {
-		setPanel(SVG::load(assetPlugin(plugin, "res/BISTROT.svg")));
+	BISTROTWidget(BISTROT *module) {
+		setModule(module);
+		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/BISTROT.svg")));
 
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
-    addInput(Port::create<PJ301MPort>(Vec(29.0f, 46.0f), Port::INPUT, module, BISTROT::ADCCLOCK_INPUT));
-    addInput(Port::create<PJ301MPort>(Vec(67.0f, 46.0f), Port::INPUT, module, BISTROT::DACCLOCK_INPUT));
+    addInput(createInput<PJ301MPort>(Vec(29.0f, 46.0f), module, BISTROT::ADCCLOCK_INPUT));
+    addInput(createInput<PJ301MPort>(Vec(67.0f, 46.0f), module, BISTROT::DACCLOCK_INPUT));
 
     for (int i = 0; i<8; i++) {
-      addChild(ModuleLightWidget::create<SmallLight<RedLight>>(Vec(18.0f, 97.5f + 26.0f * i), module, BISTROT::BIT_INPUT_LIGHTS + i));
-			addOutput(Port::create<TinyPJ301MPort>(Vec(34.0f, 93.0f + 26.0f * i), Port::OUTPUT, module, BISTROT::BIT_OUTPUT + i));
-			addInput(Port::create<TinyPJ301MPort>(Vec(72.0f, 93.0f + 26.0f * i), Port::INPUT, module, BISTROT::BIT_INPUT + i));
-			addChild(ModuleLightWidget::create<SmallLight<BlueLight>>(Vec(95.0f, 97.5f + 26.0f * i), module, BISTROT::BIT_OUTPUT_LIGHTS + i));
+      addChild(createLight<SmallLight<RedLight>>(Vec(18.0f, 97.5f + 26.0f * i), module, BISTROT::BIT_INPUT_LIGHTS + i));
+			addOutput(createOutput<TinyPJ301MPort>(Vec(34.0f, 93.0f + 26.0f * i), module, BISTROT::BIT_OUTPUT + i));
+			addInput(createInput<TinyPJ301MPort>(Vec(72.0f, 93.0f + 26.0f * i), module, BISTROT::BIT_INPUT + i));
+			addChild(createLight<SmallLight<BlueLight>>(Vec(95.0f, 97.5f + 26.0f * i), module, BISTROT::BIT_OUTPUT_LIGHTS + i));
     }
 
-		addInput(Port::create<PJ301MPort>(Vec(29.0f, 320.0f), Port::INPUT, module, BISTROT::INPUT));
-		// addInput(Port::create<TinyPJ301MPort>(Vec(24.0f, 339.0f), Port::INPUT, module, BISTROT::R_INPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(67.0f, 320.0f),Port::OUTPUT, module, BISTROT::OUTPUT));
-		// addOutput(Port::create<TinyPJ301MPort>(Vec(78.0f, 339.0f),Port::OUTPUT, module, BISTROT::R_OUTPUT));
+		addInput(createInput<PJ301MPort>(Vec(29.0f, 320.0f), module, BISTROT::INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(67.0f, 320.0f), module, BISTROT::OUTPUT));
 	}
 };
 
-
-
-Model *modelBISTROT = Model::create<BISTROT, BISTROTWidget>("Bidoo", "BISTROT", "BISTROT bit crusher", EFFECT_TAG, DIGITAL_TAG, DISTORTION_TAG);
+Model *modelBISTROT = createModel<BISTROT, BISTROTWidget>("BISTROT");

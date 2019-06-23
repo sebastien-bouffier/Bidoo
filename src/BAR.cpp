@@ -1,4 +1,4 @@
-#include "Bidoo.hpp"
+#include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/ringbuffer.hpp"
 
@@ -31,8 +31,9 @@ struct BAR : Module {
 	enum LightIds {
 		NUM_LIGHTS
 	};
-	DoubleRingBuffer<float,16384> vu_L_Buffer, vu_R_Buffer;
-	DoubleRingBuffer<float,512> rms_L_Buffer, rms_R_Buffer;
+
+	dsp::DoubleRingBuffer<float,16384> vu_L_Buffer, vu_R_Buffer;
+	dsp::DoubleRingBuffer<float,512> rms_L_Buffer, rms_R_Buffer;
 	float runningVU_L_Sum = 1e-6f, runningRMS_L_Sum = 1e-6f, rms_L = -96.3f, vu_L = -96.3f, peakL = -96.3f;
 	float runningVU_R_Sum = 1e-6f, runningRMS_R_Sum = 1e-6f, rms_R = -96.3f, vu_R = -96.3f, peakR = -96.3f;
 	float in_L_dBFS = 1e-6f;
@@ -43,14 +44,24 @@ struct BAR : Module {
 	int maxIndexVU = 0, maxIndexRMS = 0, maxLookAheadWriteIndex=0;
 	int lookAhead;
 	float buffL[20000] = {0.0f}, buffR[20000] = {0.0f};
-	BAR() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
+
+	BAR() {
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configParam(THRESHOLD_PARAM, -93.6f, 0.0f, 0.0f, "Threshold");
+		configParam(RATIO_PARAM, 1.0f, 20.0f, 0.0f, "Ratio");
+		configParam(ATTACK_PARAM, 1.0f, 100.0f, 10.0f, "Attack");
+		configParam(RELEASE_PARAM, 1.0f, 300.0f, 10.0f, "Release");
+		configParam(KNEE_PARAM, 0.0f, 24.0f, 6.0f, "Knee");
+		configParam(MAKEUP_PARAM, 0.0f, 60.0f, 0.0f, "Make up");
+		configParam(MIX_PARAM, 0.0f, 1.0f, 1.0f, "Mix");
+		configParam(LOOKAHEAD_PARAM, 0.0f, 200.0f, 0.0f, "lookAhead");
 	}
 
-	void step() override;
+	void process(const ProcessArgs &args) override;
 
 };
 
-void BAR::step() {
+void BAR::process(const ProcessArgs &args) {
 	if (indexVU>=16384) {
 		runningVU_L_Sum -= *vu_L_Buffer.startData();
 		runningVU_R_Sum -= *vu_R_Buffer.startData();
@@ -117,12 +128,12 @@ void BAR::step() {
 	if (in_L_dBFS>peakL)
 		peakL=in_L_dBFS;
 	else
-		peakL -= 50.0f/engineGetSampleRate();
+		peakL -= 50.0f / args.sampleRate;
 
 	if (in_R_dBFS>peakR)
 		peakR=in_R_dBFS;
 	else
-		peakR -= 50.0f/engineGetSampleRate();
+		peakR -= 50.0f / args.sampleRate;
 
 	float slope = 1.0f/ratio-1.0f;
 	float maxIn = max(in_L_dBFS,in_R_dBFS);
@@ -139,8 +150,8 @@ void BAR::step() {
 
 	float preGain = gcurve - maxIn;
 	float postGain = 0.0f;
-	float cAtt = exp(-1.0f/(attackTime*engineGetSampleRate() * 0.001f));
-	float cRel = exp(-1.0f/(releaseTime*engineGetSampleRate() * 0.001f));
+	float cAtt = exp(-1.0f/(attackTime * args.sampleRate * 0.001f));
+	float cRel = exp(-1.0f/(releaseTime * args.sampleRate * 0.001f));
 
 	if (preGain>previousPostGain) {
 		postGain = cAtt * previousPostGain + (1.0f-cAtt) * preGain;
@@ -155,7 +166,7 @@ void BAR::step() {
 	mix = params[MIX_PARAM].value;
 	lookAhead = params[LOOKAHEAD_PARAM].value;
 
-	int nbSamples = clamp(floor(lookAhead * attackTime * engineGetSampleRate() * 0.000001f),0.0f,19999.0f);
+	int nbSamples = clamp(floor(lookAhead * attackTime * args.sampleRate * 0.000001f),0.0f,19999.0f);
 	int readIndex;
 	if (lookAheadWriteIndex-nbSamples>=0)
 	  readIndex = (lookAheadWriteIndex-nbSamples)%20000;
@@ -173,7 +184,7 @@ struct BARDisplay : TransparentWidget {
 	BAR *module;
 	std::shared_ptr<Font> font;
 	BARDisplay() {
-		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
+		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 	}
 
 void draw(NVGcontext *vg) override {
@@ -282,15 +293,15 @@ void draw(NVGcontext *vg) override {
 }
 };
 
-
 struct BARWidget : ModuleWidget {
-	BARWidget(BAR *module) : ModuleWidget(module) {
-		setPanel(SVG::load(assetPlugin(plugin, "res/BAR.svg")));
+	BARWidget(BAR *module) {
+		setModule(module);
+		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/BAR.svg")));
 
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
 		BARDisplay *display = new BARDisplay();
 		display->module = module;
@@ -298,22 +309,22 @@ struct BARWidget : ModuleWidget {
 		display->box.size = Vec(110.0f, 70.0f);
 		addChild(display);
 
-		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(10.0f,265.0f), module, BAR::THRESHOLD_PARAM, -93.6f, 0.0f, 0.0f));
-		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(42.0f,265.0f), module, BAR::RATIO_PARAM, 1.0f, 20.0f, 0.0f));
-		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(74.0f,265.0f), module, BAR::ATTACK_PARAM, 1.0f, 100.0f, 10.0f));
-		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(106.0f,265.0f), module, BAR::RELEASE_PARAM, 1.0f, 300.0f, 10.0f));
-		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(10.0f,291.0f), module, BAR::KNEE_PARAM, 0.0f, 24.0f, 6.0f));
-		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(42.0f,291.0f), module, BAR::MAKEUP_PARAM, 0.0f, 60.0f, 0.0f));
-		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(74.0f,291.0f), module, BAR::MIX_PARAM, 0.0f, 1.0f, 1.0f));
-		addParam(ParamWidget::create<BidooBlueTrimpot>(Vec(106.0f,291.0f), module, BAR::LOOKAHEAD_PARAM, 0.0f, 200.0f, 0.0f));
-	 	//Changed ports opposite way around
-		addInput(Port::create<TinyPJ301MPort>(Vec(24.0f, 319.0f), Port::INPUT, module, BAR::IN_L_INPUT));
-		addInput(Port::create<TinyPJ301MPort>(Vec(24.0f, 339.0f), Port::INPUT, module, BAR::IN_R_INPUT));
-		addInput(Port::create<TinyPJ301MPort>(Vec(66.0f, 319.0f), Port::INPUT, module, BAR::SC_L_INPUT));
-		addInput(Port::create<TinyPJ301MPort>(Vec(66.0f, 339.0f), Port::INPUT, module, BAR::SC_R_INPUT));
-		addOutput(Port::create<TinyPJ301MPort>(Vec(109.0f, 319.0f),Port::OUTPUT, module, BAR::OUT_L_OUTPUT));
-		addOutput(Port::create<TinyPJ301MPort>(Vec(109.0f, 339.0f),Port::OUTPUT, module, BAR::OUT_R_OUTPUT));
+		addParam(createParam<BidooBlueTrimpot>(Vec(10.0f,265.0f), module, BAR::THRESHOLD_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(42.0f,265.0f), module, BAR::RATIO_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(74.0f,265.0f), module, BAR::ATTACK_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(106.0f,265.0f), module, BAR::RELEASE_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(10.0f,291.0f), module, BAR::KNEE_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(42.0f,291.0f), module, BAR::MAKEUP_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(74.0f,291.0f), module, BAR::MIX_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(106.0f,291.0f), module, BAR::LOOKAHEAD_PARAM));
+
+		addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 319.0f), module, BAR::IN_L_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 339.0f), module, BAR::IN_R_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(66.0f, 319.0f), module, BAR::SC_L_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(66.0f, 339.0f), module, BAR::SC_R_INPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(109.0f, 319.0f), module, BAR::OUT_L_OUTPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(109.0f, 339.0f), module, BAR::OUT_R_OUTPUT));
 	}
 };
 
-Model *modelBAR = Model::create<BAR, BARWidget>("Bidoo", "baR", "bAR compressor", DYNAMICS_TAG, COMPRESSOR_TAG, EFFECT_TAG);
+Model *modelBAR = createModel<BAR, BARWidget>("baR");

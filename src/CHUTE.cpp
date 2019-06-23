@@ -1,4 +1,4 @@
-#include "Bidoo.hpp"
+#include "plugin.hpp"
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
 #include <vector>
@@ -34,22 +34,27 @@ struct CHUTE : Module {
 	bool running = false;
 	float phase = 0.0f;
 	float altitude = 0.0f;
-	float altitudeInit = 0.0f;
+	float altitudeInit = 0.01f;
 	float minAlt = 0.0f;
 	float speed = 0.0f;
 	bool desc = false;
 
-	SchmittTrigger playTrigger;
-	SchmittTrigger gateTypeTrigger;
+	dsp::SchmittTrigger playTrigger;
+	dsp::SchmittTrigger gateTypeTrigger;
 
-	CHUTE() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) { }
+	CHUTE() {
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configParam(ALTITUDE_PARAM, 0.01f, 3.f, 1.f, "Altitude", " m", 0.01f, 3.f);
+		configParam(GRAVITY_PARAM, 1.622f, 11.15f, 9.798f, "Gravity", " m/s²", 1.622f, 11.15f); // between the Moon and Neptune
+		configParam(COR_PARAM, 0.0f, 1.0f, 0.69f, "Coefficient of restitution", "", 0.f, 1.f);  // 0 inelastic, 1 perfect elastic, 0.69 glass
+		configParam(RUN_PARAM, 0.f, 1.f, 0.f, "Trig");
+	}
 
-	void step() override;
-
+	void process(const ProcessArgs &args) override;
 };
 
 
-void CHUTE::step() {
+void CHUTE::process(const ProcessArgs &args) {
 
 	// Running
 	if (playTrigger.process(params[RUN_PARAM].value + inputs[TRIG_INPUT].value)) {
@@ -70,13 +75,13 @@ void CHUTE::step() {
 		}
 		else
 		{
-			phase = 1.0f / engineGetSampleRate();
+			phase = 1.0f / args.sampleRate;
 			if (desc) {
 				speed += (params[GRAVITY_PARAM].value + inputs[GRAVITY_INPUT].value)*phase;
 				altitude = altitude - (speed * phase);
 				if (altitude <= 0.0f) {
 					desc=false;
-					speed = speed * (params[COR_PARAM].value + + inputs[COR_INPUT].value);
+					speed = speed * (params[COR_PARAM].value + inputs[COR_INPUT].value);
 					altitude = 0.0f;
 				}
 			}
@@ -106,31 +111,35 @@ struct CHUTEDisplay : TransparentWidget {
 	shared_ptr<Font> font;
 
 	CHUTEDisplay() {
-		font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
+		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 	}
 
-	void draw(NVGcontext *vg) override {
+	void draw(const DrawArgs &args) override {
 		frame = 0;
-		nvgFontSize(vg, 18.0f);
-		nvgFontFaceId(vg, font->handle);
-		nvgTextLetterSpacing(vg, -2.0f);
-		nvgFillColor(vg, nvgRGBA(0x00, 0x00, 0x00, 0xff));
-
-		float altRatio = clamp(module->altitude / module->altitudeInit, 0.0f, 1.0f);
-		int pos = roundl(box.size.y + altRatio * (9.0f - box.size.y));
-
-		nvgText(vg, 6.0f, pos, "☻", NULL);
+		//nvgSave(args.vg);
+		nvgFontSize(args.vg, 18.0f);
+		nvgFontFaceId(args.vg, font->handle);
+		nvgTextLetterSpacing(args.vg, -2.0f);
+		nvgFillColor(args.vg, nvgRGBA(0x00, 0x00, 0x00, 0xff));
+		float altRatio = 0.f;
+		if (module != NULL) {
+			 altRatio = clamp(module->altitude / module->altitudeInit, 0.0f, 1.0f);
+		}
+		float pos = box.size.y + altRatio * (9.0f - box.size.y);
+		nvgText(args.vg, 6.0f, pos, "☻", NULL);
+		//nvgRestore(args.vg);
 	}
 };
 
 struct CHUTEWidget : ModuleWidget {
-	CHUTEWidget(CHUTE *module) : ModuleWidget(module) {
-		setPanel(SVG::load(assetPlugin(plugin, "res/CHUTE.svg")));
+	CHUTEWidget(CHUTE *module) {
+		setModule(module);
+		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/CHUTE.svg")));
 
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
 		{
 			CHUTEDisplay *display = new CHUTEDisplay();
@@ -142,20 +151,21 @@ struct CHUTEWidget : ModuleWidget {
 
 		static const float portX[2] = {20.0f, 60.0f};
 		static const float portY[3] = {52.0f, 116.0f, 178.0f};
-	 	addInput(Port::create<PJ301MPort>(Vec(portX[0], portY[0]),Port::INPUT, module, CHUTE::ALTITUDE_INPUT));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX[1]-1, portY[0]-2.0f), module, CHUTE::ALTITUDE_PARAM, 0.01f, 3.0f, 1.0f));
-		addInput(Port::create<PJ301MPort>(Vec(portX[0], portY[1]),Port::INPUT, module, CHUTE::GRAVITY_INPUT));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX[1]-1, portY[1]-2.0f), module, CHUTE::GRAVITY_PARAM, 1.622f, 11.15f, 9.798f)); // between the Moon and Neptune
-		addInput(Port::create<PJ301MPort>(Vec(portX[0], portY[2]),Port::INPUT, module, CHUTE::COR_INPUT));
-		addParam(ParamWidget::create<BidooBlueKnob>(Vec(portX[1]-1, portY[2]-2.0f), module, CHUTE::COR_PARAM, 0.0f, 1.0f, 0.69f)); // 0 inelastic, 1 perfect elastic, 0.69 glass
 
-		addParam(ParamWidget::create<BlueCKD6>(Vec(51.0f, 269.0f), module, CHUTE::RUN_PARAM, 0.0f, 1.0f, 0.0f));
-		addInput(Port::create<PJ301MPort>(Vec(11.0f, 270.0f),Port::INPUT,  module, CHUTE::TRIG_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX[0], portY[0]), module, CHUTE::ALTITUDE_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX[0], portY[1]), module, CHUTE::GRAVITY_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX[0], portY[2]), module, CHUTE::COR_INPUT));
+    addInput(createInput<PJ301MPort>(Vec(11.0f, 270.0f), module, CHUTE::TRIG_INPUT));
 
-		addOutput(Port::create<PJ301MPort>(Vec(11.0f, 320.0f),Port::OUTPUT, module, CHUTE::GATE_OUTPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(54.0f, 320.0f),Port::OUTPUT, module, CHUTE::PITCH_OUTPUT));
-		addOutput(Port::create<PJ301MPort>(Vec(96.0f, 320.0f),Port::OUTPUT, module, CHUTE::PITCHSTEP_OUTPUT));
+		addParam(createParam<BidooBlueKnob>(Vec(portX[1]-1, portY[0]-2.0f), module, CHUTE::ALTITUDE_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(portX[1]-1, portY[1]-2.0f), module, CHUTE::GRAVITY_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(portX[1]-1, portY[2]-2.0f), module, CHUTE::COR_PARAM));
+		addParam(createParam<BlueCKD6>(Vec(51.0f, 269.0f), module, CHUTE::RUN_PARAM));
+
+		addOutput(createOutput<PJ301MPort>(Vec(11, 320), module, CHUTE::GATE_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(54, 320), module, CHUTE::PITCH_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(96, 320), module, CHUTE::PITCHSTEP_OUTPUT));
 	}
 };
 
-Model *modelCHUTE = Model::create<CHUTE, CHUTEWidget>("Bidoo", "ChUTE", "ChUTE trigger", SEQUENCER_TAG);
+Model *modelCHUTE = createModel<CHUTE, CHUTEWidget>("ChUTE");

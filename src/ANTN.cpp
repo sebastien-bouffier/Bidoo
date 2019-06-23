@@ -1,9 +1,8 @@
-#include "Bidoo.hpp"
+#include "plugin.hpp"
 #include "dsp/digital.hpp"
-#include "dsp/samplerate.hpp"
+#include "dsp/resampler.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/ringbuffer.hpp"
-#include "dsp/frame.hpp"
 #include <algorithm>
 #include <cctype>
 #include <atomic>
@@ -17,19 +16,21 @@
 using namespace std;
 
 struct threadReadData {
-  DoubleRingBuffer<char,262144> *dataToDecodeRingBuffer;
-  string url;
-  string secUrl;
+  dsp::DoubleRingBuffer<char,262144> *dataToDecodeRingBuffer;
+  std::string url;
+  std::string secUrl;
   std::atomic<bool> *dl;
   std::atomic<bool> *free;
+  float sr;
 };
 
 struct threadDecodeData {
-  DoubleRingBuffer<char,262144> *dataToDecodeRingBuffer;
-  DoubleRingBuffer<Frame<2>,262144> *dataAudioRingBuffer;
+  dsp::DoubleRingBuffer<char,262144> *dataToDecodeRingBuffer;
+  dsp::DoubleRingBuffer<dsp::Frame<2>,262144> *dataAudioRingBuffer;
   mp3dec_t mp3d;
   std::atomic<bool> *dc;
   std::atomic<bool> *free;
+  float sr;
 };
 
 size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp)
@@ -58,15 +59,13 @@ void * threadDecodeTask(threadDecodeData data)
   data.free->store(false);
 
   mp3dec_frame_info_t info;
-  DoubleRingBuffer<Frame<2>,4096> *tmpBuffer = new DoubleRingBuffer<Frame<2>,4096>();
-  SampleRateConverter<2> conv;
+  dsp::DoubleRingBuffer<dsp::Frame<2>,4096> *tmpBuffer = new dsp::DoubleRingBuffer<dsp::Frame<2>,4096>();
+  dsp::SampleRateConverter<2> conv;
   int inSize;
   int outSize;
 
   while (data.dc->load()) {
-
     short pcm[MINIMP3_MAX_SAMPLES_PER_FRAME];
-
     if (data.dataToDecodeRingBuffer->size() > 64000) {
 
       int samples = mp3dec_decode_frame(&data.mp3d, (const uint8_t*)data.dataToDecodeRingBuffer->startData(), data.dataToDecodeRingBuffer->size(), pcm, &info);
@@ -76,7 +75,7 @@ void * threadDecodeTask(threadDecodeData data)
           if (info.channels == 1) {
             for(int i = 0; i < samples; i++) {
               if (!data.dc->load()) break;
-              Frame<2> newFrame;
+              dsp::Frame<2> newFrame;
               newFrame.samples[0]=(float)pcm[i] * 30517578125e-15f;
               newFrame.samples[1]=(float)pcm[i] * 30517578125e-15f;
               tmpBuffer->push(newFrame);
@@ -85,7 +84,7 @@ void * threadDecodeTask(threadDecodeData data)
           else {
             for(int i = 0; i < 2 * samples; i=i+2) {
               if (!data.dc->load()) break;
-              Frame<2> newFrame;
+              dsp::Frame<2> newFrame;
               newFrame.samples[0]=(float)pcm[i] * 30517578125e-15f;
               newFrame.samples[1]=(float)pcm[i+1] * 30517578125e-15f;
               tmpBuffer->push(newFrame);
@@ -96,7 +95,7 @@ void * threadDecodeTask(threadDecodeData data)
           //printf("invalid data \n");
         }
         data.dataToDecodeRingBuffer->startIncr(info.frame_bytes);
-        conv.setRates(info.hz, engineGetSampleRate());
+        conv.setRates(info.hz, data.sr);
         conv.setQuality(10);
         inSize = tmpBuffer->size();
         outSize = data.dataAudioRingBuffer->capacity();
@@ -121,10 +120,10 @@ void * threadReadTask(threadReadData data)
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 
-  string zeUrl;
+  std::string zeUrl;
   data.secUrl == "" ? zeUrl = data.url : zeUrl = data.secUrl;
   zeUrl.erase(std::remove_if(zeUrl.begin(), zeUrl.end(), [](unsigned char x){return std::isspace(x);}), zeUrl.end());
-  if (stringExtension(data.url) == "pls") {
+  if (string::filenameExtension(data.url) == "pls") {
     istringstream iss(zeUrl);
     for (std::string line; std::getline(iss, line); )
     {
@@ -190,11 +189,12 @@ struct ANTN : Module {
 	enum LightIds {
 		NUM_LIGHTS
 	};
-  string url;
-	SchmittTrigger trigTrigger;
+
+  std::string url;
+	dsp::SchmittTrigger trigTrigger;
   bool read = false;
-  DoubleRingBuffer<Frame<2>,262144> dataAudioRingBuffer;
-  DoubleRingBuffer<char,262144> dataToDecodeRingBuffer;
+  dsp::DoubleRingBuffer<dsp::Frame<2>,262144> dataAudioRingBuffer;
+  dsp::DoubleRingBuffer<char,262144> dataToDecodeRingBuffer;
   thread rThread, dThread;
   threadReadData rData;
   threadDecodeData dData;
@@ -203,7 +203,11 @@ struct ANTN : Module {
   std::atomic<bool> trFree;
   std::atomic<bool> tdFree;
 
-	ANTN() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {
+	ANTN() {
+    config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configParam(GAIN_PARAM, 0.5f, 3.f, 1.f, "Gain");
+    configParam(TRIG_PARAM, 0.f, 1.f, 0.f, "Trig");
+
     tDl.store(true);
     tDc.store(true);
     trFree.store(true);
@@ -230,19 +234,19 @@ struct ANTN : Module {
     }
   }
 
-  json_t *toJson() override {
+  json_t *dataToJson() override {
     json_t *rootJ = json_object();
     json_object_set_new(rootJ, "url", json_string(url.c_str()));
     return rootJ;
   }
 
-  void fromJson(json_t *rootJ) override {
+  void dataFromJson(json_t *rootJ) override {
     json_t *urlJ = json_object_get(rootJ, "url");
   	if (urlJ)
   		url = json_string_value(urlJ);
   }
 
-	void step() override;
+	void process(const ProcessArgs &args) override;
 
   void onSampleRateChange() override;
 };
@@ -252,8 +256,7 @@ void ANTN::onSampleRateChange() {
   dataAudioRingBuffer.clear();
 }
 
-void ANTN::step() {
-
+void ANTN::process(const ProcessArgs &args) {
 	if (trigTrigger.process(params[TRIG_PARAM].value)) {
 
     tDc.store(false);
@@ -269,7 +272,8 @@ void ANTN::step() {
 
     tDl.store(true);
     rData.url = url;
-    if ((stringExtension(rData.url) == "m3u") || (stringExtension(rData.url) == "pls")) {
+    rData.sr = args.sampleRate;
+    if ((string::filenameExtension(rData.url) == "m3u") || (string::filenameExtension(rData.url) == "pls")) {
       rThread = thread(urlTask, std::ref(rData));
     }
     else {
@@ -278,20 +282,21 @@ void ANTN::step() {
     rThread.detach();
 
     tDc.store(true);
+    dData.sr = args.sampleRate;
     mp3dec_init(&dData.mp3d);
     dThread = thread(threadDecodeTask, std::ref(dData));
     dThread.detach();
 	}
 
-  if ((dataAudioRingBuffer.size()>64000) && (engineGetSampleRate()<96000)) {
+  if ((dataAudioRingBuffer.size()>64000) && (args.sampleRate<96000)) {
     read = true;
   }
-  if ((dataAudioRingBuffer.size()>128000) && (engineGetSampleRate()>=96000)) {
+  if ((dataAudioRingBuffer.size()>128000) && (args.sampleRate>=96000)) {
     read = true;
   }
 
   if (read) {
-    Frame<2> currentFrame = *dataAudioRingBuffer.startData();
+    dsp::Frame<2> currentFrame = *dataAudioRingBuffer.startData();
     outputs[OUTL_OUTPUT].value = 5.0f*currentFrame.samples[0]*params[GAIN_PARAM].value;
     outputs[OUTR_OUTPUT].value = 5.0f*currentFrame.samples[1]*params[GAIN_PARAM].value;
     dataAudioRingBuffer.startIncr(1);
@@ -301,20 +306,22 @@ void ANTN::step() {
 struct ANTNTextField : LedDisplayTextField {
   ANTNTextField(ANTN *mod) {
     module = mod;
-    font = Font::load(assetPlugin(plugin, "res/DejaVuSansMono.ttf"));
+    font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
   	color = YELLOW_BIDOO;
   	textOffset = Vec(3, 3);
-    text = module->url;
+    if (module != NULL) text = module->url;
   }
-	void onTextChange() override;
+	void onButton(const event::Button &e) override;
 	ANTN *module;
 };
-void ANTNTextField::onTextChange() {
+
+void ANTNTextField::onButton(const event::Button &e) {
 	if (text.size() > 0) {
-      string tText = text;
+      std::string tText = text;
       tText.erase(std::remove_if(tText.begin(), tText.end(), [](unsigned char x){return std::isspace(x);}), tText.end());
-      module->url = tText;
+      if (module != NULL) module->url = tText;
 	}
+  LedDisplayTextField::onButton(e);
 }
 
 struct ANTNWidget : ModuleWidget {
@@ -322,13 +329,14 @@ struct ANTNWidget : ModuleWidget {
 	json_t *toJson() override;
 	void fromJson(json_t *rootJ) override;
 
-	ANTNWidget(ANTN *module) : ModuleWidget(module) {
-		setPanel(SVG::load(assetPlugin(plugin, "res/ANTN.svg")));
+	ANTNWidget(ANTN *module) {
+		setModule(module);
+		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/ANTN.svg")));
 
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
   	textField = new ANTNTextField(module);
   	textField->box.pos = Vec(5, 25);
@@ -336,33 +344,27 @@ struct ANTNWidget : ModuleWidget {
   	textField->multiline = true;
   	addChild(textField);
 
-    addParam(ParamWidget::create<BidooBlueKnob>(Vec(54, 183), module, ANTN::GAIN_PARAM, 0.5f, 3.0f, 1.0f));
-
-  	addParam(ParamWidget::create<BlueCKD6>(Vec(54, 245), module, ANTN::TRIG_PARAM, 0.0f, 1.0f, 0.0f));
+    addParam(createParam<BidooBlueKnob>(Vec(54, 183), module, ANTN::GAIN_PARAM));
+  	addParam(createParam<BlueCKD6>(Vec(54, 245), module, ANTN::TRIG_PARAM));
 
   	static const float portX0[4] = {34, 67, 101};
 
-  	addOutput(Port::create<TinyPJ301MPort>(Vec(portX0[1]-17, 334),Port::OUTPUT, module, ANTN::OUTL_OUTPUT));
-  	addOutput(Port::create<TinyPJ301MPort>(Vec(portX0[1]+4, 334),Port::OUTPUT, module, ANTN::OUTR_OUTPUT));
+  	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[1]-17, 334), module, ANTN::OUTL_OUTPUT));
+  	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[1]+4, 334), module, ANTN::OUTR_OUTPUT));
   }
 };
 
 json_t *ANTNWidget::toJson() {
 	json_t *rootJ = ModuleWidget::toJson();
-
-	// text
 	json_object_set_new(rootJ, "text", json_string(textField->text.c_str()));
-
 	return rootJ;
 }
 
 void ANTNWidget::fromJson(json_t *rootJ) {
 	ModuleWidget::fromJson(rootJ);
-
-	// text
 	json_t *textJ = json_object_get(rootJ, "text");
 	if (textJ)
 		textField->text = json_string_value(textJ);
 }
 
-Model *modelANTN = Model::create<ANTN, ANTNWidget>("Bidoo", "antN", "antN oscillator", OSCILLATOR_TAG);
+Model *modelANTN = createModel<ANTN, ANTNWidget>("antN");

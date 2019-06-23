@@ -1,4 +1,4 @@
-#include "Bidoo.hpp"
+#include "plugin.hpp"
 #include "BidooComponents.hpp"
 
 using namespace std;
@@ -17,25 +17,19 @@ struct VOID : Module {
 		NUM_LIGHTS
 	};
 
-	VOID() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
-
-	void step() override;
+	VOID() {	}
 };
 
-
-void VOID::step() {
-
-}
-
 struct VOIDWidget : ModuleWidget {
-	VOIDWidget(VOID *module) : ModuleWidget(module) {
-		setPanel(SVG::load(assetPlugin(plugin, "res/VOID.svg")));
+	VOIDWidget(VOID *module) {
+		setModule(module);
+		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/VOID.svg")));
 
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(Widget::create<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(Widget::create<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 	}
 };
 
-Model *modelVOID = Model::create<VOID, VOIDWidget>("Bidoo", "vOId", "vOId machine", BLANK_TAG);
+Model *modelVOID = createModel<VOID, VOIDWidget>("vOId");
