@@ -302,8 +302,7 @@
     {
       "slug": "ziNC",
       "name": "ziNC",
-      "disabled": true,
-      "description": "ziNC",
+      "description": "ziNC \n\nPG",
       "tags": [
         "Effect", "Vocoder"
       ]
