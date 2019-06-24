@@ -73,7 +73,7 @@
       "name": "BISTROT",
       "description": "BISTROT",
       "tags": [
-        "Distortion"
+        "Effect", "Distortion"
       ]
     },
     {
@@ -82,6 +82,240 @@
       "description": "bordL",
       "tags": [
         "Sequencer"
+      ]
+    },
+    {
+      "slug": "cANARd",
+      "name": "cANARd",
+      "disabled": true,
+      "description": "cANARd",
+      "tags": [
+        "Sampler"
+      ]
+    },
+    {
+      "slug": "clACos",
+      "name": "clACos",
+      "disabled": true,
+      "description": "clACos",
+      "tags": [
+        "Oscillator"
+      ]
+    },
+    {
+      "slug": "dFUZE",
+      "name": "dFUZE",
+      "disabled": true,
+      "description": "dFUZE",
+      "tags": [
+        "Reverb"
+      ]
+    },
+    {
+      "slug": "dTrOY",
+      "name": "dTrOY",
+      "disabled": true,
+      "description": "dTrOY",
+      "tags": [
+        "Sequencer"
+      ]
+    },
+    {
+      "slug": "dUKe",
+      "name": "dUKe",
+      "disabled": true,
+      "description": "dUKe",
+      "tags": [
+        "Controller"
+      ]
+    },
+    {
+      "slug": "EMILE",
+      "name": "EMILE",
+      "disabled": true,
+      "description": "EMILE",
+      "tags": [
+        "Sampler"
+      ]
+    },
+    {
+      "slug": "FFilTr",
+      "name": "FFilTr",
+      "disabled": true,
+      "description": "FFilTr",
+      "tags": [
+        "Filter"
+      ]
+    },
+    {
+      "slug": "ForK",
+      "name": "ForK",
+      "disabled": true,
+      "description": "ForK",
+      "tags": [
+        "Oscillator"
+      ]
+    },
+    {
+      "slug": "Garçon",
+      "name": "Garçon",
+      "disabled": true,
+      "description": "Garçon",
+      "tags": [
+        "Visual"
+      ]
+    },
+    {
+      "slug": "HCTIP",
+      "name": "HCTIP",
+      "disabled": true,
+      "description": "HCTIP",
+      "tags": [
+        "Effect"
+      ]
+    },
+    {
+      "slug": "lATe",
+      "name": "lATe",
+      "disabled": true,
+      "description": "lATe",
+      "tags": [
+        "Logic","Sequencer"
+      ]
+    },
+    {
+      "slug": "lIMbO",
+      "name": "lIMbO",
+      "disabled": true,
+      "description": "lIMbO",
+      "tags": [
+        "Filter"
+      ]
+    },
+    {
+      "slug": "liMonADe",
+      "name": "liMonADe",
+      "disabled": true,
+      "description": "liMonADe",
+      "tags": [
+        "Oscillator"
+      ]
+    },
+    {
+      "slug": "LoURdE",
+      "name": "LoURdE",
+      "disabled": true,
+      "description": "LoURdE",
+      "tags": [
+        "Logic"
+      ]
+    },
+    {
+      "slug": "MOiRE",
+      "name": "MOiRE",
+      "disabled": true,
+      "description": "MOiRE",
+      "tags": [
+        "Controller"
+      ]
+    },
+    {
+      "slug": "MS",
+      "name": "MS",
+      "disabled": true,
+      "description": "MS",
+      "tags": [
+        "Effect"
+      ]
+    },
+    {
+      "slug": "MU",
+      "name": "µ",
+      "disabled": true,
+      "description": "µ",
+      "tags": [
+        "Logic", "Sequencer"
+      ]
+    },
+    {
+      "slug": "OUAIve",
+      "name": "OUAIve",
+      "disabled": true,
+      "description": "OUAIve",
+      "tags": [
+        "Sampler"
+      ]
+    },
+    {
+      "slug": "PeNEqUe",
+      "name": "PeNEqUe",
+      "disabled": true,
+      "description": "PeNEqUe",
+      "tags": [
+        "Oscillator"
+      ]
+    },
+    {
+      "slug": "pErCO",
+      "name": "pErCO",
+      "disabled": true,
+      "description": "pErCO",
+      "tags": [
+        "Filter"
+      ]
+    },
+    {
+      "slug": "rabBIT",
+      "name": "rabBIT",
+      "disabled": true,
+      "description": "rabBIT",
+      "tags": [
+        "Effect", "Distortion"
+      ]
+    },
+    {
+      "slug": "rabBIT",
+      "name": "rabBIT",
+      "disabled": true,
+      "description": "rabBIT",
+      "tags": [
+        "Effect", "Distortion"
+      ]
+    },
+    {
+      "slug": "REI",
+      "name": "REI",
+      "disabled": true,
+      "description": "REI",
+      "tags": [
+        "Reverb"
+      ]
+    },
+    {
+      "slug": "TiARE",
+      "name": "TiARE",
+      "disabled": true,
+      "description": "TiARE",
+      "tags": [
+        "Oscillator"
+      ]
+    },
+    {
+      "slug": "ziNC",
+      "name": "ziNC",
+      "disabled": true,
+      "description": "ziNC",
+      "tags": [
+        "Effect", "Vocoder"
+      ]
+    },
+    {
+      "slug": "SIGMA",
+      "name": "Σ",
+      "disabled": true,
+      "description": "Σ",
+      "tags": [
+        "Multiple"
       ]
     }
   ]
