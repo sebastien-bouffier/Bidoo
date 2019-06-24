@@ -43,7 +43,7 @@ extern Model *modelANTN;
 // extern Model *modelPERCO;
 // extern Model *modelFFILTR;
 extern Model *modelBAR;
-// extern Model *modelZINC;
+extern Model *modelZINC;
 // extern Model *modelDUKE;
 // extern Model *modelMOIRE;
 // extern Model *modelCANARD;
