@@ -32,7 +32,7 @@ void init(rack::Plugin *p) {
 	// p->addModel(modelPERCO);
 	// p->addModel(modelFFILTR);
 	p->addModel(modelBAR);
-	// p->addModel(modelZINC);
+	p->addModel(modelZINC);
 	// p->addModel(modelHCTIP);
 	p->addModel(modelCURT);
 	// p->addModel(modelDFUZE);
