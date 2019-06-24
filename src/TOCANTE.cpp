@@ -59,8 +59,8 @@ struct TOCANTE : Module {
 
 	TOCANTE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(BPM_PARAM, 1.f, 350.f, 60.f, "Bpm", " bpm", 1.f, 350.f);
-		configParam(BPMFINE_PARAM, 0.f, 0.99f, 0.f, "Bpm fime", " bmp", 0.f, 0.99f);
+		configParam(BPM_PARAM, 1.f, 350.f, 60.f, "BPM");
+		configParam(BPMFINE_PARAM, 0.f, 0.99f, 0.f, "Fine");
 		configParam(BEATS_PARAM,  1.f, 32.f, 4.f, "Beats per measure");
 		configParam(REF_PARAM, 1.f, 4.f, 2.f, "Note value");
 	}
