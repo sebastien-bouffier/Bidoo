@@ -96,8 +96,7 @@
     {
       "slug": "clACos",
       "name": "clACos",
-      "disabled": true,
-      "description": "clACos",
+      "description": "clACos \n\nPG displays not working",
       "tags": [
         "Oscillator"
       ]
