@@ -1,56 +1,55 @@
-// #include "Bidoo.hpp"
-// #include "BidooComponents.hpp"
-//
-// using namespace std;
-//
-// struct MS : Module {
-// 	enum ParamIds {
-// 		NUM_PARAMS
-// 	};
-// 	enum InputIds {
-// 		L_INPUT,
-// 		R_INPUT,
-// 		M_INPUT,
-// 		S_INPUT,
-// 		NUM_INPUTS
-// 	};
-// 	enum OutputIds {
-// 		L_OUTPUT,
-// 		R_OUTPUT,
-// 		M_OUTPUT,
-// 		S_OUTPUT,
-// 		NUM_OUTPUTS
-// 	};
-// 	enum LightIds {
-// 		NUM_LIGHTS
-// 	};
-//
-// 	MS() : Module(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS) {	}
-//
-// 	void step() override;
-// };
-//
-//
-// void MS::step() {
-// 	outputs[S_OUTPUT].value = 0.5f * (inputs[L_INPUT].value - inputs[R_INPUT].value);
-// 	outputs[M_OUTPUT].value = 0.5f * (inputs[L_INPUT].value + inputs[R_INPUT].value);
-// 	outputs[L_OUTPUT].value = inputs[M_INPUT].value + inputs[S_INPUT].value;
-// 	outputs[R_OUTPUT].value = inputs[M_INPUT].value - inputs[S_INPUT].value;
-// }
-//
-// struct MSWidget : ModuleWidget {
-// 	MSWidget(MS *module) : ModuleWidget(module) {
-// 		setPanel(SVG::load(assetPlugin(plugin, "res/MS.svg")));
-//
-// 		addInput(Port::create<PJ301MPort>(Vec(10, 30), Port::INPUT, module, MS::L_INPUT));
-// 		addInput(Port::create<PJ301MPort>(Vec(10, 70), Port::INPUT, module, MS::R_INPUT));
-// 		addOutput(Port::create<PJ301MPort>(Vec(10, 110), Port::OUTPUT, module, MS::M_OUTPUT));
-// 		addOutput(Port::create<PJ301MPort>(Vec(10, 150), Port::OUTPUT, module, MS::S_OUTPUT));
-// 		addInput(Port::create<PJ301MPort>(Vec(10, 190), Port::INPUT, module, MS::M_INPUT));
-// 		addInput(Port::create<PJ301MPort>(Vec(10, 230), Port::INPUT, module, MS::S_INPUT));
-// 		addOutput(Port::create<PJ301MPort>(Vec(10, 270), Port::OUTPUT, module, MS::L_OUTPUT));
-// 		addOutput(Port::create<PJ301MPort>(Vec(10, 310), Port::OUTPUT, module, MS::R_OUTPUT));
-// 	}
-// };
-//
-// Model *modelMS = Model::create<MS, MSWidget>("Bidoo", "MS", "MS Mid/Side decoder/encoder", PANNING_TAG, MIXER_TAG);
+#include "plugin.hpp"
+#include "BidooComponents.hpp"
+
+using namespace std;
+
+struct MS : Module {
+	enum ParamIds {
+		NUM_PARAMS
+	};
+	enum InputIds {
+		L_INPUT,
+		R_INPUT,
+		M_INPUT,
+		S_INPUT,
+		NUM_INPUTS
+	};
+	enum OutputIds {
+		L_OUTPUT,
+		R_OUTPUT,
+		M_OUTPUT,
+		S_OUTPUT,
+		NUM_OUTPUTS
+	};
+	enum LightIds {
+		NUM_LIGHTS
+	};
+
+	MS() { config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS); }
+
+	void process(const ProcessArgs &args) override {
+		outputs[S_OUTPUT].setVoltage(0.5f * (inputs[L_INPUT].getVoltage() - inputs[R_INPUT].getVoltage()));
+		outputs[M_OUTPUT].setVoltage(0.5f * (inputs[L_INPUT].getVoltage() + inputs[R_INPUT].getVoltage()));
+		outputs[L_OUTPUT].setVoltage(inputs[M_INPUT].getVoltage() + inputs[S_INPUT].getVoltage());
+		outputs[R_OUTPUT].setVoltage(inputs[M_INPUT].getVoltage() - inputs[S_INPUT].getVoltage());
+	}
+};
+
+struct MSWidget : ModuleWidget {
+	MSWidget(MS *module) {
+		setModule(module);
+		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/MS.svg")));
+
+		addInput(createInput<PJ301MPort>(Vec(10, 30), module, MS::L_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 70), module, MS::R_INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10, 110), module, MS::M_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10, 150), module, MS::S_OUTPUT));
+
+		addInput(createInput<PJ301MPort>(Vec(10, 190), module, MS::M_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 230), module, MS::S_INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10, 270), module, MS::L_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10, 310), module, MS::R_OUTPUT));
+	}
+};
+
+Model *modelMS = createModel<MS, MSWidget>("MS");
