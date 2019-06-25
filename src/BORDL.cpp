@@ -932,60 +932,60 @@ struct BORDLGateDisplay : TransparentWidget {
 		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 	}
 
-	void drawGate(NVGcontext *vg, Vec pos) {
+	void drawGate(const DrawArgs &args, Vec pos) {
 		if (module) {
 			int gateType = (int)module->params[BORDL::TRIG_TYPE_PARAM+index].value;
-			nvgStrokeWidth(vg, 1.0f);
-			nvgStrokeColor(vg, YELLOW_BIDOO);
-			nvgFillColor(vg, YELLOW_BIDOO);
-			nvgTextAlign(vg, NVG_ALIGN_CENTER);
-			nvgFontSize(vg, 16.0f);
-			nvgFontFaceId(vg, font->handle);
-			nvgTextLetterSpacing(vg, -2.0f);
+			nvgStrokeWidth(args.vg, 1.0f);
+			nvgStrokeColor(args.vg, YELLOW_BIDOO);
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+			nvgFontSize(args.vg, 16.0f);
+			nvgFontFaceId(args.vg, font->handle);
+			nvgTextLetterSpacing(args.vg, -2.0f);
 			if (gateType == 0) {
-				nvgBeginPath(vg);
-				nvgRoundedRect(vg,pos.x,pos.y,22.0f,6.0f,0.0f);
-				nvgClosePath(vg);
-				nvgStroke(vg);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,pos.x,pos.y,22.0f,6.0f,0.0f);
+				nvgClosePath(args.vg);
+				nvgStroke(args.vg);
 			}
 			else if (gateType == 1) {
-				nvgBeginPath(vg);
-				nvgRoundedRect(vg,pos.x,pos.y,22.0f,6.0f,0.0f);
-				nvgClosePath(vg);
-				nvgStroke(vg);
-				nvgBeginPath(vg);
-				nvgRoundedRect(vg,pos.x,pos.y,6.0f,6.0f,0.0f);
-				nvgClosePath(vg);
-				nvgStroke(vg);
-				nvgFill(vg);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,pos.x,pos.y,22.0f,6.0f,0.0f);
+				nvgClosePath(args.vg);
+				nvgStroke(args.vg);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,pos.x,pos.y,6.0f,6.0f,0.0f);
+				nvgClosePath(args.vg);
+				nvgStroke(args.vg);
+				nvgFill(args.vg);
 			}
 			else if (gateType == 2) {
-				nvgBeginPath(vg);
-				nvgRoundedRect(vg,pos.x,pos.y,6.0f,6.0f,0.0f);
-				nvgRoundedRect(vg,pos.x+8.0f,pos.y,6.0f,6.0f,0.0f);
-				nvgRoundedRect(vg,pos.x+16.0f,pos.y,6.0f,6.0f,0.0f);
-				nvgClosePath(vg);
-				nvgStroke(vg);
-				nvgFill(vg);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,pos.x,pos.y,6.0f,6.0f,0.0f);
+				nvgRoundedRect(args.vg,pos.x+8.0f,pos.y,6.0f,6.0f,0.0f);
+				nvgRoundedRect(args.vg,pos.x+16.0f,pos.y,6.0f,6.0f,0.0f);
+				nvgClosePath(args.vg);
+				nvgStroke(args.vg);
+				nvgFill(args.vg);
 			}
 			else if (gateType == 3) {
-				nvgBeginPath(vg);
-				nvgRoundedRect(vg,pos.x,pos.y,22.0f,6.0f,0.0f);
-				nvgClosePath(vg);
-				nvgStroke(vg);
-				nvgFill(vg);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,pos.x,pos.y,22.0f,6.0f,0.0f);
+				nvgClosePath(args.vg);
+				nvgStroke(args.vg);
+				nvgFill(args.vg);
 			}
 			else if (gateType == 4) {
-			  nvgText(vg, pos.x+11.0f, pos.y+8.0f, "G1", NULL);
+			  nvgText(args.vg, pos.x+11.0f, pos.y+8.0f, "G1", NULL);
 			}
 			else if (gateType == 5) {
-			  nvgText(vg, pos.x+11.0f, pos.y+8.0f, "G2", NULL);
+			  nvgText(args.vg, pos.x+11.0f, pos.y+8.0f, "G2", NULL);
 			}
 		}
 	}
 
-	void draw(NVGcontext *vg) override {
-		drawGate(vg, Vec(0.0f, 0.0f));
+	void draw(const DrawArgs &args) override {
+		drawGate(args, Vec(0.0f, 0.0f));
 	}
 };
 
@@ -999,23 +999,23 @@ struct BORDLPulseDisplay : TransparentWidget {
 		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 	}
 
-	void drawPulse(NVGcontext *vg, Vec pos) {
+	void drawPulse(const DrawArgs &args, Vec pos) {
 		if (module) {
-			nvgStrokeWidth(vg, 1.0f);
-			nvgStrokeColor(vg, YELLOW_BIDOO);
-			nvgFillColor(vg, YELLOW_BIDOO);
-			nvgTextAlign(vg, NVG_ALIGN_CENTER);
-			nvgFontSize(vg, 16.0f);
-			nvgFontFaceId(vg, font->handle);
-			nvgTextLetterSpacing(vg, -2.0f);
+			nvgStrokeWidth(args.vg, 1.0f);
+			nvgStrokeColor(args.vg, YELLOW_BIDOO);
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+			nvgFontSize(args.vg, 16.0f);
+			nvgFontFaceId(args.vg, font->handle);
+			nvgTextLetterSpacing(args.vg, -2.0f);
 			char tCount[128];
 			snprintf(tCount, sizeof(tCount), "%1i", (int)module->params[BORDL::TRIG_COUNT_PARAM+index].value);
-			nvgText(vg, pos.x, pos.y, tCount, NULL);
+			nvgText(args.vg, pos.x, pos.y, tCount, NULL);
 		}
 	}
 
-	void draw(NVGcontext *vg) override {
-		drawPulse(vg, Vec(0.0f, 0.0f));
+	void draw(const DrawArgs &args) override {
+		drawPulse(args, Vec(0.0f, 0.0f));
 	}
 };
 
@@ -1050,23 +1050,23 @@ struct BORDLPitchDisplay : TransparentWidget {
 		}
 	}
 
-	void drawPitch(NVGcontext *vg, Vec pos) {
+	void drawPitch(const DrawArgs &args, Vec pos) {
 		if (module) {
-			nvgStrokeWidth(vg, 3.0f);
-			nvgStrokeColor(vg, YELLOW_BIDOO);
-			nvgFillColor(vg, YELLOW_BIDOO);
-			nvgTextAlign(vg, NVG_ALIGN_CENTER);
-			nvgFontSize(vg, 16.0f);
-			nvgFontFaceId(vg, font->handle);
-			nvgTextLetterSpacing(vg, -2.0f);
-			nvgText(vg, pos.x, pos.y-9.0f, displayNote(module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].value * module->params[BORDL::SENSITIVITY_PARAM].value ,
+			nvgStrokeWidth(args.vg, 3.0f);
+			nvgStrokeColor(args.vg, YELLOW_BIDOO);
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+			nvgFontSize(args.vg, 16.0f);
+			nvgFontFaceId(args.vg, font->handle);
+			nvgTextLetterSpacing(args.vg, -2.0f);
+			nvgText(args.vg, pos.x, pos.y-9.0f, displayNote(module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].value * module->params[BORDL::SENSITIVITY_PARAM].value ,
 				clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].value, 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f),
 				module->patterns[module->selectedPattern].scale)).c_str(), NULL);
 		}
 	}
 
-	void draw(NVGcontext *vg) override {
-		drawPitch(vg, Vec(0.0f, 0.0f));
+	void draw(const DrawArgs &args) override {
+		drawPitch(args, Vec(0.0f, 0.0f));
 	}
 };
 

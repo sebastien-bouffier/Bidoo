@@ -87,7 +87,6 @@
     {
       "slug": "cANARd",
       "name": "cANARd",
-      "disabled": true,
       "description": "cANARd",
       "tags": [
         "Sampler"
@@ -316,7 +315,15 @@
       "description": "Σ",
       "tags": [
         "Multiple"
-      ]
+      ],
+      {
+        "slug": "ZOUMAI",
+        "name": "zOù MAï",
+        "disabled": true,
+        "description": "zOù MAï",
+        "tags": [
+          "Sequencer"
+        ]
     }
   ]
 }
