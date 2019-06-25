@@ -51,7 +51,7 @@ extern Model *modelZINC;
 // extern Model *modelHCTIP;
 extern Model *modelCURT;
 // extern Model *modelDFUZE;
-// extern Model *modelREI;
+extern Model *modelREI;
 // extern Model *modelMU;
 extern Model *modelSIGMA;
 // extern Model *modelRABBIT;
