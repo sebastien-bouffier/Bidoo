@@ -39,6 +39,6 @@ void init(rack::Plugin *p) {
 	// p->addModel(modelREI);
 	// p->addModel(modelRABBIT);
 	p->addModel(modelBISTROT);
-	// p->addModel(modelSIGMA);
+	p->addModel(modelSIGMA);
 	p->addModel(modelVOID);
 }
