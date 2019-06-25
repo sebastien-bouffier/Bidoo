@@ -15,7 +15,7 @@ void init(rack::Plugin *p) {
 	// p->addModel(modelLATE);
 	// p->addModel(modelLOURDE);
 	p->addModel(modelACNE);
-	// p->addModel(modelMS);
+	p->addModel(modelMS);
 	// p->addModel(modelOUAIVE);
 	p->addModel(modelCANARD);
 	// p->addModel(modelEMILE);
