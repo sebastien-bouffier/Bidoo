@@ -220,8 +220,7 @@
     {
       "slug": "MS",
       "name": "MS",
-      "disabled": true,
-      "description": "MS",
+      "description": "Mid/Side Decoder/Encoder \n\nPG",
       "tags": [
         "Effect"
       ]
@@ -230,7 +229,7 @@
       "slug": "MU",
       "name": "µ",
       "disabled": true,
-      "description": "µ",
+      "description": "Synced pulse generator \n\nPG",
       "tags": [
         "Logic", "Sequencer"
       ]
