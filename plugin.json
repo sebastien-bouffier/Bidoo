@@ -273,15 +273,6 @@
       ]
     },
     {
-      "slug": "rabBIT",
-      "name": "rabBIT",
-      "disabled": true,
-      "description": "rabBIT",
-      "tags": [
-        "Effect", "Distortion"
-      ]
-    },
-    {
       "slug": "REI",
       "name": "REI",
       "disabled": true,
