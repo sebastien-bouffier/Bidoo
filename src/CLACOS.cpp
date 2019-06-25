@@ -332,30 +332,31 @@ struct CLACOSDisplay : TransparentWidget {
 	float dragY = 0.0f;
 
 	CLACOSDisplay() {}
-	/*
+	
 	void onDragStart(const event::DragStart &e) override {
-		dragX = gRackWidget->lastMousePos.x;
-		dragY = gRackWidget->lastMousePos.y;
+		
+		dragX = APP->scene->rack->mousePos.x;
+		dragY = APP->scene->rack->mousePos.y;
 	}
 
 	void onDragMove(const event::DragMove &e) override {
 		if ((!module->inputs[CLACOS::DIST_X_INPUT + segmentNumber].isConnected()) && (!module->inputs[CLACOS::DIST_X_INPUT + segmentNumber].isConnected())) {
-			float newDragX = gRackWidget->lastMousePos.x;
-			float newDragY = gRackWidget->lastMousePos.y;
+			float newDragX = APP->scene->rack->mousePos.x;
+			float newDragY = APP->scene->rack->mousePos.y;
 			module->phaseDistX[segmentNumber] = rescale(clamp(initX + (newDragX - dragX), 0.0f, 70.0f), 0.0f, 70.0f, 0.01f, 0.99f);
 			module->phaseDistY[segmentNumber] = rescale(clamp(initY - (newDragY - dragY), 0.0f, 70.0f), 0.0f, 70.0f, 0.01f, 0.99f);
 		}
 	}
 	
-	void onMouseDown(const event::MouseDown &e) override {
-		if (e.button == 0) {
-			e.consumed = true;
-			e.target = this;
+	void onButton(const event::Button &e) override {
+		if (e.button == GLFW_MOUSE_BUTTON_LEFT) {
+			e.consume(this);
+			e.setTarget(this);
 			initX = e.pos.x;
 			initY = 70.0f - e.pos.y;
 		}
 	}
-	*/
+	
 	void draw(const DrawArgs &args) override {
 		if (++frame >= 4) {
 			frame = 0;
