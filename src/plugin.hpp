@@ -40,7 +40,7 @@ extern Model *modelANTN;
 // extern Model *modelPENEQUE;
 // extern Model *modelLIMONADE;
 // extern Model *modelLIMBO;
-// extern Model *modelPERCO;
+extern Model *modelPERCO;
 // extern Model *modelFFILTR;
 extern Model *modelBAR;
 extern Model *modelZINC;
