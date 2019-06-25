@@ -257,10 +257,9 @@
     {
       "slug": "pErCO",
       "name": "pErCO",
-      "disabled": true,
-      "description": "pErCO",
+      "description": "pErCO \n\nPG",
       "tags": [
-        "Filter"
+        "VCF", "filter", "vcf"
       ]
     },
     {
