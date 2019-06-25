@@ -37,7 +37,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelCURT);
 	// p->addModel(modelDFUZE);
 	p->addModel(modelREI);
-	// p->addModel(modelRABBIT);
+	p->addModel(modelRABBIT);
 	p->addModel(modelBISTROT);
 	p->addModel(modelSIGMA);
 	p->addModel(modelVOID);
