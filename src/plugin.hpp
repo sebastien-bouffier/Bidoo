@@ -53,7 +53,7 @@ extern Model *modelCURT;
 // extern Model *modelDFUZE;
 // extern Model *modelREI;
 // extern Model *modelMU;
-// extern Model *modelSIGMA;
+extern Model *modelSIGMA;
 // extern Model *modelRABBIT;
 extern Model *modelBISTROT;
 extern Model *modelVOID;
