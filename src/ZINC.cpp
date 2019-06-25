@@ -132,17 +132,17 @@ struct ZINCWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-
+		
+		static const float portX0[4] = { 20, 63, 106, 149 };
+		
 		if (module) {
 			ZINCDisplay *display = new ZINCDisplay();
 			display->module = module;
 			display->box.pos = Vec(12, 12);
 			display->box.size = Vec(110, 70);
 			addChild(display);
-		}
-
-		static const float portX0[4] = { 20, 63, 106, 149 };
-		if (module) {
+		
+			//crashing
 			for (int i = 0; i < BANDS; i++) {
 				controls[i] = createParam<BidooziNCColoredKnob>(Vec(portX0[i % (BANDS / 4)] + 2, 50 + 43 * (
 					int)(i / 4) + 2), module, ZINC::BG_PARAM + i);
