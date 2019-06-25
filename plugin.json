@@ -95,8 +95,7 @@
     {
       "slug": "clACos",
       "name": "clACos",
-      "disabled": true,
-      "description": "clACos",
+      "description": "clACos \n\nPG displays not working",
       "tags": [
         "Oscillator"
       ]
@@ -257,26 +256,15 @@
     {
       "slug": "pErCO",
       "name": "pErCO",
-      "disabled": true,
-      "description": "pErCO",
+      "description": "pErCO \n\nPG",
       "tags": [
-        "Filter"
+        "VCF", "filter", "vcf"
       ]
     },
     {
       "slug": "rabBIT",
       "name": "rabBIT",
-      "disabled": true,
-      "description": "rabBIT",
-      "tags": [
-        "Effect", "Distortion"
-      ]
-    },
-    {
-      "slug": "rabBIT",
-      "name": "rabBIT",
-      "disabled": true,
-      "description": "rabBIT",
+      "description": "rabBIT \n\nPG",
       "tags": [
         "Effect", "Distortion"
       ]
@@ -284,8 +272,7 @@
     {
       "slug": "REI",
       "name": "REI",
-      "disabled": true,
-      "description": "REI",
+      "description": "REI \n\nPG",
       "tags": [
         "Reverb"
       ]
@@ -302,17 +289,15 @@
     {
       "slug": "ziNC",
       "name": "ziNC",
-      "disabled": true,
-      "description": "ziNC",
+      "description": "ziNC \n\nPG",
       "tags": [
         "Effect", "Vocoder"
       ]
     },
     {
       "slug": "SIGMA",
-      "name": "Σ",
-      "disabled": true,
-      "description": "Σ",
+      "name": "Σ multiprise :)",
+      "description": "Σ Mult \n\nPG",
       "tags": [
         "Multiple"
       ],

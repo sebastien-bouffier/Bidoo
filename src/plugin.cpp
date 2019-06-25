@@ -11,7 +11,7 @@ void init(rack::Plugin *p) {
 	// p->addModel(modelZOUMAI);
 	// p->addModel(modelMU);
 	p->addModel(modelTOCANTE);
-  p->addModel(modelCHUTE);
+  	p->addModel(modelCHUTE);
 	// p->addModel(modelLATE);
 	// p->addModel(modelLOURDE);
 	p->addModel(modelACNE);
@@ -24,21 +24,21 @@ void init(rack::Plugin *p) {
 	// p->addModel(modelFORK);
 	// p->addModel(modelGARCON);
 	// p->addModel(modelTIARE);
-	// p->addModel(modelCLACOS);
+	p->addModel(modelCLACOS);
 	p->addModel(modelANTN);
 	// p->addModel(modelPENEQUE);
 	// p->addModel(modelLIMONADE);
 	// p->addModel(modelLIMBO);
-	// p->addModel(modelPERCO);
+	p->addModel(modelPERCO);
 	// p->addModel(modelFFILTR);
 	p->addModel(modelBAR);
-	// p->addModel(modelZINC);
+	p->addModel(modelZINC);
 	// p->addModel(modelHCTIP);
 	p->addModel(modelCURT);
 	// p->addModel(modelDFUZE);
-	// p->addModel(modelREI);
-	// p->addModel(modelRABBIT);
+	p->addModel(modelREI);
+	p->addModel(modelRABBIT);
 	p->addModel(modelBISTROT);
-	// p->addModel(modelSIGMA);
+	p->addModel(modelSIGMA);
 	p->addModel(modelVOID);
 }
