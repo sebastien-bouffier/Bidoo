@@ -46,7 +46,7 @@ extern Model *modelBAR;
 extern Model *modelZINC;
 // extern Model *modelDUKE;
 // extern Model *modelMOIRE;
-// extern Model *modelCANARD;
+extern Model *modelCANARD;
 // extern Model *modelLOURDE;
 // extern Model *modelHCTIP;
 extern Model *modelCURT;
