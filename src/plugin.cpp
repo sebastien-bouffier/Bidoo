@@ -11,7 +11,7 @@ void init(rack::Plugin *p) {
 	// p->addModel(modelZOUMAI);
 	// p->addModel(modelMU);
 	p->addModel(modelTOCANTE);
-  	p->addModel(modelCHUTE);
+  p->addModel(modelCHUTE);
 	// p->addModel(modelLATE);
 	// p->addModel(modelLOURDE);
 	p->addModel(modelACNE);

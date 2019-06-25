@@ -300,15 +300,16 @@
       "description": "Σ Mult \n\nPG",
       "tags": [
         "Multiple"
-      ],
-      {
-        "slug": "ZOUMAI",
-        "name": "zOù MAï",
-        "disabled": true,
-        "description": "zOù MAï",
-        "tags": [
-          "Sequencer"
-        ]
+      ]
+    },
+    {
+      "slug": "zOù MAï",
+      "name": "zOù MAï",
+      "disabled": true,
+      "description": "zOù MAï",
+      "tags": [
+        "Sequencer"
+      ]
     }
   ]
 }
