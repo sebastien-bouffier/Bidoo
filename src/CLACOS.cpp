@@ -368,33 +368,33 @@ struct CLACOSDisplay : TransparentWidget {
 			else if (module->waveFormIndex[segmentNumber] == 3)
 				waveForm = "SQR";
 		}
-		nvgFontSize(args, 10.0f);
-		nvgFillColor(args, nvgRGBA(42, 87, 117, 255));
-		nvgText(args, 12.0f, 79.0f, waveForm.c_str(), NULL);
+		nvgFontSize(args.vg, 10.0f);
+		nvgFillColor(args.vg, nvgRGBA(42, 87, 117, 255));
+		nvgText(args.vg, 12.0f, 79.0f, waveForm.c_str(), NULL);
 
 		// Draw ref lines
-		nvgStrokeColor(args, nvgRGBA(0xff, 0xff, 0xff, 0x80));
+		nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x80));
 		{
-			nvgBeginPath(args);
-			nvgMoveTo(args, 0.0f, 35.0f);
-			nvgLineTo(args, 70.0f, 35.0f);
-			nvgMoveTo(args, 35.0f, 0.0f);
-			nvgLineTo(args, 35.0f, 70.0f);
-			nvgClosePath(args);
+			nvgBeginPath(args.vg);
+			nvgMoveTo(args.vg, 0.0f, 35.0f);
+			nvgLineTo(args.vg, 70.0f, 35.0f);
+			nvgMoveTo(args.vg, 35.0f, 0.0f);
+			nvgLineTo(args.vg, 35.0f, 70.0f);
+			nvgClosePath(args.vg);
 		}
-		nvgStroke(args);
+		nvgStroke(args.vg);
 
 		// Draw phase distortion
-		nvgStrokeColor(args, nvgRGBA(42, 87, 117, 255));
+		nvgStrokeColor(args.vg, nvgRGBA(42, 87, 117, 255));
 		{
-			nvgBeginPath(args);
-			nvgMoveTo(args, 0.0f, 70.0f);
-			nvgLineTo(args, (int)(rescale(module->phaseDistX[segmentNumber], 0.0f, 1.0f, 0.0f, 70.0f)), 70.0f - (int)(rescale(module->phaseDistY[segmentNumber], 0.0f, 1.0f, 0.01f, 70.0f)));
-			nvgMoveTo(args, (int)(rescale(module->phaseDistX[segmentNumber], 0.0f, 1.0f, 0.0f, 70.0f)), 70.0f - (int)(rescale(module->phaseDistY[segmentNumber], 0.0f, 1.0f, 0.01f, 70.0f)));
-			nvgLineTo(args, 70.0f, 0.0f);
-			nvgClosePath(args);
+			nvgBeginPath(args.vg);
+			nvgMoveTo(args.vg, 0.0f, 70.0f);
+			nvgLineTo(args.vg, (int)(rescale(module->phaseDistX[segmentNumber], 0.0f, 1.0f, 0.0f, 70.0f)), 70.0f - (int)(rescale(module->phaseDistY[segmentNumber], 0.0f, 1.0f, 0.01f, 70.0f)));
+			nvgMoveTo(args.vg, (int)(rescale(module->phaseDistX[segmentNumber], 0.0f, 1.0f, 0.0f, 70.0f)), 70.0f - (int)(rescale(module->phaseDistY[segmentNumber], 0.0f, 1.0f, 0.01f, 70.0f)));
+			nvgLineTo(args.vg, 70.0f, 0.0f);
+			nvgClosePath(args.vg);
 		}
-		nvgStroke(args);
+		nvgStroke(args.vg);
 	}
 	
 };
