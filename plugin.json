@@ -95,7 +95,7 @@
     {
       "slug": "clACos",
       "name": "clACos",
-      "description": "clACos \n\nPG displays not working",
+      "description": "clACos \n\nPG",
       "tags": [
         "Oscillator"
       ]
@@ -278,7 +278,7 @@
     {
       "slug": "TiARE",
       "name": "TiARE",
-      "description": "TiARE \n\nPG Analogue mose does not work!",
+      "description": "TiARE \n\nPG Analogue mode does not work!",
       "tags": [
         "Oscillator",
         "LFO"
