@@ -50,7 +50,7 @@ extern Model *modelCANARD;
 // extern Model *modelLOURDE;
 // extern Model *modelHCTIP;
 extern Model *modelCURT;
-// extern Model *modelDFUZE;
+extern Model *modelDFUZE;
 extern Model *modelREI;
 // extern Model *modelMU;
 extern Model *modelSIGMA;
