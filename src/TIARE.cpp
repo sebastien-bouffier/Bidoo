@@ -226,7 +226,8 @@ struct TIARE : Module {
 	}
 
 	void process(const ProcessArgs &args) override {
-		analog = params[MODE_PARAM].getValue() == 1.0f;
+		analog = params[MODE_PARAM].getValue() > 0.0f;
+		//analog = params[MODE_PARAM].getValue() == 1.0f;
 		soft = params[SYNC_PARAM].getValue() <= 0.0f;
 		if (inputs[DIST_X_INPUT].isConnected())
 			phaseDistX = rescale(clamp(inputs[DIST_X_INPUT].getVoltage(), 0.0f, 10.0f), 0.0f, 10.0f, 0.01f, 0.98f);
