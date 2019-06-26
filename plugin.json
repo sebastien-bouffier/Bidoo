@@ -279,10 +279,10 @@
     {
       "slug": "TiARE",
       "name": "TiARE",
-      "disabled": true,
-      "description": "TiARE",
+      "description": "TiARE \n\nPG Analogue mose does not work!",
       "tags": [
-        "Oscillator"
+        "Oscillator",
+        "LFO"
       ]
     },
     {
