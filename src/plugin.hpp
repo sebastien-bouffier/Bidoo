@@ -34,7 +34,7 @@ extern Model *modelMS;
 // extern Model *modelEMILE;
 // extern Model *modelFORK;
 // extern Model *modelGARCON;
-// extern Model *modelTIARE;
+extern Model *modelTIARE;
 extern Model *modelCLACOS;
 extern Model *modelANTN;
 // extern Model *modelPENEQUE;
