@@ -22,7 +22,7 @@ const NVGcolor GREEN_BIDOO = nvgRGBA(2, 195, 154, 255);
 
 extern Plugin *pluginInstance;
 
-// extern Model *modelDTROY;
+extern Model *modelDTROY;
 extern Model *modelBORDL;
 // extern Model *modelZOUMAI;
 extern Model *modelTOCANTE;
@@ -44,7 +44,7 @@ extern Model *modelPERCO;
 // extern Model *modelFFILTR;
 extern Model *modelBAR;
 extern Model *modelZINC;
-// extern Model *modelDUKE;
+extern Model *modelDUKE;
 // extern Model *modelMOIRE;
 extern Model *modelCANARD;
 // extern Model *modelLOURDE;

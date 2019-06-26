@@ -111,7 +111,6 @@
     {
       "slug": "dTrOY",
       "name": "dTrOY",
-      "disabled": true,
       "description": "dTrOY",
       "tags": [
         "Sequencer"
@@ -120,7 +119,6 @@
     {
       "slug": "dUKe",
       "name": "dUKe",
-      "disabled": true,
       "description": "dUKe",
       "tags": [
         "Controller"

@@ -6,7 +6,7 @@ Plugin *pluginInstance;
 void init(rack::Plugin *p) {
 	pluginInstance = p;
 
-	// p->addModel(modelDTROY);
+	p->addModel(modelDTROY);
 	p->addModel(modelBORDL);
 	// p->addModel(modelZOUMAI);
 	// p->addModel(modelMU);
@@ -19,7 +19,7 @@ void init(rack::Plugin *p) {
 	// p->addModel(modelOUAIVE);
 	p->addModel(modelCANARD);
 	// p->addModel(modelEMILE);
-	// p->addModel(modelDUKE);
+	p->addModel(modelDUKE);
 	// p->addModel(modelMOIRE);
 	// p->addModel(modelFORK);
 	// p->addModel(modelGARCON);
