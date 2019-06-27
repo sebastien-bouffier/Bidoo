@@ -188,6 +188,7 @@ struct BidooColoredKnob : RoundKnob {
 	}
 
 	void draw(const DrawArgs &args) override {
+		if (paramQuantity) {
 			for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
 				std::string str(shape->id);
 				if (str == "bidooKnob") {
@@ -195,6 +196,7 @@ struct BidooColoredKnob : RoundKnob {
 					shape->fill.color |= (unsigned int)(255) << 24;
 				}
 			}
+		}	
 		RoundKnob::draw(args);
 	}
 };
