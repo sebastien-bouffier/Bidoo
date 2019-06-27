@@ -12,7 +12,7 @@ void init(rack::Plugin *p) {
 	// p->addModel(modelMU);
 	p->addModel(modelTOCANTE);
   p->addModel(modelCHUTE);
-	// p->addModel(modelLATE);
+	p->addModel(modelLATE);
 	// p->addModel(modelLOURDE);
 	p->addModel(modelACNE);
 	p->addModel(modelMS);
@@ -28,12 +28,12 @@ void init(rack::Plugin *p) {
 	p->addModel(modelANTN);
 	// p->addModel(modelPENEQUE);
 	// p->addModel(modelLIMONADE);
-	// p->addModel(modelLIMBO);
+	p->addModel(modelLIMBO);
 	p->addModel(modelPERCO);
-	// p->addModel(modelFFILTR);
+	p->addModel(modelFFILTR);
 	p->addModel(modelBAR);
 	p->addModel(modelZINC);
-	// p->addModel(modelHCTIP);
+	p->addModel(modelHCTIP);
 	p->addModel(modelCURT);
 	p->addModel(modelDFUZE);
 	p->addModel(modelREI);
