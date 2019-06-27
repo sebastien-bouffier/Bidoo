@@ -148,8 +148,7 @@
     {
       "slug": "ForK",
       "name": "ForK",
-      "disabled": true,
-      "description": "ForK",
+      "description": "ForK, with errors nom-nom",
       "tags": [
         "Oscillator"
       ]
