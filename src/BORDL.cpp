@@ -653,15 +653,16 @@ void BORDL::UpdatePattern() {
 }
 
 void BORDL::process(const ProcessArgs &args) {
- 	//const float lightLambda = 0.075f;
 
 	float invESR = 1 / args.sampleRate;
+
 	// Run
 	if (runningTrigger.process(params[RUN_PARAM].value)) {
 		running = !running;
 	}
 	lights[RUNNING_LIGHT].value = running ? 1.0f : 0.0f;
 	bool nextStep = false;
+
 	// Phase calculation
 	if (running) {
 		if (inputs[EXT_CLOCK_INPUT].active) {
@@ -691,6 +692,7 @@ void BORDL::process(const ProcessArgs &args) {
 			}
 		}
 	}
+
 	// Reset
 	if (resetTrigger.process(params[RESET_PARAM].value + inputs[RESET_INPUT].value)) {
 		phase = 0.0f;
