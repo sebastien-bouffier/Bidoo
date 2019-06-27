@@ -225,7 +225,6 @@
     {
       "slug": "MU",
       "name": "µ",
-      "disabled": true,
       "description": "Synced pulse generator \n\nPG",
       "tags": [
         "Logic",
@@ -243,7 +242,6 @@
     {
       "slug": "PeNEqUe",
       "name": "PeNEqUe",
-      "disabled": true,
       "description": "PeNEqUe",
       "tags": [
         "Oscillator"
@@ -303,9 +301,8 @@
       ]
     },
     {
-      "slug": "zOù MAï",
+      "slug": "ZOUMAI",
       "name": "zOù MAï",
-      "disabled": true,
       "description": "zOù MAï",
       "tags": [
         "Sequencer"

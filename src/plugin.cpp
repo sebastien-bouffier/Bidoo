@@ -8,8 +8,8 @@ void init(rack::Plugin *p) {
 
 	p->addModel(modelDTROY);
 	p->addModel(modelBORDL);
-	// p->addModel(modelZOUMAI);
-	// p->addModel(modelMU);
+	p->addModel(modelZOUMAI);
+	p->addModel(modelMU);
 	p->addModel(modelTOCANTE);
   p->addModel(modelCHUTE);
 	p->addModel(modelLATE);
@@ -26,7 +26,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelTIARE);
 	p->addModel(modelCLACOS);
 	p->addModel(modelANTN);
-	// p->addModel(modelPENEQUE);
+	p->addModel(modelPENEQUE);
 	p->addModel(modelLIMONADE);
 	p->addModel(modelLIMBO);
 	p->addModel(modelPERCO);
