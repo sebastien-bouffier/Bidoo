@@ -9,7 +9,6 @@
 #include <algorithm>
 #include "window.hpp"
 #include <mutex>
-#define DR_WAV_IMPLEMENTATION
 #include "dep/dr_wav/dr_wav.h"
 
 using namespace std;
