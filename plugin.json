@@ -15,15 +15,17 @@
     {
       "slug": "vOId",
       "name": "vOId",
-      "description": "vOId",
+      "description": "The ultimate mastering tool for Rack.\nOnce plugged in your Rack, you gonna\n sound FAAAAT.\n\nPicture is taken from a very good LP\nTERA MELOS.\n",
       "tags": [
-        "Panel"
+        "Physical modeling",
+        "Blank",
+        "Controller"
       ]
     },
     {
       "slug": "ChUTE",
       "name": "ChUTE",
-      "description": "ChUTE",
+      "description": "Space/Strange trigger based on the\nfree fall and bouncing an object.\nYou can change the drop altitude\nbetween 1cm and 3m\n",
       "tags": [
         "Sequencer"
       ]
@@ -73,7 +75,8 @@
       "name": "BISTROT",
       "description": "BISTROT",
       "tags": [
-        "Effect", "Distortion"
+        "Effect",
+        "Distortion"
       ]
     },
     {
@@ -111,7 +114,6 @@
     {
       "slug": "dTrOY",
       "name": "dTrOY",
-      "disabled": true,
       "description": "dTrOY",
       "tags": [
         "Sequencer"
@@ -120,7 +122,6 @@
     {
       "slug": "dUKe",
       "name": "dUKe",
-      "disabled": true,
       "description": "dUKe",
       "tags": [
         "Controller"
@@ -138,10 +139,11 @@
     {
       "slug": "FFilTr",
       "name": "FFilTr",
-      "disabled": true,
-      "description": "FFilTr",
+      "description": "FFilTr \n\nPG",
       "tags": [
-        "Filter"
+        "VCF",
+        "filter",
+        "vcf"
       ]
     },
     {
@@ -165,8 +167,7 @@
     {
       "slug": "HCTIP",
       "name": "HCTIP",
-      "disabled": true,
-      "description": "HCTIP",
+      "description": "Pitch shifter\n\nPG",
       "tags": [
         "Effect"
       ]
@@ -174,19 +175,21 @@
     {
       "slug": "lATe",
       "name": "lATe",
-      "disabled": true,
-      "description": "lATe",
+      "description": "Clock Modulator, Takes a clock input\nand applies a delay on even ticks to\ncreate swing. Reset sets the next tick\nfor the incoming clock to odd.\n \n\nPG",
       "tags": [
-        "Logic","Sequencer"
+        "Logic",
+        "Sequencer",
+        "Clock modulator"
       ]
     },
     {
       "slug": "lIMbO",
       "name": "lIMbO",
-      "disabled": true,
-      "description": "lIMbO",
+      "description": "4th order stereo LP ladder filter.\nGain boosts the signal to compensate for\nglobal signal energy lose at high\nresonance. When non linear is selected gain is applied to each stage \n\nPG",
       "tags": [
-        "Filter"
+        "VCF",
+        "filter",
+        "vcf"
       ]
     },
     {
@@ -230,7 +233,8 @@
       "disabled": true,
       "description": "Synced pulse generator \n\nPG",
       "tags": [
-        "Logic", "Sequencer"
+        "Logic",
+        "Sequencer"
       ]
     },
     {
@@ -256,7 +260,9 @@
       "name": "pErCO",
       "description": "pErCO \n\nPG",
       "tags": [
-        "VCF", "filter", "vcf"
+        "VCF",
+        "filter",
+        "vcf"
       ]
     },
     {
@@ -264,7 +270,8 @@
       "name": "rabBIT",
       "description": "rabBIT \n\nPG",
       "tags": [
-        "Effect", "Distortion"
+        "Effect",
+        "Distortion"
       ]
     },
     {
@@ -273,6 +280,14 @@
       "description": "REI \n\nPG",
       "tags": [
         "Reverb"
+      ]
+    },
+    {
+      "slug": "SIGMA",
+      "name": "Σ multiprise :)",
+      "description": "Σ Mult \n\nPG",
+      "tags": [
+        "Multiple"
       ]
     },
     {
@@ -289,15 +304,8 @@
       "name": "ziNC",
       "description": "ziNC \n\nPG",
       "tags": [
-        "Effect", "Vocoder"
-      ]
-    },
-    {
-      "slug": "SIGMA",
-      "name": "Σ multiprise :)",
-      "description": "Σ Mult \n\nPG",
-      "tags": [
-        "Multiple"
+        "Effect",
+        "Vocoder"
       ]
     },
     {
