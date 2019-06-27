@@ -98,7 +98,7 @@
     {
       "slug": "clACos",
       "name": "clACos",
-      "description": "clACos \n\nPG",
+      "description": "clACos \n",
       "tags": [
         "Oscillator"
       ]
@@ -138,7 +138,7 @@
     {
       "slug": "FFilTr",
       "name": "FFilTr",
-      "description": "FFilTr \n\nPG",
+      "description": "FFilTr \n",
       "tags": [
         "VCF",
         "filter",
@@ -148,7 +148,7 @@
     {
       "slug": "ForK",
       "name": "ForK",
-      "description": "ForK, with errors nom-nom",
+      "description": "ForK, with errors nom-nom\n",
       "tags": [
         "Oscillator"
       ]
@@ -164,7 +164,7 @@
     {
       "slug": "HCTIP",
       "name": "HCTIP",
-      "description": "Pitch shifter\n\nPG",
+      "description": "Pitch shifter\n",
       "tags": [
         "Effect"
       ]
@@ -172,7 +172,7 @@
     {
       "slug": "lATe",
       "name": "lATe",
-      "description": "Clock Modulator, Takes a clock input\nand applies a delay on even ticks to\ncreate swing. Reset sets the next tick\nfor the incoming clock to odd.\n \n\nPG",
+      "description": "Clock Modulator, Takes a clock input\nand applies a delay on even ticks to\ncreate swing. Reset sets the next tick\nfor the incoming clock to odd.\n",
       "tags": [
         "Logic",
         "Sequencer",
@@ -182,7 +182,7 @@
     {
       "slug": "lIMbO",
       "name": "lIMbO",
-      "description": "4th order stereo LP ladder filter.\nGain boosts the signal to compensate for\nglobal signal energy lose at high\nresonance. When non linear is selected gain is applied to each stage \n\nPG",
+      "description": "4th order stereo LP ladder filter.\nGain boosts the signal to compensate for\nglobal signal energy lose at high\nresonance. When non linear is selected gain is applied to each stage\n",
       "tags": [
         "VCF",
         "filter",
@@ -216,7 +216,7 @@
     {
       "slug": "MS",
       "name": "MS",
-      "description": "Mid/Side Decoder/Encoder \n\nPG",
+      "description": "Mid/Side Decoder/Encoder\n",
       "tags": [
         "Effect"
       ]
@@ -224,7 +224,7 @@
     {
       "slug": "MU",
       "name": "µ",
-      "description": "Synced pulse generator \n\nPG",
+      "description": "Synced pulse generator\n",
       "tags": [
         "Logic",
         "Sequencer"
@@ -249,7 +249,7 @@
     {
       "slug": "pErCO",
       "name": "pErCO",
-      "description": "pErCO \n\nPG",
+      "description": "pErCO\n",
       "tags": [
         "VCF",
         "filter",
@@ -259,7 +259,7 @@
     {
       "slug": "rabBIT",
       "name": "rabBIT",
-      "description": "rabBIT \n\nPG",
+      "description": "rabBIT\n",
       "tags": [
         "Effect",
         "Distortion"
@@ -268,7 +268,7 @@
     {
       "slug": "REI",
       "name": "REI",
-      "description": "REI \n\nPG",
+      "description": "REI\n",
       "tags": [
         "Reverb"
       ]
@@ -276,7 +276,7 @@
     {
       "slug": "SIGMA",
       "name": "Σ multiprise :)",
-      "description": "Σ Mult \n\nPG",
+      "description": "Σ Mult\n",
       "tags": [
         "Multiple"
       ]
@@ -284,7 +284,7 @@
     {
       "slug": "TiARE",
       "name": "TiARE",
-      "description": "TiARE \n\nPG Analogue mode does not work!",
+      "description": "TiARE \n Analogue mode does not work!",
       "tags": [
         "Oscillator",
         "LFO"
@@ -293,7 +293,7 @@
     {
       "slug": "ziNC",
       "name": "ziNC",
-      "description": "ziNC \n\nPG",
+      "description": "ziNC\n",
       "tags": [
         "Effect",
         "Vocoder"
