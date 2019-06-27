@@ -143,7 +143,7 @@ inline void wtFrame::smooth() {
 
 inline void wtFrame::window() {
   for (size_t i = 0; i < FS;i++) {
-		float window = min(-10.0f * cos(2.0f * M_PI * (double)i / FS) + 10.0f, 1.0f);
+		float window = std::min((float)(-10.0f * cos(2.0f * M_PI * (float)i / FS) + 10.0f), 1.0f);
 		sample[i] *= window;
 	}
 }
@@ -157,8 +157,8 @@ void wtFrame::removeDCOffset() {
 void wtFrame::loadSample(size_t sCount, bool interpolate, float *wav) {
   if (interpolate) {
     for(size_t i=0;i<FS;i++) {
-      size_t index = i*((float)max(sCount-1,0)/(float)FS);
-      float pos = (float)i*((float)max(sCount-1,0)/(float)FS);
+      size_t index = i*((float)std::max(sCount-1,(size_t)0)/(float)FS);
+      float pos = (float)i*((float)std::max(sCount-1,(size_t)0)/(float)FS);
       sample[i]=rescale(pos,index,index+1,*(wav+index),*(wav+index+1));
     }
   }
@@ -236,7 +236,7 @@ void wtTable::loadSample(size_t sCount, size_t frameSize, bool interpolate, floa
   reset();
   size_t sUsed=0;
   while ((sUsed != sCount) && (nFrames<NF)) {
-    size_t lenFrame = min(frameSize,sCount-sUsed);
+    size_t lenFrame = std::min(frameSize,sCount-sUsed);
     frames[nFrames].loadSample(lenFrame,interpolate,sample+sUsed);
     sUsed+=lenFrame;
     nFrames++;
@@ -450,7 +450,7 @@ struct wtOscillator {
 	float pitch;
 	bool syncEnabled = false;
 	bool syncDirection = false;
-	Decimator<16, 16> wavDecimator;
+	dsp::Decimator<16, 16> wavDecimator;
 	float pitchSlew = 0.0f;
 	int pitchSlewIndex = 0;
 	size_t pIndex=0;
@@ -509,7 +509,7 @@ struct wtOscillator {
       }
 
 			phase += deltaPhase / 16;
-			phase = eucmod(phase, 1.0f);
+			phase = math::eucMod(phase, 1.0f);
 		}
     pIndex = idx;
   }

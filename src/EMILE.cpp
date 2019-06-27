@@ -169,21 +169,21 @@ struct EMILEDisplay : OpaqueWidget {
 		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 	}
 
-	void draw(NVGcontext *vg) override {
+	void draw(const DrawArgs &args) override {
 		if (module && !module->loading) {
 			if (path != module->lastPath) {
-				img = nvgCreateImage(vg, module->lastPath.c_str(), 0);
+				img = nvgCreateImage(args.vg, module->lastPath.c_str(), 0);
 				path = module->lastPath;
 			}
 
-			nvgBeginPath(vg);
+			nvgBeginPath(args.vg);
 			if (module->width>0 && module->height>0)
-				nvgScale(vg, width/module->width, height/module->height);
-		 	NVGpaint imgPaint = nvgImagePattern(vg, 0, 0, module->width,module->height, 0, img, 1.0f);
-		 	nvgRect(vg, 0, 0, module->width, module->height);
-		 	nvgFillPaint(vg, imgPaint);
-		 	nvgFill(vg);
-			nvgClosePath(vg);
+				nvgScale(args.vg, width/module->width, height/module->height);
+		 	NVGpaint imgPaint = nvgImagePattern(args.vg, 0, 0, module->width,module->height, 0, img, 1.0f);
+		 	nvgRect(args.vg, 0, 0, module->width, module->height);
+		 	nvgFillPaint(args.vg, imgPaint);
+		 	nvgFill(args.vg);
+			nvgClosePath(args.vg);
 		}
 	}
 };

@@ -22,12 +22,12 @@ void init(rack::Plugin *p) {
 	p->addModel(modelDUKE);
 	// p->addModel(modelMOIRE);
 	// p->addModel(modelFORK);
-	// p->addModel(modelGARCON);
+	p->addModel(modelGARCON);
 	p->addModel(modelTIARE);
 	p->addModel(modelCLACOS);
 	p->addModel(modelANTN);
 	// p->addModel(modelPENEQUE);
-	// p->addModel(modelLIMONADE);
+	p->addModel(modelLIMONADE);
 	p->addModel(modelLIMBO);
 	p->addModel(modelPERCO);
 	p->addModel(modelFFILTR);

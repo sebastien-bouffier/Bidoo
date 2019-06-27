@@ -155,10 +155,9 @@
       ]
     },
     {
-      "slug": "Garçon",
+      "slug": "Garcon",
       "name": "Garçon",
-      "disabled": true,
-      "description": "Garçon",
+      "description": "FFT display",
       "tags": [
         "Visual"
       ]
@@ -194,7 +193,6 @@
     {
       "slug": "liMonADe",
       "name": "liMonADe",
-      "disabled": true,
       "description": "liMonADe",
       "tags": [
         "Oscillator"

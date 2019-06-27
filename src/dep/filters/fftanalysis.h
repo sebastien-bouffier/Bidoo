@@ -4,6 +4,7 @@
 #include "../pffft/pffft.h"
 #include <vector>
 #include <algorithm>
+#include <mutex>
 
 using namespace std;
 
@@ -55,7 +56,7 @@ struct FfftAnalysis {
 		pffft_aligned_free(gFFTworkspOut);
 	}
 
-	void process(const float *input, vector<vector<float>> *result, mutex *mylock) {
+	void process(const float *input, vector<vector<float>> *result, std::mutex *mylock) {
 
 			for (i = 0; i < fftFrameSize; i++) {
 
