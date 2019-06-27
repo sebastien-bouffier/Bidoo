@@ -272,7 +272,7 @@ struct OUAIVEDisplay : OpaqueWidget {
     OpaqueWidget::onDragEnd(e);
   }
 
-	void draw(NVGcontext *vg) override {
+	void draw(const DrawArgs &args) override {
     if (module) {
       module->mylock.lock();
   		std::vector<float> vL(module->playBuffer[0]);
@@ -280,8 +280,8 @@ struct OUAIVEDisplay : OpaqueWidget {
   		module->mylock.unlock();
   		size_t nbSample = vL.size();
 
-  		nvgFontSize(vg, 14);
-  		nvgFillColor(vg, YELLOW_BIDOO);
+  		nvgFontSize(args.vg, 14);
+  		nvgFillColor(args.vg, YELLOW_BIDOO);
 
   		std::string trigMode = "";
   		std::string slices = "";
@@ -296,8 +296,8 @@ struct OUAIVEDisplay : OpaqueWidget {
   			slices = "|" + to_string(module->nbSlices) + "|";
   		}
 
-  		nvgTextBox(vg, 3, -15, 40, trigMode.c_str(), NULL);
-  		nvgTextBox(vg, 59, -15, 40, slices.c_str(), NULL);
+  		nvgTextBox(args.vg, 3, -15, 40, trigMode.c_str(), NULL);
+  		nvgTextBox(args.vg, 59, -15, 40, slices.c_str(), NULL);
 
   		std::string readMode = "";
   		if (module->readMode == 0) {
@@ -310,62 +310,62 @@ struct OUAIVEDisplay : OpaqueWidget {
   			readMode = "◄";
   		}
 
-  		nvgTextBox(vg, 40, -15, 40, readMode.c_str(), NULL);
+  		nvgTextBox(args.vg, 40, -15, 40, readMode.c_str(), NULL);
 
   		stringstream stream;
   		stream << fixed << setprecision(1) << module->speed;
   		std::string s = stream.str();
   		std::string speed = "x" + s;
 
-  		nvgTextBox(vg, 90, -15, 40, speed.c_str(), NULL);
+  		nvgTextBox(args.vg, 90, -15, 40, speed.c_str(), NULL);
 
   		//Draw play line
   		if ((module->play) && (!module->loading)) {
-  			nvgStrokeColor(vg, LIGHTBLUE_BIDOO);
+  			nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
   			{
-  				nvgBeginPath(vg);
-  				nvgStrokeWidth(vg, 2);
+  				nvgBeginPath(args.vg);
+  				nvgStrokeWidth(args.vg, 2);
   				if (module->totalSampleCount>0) {
-  					nvgMoveTo(vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 0);
-  					nvgLineTo(vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 2 * height+10);
+  					nvgMoveTo(args.vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 0);
+  					nvgLineTo(args.vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 2 * height+10);
   				}
   				else {
-  					nvgMoveTo(vg, 0, 0);
-  					nvgLineTo(vg, 0, 2 * height+10);
+  					nvgMoveTo(args.vg, 0, 0);
+  					nvgLineTo(args.vg, 0, 2 * height+10);
   				}
-  				nvgClosePath(vg);
+  				nvgClosePath(args.vg);
   			}
-  			nvgStroke(vg);
+  			nvgStroke(args.vg);
   		}
 
   		//Draw ref line
-  		nvgStrokeColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
-  		nvgStrokeWidth(vg, 1);
+  		nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
+  		nvgStrokeWidth(args.vg, 1);
   		{
-  			nvgBeginPath(vg);
-  			nvgMoveTo(vg, 0, height * 0.5f);
-  			nvgLineTo(vg, width, height * 0.5f);
-  			nvgClosePath(vg);
+  			nvgBeginPath(args.vg);
+  			nvgMoveTo(args.vg, 0, height * 0.5f);
+  			nvgLineTo(args.vg, width, height * 0.5f);
+  			nvgClosePath(args.vg);
   		}
-  		nvgStroke(vg);
+  		nvgStroke(args.vg);
 
-  		nvgStrokeColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
-  		nvgStrokeWidth(vg, 1);
+  		nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
+  		nvgStrokeWidth(args.vg, 1);
   		{
-  			nvgBeginPath(vg);
-  			nvgMoveTo(vg, 0, 3*height * 0.5f + 10);
-  			nvgLineTo(vg, width, 3*height * 0.5f + 10);
-  			nvgClosePath(vg);
+  			nvgBeginPath(args.vg);
+  			nvgMoveTo(args.vg, 0, 3*height * 0.5f + 10);
+  			nvgLineTo(args.vg, width, 3*height * 0.5f + 10);
+  			nvgClosePath(args.vg);
   		}
-  		nvgStroke(vg);
+  		nvgStroke(args.vg);
 
   		if ((!module->loading) && (vL.size()>0)) {
   			//Draw waveform
-  			nvgStrokeColor(vg, PINK_BIDOO);
-  			nvgSave(vg);
+  			nvgStrokeColor(args.vg, PINK_BIDOO);
+  			nvgSave(args.vg);
   			Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, height));
-  			nvgScissor(vg, 0, b.pos.y, width, height);
-  			nvgBeginPath(vg);
+  			nvgScissor(args.vg, 0, b.pos.y, width, height);
+  			nvgBeginPath(args.vg);
   			for (size_t i = 0; i < vL.size(); i++) {
   				float x, y;
   				x = (float)i/vL.size();
@@ -374,20 +374,20 @@ struct OUAIVEDisplay : OpaqueWidget {
   				p.x = b.pos.x + b.size.x * x;
   				p.y = b.pos.y + b.size.y * (1.0f - y);
   				if (i == 0) {
-  					nvgMoveTo(vg, p.x, p.y);
+  					nvgMoveTo(args.vg, p.x, p.y);
   				}
   				else {
-  					nvgLineTo(vg, p.x, p.y);
+  					nvgLineTo(args.vg, p.x, p.y);
   				}
   			}
-  			nvgLineCap(vg, NVG_MITER);
-  			nvgStrokeWidth(vg, 1);
-  			nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
-  			nvgStroke(vg);
+  			nvgLineCap(args.vg, NVG_MITER);
+  			nvgStrokeWidth(args.vg, 1);
+  			nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+  			nvgStroke(args.vg);
 
   			b = Rect(Vec(zoomLeftAnchor, height+10), Vec(zoomWidth, height));
-  			nvgScissor(vg, 0, b.pos.y, width, height);
-  			nvgBeginPath(vg);
+  			nvgScissor(args.vg, 0, b.pos.y, width, height);
+  			nvgBeginPath(args.vg);
   			for (size_t i = 0; i < vR.size(); i++) {
   				float x, y;
   				x = (float)i/vR.size();
@@ -396,42 +396,41 @@ struct OUAIVEDisplay : OpaqueWidget {
   				p.x = b.pos.x + b.size.x * x;
   				p.y = b.pos.y + b.size.y * (1.0f - y);
   				if (i == 0)
-  					nvgMoveTo(vg, p.x, p.y);
+  					nvgMoveTo(args.vg, p.x, p.y);
   				else
-  					nvgLineTo(vg, p.x, p.y);
+  					nvgLineTo(args.vg, p.x, p.y);
   			}
-  			nvgLineCap(vg, NVG_MITER);
-  			nvgStrokeWidth(vg, 1);
-  			nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
-  			nvgStroke(vg);
-  			nvgResetScissor(vg);
+  			nvgLineCap(args.vg, NVG_MITER);
+  			nvgStrokeWidth(args.vg, 1);
+  			nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+  			nvgStroke(args.vg);
+  			nvgResetScissor(args.vg);
 
   			//draw slices
 
   			if (module->trigMode == 2) {
-  				nvgScissor(vg, 0, 0, width, 2*height+10);
+  				nvgScissor(args.vg, 0, 0, width, 2*height+10);
   				for (int i = 1; i < module->nbSlices; i++) {
-  					nvgStrokeColor(vg, YELLOW_BIDOO);
-  					nvgStrokeWidth(vg, 1);
+  					nvgStrokeColor(args.vg, YELLOW_BIDOO);
+  					nvgStrokeWidth(args.vg, 1);
   					{
-  						nvgBeginPath(vg);
-  						nvgMoveTo(vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 0);
-  						nvgLineTo(vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 2*height+10);
-  						nvgClosePath(vg);
+  						nvgBeginPath(args.vg);
+  						nvgMoveTo(args.vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 0);
+  						nvgLineTo(args.vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 2*height+10);
+  						nvgClosePath(args.vg);
   					}
-  					nvgStroke(vg);
+  					nvgStroke(args.vg);
   				}
-  				nvgResetScissor(vg);
+  				nvgResetScissor(args.vg);
   			}
 
-  			nvgRestore(vg);
+  			nvgRestore(args.vg);
   		}
     }
 	}
 };
 
 struct OUAIVEWidget : ModuleWidget {
-
 	OUAIVEWidget(OUAIVE *module) {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/OUAIVE.svg")));
