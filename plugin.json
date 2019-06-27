@@ -130,7 +130,6 @@
     {
       "slug": "EMILE",
       "name": "EMILE",
-      "disabled": true,
       "description": "EMILE",
       "tags": [
         "Sampler"
@@ -240,7 +239,6 @@
     {
       "slug": "OUAIve",
       "name": "OUAIve",
-      "disabled": true,
       "description": "OUAIve",
       "tags": [
         "Sampler"
