@@ -782,46 +782,46 @@ struct CANARDWidget : ModuleWidget {
 		}
 	};
 
-struct CANARDLoadSample : MenuItem {
-	CANARD *module;
-	void onAction(const event::Action &e) override {
-		std::string dir = module->lastPath.empty() ? asset::user("") : string::directory(module->lastPath);
-		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
-		if (path) {
-			module->loadSample(path);
-			free(path);
-		}
-	}
-};
-
-struct CANARDSaveSample : MenuItem {
-	CANARD *module;
-	void onAction(const event::Action &e) override {
-		std::string dir = module->lastPath.empty() ? asset::user("") : string::directory(module->lastPath);
-		std::string fileName = module->waveFileName.empty() ? "temp.wav" : module->waveFileName;
-		char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), (fileName).c_str(), NULL);
-		if (path) {
-			module->lastPath = path;
-			module->waveFileName = string::filenameBase(path);
-			module->waveExtension = string::filenameExtension(path);
-			drwav_data_format format;
-	    format.container = drwav_container_riff;
-	    format.format = DR_WAVE_FORMAT_PCM;
-	    format.channels = 2;
-	    format.sampleRate = module->sampleRate;
-	    format.bitsPerSample = 32;
-	    drwav* pWav = drwav_open_file_write(path, &format);
-			int pSamples[2*module->totalSampleCount];
-			for (unsigned int i = 0; i < module->totalSampleCount; i++) {
-				pSamples[2*i]= floor(module->playBuffer[0][i]*2147483647);
-				pSamples[2*i+1]= floor(module->playBuffer[1][i]*2147483647);
+	struct CANARDLoadSample : MenuItem {
+		CANARD *module;
+		void onAction(const event::Action &e) override {
+			std::string dir = module->lastPath.empty() ? asset::user("") : string::directory(module->lastPath);
+			char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
+			if (path) {
+				module->loadSample(path);
+				free(path);
 			}
-	    drwav_write(pWav, 2*module->totalSampleCount, pSamples);
-			drwav_close(pWav);
-			free(path);
 		}
-	}
-};
+	};
+
+	struct CANARDSaveSample : MenuItem {
+		CANARD *module;
+		void onAction(const event::Action &e) override {
+			std::string dir = module->lastPath.empty() ? asset::user("") : string::directory(module->lastPath);
+			std::string fileName = module->waveFileName.empty() ? "temp.wav" : module->waveFileName;
+			char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), (fileName).c_str(), NULL);
+			if (path) {
+				module->lastPath = path;
+				module->waveFileName = string::filenameBase(path);
+				module->waveExtension = string::filenameExtension(path);
+				drwav_data_format format;
+		    format.container = drwav_container_riff;
+		    format.format = DR_WAVE_FORMAT_PCM;
+		    format.channels = 2;
+		    format.sampleRate = module->sampleRate;
+		    format.bitsPerSample = 32;
+		    drwav* pWav = drwav_open_file_write(path, &format);
+				int pSamples[2*module->totalSampleCount];
+				for (unsigned int i = 0; i < module->totalSampleCount; i++) {
+					pSamples[2*i]= floor(module->playBuffer[0][i]*2147483647);
+					pSamples[2*i+1]= floor(module->playBuffer[1][i]*2147483647);
+				}
+		    drwav_write(pWav, 2*module->totalSampleCount, pSamples);
+				drwav_close(pWav);
+				free(path);
+			}
+		}
+	};
 
 
 	void appendContextMenu(ui::Menu *menu) override {

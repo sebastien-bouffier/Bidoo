@@ -35,7 +35,7 @@ struct ZINC : Module {
 	Biquad* iFilter[2 * BANDS];
 	Biquad* cFilter[2 * BANDS];
 	float mem[BANDS] = { 0.0f };
-	float freq[BANDS] = { 125.0f, 185.0f, 270.0f, 350.0f, 430.0f, 530.0f, 630.0f, 780.0f, 
+	float freq[BANDS] = { 125.0f, 185.0f, 270.0f, 350.0f, 430.0f, 530.0f, 630.0f, 780.0f,
 						  950.0f, 1150.0f, 1380.0f, 1680.0f, 2070.0f, 2780.0f, 3800.0f, 6400.0f };
 	float peaks[BANDS] = { 0.0f };
 
@@ -60,7 +60,6 @@ struct ZINC : Module {
 	}
 
 	void process(const ProcessArgs &args) override {
-		
 		float inM = inputs[IN_MOD].getVoltage() / 5.0f;
 		float inC = inputs[IN_CARR].getVoltage() / 5.0f;
 		const float slewMin = 0.001f;
@@ -89,11 +88,7 @@ struct ZINC : Module {
 			out += cFilter[i + BANDS]->process(cFilter[i]->process(inC*params[GCARR_PARAM].getValue())) * coeff * params[BG_PARAM + i].getValue();
 		}
 		outputs[OUT].setVoltage(out * 5.0f * params[G_PARAM].getValue());
-
-	}//process
-
-	//void step() override;
-
+	}
 };
 
 struct ZINCDisplay : TransparentWidget {
@@ -111,19 +106,27 @@ struct ZINCDisplay : TransparentWidget {
 		nvgTextLetterSpacing(vg, -2);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER);
 		static const int portX0[4] = { 20, 63, 106, 149 };
-		for (int i = 0; i < BANDS; i++) {
-			char fVal[10];
-			snprintf(fVal, sizeof(fVal), "%1i", (int)module->freq[i]);
-			nvgFillColor(vg, nvgRGBA(0, 0, 0, 255));
-			nvgText(vg, portX0[i % (BANDS / 4)] + 1, 35 + 43 * (int)(i / 4), fVal, NULL);
+		if (module) {
+			for (int i = 0; i < BANDS; i++) {
+				nvgStrokeWidth(vg, 0.0f);
+				nvgBeginPath(vg);
+				int corrCoef = rescale(clamp(module->peaks[i],0.0f,1.0f),0.0f,1.0f,0.0f,255.0f);
+				nvgFillColor(vg, nvgRGBA(clamp(42+corrCoef,0,255), clamp(87-corrCoef,0,255), clamp(117-corrCoef,0,255), 255));
+				nvgRoundedRect(vg,portX0[i % (BANDS / 4)]-10, 26 + 43 * (int)(i / 4),25,10,3.0f);
+				nvgFill(vg);
+				nvgClosePath(vg);
+
+
+				char fVal[10];
+				snprintf(fVal, sizeof(fVal), "%1i", (int)module->freq[i]);
+				nvgFillColor(vg, nvgRGBA(255, 255, 255, 255));
+				nvgText(vg, portX0[i % (BANDS / 4)] + 3, 35 + 43 * (int)(i / 4), fVal, NULL);
+			}
 		}
 	}
 };
 
 struct ZINCWidget : ModuleWidget {
-	ParamWidget *controls[16];
-	void step() override;
-
 	ZINCWidget(ZINC *module) {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/ZINC.svg")));
@@ -132,26 +135,21 @@ struct ZINCWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		
+
 		static const float portX0[4] = { 20, 63, 106, 149 };
-		
-		if (module) {
+
+		{
 			ZINCDisplay *display = new ZINCDisplay();
 			display->module = module;
-			display->box.pos = Vec(12, 12);
+			display->box.pos = Vec(14, 14);
 			display->box.size = Vec(110, 70);
 			addChild(display);
-		
-			//crashing
-			for (int i = 0; i < BANDS; i++) {
-				controls[i] = createParam<BidooziNCColoredKnob>(Vec(portX0[i % (BANDS / 4)] + 2, 50 + 43 * (
-					int)(i / 4) + 2), module, ZINC::BG_PARAM + i);
-				BidooziNCColoredKnob *control = dynamic_cast<BidooziNCColoredKnob*>(controls[i]);
-				control->coeff = module->peaks + i;
-				addParam(controls[i]);
-			}
 		}
-		
+
+		for (int i = 0; i < BANDS; i++) {
+			addParam(createParam<BidooBlueKnob>(Vec(portX0[i % (BANDS / 4)] + 2, 50 + 43 * (int)(i / 4) + 2), module, ZINC::BG_PARAM + i));
+		}
+
 		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1] + 4, 230), module, ZINC::ATTACK_PARAM));
 		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[2] + 4, 230), module, ZINC::DECAY_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[0] + 20, 268), module, ZINC::GMOD_PARAM));
@@ -163,15 +161,5 @@ struct ZINCWidget : ModuleWidget {
 		addOutput(createOutput<PJ301MPort>(Vec(portX0[2] + 16.5, 320), module, ZINC::OUT));
 	}
 };
-
-void ZINCWidget::step() {
-	for (int i = 0; i < BANDS; i++) {
-		BidooziNCColoredKnob* knob = dynamic_cast<BidooziNCColoredKnob*>(controls[i]);
-		//knob->dirty = true;		///***Really not sure how to do this!
-
-		//*** also some notes on community forum: https://community.vcvrack.com/t/framebufferwidget-question/3041/1
-	}
-	ModuleWidget::step();
-}
 
 Model *modelZINC = createModel<ZINC, ZINCWidget>("ziNC");

@@ -91,7 +91,7 @@ struct BlueBtn : SvgSwitch {
 		nvgFontFaceId(args.vg, font->handle);
 		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 		nvgText(args.vg, 8.0f, 12.0f, (caption).c_str(), NULL);
-		nvgStroke(args.vg);
+		//nvgStroke(args.vg);
 	}
 };
 
@@ -112,7 +112,7 @@ struct RedBtn : app::SvgSwitch {
 		nvgFontFaceId(args.vg, font->handle);
 		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 		nvgText(args.vg, 8.0f, 12.0f, (caption).c_str(), NULL);
-		nvgStroke(args.vg);
+		//nvgStroke(args.vg);
 	}
 };
 
@@ -164,24 +164,6 @@ struct DownBtn : app::SvgSwitch {
 	}
 };
 
-struct BidooziNCColoredKnob : RoundKnob {
-	BidooziNCColoredKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ziNCBlueKnobBidoo.svg")));
-	}
-	float *coeff;
-	void draw(const DrawArgs &args) override {
-			for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
-				std::string str(shape->id);
-				if (str == "bidooziNCBlueKnob") {
-					int corrCoef = rescale(clamp(*coeff,0.0f,1.0f),0.0f,1.0f,0.0f,255.0f);
-					shape->fill.color = (((unsigned int)clamp(42+corrCoef,0,255)) | ((unsigned int)clamp(87-corrCoef,0,255) << 8) | ((unsigned int)clamp(117-corrCoef,0,255) << 16));
-					shape->fill.color |= (unsigned int)(255) << 24;
-				}
-			}
-		RoundKnob::draw(args);
-	}
-};
-
 struct BidooColoredKnob : RoundKnob {
 	BidooColoredKnob() {
 		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlackKnobBidoo.svg")));
@@ -196,7 +178,7 @@ struct BidooColoredKnob : RoundKnob {
 					shape->fill.color |= (unsigned int)(255) << 24;
 				}
 			}
-		}	
+		}
 		RoundKnob::draw(args);
 	}
 };

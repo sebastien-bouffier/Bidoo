@@ -317,6 +317,12 @@ struct DTROY : Module {
 	dsp::SchmittTrigger skipTriggers[8];
 	dsp::SchmittTrigger playModeTrigger;
 	dsp::SchmittTrigger countModeTrigger;
+	dsp::SchmittTrigger copyTrigger;
+	dsp::SchmittTrigger upTrigger;
+	dsp::SchmittTrigger downTrigger;
+	dsp::SchmittTrigger leftTrigger;
+	dsp::SchmittTrigger rightTrigger;
+
 	float phase = 0.0f;
 	int index = 0;
 	bool reStart = true;
@@ -538,6 +544,21 @@ struct DTROY : Module {
 		}
 	}
 
+	void randomizePitch() {
+		random::init();
+		for (int i = 0; i < 8; i++) {
+			params[TRIG_PITCH_PARAM+i].setValue(random::uniform()*10.0f-4.0f);
+		}
+	}
+
+	void randomizeGates() {
+		random::init();
+		for (int i = 0; i < 8; i++) {
+			params[TRIG_COUNT_PARAM+i].setValue((int)(random::uniform()*7.0f+1.0f));
+			params[TRIG_TYPE_PARAM+i].setValue((int)(random::uniform()*5.0f));
+		}
+	}
+
 	void onReset() override {
 		for (int i = 0; i < 8; i++) {
 			slideState[i] = 'f';
@@ -645,9 +666,6 @@ void DTROY::process(const ProcessArgs &args) {
 		lights[RESET_LIGHT].value = 1.0f;
 	}
 
-	//copy/paste
-	lights[COPY_LIGHT].value = copyState ? 1.0f : 0.0f;
-
 	//patternNumber
 	int newPattern = clamp((inputs[PATTERN_INPUT].active ? (int)(rescale(inputs[PATTERN_INPUT].value,0.0f,10.0f,1.0f,16.1f)) : (int)(params[PATTERN_PARAM].value)) - 1, 0, 15);
 	if (newPattern != playedPattern) {
@@ -658,6 +676,111 @@ void DTROY::process(const ProcessArgs &args) {
 		patterns[playedPattern].currentPulse = cPulse;
 	}
 
+	int target = clamp((int)(params[PATTERN_PARAM].getValue())-1, 0, 15);
+	if (target != selectedPattern) {
+		selectedPattern = target;
+		playMode = patterns[selectedPattern].playMode;
+		countMode = patterns[selectedPattern].countMode;
+		params[STEPS_PARAM].setValue(patterns[selectedPattern].numberOfStepsParam);
+		params[ROOT_NOTE_PARAM].setValue(patterns[selectedPattern].rootNote);
+		params[SCALE_PARAM].setValue(patterns[selectedPattern].scale);
+		params[GATE_TIME_PARAM].setValue(patterns[selectedPattern].gateTime);
+		params[SLIDE_TIME_PARAM].setValue(patterns[selectedPattern].slideTime);
+		params[SENSITIVITY_PARAM].setValue(patterns[selectedPattern].sensitivity);
+		for (int i = 0; i < 8; i++) {
+			params[TRIG_PITCH_PARAM+i].setValue(patterns[selectedPattern].steps[i].pitch);
+			params[TRIG_COUNT_PARAM+i].setValue(patterns[selectedPattern].steps[i].pulsesParam);
+			params[TRIG_TYPE_PARAM+i].setValue(patterns[selectedPattern].steps[i].type);
+			skipState[i] = patterns[selectedPattern].steps[i].skipParam ? 't' : 'f';
+			slideState[i] = patterns[selectedPattern].steps[i].slide ? 't' : 'f';
+		}
+	}
+
+	if (copyTrigger.process(params[COPY_PARAM].getValue())) {
+		if (!copyState) {
+			copyPattern = selectedPattern;
+			copyState = true;
+			lights[COPY_LIGHT].value = 1.0f;
+		}
+		else if (copyPattern != selectedPattern)
+		{
+			params[STEPS_PARAM].setValue(patterns[copyPattern].numberOfStepsParam);
+			params[ROOT_NOTE_PARAM].setValue(patterns[copyPattern].rootNote);
+			params[SCALE_PARAM].setValue(patterns[copyPattern].scale);
+			params[GATE_TIME_PARAM].setValue(patterns[copyPattern].gateTime);
+			params[SLIDE_TIME_PARAM].setValue(patterns[copyPattern].slideTime);
+			params[SENSITIVITY_PARAM].setValue(patterns[copyPattern].sensitivity);
+			playMode = patterns[copyPattern].playMode;
+			countMode = patterns[copyPattern].countMode;
+			for (int i = 0; i < 8; i++) {
+				params[TRIG_PITCH_PARAM+i].setValue(patterns[copyPattern].steps[i].pitch);
+				params[TRIG_COUNT_PARAM+i].setValue(patterns[copyPattern].steps[i].pulsesParam);
+				params[TRIG_TYPE_PARAM+i].setValue(patterns[copyPattern].steps[i].type);
+				skipState[i] = patterns[copyPattern].steps[i].skipParam ? 't' : 'f';
+				slideState[i] = patterns[copyPattern].steps[i].slide ? 't' : 'f';
+			}
+			copyState = false;
+			copyPattern = -1;
+			lights[COPY_LIGHT].value = 0.0f;
+		}
+		else 		{
+			copyState = false;
+			copyPattern = -1;
+			lights[COPY_LIGHT].value = 0.0f;
+		}
+	}
+
+	if (upTrigger.process(params[UP_PARAM].getValue())) {
+		for (int i = 0; i < 8; i++) {
+			params[TRIG_PITCH_PARAM+i].setValue(min(params[TRIG_PITCH_PARAM+i].getValue() + 0.1f,10.0f));
+		}
+	}
+
+	if (downTrigger.process(params[DOWN_PARAM].getValue())) {
+		for (int i = 0; i < 8; i++) {
+			params[TRIG_PITCH_PARAM+i].setValue(max(params[TRIG_PITCH_PARAM+i].getValue() - 0.1f,0.0f));
+		}
+	}
+
+	if (leftTrigger.process(params[LEFT_PARAM].getValue())) {
+			float pitch = params[TRIG_PITCH_PARAM].getValue();
+			float pulse = params[TRIG_COUNT_PARAM].getValue();
+			float type = params[TRIG_TYPE_PARAM].getValue();
+			char skip = skipState[0];
+			char slide = slideState[0];
+			for (int i = 0; i < 7; i++) {
+				params[TRIG_PITCH_PARAM+i].setValue(params[TRIG_PITCH_PARAM+i+1].getValue());
+				params[TRIG_COUNT_PARAM+i].setValue(params[TRIG_COUNT_PARAM+i+1].getValue());
+				params[TRIG_TYPE_PARAM+i].setValue(params[TRIG_TYPE_PARAM+i+1].getValue());
+				skipState[i] = skipState[i+1];
+				slideState[i] = slideState[i+1];
+			}
+			params[TRIG_PITCH_PARAM+7].setValue(pitch);
+			params[TRIG_COUNT_PARAM+7].setValue(pulse);
+			params[TRIG_TYPE_PARAM+7].setValue(type);
+			skipState[7] = skip;
+			slideState[7] = slide;
+	}
+
+	if (rightTrigger.process(params[RIGHT_PARAM].getValue())) {
+			float pitch = params[TRIG_PITCH_PARAM+7].getValue();
+			float pulse = params[TRIG_COUNT_PARAM+7].getValue();
+			float type = params[TRIG_TYPE_PARAM+7].getValue();
+			char skip = skipState[0];
+			char slide = slideState[0];
+			for (int i = 7; i > 0; i--) {
+				params[TRIG_PITCH_PARAM+i].setValue(params[TRIG_PITCH_PARAM+i-1].getValue());
+				params[TRIG_COUNT_PARAM+i].setValue(params[TRIG_COUNT_PARAM+i-1].getValue());
+				params[TRIG_TYPE_PARAM+i].setValue(params[TRIG_TYPE_PARAM+i-1].getValue());
+				skipState[i] = skipState[i-1];
+				slideState[i] = slideState[i-1];
+			}
+			params[TRIG_PITCH_PARAM].setValue(pitch);
+			params[TRIG_COUNT_PARAM].setValue(pulse);
+			params[TRIG_TYPE_PARAM].setValue(type);
+			skipState[0] = skip;
+			slideState[0] = slide;
+	}
 
 	// Update Pattern
 	if ((updateFlag) || (!loadedFromJson)) {
@@ -863,371 +986,147 @@ struct DTROYDisplay : TransparentWidget {
 	}
 };
 
-
-struct DTROYPatternRoundBlackSnapKnob : RoundBlackSnapKnob {
-	// void onChange(EventChange &e) override {
-	// 		RoundBlackSnapKnob::onChange(e);
-	// 		DTROY *module = dynamic_cast<DTROY*>(this->module);
-	// 		DTROYWidget *parent = dynamic_cast<DTROYWidget*>(this->parent);
-	// 		int target = clamp((int)(value) - 1, 0, 15);
-	// 		if (module && parent && (target != module->selectedPattern) && module->updateFlag)
-	// 		{
-	// 			module->updateFlag = false;
-	// 			module->selectedPattern = value - 1;
-	// 			parent->stepsParam->setValue(module->patterns[target].numberOfStepsParam);
-	// 			parent->rootNoteParam->setValue(module->patterns[target].rootNote);
-	// 			parent->scaleParam->setValue(module->patterns[target].scale);
-	// 			parent->gateTimeParam->setValue(module->patterns[target].gateTime);
-	// 			parent->slideTimeParam->setValue(module->patterns[target].slideTime);
-	// 			parent->sensitivityParam->setValue(module->patterns[target].sensitivity);
-	// 			module->playMode = module->patterns[module->selectedPattern].playMode;
-	// 			module->countMode = module->patterns[module->selectedPattern].countMode;
-	// 			for (int i = 0; i < 8; i++) {
-	// 				parent->pitchParams[i]->setValue(module->patterns[target].steps[i].pitch);
-	// 				parent->pulseParams[i]->setValue(module->patterns[target].steps[i].pulsesParam);
-	// 				parent->typeParams[i]->setValue(module->patterns[target].steps[i].type);
-	// 				module->skipState[i] = module->patterns[target].steps[i].skipParam ? 't' : 'f';
-	// 				module->slideState[i] = module->patterns[target].steps[i].slide ? 't' : 'f';
-	// 			}
-	// 			module->updateFlag = true;
-	// 		}
-	// 	}
-};
-
-struct DTROYCOPYPASTECKD6 : BlueCKD6 {
-	// void onMouseDown(EventMouseDown &e) override {
-	// 	DTROYWidget *dtroyWidget = dynamic_cast<DTROYWidget*>(this->parent);
-	// 	DTROY *dtroyModule = dynamic_cast<DTROY*>(this->module);
-	// 	if (!dtroyModule->copyState) {
-	// 		dtroyModule->copyPattern = dtroyModule->selectedPattern;
-	// 		dtroyModule->copyState = true;
-	// 	}
-	// 	else if (dtroyModule && dtroyWidget && (dtroyModule->copyState) && (dtroyModule->copyPattern != dtroyModule->selectedPattern) && dtroyModule->updateFlag)
-	// 	{
-	// 		dtroyModule->updateFlag = false;
-	// 		dtroyWidget->stepsParam->setValue(dtroyModule->patterns[dtroyModule->copyPattern].numberOfStepsParam);
-	// 		dtroyWidget->rootNoteParam->setValue(dtroyModule->patterns[dtroyModule->copyPattern].rootNote);
-	// 		dtroyWidget->scaleParam->setValue(dtroyModule->patterns[dtroyModule->copyPattern].scale);
-	// 		dtroyWidget->gateTimeParam->setValue(dtroyModule->patterns[dtroyModule->copyPattern].gateTime);
-	// 		dtroyWidget->slideTimeParam->setValue(dtroyModule->patterns[dtroyModule->copyPattern].slideTime);
-	// 		dtroyWidget->sensitivityParam->setValue(dtroyModule->patterns[dtroyModule->copyPattern].sensitivity);
-	// 		dtroyModule->playMode = dtroyModule->patterns[dtroyModule->copyPattern].playMode;
-	// 		dtroyModule->countMode = dtroyModule->patterns[dtroyModule->copyPattern].countMode;
-	// 		for (int i = 0; i < 8; i++) {
-	// 			dtroyWidget->pitchParams[i]->setValue(dtroyModule->patterns[dtroyModule->copyPattern].steps[i].pitch);
-	// 			dtroyWidget->pulseParams[i]->setValue(dtroyModule->patterns[dtroyModule->copyPattern].steps[i].pulsesParam);
-	// 			dtroyWidget->typeParams[i]->setValue(dtroyModule->patterns[dtroyModule->copyPattern].steps[i].type);
-	// 			dtroyModule->skipState[i] = dtroyModule->patterns[dtroyModule->copyPattern].steps[i].skipParam ? 't' : 'f';
-	// 			dtroyModule->slideState[i] = dtroyModule->patterns[dtroyModule->copyPattern].steps[i].slide ? 't' : 'f';
-	// 		}
-	// 		dtroyModule->copyState = false;
-	// 		dtroyModule->copyPattern = -1;
-	// 		dtroyModule->updateFlag = true;
-	// 	}
-	// 	BlueCKD6::onMouseDown(e);
-	// }
-};
-
-struct DTROYShiftUpBtn : UpBtn {
-	// void onMouseDown(EventMouseDown &e) override {
-	// 	DTROYWidget *dtroyWidget = dynamic_cast<DTROYWidget*>(this->parent);
-	// 	DTROY *dtroyModule = dynamic_cast<DTROY*>(this->module);
-	// 	if (dtroyModule && dtroyWidget && dtroyModule->updateFlag)
-	// 	{
-	// 		dtroyModule->updateFlag = false;
-	// 		for (int i = 0; i < 8; i++) {
-	// 			dtroyWidget->pitchParams[i]->setValue(min(dtroyWidget->pitchParams[i]->value + 0.1f,10.0f));
-	// 		}
-	// 		dtroyModule->updateFlag = true;
-	// 	}
-	// 	UpBtn::onMouseDown(e);
-	// }
-};
-
-struct DTROYShiftDownBtn : DownBtn {
-	// void onMouseDown(EventMouseDown &e) override {
-	// 	DTROYWidget *dtroyWidget = dynamic_cast<DTROYWidget*>(this->parent);
-	// 	DTROY *dtroyModule = dynamic_cast<DTROY*>(this->module);
-	// 	if (dtroyModule && dtroyWidget && dtroyModule->updateFlag)
-	// 	{
-	// 		dtroyModule->updateFlag = false;
-	// 		for (int i = 0; i < 8; i++) {
-	// 			dtroyWidget->pitchParams[i]->setValue(max(dtroyWidget->pitchParams[i]->value - 0.1f,0.0f));
-	// 		}
-	// 		dtroyModule->updateFlag = true;
-	// 	}
-	// 	DownBtn::onMouseDown(e);
-	// }
-};
-
-struct DTROYShiftLeftBtn : LeftBtn {
-	// void onMouseDown(EventMouseDown &e) override {
-	// 	DTROYWidget *dtroyWidget = dynamic_cast<DTROYWidget*>(this->parent);
-	// 	DTROY *dtroyModule = dynamic_cast<DTROY*>(this->module);
-	// 	if (dtroyModule && dtroyWidget && dtroyModule->updateFlag)
-	// 	{
-	// 		dtroyModule->updateFlag = false;
-	// 		float pitch = dtroyWidget->pitchParams[0]->value;
-	// 		float pulse = dtroyWidget->pulseParams[0]->value;
-	// 		float type = dtroyWidget->typeParams[0]->value;
-	// 		char skip = dtroyModule->skipState[0];
-	// 		char slide = dtroyModule->slideState[0];
-	// 		for (int i = 0; i < 7; i++) {
-	// 			dtroyWidget->pitchParams[i]->setValue(dtroyWidget->pitchParams[i+1]->value);
-	// 			dtroyWidget->pulseParams[i]->setValue(dtroyWidget->pulseParams[i+1]->value);
-	// 			dtroyWidget->typeParams[i]->setValue(dtroyWidget->typeParams[i+1]->value);
-	// 			dtroyModule->skipState[i] = dtroyModule->skipState[i+1];
-	// 			dtroyModule->slideState[i] = dtroyModule->slideState[i+1];
-	// 		}
-	// 		dtroyWidget->pitchParams[7]->setValue(pitch);
-	// 		dtroyWidget->pulseParams[7]->setValue(pulse);
-	// 		dtroyWidget->typeParams[7]->setValue(type);
-	// 		dtroyModule->skipState[7] = skip;
-	// 		dtroyModule->slideState[7] = slide;
-	// 		dtroyModule->updateFlag = true;
-	// 	}
-	// 	LeftBtn::onMouseDown(e);
-	// }
-};
-
-struct DTROYShiftRightBtn : RightBtn {
-	// void onMouseDown(EventMouseDown &e) override {
-	// 	DTROYWidget *dtroyWidget = dynamic_cast<DTROYWidget*>(this->parent);
-	// 	DTROY *dtroyModule = dynamic_cast<DTROY*>(this->module);
-	// 	if (dtroyModule && dtroyWidget && dtroyModule->updateFlag)
-	// 	{
-	// 		dtroyModule->updateFlag = false;
-	// 		float pitch = dtroyWidget->pitchParams[7]->value;
-	// 		float pulse = dtroyWidget->pulseParams[7]->value;
-	// 		float type = dtroyWidget->typeParams[7]->value;
-	// 		char skip = dtroyModule->skipState[7];
-	// 		char slide = dtroyModule->slideState[7];
-	// 		for (int i = 7; i > 0; i--) {
-	// 			dtroyWidget->pitchParams[i]->setValue(dtroyWidget->pitchParams[i-1]->value);
-	// 			dtroyWidget->pulseParams[i]->setValue(dtroyWidget->pulseParams[i-1]->value);
-	// 			dtroyWidget->typeParams[i]->setValue(dtroyWidget->typeParams[i-1]->value);
-	// 			dtroyModule->skipState[i] = dtroyModule->skipState[i-1];
-	// 			dtroyModule->slideState[i] = dtroyModule->slideState[i-1];
-	// 		}
-	// 		dtroyWidget->pitchParams[0]->setValue(pitch);
-	// 		dtroyWidget->pulseParams[0]->setValue(pulse);
-	// 		dtroyWidget->typeParams[0]->setValue(type);
-	// 		dtroyModule->skipState[0] = skip;
-	// 		dtroyModule->slideState[0] = slide;
-	// 		dtroyModule->updateFlag = true;
-	// 	}
-	// 	RightBtn::onMouseDown(e);
-	// }
-};
-
 struct DTROYWidget : ModuleWidget {
 	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam,
 	 *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam,
 		*pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8],
 		 *pitchRndParams[8], *pulseProbParams[8], *accentParams[8], *rndAccentParams[8];
 
-	void appendContextMenu(ui::Menu *menu) override {
+	void appendContextMenu(ui::Menu *menu) override;
 
-	}
-
-	DTROYWidget(DTROY *module) {
-		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/DTROY.svg")));
-
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
-
-  	{
-  		DTROYDisplay *display = new DTROYDisplay();
-  		display->module = module;
-  		display->box.pos = Vec(20.0f, 217.0f);
-  		display->box.size = Vec(250.0f, 60.0f);
-  		addChild(display);
-  	}
-
-  	addParam(createParam<RoundBlackKnob>(Vec(17.0f, 36.0f), module, DTROY::CLOCK_PARAM));
-  	addParam(createParam<LEDButton>(Vec(61.0f, 40.0f), module, DTROY::RUN_PARAM));
-  	addChild(createLight<SmallLight<GreenLight>>(Vec(67.0f, 46.0f), module, DTROY::RUNNING_LIGHT));
-  	addParam(createParam<LEDButton>(Vec(99.0f, 40.0f), module, DTROY::RESET_PARAM));
-  	addChild(createLight<SmallLight<GreenLight>>(Vec(105.0f, 46.0f), module, DTROY::RESET_LIGHT));
-  	stepsParam = createParam<BidooBlueSnapKnob>(Vec(132.0f, 36.0f), module, DTROY::STEPS_PARAM);
-  	addParam(stepsParam);
-
-  	static const float portX0[4] = {20.0f, 58.0f, 96.0f, 135.0f};
-   	addInput(createInput<PJ301MPort>(Vec(portX0[0], 69.0f), module, DTROY::CLOCK_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(portX0[1], 69.0f), module, DTROY::EXT_CLOCK_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(portX0[2], 69.0f), module, DTROY::RESET_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(portX0[3], 69.0f), module, DTROY::STEPS_INPUT));
-
-  	rootNoteParam = createParam<BidooBlueSnapKnob>(Vec(portX0[0]-2.0f, 116.0f), module, DTROY::ROOT_NOTE_PARAM);
-  	addParam(rootNoteParam);
-  	scaleParam = createParam<BidooBlueSnapKnob>(Vec(portX0[1]-2.0f, 116.0f), module, DTROY::SCALE_PARAM);
-  	addParam(scaleParam);
-  	gateTimeParam = createParam<BidooBlueKnob>(Vec(portX0[2]-2.0f, 116.0f), module, DTROY::GATE_TIME_PARAM);
-  	addParam(gateTimeParam);
-  	slideTimeParam = createParam<BidooBlueKnob>(Vec(portX0[3]-2.0f, 116.0f), module, DTROY::SLIDE_TIME_PARAM);
-  	addParam(slideTimeParam);
-
-  	addInput(createInput<PJ301MPort>(Vec(portX0[0], 149.0f), module, DTROY::ROOT_NOTE_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(portX0[1], 149.0f), module, DTROY::SCALE_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(portX0[2], 149.0f), module, DTROY::GATE_TIME_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(portX0[3], 149.0f), module, DTROY::SLIDE_TIME_INPUT));
-
-  	playModeParam = createParam<BlueCKD6>(Vec(portX0[0]-1.0f, 196.0f), module, DTROY::PLAY_MODE_PARAM);
-  	addParam(playModeParam);
-  	countModeParam = createParam<BlueCKD6>(Vec(portX0[1]-1.0f, 196.0f), module, DTROY::COUNT_MODE_PARAM);
-  	addParam(countModeParam);
-  	addInput(createInput<PJ301MPort>(Vec(portX0[2], 198.0f), module, DTROY::PATTERN_INPUT));
-  	patternParam = createParam<DTROYPatternRoundBlackSnapKnob>(Vec(portX0[3]-1,196.0f), module, DTROY::PATTERN_PARAM);
-  	addParam(patternParam);
-
-  	static const float portX1[8] = {200.0f, 238.0f, 276.0f, 315.0f, 353.0f, 392.0f, 430.0f, 469.0f};
-
-  	sensitivityParam = createParam<BidooBlueTrimpot>(Vec(portX1[6]+21.0f, 18.0f), module, DTROY::SENSITIVITY_PARAM);
-  	addParam(sensitivityParam);
-
-  	addInput(createInput<PJ301MPort>(Vec(portX0[0], 286.0f), module, DTROY::TRANSPOSE_INPUT));
-  	addParam(createParam<DTROYCOPYPASTECKD6>(Vec(portX0[1]-1.0f, 285.0f), module, DTROY::COPY_PARAM));
-  	addChild(createLight<SmallLight<GreenLight>>(Vec(portX0[1]+23.0f, 283.0f), module, DTROY::COPY_LIGHT));
-
-  	addParam(createParam<DTROYShiftLeftBtn>(Vec(104.0f, 290.0f), module, DTROY::LEFT_PARAM));
-  	addParam(createParam<DTROYShiftRightBtn>(Vec(134.0f, 290.0f), module, DTROY::RIGHT_PARAM));
-  	addParam(createParam<DTROYShiftUpBtn>(Vec(119.0f, 282.0f), module, DTROY::UP_PARAM));
-  	addParam(createParam<DTROYShiftDownBtn>(Vec(119.0f, 297.0f), module, DTROY::DOWN_PARAM));
-
-  	for (int i = 0; i < 8; i++) {
-  		pitchParams[i] = createParam<BidooBlueKnob>(Vec(portX1[i]-3.0f, 36.0f), module, DTROY::TRIG_PITCH_PARAM + i);
-  		addParam(pitchParams[i]);
-  		pulseParams[i] = createParam<BidooSlidePotLong>(Vec(portX1[i]+2.0f, 87.0f), module, DTROY::TRIG_COUNT_PARAM + i);
-  		addParam(pulseParams[i]);
-  		typeParams[i] = createParam<BidooSlidePotShort>(Vec(portX1[i]+2.0f, 204.0f), module, DTROY::TRIG_TYPE_PARAM + i);
-  		addParam(typeParams[i]);
-  		slideParams[i] = createParam<LEDButton>(Vec(portX1[i]+2.0f, 297.0f), module, DTROY::TRIG_SLIDE_PARAM + i);
-  		addParam(slideParams[i]);
-  		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+8.0f, 303.0f), module, DTROY::SLIDES_LIGHTS + i));
-  		skipParams[i] = createParam<LEDButton>(Vec(portX1[i]+2.0f, 321.0f), module, DTROY::TRIG_SKIP_PARAM + i);
-  		addParam(skipParams[i]);
-  		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+8.0f, 327.0f), module, DTROY::SKIPS_LIGHTS + i));
-  		addOutput(createOutput<TinyPJ301MPort>(Vec(portX1[i]+4.0f, 344.0f), module, DTROY::STEP_OUTPUT + i));
-  	}
-
-  	addInput(createInput<PJ301MPort>(Vec(portX0[0], 331.0f), module, DTROY::EXTGATE1_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(portX0[1], 331.0f), module, DTROY::EXTGATE2_INPUT));
-  	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-1, 331.0f), module, DTROY::GATE_OUTPUT));
-  	addOutput(createOutput<PJ301MPort>(Vec(portX0[3]-1, 331.0f), module, DTROY::PITCH_OUTPUT));
-  }
+	DTROYWidget(DTROY *module);
 };
 
+DTROYWidget::DTROYWidget(DTROY *module) {
+	setModule(module);
+	setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/DTROY.svg")));
+
+	addChild(createWidget<ScrewSilver>(Vec(15, 0)));
+	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
+	addChild(createWidget<ScrewSilver>(Vec(15, 365)));
+	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+
+	{
+		DTROYDisplay *display = new DTROYDisplay();
+		display->module = module;
+		display->box.pos = Vec(20.0f, 217.0f);
+		display->box.size = Vec(250.0f, 60.0f);
+		addChild(display);
+	}
+
+	addParam(createParam<RoundBlackKnob>(Vec(17.0f, 36.0f), module, DTROY::CLOCK_PARAM));
+	addParam(createParam<LEDButton>(Vec(61.0f, 40.0f), module, DTROY::RUN_PARAM));
+	addChild(createLight<SmallLight<GreenLight>>(Vec(67.0f, 46.0f), module, DTROY::RUNNING_LIGHT));
+	addParam(createParam<LEDButton>(Vec(99.0f, 40.0f), module, DTROY::RESET_PARAM));
+	addChild(createLight<SmallLight<GreenLight>>(Vec(105.0f, 46.0f), module, DTROY::RESET_LIGHT));
+	stepsParam = createParam<BidooBlueSnapKnob>(Vec(132.0f, 36.0f), module, DTROY::STEPS_PARAM);
+	addParam(stepsParam);
+
+	static const float portX0[4] = {20.0f, 58.0f, 96.0f, 135.0f};
+ 	addInput(createInput<PJ301MPort>(Vec(portX0[0], 69.0f), module, DTROY::CLOCK_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[1], 69.0f), module, DTROY::EXT_CLOCK_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[2], 69.0f), module, DTROY::RESET_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[3], 69.0f), module, DTROY::STEPS_INPUT));
+
+	rootNoteParam = createParam<BidooBlueSnapKnob>(Vec(portX0[0]-2.0f, 116.0f), module, DTROY::ROOT_NOTE_PARAM);
+	addParam(rootNoteParam);
+	scaleParam = createParam<BidooBlueSnapKnob>(Vec(portX0[1]-2.0f, 116.0f), module, DTROY::SCALE_PARAM);
+	addParam(scaleParam);
+	gateTimeParam = createParam<BidooBlueKnob>(Vec(portX0[2]-2.0f, 116.0f), module, DTROY::GATE_TIME_PARAM);
+	addParam(gateTimeParam);
+	slideTimeParam = createParam<BidooBlueKnob>(Vec(portX0[3]-2.0f, 116.0f), module, DTROY::SLIDE_TIME_PARAM);
+	addParam(slideTimeParam);
+
+	addInput(createInput<PJ301MPort>(Vec(portX0[0], 149.0f), module, DTROY::ROOT_NOTE_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[1], 149.0f), module, DTROY::SCALE_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[2], 149.0f), module, DTROY::GATE_TIME_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[3], 149.0f), module, DTROY::SLIDE_TIME_INPUT));
+
+	playModeParam = createParam<BlueCKD6>(Vec(portX0[0]-1.0f, 196.0f), module, DTROY::PLAY_MODE_PARAM);
+	addParam(playModeParam);
+	countModeParam = createParam<BlueCKD6>(Vec(portX0[1]-1.0f, 196.0f), module, DTROY::COUNT_MODE_PARAM);
+	addParam(countModeParam);
+	addInput(createInput<PJ301MPort>(Vec(portX0[2], 198.0f), module, DTROY::PATTERN_INPUT));
+	patternParam = createParam<RoundBlackSnapKnob>(Vec(portX0[3]-1,196.0f), module, DTROY::PATTERN_PARAM);
+	addParam(patternParam);
+
+	static const float portX1[8] = {200.0f, 238.0f, 276.0f, 315.0f, 353.0f, 392.0f, 430.0f, 469.0f};
+
+	sensitivityParam = createParam<BidooBlueTrimpot>(Vec(portX1[6]+21.0f, 18.0f), module, DTROY::SENSITIVITY_PARAM);
+	addParam(sensitivityParam);
+
+	addInput(createInput<PJ301MPort>(Vec(portX0[0], 286.0f), module, DTROY::TRANSPOSE_INPUT));
+	addParam(createParam<BlueCKD6>(Vec(portX0[1]-1.0f, 285.0f), module, DTROY::COPY_PARAM));
+	addChild(createLight<SmallLight<GreenLight>>(Vec(portX0[1]+23.0f, 283.0f), module, DTROY::COPY_LIGHT));
+
+	addParam(createParam<LeftBtn>(Vec(104.0f, 290.0f), module, DTROY::LEFT_PARAM));
+	addParam(createParam<RightBtn>(Vec(134.0f, 290.0f), module, DTROY::RIGHT_PARAM));
+	addParam(createParam<UpBtn>(Vec(119.0f, 282.0f), module, DTROY::UP_PARAM));
+	addParam(createParam<DownBtn>(Vec(119.0f, 297.0f), module, DTROY::DOWN_PARAM));
+
+	for (int i = 0; i < 8; i++) {
+		pitchParams[i] = createParam<BidooBlueKnob>(Vec(portX1[i]-3.0f, 36.0f), module, DTROY::TRIG_PITCH_PARAM + i);
+		addParam(pitchParams[i]);
+		pulseParams[i] = createParam<BidooSlidePotLong>(Vec(portX1[i]+2.0f, 87.0f), module, DTROY::TRIG_COUNT_PARAM + i);
+		addParam(pulseParams[i]);
+		typeParams[i] = createParam<BidooSlidePotShort>(Vec(portX1[i]+2.0f, 204.0f), module, DTROY::TRIG_TYPE_PARAM + i);
+		addParam(typeParams[i]);
+		slideParams[i] = createParam<LEDButton>(Vec(portX1[i]+2.0f, 297.0f), module, DTROY::TRIG_SLIDE_PARAM + i);
+		addParam(slideParams[i]);
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+8.0f, 303.0f), module, DTROY::SLIDES_LIGHTS + i));
+		skipParams[i] = createParam<LEDButton>(Vec(portX1[i]+2.0f, 321.0f), module, DTROY::TRIG_SKIP_PARAM + i);
+		addParam(skipParams[i]);
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+8.0f, 327.0f), module, DTROY::SKIPS_LIGHTS + i));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(portX1[i]+4.0f, 344.0f), module, DTROY::STEP_OUTPUT + i));
+	}
+
+	addInput(createInput<PJ301MPort>(Vec(portX0[0], 331.0f), module, DTROY::EXTGATE1_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[1], 331.0f), module, DTROY::EXTGATE2_INPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-1, 331.0f), module, DTROY::GATE_OUTPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(portX0[3]-1, 331.0f), module, DTROY::PITCH_OUTPUT));
+}
 
 struct DTROYRandPitchItem : MenuItem {
-	// DTROYWidget *dtroyWidget;
-	// void onAction(EventAction &e) override {
-	// 	for (int i = 0; i < 8; i++){
-	// 		int index = DTROY::TRIG_PITCH_PARAM + i;
-	// 		auto it = std::find_if(dtroyWidget->params.begin(), dtroyWidget->params.end(), [&index](const ParamWidget* m) -> bool { return m->paramId == index; });
-	// 		if (it != dtroyWidget->params.end())
-	// 		{
-	// 			auto index = std::distance(dtroyWidget->params.begin(), it);
-	// 			dtroyWidget->params[index]->randomize();
-	// 		}
-	// 	}
-	// }
+	DTROY *module;
+	void onAction(const event::Action &e) override {
+		module->randomizePitch();
+	}
 };
 
 struct DTROYRandGatesItem : MenuItem {
-	// DTROYWidget *dtroyWidget;
-	// void onAction(EventAction &e) override {
-	// 	for (int i = 0; i < 8; i++){
-	// 		int index = DTROY::TRIG_COUNT_PARAM + i;
-	// 		auto it = std::find_if(dtroyWidget->params.begin(), dtroyWidget->params.end(), [&index](const ParamWidget* m) -> bool { return m->paramId == index; });
-	// 		if (it != dtroyWidget->params.end())
-	// 		{
-	// 			auto index = std::distance(dtroyWidget->params.begin(), it);
-	// 			dtroyWidget->params[index]->randomize();
-	// 		}
-	// 	}
-	// 	for (int i = 0; i < 8; i++){
-	// 			int index = DTROY::TRIG_TYPE_PARAM + i;
-	// 			auto it = std::find_if(dtroyWidget->params.begin(), dtroyWidget->params.end(), [&index](const ParamWidget* m) -> bool { return m->paramId == index; });
-	// 			if (it != dtroyWidget->params.end())
-	// 			{
-	// 				auto index = std::distance(dtroyWidget->params.begin(), it);
-	// 			dtroyWidget->params[index]->randomize();
-	// 		}
-	// 	}
-	// }
+	DTROY *module;
+	void onAction(const event::Action &e) override {
+		module->randomizeGates();
+	}
 };
 
 struct DTROYRandSlideSkipItem : MenuItem {
-	// DTROY *dtroyModule;
-	// void onAction(EventAction &e) override {
-	// 	dtroyModule->randomizeSlidesSkips();
-	// }
+	DTROY *module;
+	void onAction(const event::Action &e) override {
+		module->randomizeSlidesSkips();
+	}
 };
 
 struct DTROYStepOutputsModeItem : MenuItem {
-	// DTROY *dtroyModule;
-	// void onAction(EventAction &e) override {
-	// 	dtroyModule->stepOutputsMode = !dtroyModule->stepOutputsMode;
-	// }
-	// void step() override {
-	// 	rightText = dtroyModule->stepOutputsMode ? "✔" : "";
-	// 	MenuItem::step();
-	// }
+	DTROY *module;
+	void onAction(const event::Action &e) override {
+		module->stepOutputsMode = !module->stepOutputsMode;
+	}
+	void step() override {
+		rightText = module->stepOutputsMode ? "✔" : "";
+		MenuItem::step();
+	}
 };
 
-struct DisconnectMenuItem : MenuItem {
-	// ModuleWidget *moduleWidget;
-	// void onAction(EventAction &e) override {
-	// 	moduleWidget->disconnect();
-	// }
-};
+void DTROYWidget::appendContextMenu(ui::Menu *menu) {
+	DTROY *module = dynamic_cast<DTROY*>(this->module);
+	assert(module);
 
-struct ResetMenuItem : MenuItem {
-	// DTROYWidget *dtroyWidget;
-	// DTROY *dtroy;
-	// void onAction(EventAction &e) override {
-	// 	for (int i = 0; i < DTROY::NUM_PARAMS; i++){
-	// 		if (i != DTROY::PATTERN_PARAM) {
-	// 			auto it = std::find_if(dtroyWidget->params.begin(), dtroyWidget->params.end(), [&i](const ParamWidget* m) -> bool { return m->paramId == i; });
-	// 			if (it != dtroyWidget->params.end())
-	// 			{
-	// 				auto index = std::distance(dtroyWidget->params.begin(), it);
-	// 				dtroyWidget->params[index]->setValue(dtroyWidget->params[index]->defaultValue);
-	// 			}
-	// 		}
-	// 	}
-	// 	dtroy->updateFlag = false;
-	// 	dtroy->reset();
-	// 	dtroy->playMode = 0;
-	// 	dtroy->countMode = 0;
-	// 	dtroy->updateFlag = true;
-	// }
-};
-
-struct RandomizeMenuItem : MenuItem {
-	// ModuleWidget *moduleWidget;
-	// void onAction(EventAction &e) override {
-	// 	moduleWidget->randomize();
-	// }
-};
-
-struct CloneMenuItem : MenuItem {
-	// ModuleWidget *moduleWidget;
-	// void onAction(EventAction &e) override {
-	// 	gRackWidget->cloneModule(moduleWidget);
-	// }
-};
-
-struct DeleteMenuItem : MenuItem {
-	// ModuleWidget *moduleWidget;
-	// void onAction(EventAction &e) override {
-	// 	gRackWidget->deleteModule(moduleWidget);
-	// 	moduleWidget->finalizeEvents();
-	// 	delete moduleWidget;
-	// }
-};
+	menu->addChild(construct<MenuLabel>());
+	menu->addChild(construct<DTROYRandPitchItem>(&MenuItem::text, "Rand pitch", &DTROYRandPitchItem::module, module));
+	menu->addChild(construct<DTROYRandGatesItem>(&MenuItem::text, "Rand gates", &DTROYRandGatesItem::module, module));
+	menu->addChild(construct<DTROYRandSlideSkipItem>(&MenuItem::text, "Rand slides & skips", &DTROYRandSlideSkipItem::module, module));
+	menu->addChild(construct<DTROYStepOutputsModeItem>(&MenuItem::text, "Step outputs mode", &DTROYStepOutputsModeItem::module, module));
+}
 
 Model *modelDTROY = createModel<DTROY, DTROYWidget>("dTrOY");
