@@ -322,7 +322,6 @@ struct DTROY : Module {
 	dsp::SchmittTrigger downTrigger;
 	dsp::SchmittTrigger leftTrigger;
 	dsp::SchmittTrigger rightTrigger;
-
 	float phase = 0.0f;
 	int index = 0;
 	bool reStart = true;
@@ -766,8 +765,8 @@ void DTROY::process(const ProcessArgs &args) {
 			float pitch = params[TRIG_PITCH_PARAM+7].getValue();
 			float pulse = params[TRIG_COUNT_PARAM+7].getValue();
 			float type = params[TRIG_TYPE_PARAM+7].getValue();
-			char skip = skipState[0];
-			char slide = slideState[0];
+			char skip = skipState[7];
+			char slide = slideState[7];
 			for (int i = 7; i > 0; i--) {
 				params[TRIG_PITCH_PARAM+i].setValue(params[TRIG_PITCH_PARAM+i-1].getValue());
 				params[TRIG_COUNT_PARAM+i].setValue(params[TRIG_COUNT_PARAM+i-1].getValue());
