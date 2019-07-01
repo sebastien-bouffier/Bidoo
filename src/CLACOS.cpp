@@ -259,10 +259,10 @@ struct CLACOS : Module {
 
 		for (int i = 0; i < 4; i++) {
 			if (inputs[DIST_X_INPUT + i].isConnected())
-				phaseDistX[i] = rescale(clamp(inputs[DIST_X_INPUT + i].getVoltage(), 0.0f, 10.0f), 0.0f, 10.0f, 0.01f, 0.99f);
+				phaseDistX[i] = rescale(clamp(inputs[DIST_X_INPUT + i].getVoltage(), 0.0f, 10.0f), 0.0f, 10.0f, 0.01f, 0.98f);
 
 			if (inputs[DIST_Y_INPUT + i].isConnected())
-				phaseDistY[i] = rescale(clamp(inputs[DIST_Y_INPUT + i].getVoltage(), 0.0f, 10.0f), 0.0f, 10.0f, 0.01f, 0.99f);
+				phaseDistY[i] = rescale(clamp(inputs[DIST_Y_INPUT + i].getVoltage(), 0.0f, 10.0f), 0.0f, 10.0f, 0.01f, 0.98f);
 		}
 
 		float pitchFine = 3.0f * dsp::quadraticBipolar(params[FINE_PARAM].getValue());
@@ -332,9 +332,9 @@ struct CLACOSDisplay : TransparentWidget {
 	float dragY = 0.0f;
 
 	CLACOSDisplay() {}
-	
+
 	void onDragStart(const event::DragStart &e) override {
-		
+
 		dragX = APP->scene->rack->mousePos.x;
 		dragY = APP->scene->rack->mousePos.y;
 	}
@@ -347,7 +347,7 @@ struct CLACOSDisplay : TransparentWidget {
 			module->phaseDistY[segmentNumber] = rescale(clamp(initY - (newDragY - dragY), 0.0f, 70.0f), 0.0f, 70.0f, 0.01f, 0.99f);
 		}
 	}
-	
+
 	void onButton(const event::Button &e) override {
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT) {
 			e.consume(this);
@@ -356,7 +356,7 @@ struct CLACOSDisplay : TransparentWidget {
 			initY = 70.0f - e.pos.y;
 		}
 	}
-	
+
 	void draw(const DrawArgs &args) override {
 		if (++frame >= 4) {
 			frame = 0;
@@ -397,7 +397,7 @@ struct CLACOSDisplay : TransparentWidget {
 		}
 		nvgStroke(args.vg);
 	}
-	
+
 };
 
 

@@ -140,7 +140,7 @@ void CURT::process(const ProcessArgs &args) {
 		writeSteps = 0;
 	}
 
-	outputs[OUTPUT].value = *out_Buffer.startData();
+	outputs[OUTPUT].setVoltage(*out_Buffer.startData());
 	out_Buffer.startIncr(1);
 	out_Buffer.push(0.0f);
 }

@@ -164,7 +164,7 @@ void ACNE::process(const ProcessArgs &args) {
 	rampSize = static_cast<int>(args.sampleRate*params[RAMP_PARAM].value);
 
 	if (inputs[SNAPSHOT_INPUT].active) {
-		int newSnapshot = clamp((int)(inputs[SNAPSHOT_INPUT].value * 16 * 0.1f),0,ACNE_NB_SNAPSHOTS-1);
+		int newSnapshot = clamp((int)(inputs[SNAPSHOT_INPUT].getVoltage() * 16 * 0.1f),0,ACNE_NB_SNAPSHOTS-1);
 		if (currentSnapshot != newSnapshot) {
 			previousSnapshot = currentSnapshot;
 			currentSnapshot = newSnapshot;
@@ -174,7 +174,7 @@ void ACNE::process(const ProcessArgs &args) {
 	}
 	else {
 		for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
-			if (snapshotTriggers[i].process(params[SNAPSHOT_PARAMS + i].value)) {
+			if (snapshotTriggers[i].process(params[SNAPSHOT_PARAMS + i].getValue())) {
 				previousSnapshot = currentSnapshot;
 				currentSnapshot = i;
 				rampSteps = rampSize;
@@ -184,13 +184,13 @@ void ACNE::process(const ProcessArgs &args) {
 	}
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
-		if (outMutesTriggers[i].process(params[OUT_MUTE_PARAMS + i].value)) {
+		if (outMutesTriggers[i].process(params[OUT_MUTE_PARAMS + i].getValue())) {
 			outMutes[i] = !outMutes[i];
 		}
 	}
 
 	for (int i = 0; i < 8; i++) {
-		if (linksTriggers[i].process(params[TRACKLINK_PARAMS + i].value))
+		if (linksTriggers[i].process(params[TRACKLINK_PARAMS + i].getValue()))
 			links[i] = !links[i];
 
 		lights[TRACKLINK_LIGHTS + i].value = (links[i] == true) ? 1 : 0;
@@ -199,7 +199,7 @@ void ACNE::process(const ProcessArgs &args) {
 	for (int i = 0; i < ACNE_NB_TRACKS; i++) {
 		int linkIndex = i/2;
 		int linkSwitch = i%2;
-		if (inMutesTriggers[i].process(params[IN_MUTE_PARAMS + i].value)) {
+		if (inMutesTriggers[i].process(params[IN_MUTE_PARAMS + i].getValue())) {
 			inMutes[i] = !inMutes[i];
 			if (links[linkIndex]) {
 				if (linkSwitch == 0)
@@ -208,7 +208,7 @@ void ACNE::process(const ProcessArgs &args) {
 					inMutes[i-1] = inMutes[i];
 			}
 		}
-		if (inSoloTriggers[i].process(params[IN_SOLO_PARAMS + i].value)) {
+		if (inSoloTriggers[i].process(params[IN_SOLO_PARAMS + i].getValue())) {
 			inSolo[i] = !inSolo[i];
 			if (links[linkIndex]) {
 				if (linkSwitch == 0)
@@ -219,26 +219,26 @@ void ACNE::process(const ProcessArgs &args) {
 		}
 	}
 
-	if (muteTrigger.process(params[MUTE_PARAM].value)) {
+	if (muteTrigger.process(params[MUTE_PARAM].getValue())) {
 		for (int i = 0; i < ACNE_NB_TRACKS; i++) {
 			inMutes[i] = false;
 		}
 	}
 
-	if (muteTrigger.process(params[SEND_MUTE_PARAM].value)) {
+	if (muteTrigger.process(params[SEND_MUTE_PARAM].getValue())) {
 		for (int i = 0; i < ACNE_NB_OUTS; i++) {
 			outMutes[i] = false;
 		}
 	}
 
-	if (soloTrigger.process(params[SOLO_PARAM].value)) {
+	if (soloTrigger.process(params[SOLO_PARAM].getValue())) {
 		for (int i = 0; i < ACNE_NB_TRACKS; i++) {
 			inSolo[i] = false;
 		}
 	}
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
-		outputs[TRACKS_OUTPUTS + i].value = 0.0f;
+		outputs[TRACKS_OUTPUTS + i].setVoltage(0.0f);
 		if (!outMutes[i]) {
 			int sum = 0;
 			for (int s = 0; s < ACNE_NB_TRACKS; ++s) {

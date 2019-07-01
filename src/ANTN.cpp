@@ -297,8 +297,8 @@ void ANTN::process(const ProcessArgs &args) {
 
   if (read) {
     dsp::Frame<2> currentFrame = *dataAudioRingBuffer.startData();
-    outputs[OUTL_OUTPUT].value = 5.0f*currentFrame.samples[0]*params[GAIN_PARAM].value;
-    outputs[OUTR_OUTPUT].value = 5.0f*currentFrame.samples[1]*params[GAIN_PARAM].value;
+    outputs[OUTL_OUTPUT].setVoltage(5.0f*currentFrame.samples[0]*params[GAIN_PARAM].getValue());
+    outputs[OUTR_OUTPUT].setVoltage(5.0f*currentFrame.samples[1]*params[GAIN_PARAM].getValue());
     dataAudioRingBuffer.startIncr(1);
   }
 }
