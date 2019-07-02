@@ -148,7 +148,6 @@
     {
       "slug": "ForK",
       "name": "ForK",
-      "disabled": true,
       "description": "ForK",
       "tags": [
         "Oscillator"

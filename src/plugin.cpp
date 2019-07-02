@@ -21,7 +21,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelEMILE);
 	p->addModel(modelDUKE);
 	p->addModel(modelMOIRE);
-	// p->addModel(modelFORK);
+	p->addModel(modelFORK);
 	p->addModel(modelGARCON);
 	p->addModel(modelTIARE);
 	p->addModel(modelCLACOS);
