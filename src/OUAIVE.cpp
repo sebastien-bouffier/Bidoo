@@ -121,8 +121,8 @@ void OUAIVE::loadSample(std::string path) {
   pSampleData = drwav_open_and_read_file_f32(path.c_str(), &c, &sr, &sc);
   if (pSampleData != NULL)  {
 		lastPath = path;
-    waveFileName = string::filename(lastPath);
-    waveExtension = string::filenameBase(lastPath);
+    waveFileName = rack::string::filename(lastPath);
+    waveExtension = rack::string::filenameBase(lastPath);
 		channels = c;
 		sampleRate = sr;
 		playBuffer[0].clear();

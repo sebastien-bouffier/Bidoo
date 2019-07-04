@@ -123,7 +123,7 @@ void * threadReadTask(threadReadData data)
   std::string zeUrl;
   data.secUrl == "" ? zeUrl = data.url : zeUrl = data.secUrl;
   zeUrl.erase(std::remove_if(zeUrl.begin(), zeUrl.end(), [](unsigned char x){return std::isspace(x);}), zeUrl.end());
-  if (string::filenameExtension(data.url) == "pls") {
+  if (rack::string::filenameExtension(data.url) == "pls") {
     istringstream iss(zeUrl);
     for (std::string line; std::getline(iss, line); )
     {
@@ -273,7 +273,7 @@ void ANTN::process(const ProcessArgs &args) {
     tDl.store(true);
     rData.url = url;
     rData.sr = args.sampleRate;
-    if ((string::filenameExtension(rData.url) == "m3u") || (string::filenameExtension(rData.url) == "pls")) {
+    if ((rack::string::filenameExtension(rData.url) == "m3u") || (rack::string::filenameExtension(rData.url) == "pls")) {
       rThread = thread(urlTask, std::ref(rData));
     }
     else {

@@ -131,8 +131,8 @@ struct CANARD : Module {
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		if (lastPathJ) {
 			lastPath = json_string_value(lastPathJ);
-			waveFileName = string::filename(lastPath);
-			waveExtension = string::filenameBase(lastPath);
+			waveFileName = rack::string::filename(lastPath);
+			waveExtension = rack::string::filenameBase(lastPath);
 			loadSample(lastPath);
 			if (totalSampleCount>0) {
 				json_t *slicesJ = json_object_get(rootJ, "slices");
@@ -158,8 +158,8 @@ void CANARD::loadSample(std::string path) {
   pSampleData = drwav_open_and_read_file_f32(path.c_str(), &c, &sr, &sc);
   if (pSampleData != NULL)  {
 		lastPath = path;
-		waveFileName = string::filename(path);
-		waveExtension = string::filenameBase(path);
+		waveFileName = rack::string::filename(path);
+		waveExtension = rack::string::filenameBase(path);
 		channels = c;
 		sampleRate = sr;
 		slices.clear();
@@ -802,8 +802,8 @@ struct CANARDWidget : ModuleWidget {
 			char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), (fileName).c_str(), NULL);
 			if (path) {
 				module->lastPath = path;
-				module->waveFileName = string::filenameBase(path);
-				module->waveExtension = string::filenameExtension(path);
+				module->waveFileName = rack::string::filenameBase(path);
+				module->waveExtension = rack::string::filenameExtension(path);
 				drwav_data_format format;
 		    format.container = drwav_container_riff;
 		    format.format = DR_WAVE_FORMAT_PCM;
