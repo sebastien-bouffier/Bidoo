@@ -785,7 +785,7 @@ struct CANARDWidget : ModuleWidget {
 	struct CANARDLoadSample : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
-			std::string dir = module->lastPath.empty() ? asset::user("") : string::directory(module->lastPath);
+			std::string dir = module->lastPath.empty() ? asset::user("") : rack::string::directory(module->lastPath);
 			char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
 			if (path) {
 				module->loadSample(path);
@@ -797,7 +797,7 @@ struct CANARDWidget : ModuleWidget {
 	struct CANARDSaveSample : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
-			std::string dir = module->lastPath.empty() ? asset::user("") : string::directory(module->lastPath);
+			std::string dir = module->lastPath.empty() ? asset::user("") : rack::string::directory(module->lastPath);
 			std::string fileName = module->waveFileName.empty() ? "temp.wav" : module->waveFileName;
 			char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), (fileName).c_str(), NULL);
 			if (path) {
