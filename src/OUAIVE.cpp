@@ -475,7 +475,7 @@ struct OUAIVEWidget : ModuleWidget {
   	OUAIVE *module;
   	void onAction(const event::Action &e) override {
 
-  		std::string dir = module->lastPath.empty() ? asset::user("") : string::directory(module->lastPath);
+  		std::string dir = module->lastPath.empty() ? asset::user("") : rack::string::directory(module->lastPath);
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
   			module->play = false;
