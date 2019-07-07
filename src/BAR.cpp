@@ -48,7 +48,7 @@ struct BAR : Module {
 	BAR() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(THRESHOLD_PARAM, -93.6f, 0.0f, 0.0f, "Threshold");
-		configParam(RATIO_PARAM, 1.0f, 20.0f, 0.0f, "Ratio");
+		configParam(RATIO_PARAM, 1.0f, 20.0f, 1.0f, "Ratio");
 		configParam(ATTACK_PARAM, 1.0f, 100.0f, 10.0f, "Attack");
 		configParam(RELEASE_PARAM, 1.0f, 300.0f, 10.0f, "Release");
 		configParam(KNEE_PARAM, 0.0f, 24.0f, 6.0f, "Knee");
@@ -81,20 +81,20 @@ void BAR::process(const ProcessArgs &args) {
 	indexVU++;
 	indexRMS++;
 
-	buffL[lookAheadWriteIndex]=inputs[IN_L_INPUT].value;
-	buffR[lookAheadWriteIndex]=inputs[IN_R_INPUT].value;
+	buffL[lookAheadWriteIndex]=inputs[IN_L_INPUT].getVoltage();
+	buffR[lookAheadWriteIndex]=inputs[IN_R_INPUT].getVoltage();
 
 	if (!inputs[SC_L_INPUT].active && inputs[IN_L_INPUT].active)
-		in_L_dBFS = max(20.0f*log10((abs(inputs[IN_L_INPUT].value)+1e-6f) * 0.2f), -96.3f);
+		in_L_dBFS = max(20.0f*log10((abs(inputs[IN_L_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
 	else if (inputs[SC_L_INPUT].active)
-		in_L_dBFS = max(20.0f*log10((abs(inputs[SC_L_INPUT].value)+1e-6f) * 0.2f), -96.3f);
+		in_L_dBFS = max(20.0f*log10((abs(inputs[SC_L_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
 	else
 		in_L_dBFS = -96.3f;
 
 	if (!inputs[SC_R_INPUT].active && inputs[IN_R_INPUT].active)
-		in_R_dBFS = max(20.0f*log10((abs(inputs[IN_R_INPUT].value)+1e-6f) * 0.2f), -96.3f);
+		in_R_dBFS = max(20.0f*log10((abs(inputs[IN_R_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
 	else if (inputs[SC_R_INPUT].active)
-		in_R_dBFS = max(20.0f*log10((abs(inputs[SC_R_INPUT].value)+1e-6f) * 0.2f), -96.3f);
+		in_R_dBFS = max(20.0f*log10((abs(inputs[SC_R_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
 	else
 		in_R_dBFS = -96.3f;
 
@@ -118,12 +118,12 @@ void BAR::process(const ProcessArgs &args) {
 	vu_L = clamp(-1 * sqrtf(runningVU_L_Sum/16384), -96.3f,0.0f);
 	rms_R = clamp(-1 * sqrtf(runningRMS_R_Sum/512), -96.3f,0.0f);
 	vu_R = clamp(-1 * sqrtf(runningVU_R_Sum/16384), -96.3f,0.0f);
-	threshold = params[THRESHOLD_PARAM].value;
-	attackTime = params[ATTACK_PARAM].value;
-	releaseTime = params[RELEASE_PARAM].value;
-	ratio = params[RATIO_PARAM].value;
-	knee = params[KNEE_PARAM].value;
-	makeup = params[MAKEUP_PARAM].value;
+	threshold = params[THRESHOLD_PARAM].getValue();
+	attackTime = params[ATTACK_PARAM].getValue();
+	releaseTime = params[RELEASE_PARAM].getValue();
+	ratio = params[RATIO_PARAM].getValue();
+	knee = params[KNEE_PARAM].getValue();
+	makeup = params[MAKEUP_PARAM].getValue();
 
 	if (in_L_dBFS>peakL)
 		peakL=in_L_dBFS;
@@ -163,8 +163,8 @@ void BAR::process(const ProcessArgs &args) {
 	gaindB = makeup + postGain;
 	gain = pow(10.0f, gaindB/20.0f);
 
-	mix = params[MIX_PARAM].value;
-	lookAhead = params[LOOKAHEAD_PARAM].value;
+	mix = params[MIX_PARAM].getValue();
+	lookAhead = params[LOOKAHEAD_PARAM].getValue();
 
 	int nbSamples = clamp(floor(lookAhead * attackTime * args.sampleRate * 0.000001f),0.0f,19999.0f);
 	int readIndex;
@@ -174,8 +174,8 @@ void BAR::process(const ProcessArgs &args) {
 		readIndex = 20000 - abs(lookAheadWriteIndex-nbSamples);
 	}
 
-	outputs[OUT_L_OUTPUT].value = buffL[readIndex] * (gain*mix + (1.0f - mix));
-	outputs[OUT_R_OUTPUT].value = buffR[readIndex] * (gain*mix + (1.0f - mix));
+	outputs[OUT_L_OUTPUT].setVoltage(buffL[readIndex] * (gain*mix + (1.0f - mix)));
+	outputs[OUT_R_OUTPUT].setVoltage(buffR[readIndex] * (gain*mix + (1.0f - mix)));
 
 	lookAheadWriteIndex = (lookAheadWriteIndex+1)%20000;
 }
