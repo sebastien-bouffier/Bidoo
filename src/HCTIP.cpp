@@ -33,12 +33,11 @@ struct HCTIP : Module {
 	HCTIP() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(PITCH_PARAM, 0.5f, 2.0f, 1.0f, "Pitch");
-
 		pShifter = new PitchShifter(BUFF_SIZE, 8, APP->engine->getSampleRate());
 	}
 
 	void process(const ProcessArgs &args) override {
-		in_Buffer.push(inputs[INPUT].isConnected() ? inputs[INPUT].getVoltage() / 10.0f : 0.0f);
+		in_Buffer.push(inputs[INPUT].getVoltage() / 10.0f);
 
 		if (in_Buffer.full()) {
 			pShifter->process(clamp(params[PITCH_PARAM].getValue() + inputs[PITCH_INPUT].getVoltage(), 0.5f, 2.0f), in_Buffer.startData(), out_Buffer.endData());
@@ -47,16 +46,14 @@ struct HCTIP : Module {
 		}
 
 		if (out_Buffer.size() > 0) {
-			outputs[OUTPUT].setVoltage(*out_Buffer.startData() * 5.0f * (inputs[INPUT].isConnected() ? 1.0f : 0.0f)); // x * 1 || 0 == x, disposable??
+			outputs[OUTPUT].setVoltage(*out_Buffer.startData() * 5.0f); // x * 1 || 0 == x, disposable??
 			out_Buffer.startIncr(1);
 		}
 	}
 
 	~HCTIP() {
-		delete pShifter;
+	
 	}
-
-
 };
 
 struct HCTIPWidget : ModuleWidget {
@@ -69,13 +66,9 @@ struct HCTIPWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-
 		addParam(createParam<BidooBlueKnob>(Vec(8, 100), module, HCTIP::PITCH_PARAM));
-
 		addInput(createInput<PJ301MPort>(Vec(10, 150.66f), module, HCTIP::PITCH_INPUT));
-
 		addInput(createInput<PJ301MPort>(Vec(10, 242.66f), module, HCTIP::INPUT));
-
 		addOutput(createOutput<PJ301MPort>(Vec(10, 299), module, HCTIP::OUTPUT));
 	}
 };

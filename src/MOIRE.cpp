@@ -293,8 +293,6 @@ void MOIREWidget::step() {
 		if (module && !module->controlFocused[i]){
 			MOIREColoredKnob* knob = dynamic_cast<MOIREColoredKnob*>(controls[i]);
       knob->paramQuantity->setValue(module->currentValues[i]);
-			// engineSetParam(module, controls[i]->paramId, module->currentValues[i]);
-			// knob->setValueNoEngine(module->currentValues[i]);
 		}
 	}
 	ModuleWidget::step();
