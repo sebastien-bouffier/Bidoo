@@ -55,6 +55,7 @@ struct CANARD : Module {
 
 	bool play = false;
 	bool record = false;
+	bool save = false;
 	unsigned int channels = 2;
   unsigned int sampleRate = 0;
   drwav_uint64 totalSampleCount = 0;
@@ -112,6 +113,7 @@ struct CANARD : Module {
 	void calcLoop();
 	void initPos();
 	void loadSample(std::string path);
+	void saveSample();
 
 	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
@@ -179,6 +181,27 @@ void CANARD::loadSample(std::string path) {
 	loading = false;
 }
 
+void CANARD::saveSample() {
+	drwav_data_format format;
+	format.container = drwav_container_riff;
+	format.format = DR_WAVE_FORMAT_PCM;
+	format.channels = 2;
+	format.sampleRate = sampleRate;
+	format.bitsPerSample = 32;
+
+	int *pSamples = (int*)calloc(2*totalSampleCount,sizeof(int));
+	memset(pSamples, 0, 2*totalSampleCount*sizeof(int));
+	for (unsigned int i = 0; i < totalSampleCount; i++) {
+		*(pSamples+2*i)= floor(playBuffer[0][i]*2147483647);
+		*(pSamples+2*i+1)= floor(playBuffer[1][i]*2147483647);
+	}
+
+	drwav* pWav = drwav_open_file_write(lastPath.c_str(), &format);
+	drwav_write(pWav, 2*totalSampleCount, pSamples);
+	drwav_close(pWav);
+	free(pSamples);
+}
+
 void CANARD::calcLoop() {
 	prevPlayedSlice = index;
 	index = 0;
@@ -218,6 +241,10 @@ void CANARD::initPos() {
 
 void CANARD::process(const ProcessArgs &args) {
 	sampleRate = args.sampleRate;
+	if (save) {
+		saveSample();
+		save = false;
+	}
 	if (!loading) {
 		if (clearTrigger.process(inputs[CLEAR_INPUT].value + params[CLEAR_PARAM].value))
 		{
@@ -799,25 +826,12 @@ struct CANARDWidget : ModuleWidget {
 		void onAction(const event::Action &e) override {
 			std::string dir = module->lastPath.empty() ? asset::user("") : rack::string::directory(module->lastPath);
 			std::string fileName = module->waveFileName.empty() ? "temp.wav" : module->waveFileName;
-			char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), (fileName).c_str(), NULL);
+			char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), fileName.c_str(), NULL);
 			if (path) {
 				module->lastPath = path;
 				module->waveFileName = rack::string::filenameBase(path);
 				module->waveExtension = rack::string::filenameExtension(path);
-				drwav_data_format format;
-		    format.container = drwav_container_riff;
-		    format.format = DR_WAVE_FORMAT_PCM;
-		    format.channels = 2;
-		    format.sampleRate = module->sampleRate;
-		    format.bitsPerSample = 32;
-		    drwav* pWav = drwav_open_file_write(path, &format);
-				int pSamples[2*module->totalSampleCount];
-				for (unsigned int i = 0; i < module->totalSampleCount; i++) {
-					pSamples[2*i]= floor(module->playBuffer[0][i]*2147483647);
-					pSamples[2*i+1]= floor(module->playBuffer[1][i]*2147483647);
-				}
-		    drwav_write(pWav, 2*module->totalSampleCount, pSamples);
-				drwav_close(pWav);
+				if (!module->save) module->save = true;
 				free(path);
 			}
 		}
