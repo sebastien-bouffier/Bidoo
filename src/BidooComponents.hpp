@@ -91,7 +91,6 @@ struct BlueBtn : SvgSwitch {
 		nvgFontFaceId(args.vg, font->handle);
 		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 		nvgText(args.vg, 8.0f, 12.0f, (caption).c_str(), NULL);
-		//nvgStroke(args.vg);
 	}
 };
 

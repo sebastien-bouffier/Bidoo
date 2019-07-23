@@ -41,40 +41,43 @@ struct PitchShifter {
 		invPi = 1.0f/M_PI;
 
 		gInFIFO = (float*)calloc(fftFrameSize,sizeof(float));
-		memset(gInFIFO, 0, fftFrameSize*sizeof(float));
 		gOutFIFO =  (float*)calloc(fftFrameSize,sizeof(float));
-		memset(gOutFIFO, 0, fftFrameSize*sizeof(float));
 		gFFTworksp = (float*)pffft_aligned_malloc(fftFrameSize*sizeof(float));
 		gFFTworkspOut =  (float*)pffft_aligned_malloc(fftFrameSize*sizeof(float));
 		gLastPhase = (float*)calloc((fftFrameSize/2+1),sizeof(float));
-		memset(gLastPhase, 0, (fftFrameSize/2+1)*sizeof(float));
 		gSumPhase = (float*)calloc((fftFrameSize/2+1),sizeof(float));
-		memset(gSumPhase, 0, (fftFrameSize/2+1)*sizeof(float));
 		gOutputAccum = (float*)calloc(2*fftFrameSize,sizeof(float));
-		memset(gOutputAccum, 0, 2*fftFrameSize*sizeof(float));
 		gAnaFreq = (float*)calloc(fftFrameSize,sizeof(float));
-		memset(gAnaFreq, 0, fftFrameSize*sizeof(float));
 		gAnaMagn = (float*)calloc(fftFrameSize,sizeof(float));
-		memset(gAnaMagn, 0, fftFrameSize*sizeof(float));
 		gSynFreq = (float*)calloc(fftFrameSize,sizeof(float));
-		memset(gSynFreq, 0, fftFrameSize*sizeof(float));
 		gSynMagn = (float*)calloc(fftFrameSize,sizeof(float));
-		memset(gSynMagn, 0, fftFrameSize*sizeof(float));
 	}
 
 	~PitchShifter() {
 		pffft_destroy_setup(pffftSetup);
+		pffftSetup = NULL;
 		free(gInFIFO);
+		gInFIFO = NULL;
 		free(gOutFIFO);
+		gOutFIFO = NULL;
 		free(gLastPhase);
+		gLastPhase = NULL;
 		free(gSumPhase);
+		gSumPhase = NULL;
 		free(gOutputAccum);
+		gOutputAccum = NULL;
 		free(gAnaFreq);
+		gAnaFreq = NULL;
 		free(gAnaMagn);
+		gAnaMagn = NULL;
 		free(gSynFreq);
+		gSynFreq = NULL;
 		free(gSynMagn);
+		gSynMagn = NULL;
 		pffft_aligned_free(gFFTworksp);
+		gFFTworksp = NULL;
 		pffft_aligned_free(gFFTworkspOut);
+		gFFTworkspOut = NULL;
 	}
 
 	void process(const float pitchShift, const float *input, float *output) {

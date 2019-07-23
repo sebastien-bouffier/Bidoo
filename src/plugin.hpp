@@ -43,6 +43,7 @@ extern Model *modelLIMBO;
 extern Model *modelPERCO;
 extern Model *modelFFILTR;
 extern Model *modelBAR;
+extern Model *modelMINIBAR;
 extern Model *modelZINC;
 extern Model *modelDUKE;
 extern Model *modelMOIRE;

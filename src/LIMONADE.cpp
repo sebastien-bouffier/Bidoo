@@ -170,7 +170,7 @@ void tAddFrame(wtTable &table, float index) {
 	table.addFrame(i);
 }
 
-void tDeleteFrame(wtTable &table, float index) {
+void tRemoveFrame(wtTable &table, float index) {
 	size_t i = index*(table.nFrames-1);
 	table.removeFrame(i);
 }
@@ -197,6 +197,24 @@ struct LIMONADE : Module {
 		UNISSONRANGE_PARAM,
 		RECWT_PARAM,
 		RECFRAME_PARAM,
+		DISPLAYMODE_PARAM,
+		LOADSAMPLE_PARAM,
+		LOADFRAME_PARAM,
+		LOADPNG_PARAM,
+		MORPHWT_PARAM,
+		MORPHSPECTRUM_PARAM,
+		MORPHSPECTRUMCONSTANTPHASE_PARAM,
+		REMOVEMORPH_PARAM,
+		NORMALIZEWT_PARAM,
+		NORMALIZEFRAME_PARAM,
+		NORMALIZEALLFRAMES_PARAM,
+		REMOVEDC_PARAM,
+		WINDOWWT_PARAM,
+		WINDOWFRAME_PARAM,
+		SMOOTHWT_PARAM,
+		SMOOTHFRAME_PARAM,
+		ADDFRAME_PARAM,
+		REMOVEFRAME_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -225,25 +243,47 @@ struct LIMONADE : Module {
 	bool recWt = false;
 	bool recFrame = false;
 	float *iRec;
-	dsp::SchmittTrigger recTrigger;
-	size_t recIndex=0;
-
+	dsp::SchmittTrigger recTrigger, displayModeTrigger, loadSampleTrigger, loadPngTrigger, loadFrameTrigger, morphWtTrigger, morphSpectrumTrigger, morphSpectrumPhaseConstantTrigger,
+	removeMorphingTrigger, normalizeWtTrigger, normalizeFrameTrigger, normalizeAllFramesTrigger, removeDCTrigger, windowWtTrigger, windowFrameTrigger, smoothWtTrigger, smoothFrameTrigger,
+	addFrameTrigger, removeFrameTrigger;
+	size_t recIndex = 0;
+	int displayMode = 0;
 
 	wtTable table;
 	wtOscillator osc[3];
 
 	LIMONADE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(INDEX_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(UNISSON_PARAM, 1.0f, 3.0f, 1.0f);
-		configParam(FREQ_PARAM, -108.0f, 54.0f, 0.0f);
-    configParam(FINE_PARAM, -1.0f, 1.0f, 0.0f);
-    configParam(FM_PARAM, 0.0f, 1.0f, 0.0f);
-    configParam(WTINDEX_PARAM, 0.0f, 1.0f, 0.0f);
-    configParam(WTINDEXATT_PARAM, -1.0f, 1.0f, 0.0f);
-    configParam(SYNC_PARAM, 0.0f, 1.0f, 1.0f);
-    configParam(RECWT_PARAM, 0.0f, 10.0f, 0.0f);
-    configParam(RECFRAME_PARAM, 0.0f, 10.0f, 0.0f);
+		configParam(INDEX_PARAM, 0.0f, 1.0f, 0.0f ,"Edited frame");
+		configParam(UNISSON_PARAM, 1.0f, 3.0f, 1.0f, "Voices number");
+		configParam(UNISSONRANGE_PARAM, 0.0f, .1f, 0.0f, "Voices range");
+		configParam(FREQ_PARAM, -108.0f, 54.0f, 0.0f, "Pitch");
+    configParam(FINE_PARAM, -1.0f, 1.0f, 0.0f, "Pitch fine");
+    configParam(FM_PARAM, 0.0f, 1.0f, 0.0f, "FM");
+    configParam(WTINDEX_PARAM, 0.0f, 1.0f, 0.0f, "Played frame");
+    configParam(WTINDEXATT_PARAM, -1.0f, 1.0f, 1.0f, "Played frame attenuation");
+    configParam(SYNC_PARAM, 0.0f, 1.0f, 1.0f, "Sync Hard/Soft");
+    configParam(RECWT_PARAM, 0.0f, 10.0f, 0.0f, "Rec. wavetable");
+    configParam(RECFRAME_PARAM, 0.0f, 10.0f, 0.0f, "Rec. frame");
+		configParam(DISPLAYMODE_PARAM, 0.0f, 1.0f, 0.0f, "3D Wavetable display");
+
+		configParam(LOADSAMPLE_PARAM, 0.0f, 1.0f, 0.0f, "Load wavetable");
+		configParam(LOADFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Load frame");
+		configParam(LOADPNG_PARAM, 0.0f, 1.0f, 0.0f, "Load png");
+		configParam(MORPHWT_PARAM, 0.0f, 1.0f, 0.0f, "Morph wavetable");
+		configParam(MORPHSPECTRUM_PARAM, 0.0f, 1.0f, 0.0f, "Morph spectrum amplitude and phase");
+		configParam(MORPHSPECTRUMCONSTANTPHASE_PARAM, 0.0f, 1.0f, 0.0f, "Morph spectrum amplitude constant phase");
+		configParam(REMOVEMORPH_PARAM, 0.0f, 1.0f, 0.0f, "Remove morphing");
+		configParam(NORMALIZEWT_PARAM, 0.0f, 1.0f, 0.0f, "Normalize wavetable");
+		configParam(NORMALIZEFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Normalize frame");
+		configParam(NORMALIZEALLFRAMES_PARAM, 0.0f, 1.0f, 0.0f, "Normalize all frames");
+		configParam(REMOVEDC_PARAM, 0.0f, 1.0f, 0.0f, "Remove DC offset");
+		configParam(WINDOWWT_PARAM, 0.0f, 1.0f, 0.0f, "Window (Blackman Harris) wavetable");
+		configParam(WINDOWFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Window (Blackman Harris) frame");
+		configParam(SMOOTHWT_PARAM, 0.0f, 1.0f, 0.0f, "Smooth wavetable (decaying avg)");
+		configParam(SMOOTHFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Smooth frame (decaying avg)");
+		configParam(ADDFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Add frame");
+		configParam(REMOVEFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Remove frame");
 
 		for(size_t i=0; i<3; i++) {
 			osc[i].table = &table;
@@ -256,7 +296,6 @@ struct LIMONADE : Module {
 	}
 
 	void process(const ProcessArgs &args) override;
-	void syncThreadData();
 	void loadSample();
 	void loadFrame();
 	void loadPNG();
@@ -270,10 +309,10 @@ struct LIMONADE : Module {
 	void morphWavetable();
 	void morphSpectrum();
 	void morphSpectrumConstantPhase();
-	void deleteMorphing();
+	void removeMorphing();
 	void updateWaveTable();
 	void addFrame();
-	void deleteFrame();
+	void removeFrame();
 	void resetWaveTable();
 	void normalizeFrame();
 	void normalizeAllFrames();
@@ -347,48 +386,34 @@ struct LIMONADE : Module {
 
 inline void LIMONADE::updateWaveTable() {
 	tUpdateWaveTable(table, params[INDEX_PARAM].value);
-	// thread t = thread(tUpdateWaveTable, std::ref(table), params[INDEX_PARAM].value);
-	// t.detach();
 }
 
 inline void LIMONADE::fftSample() {
 	tFFTSample(table, params[INDEX_PARAM].value);
-	// thread t = thread(tFFTSample, std::ref(table), params[INDEX_PARAM].value);
-	// t.detach();
 }
 
 inline void LIMONADE::ifftSample() {
 	tIFFTSample(table, params[INDEX_PARAM].value);
-	// thread t = thread(tIFFTSample, std::ref(table), params[INDEX_PARAM].value);
-	// t.detach();
 }
 
 inline void LIMONADE::morphWavetable() {
-	//thread t = thread(tMorphWaveTable, std::ref(table));
 	morphType = 0;
 	tMorphWaveTable(table);
-	//t.detach();
 }
 
 inline void LIMONADE::morphSpectrum() {
-	//thread t = thread(tMorphSpectrum, std::ref(table));
 	morphType = 1;
 	tMorphSpectrum(table);
-	//t.detach();
 }
 
 inline void LIMONADE::morphSpectrumConstantPhase() {
-	//thread t = thread(tMorphSpectrumConstantPhase, std::ref(table));
 	morphType = 2;
 	tMorphSpectrumConstantPhase(table);
-	//t.detach();
 }
 
-inline void LIMONADE::deleteMorphing() {
-	//thread t = thread(tDeleteMorphing, std::ref(table));
+inline void LIMONADE::removeMorphing() {
 	morphType = -1;
 	tDeleteMorphing(table);
-	//t.detach();
 }
 
 void LIMONADE::addFrame() {
@@ -396,25 +421,21 @@ void LIMONADE::addFrame() {
 	t.detach();
 }
 
-void LIMONADE::deleteFrame() {
-	tDeleteFrame(table, params[INDEX_PARAM].value);
-	// thread t = thread(tDeleteFrame, std::ref(table), params[INDEX_PARAM].value);
-	// t.detach();
+void LIMONADE::removeFrame() {
+	tRemoveFrame(table, params[INDEX_PARAM].value);
 }
 
 void LIMONADE::resetWaveTable() {
 	tResetWaveTable(table);
-	// thread t = thread(tResetWaveTable, std::ref(table));
-	// t.detach();
 }
 
 void LIMONADE::loadSample() {
 	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
 	if (path) {
 		lastPath=path;
-		tLoadSample(table, path, frameSize, true);
-		// thread t = thread(tLoadSample, std::ref(table), path, frameSize, true);
-		// t.detach();
+		thread t = thread(tLoadSample, std::ref(table), path, frameSize, true);
+		t.detach();
+		//tLoadSample(table, path, frameSize, true);
 		free(path);
 	}
 }
@@ -424,8 +445,6 @@ void LIMONADE::loadFrame() {
 	if (path) {
 		lastPath=path;
 		tLoadFrame(table, path, params[INDEX_PARAM].value, true);
-		// thread t = thread(tLoadFrame, std::ref(table), path, params[INDEX_PARAM].value, true);
-		// t.detach();
 		free(path);
 	}
 }
@@ -435,76 +454,131 @@ void LIMONADE::loadPNG() {
 	if (path) {
 		lastPath=path;
 		tLoadPNG(table, path);
-		// thread t = thread(tLoadPNG, std::ref(table), path);
-		// t.detach();
 		free(path);
 	}
 }
 
 void LIMONADE::windowWt() {
 	tWindowWt(table);
-	// thread t = thread(tWindowWt, std::ref(table));
-	// t.detach();
 }
 
 void LIMONADE::smoothWt() {
 	tSmoothWt(table);
-	// thread t = thread(tSmoothWt, std::ref(table));
-	// t.detach();
 }
 
 void LIMONADE::windowFrame() {
 	tWindowFrame(table, params[INDEX_PARAM].value);
-	// thread t = thread(tWindowFrame, std::ref(table), params[INDEX_PARAM].value);
-	// t.detach();
 }
 
 void LIMONADE::smoothFrame() {
 	tSmoothFrame(table, params[INDEX_PARAM].value);
-	// thread t = thread(tSmoothFrame, std::ref(table), params[INDEX_PARAM].value);
-	// t.detach();
 }
 
 void LIMONADE::removeDCOffset() {
 	tRemoveDCOffset(table);
-	// thread t = thread(tRemoveDCOffset, std::ref(table));
-	// t.detach();
 }
 
 
 void LIMONADE::normalizeFrame() {
 	tNormalizeFrame(table, params[INDEX_PARAM].value);
-	// thread t = thread(tNormalizeFrame, std::ref(table), params[INDEX_PARAM].value);
-	// t.detach();
 }
 
 void LIMONADE::normalizeWt() {
 	tNormalizeWt(table);
-	// thread t = thread(tNormalizeWt, std::ref(table));
-	// t.detach();
 }
 
 void LIMONADE::normalizeAllFrames() {
 	tNormalizeAllFrames(table);
-	// thread t = thread(tNormalizeAllFrames, std::ref(table));
-	// t.detach();
 }
 
 void LIMONADE::process(const ProcessArgs &args) {
-	if (recTrigger.process(params[RECWT_PARAM].value) && !recWt && !recFrame) {
-		recWt = true;
-		recIndex=0;
-		lights[RECWT_LIGHT].value=10.0f;
+
+	if (displayModeTrigger.process(params[DISPLAYMODE_PARAM].getValue())) {
+		displayMode = (displayMode == 0) ? 1 : 0;
 	}
 
-	if (recTrigger.process(params[RECFRAME_PARAM].value) && !recWt && !recFrame) {
+	if (loadSampleTrigger.process(params[LOADSAMPLE_PARAM].getValue())) {
+		loadSample();
+	}
+
+	if (loadPngTrigger.process(params[LOADPNG_PARAM].getValue())) {
+		loadPNG();
+	}
+
+	if (loadFrameTrigger.process(params[LOADFRAME_PARAM].getValue())) {
+		loadFrame();
+	}
+
+	if (morphWtTrigger.process(params[MORPHWT_PARAM].getValue())) {
+		morphWavetable();
+	}
+
+	if (morphSpectrumTrigger.process(params[MORPHSPECTRUM_PARAM].getValue())) {
+		morphSpectrum();
+	}
+
+	if (morphSpectrumPhaseConstantTrigger.process(params[MORPHSPECTRUMCONSTANTPHASE_PARAM].getValue())) {
+		morphSpectrumConstantPhase();
+	}
+
+	if (removeMorphingTrigger.process(params[REMOVEMORPH_PARAM].getValue())) {
+		removeMorphing();
+	}
+
+	if (normalizeWtTrigger.process(params[NORMALIZEWT_PARAM].getValue())) {
+		normalizeWt();
+	}
+
+	if (normalizeFrameTrigger.process(params[NORMALIZEFRAME_PARAM].getValue())) {
+		normalizeFrame();
+	}
+
+	if (normalizeAllFramesTrigger.process(params[NORMALIZEALLFRAMES_PARAM].getValue())) {
+		normalizeAllFrames();
+	}
+
+	if (removeDCTrigger.process(params[REMOVEDC_PARAM].getValue())) {
+		removeDCOffset();
+	}
+
+	if (windowWtTrigger.process(params[WINDOWWT_PARAM].getValue())) {
+		windowWt();
+	}
+
+	if (windowFrameTrigger.process(params[WINDOWFRAME_PARAM].getValue())) {
+		windowFrame();
+	}
+
+	if (smoothWtTrigger.process(params[SMOOTHWT_PARAM].getValue())) {
+		smoothWt();
+	}
+
+	if (smoothFrameTrigger.process(params[SMOOTHFRAME_PARAM].getValue())) {
+		smoothFrame();
+	}
+
+	if (addFrameTrigger.process(params[ADDFRAME_PARAM].getValue())) {
+		addFrame();
+	}
+
+	if (removeFrameTrigger.process(params[REMOVEFRAME_PARAM].getValue())) {
+		removeFrame();
+	}
+
+	if (recTrigger.process(params[RECWT_PARAM].getValue()) && !recWt && !recFrame) {
+		recWt = true;
+		recIndex=0;
+		lights[RECWT_LIGHT].setBrightness(1.0f);
+	}
+
+	if (recTrigger.process(params[RECFRAME_PARAM].getValue()) && !recWt && !recFrame) {
 		recFrame = true;
 		recIndex=0;
-		lights[RECFRAME_LIGHT].value=10.0f;
+		lights[RECFRAME_LIGHT].setBrightness(1.0f);
 	}
 
 	if (recWt || recFrame) {
-		iRec[recIndex]=inputs[IN].value/10.0f;
+		iRec[recIndex]=inputs[IN].getVoltage()/10.0f;
 		recIndex++;
 
 		if (recWt && (recIndex==frameSize*NF)) {
@@ -512,49 +586,49 @@ void LIMONADE::process(const ProcessArgs &args) {
 			t.detach();
 			recWt = false;
 			recIndex = 0;
-			lights[RECWT_LIGHT].value=00.0f;
+			lights[RECWT_LIGHT].setBrightness(0.0f);
 		}
 		else if (recFrame && (recIndex==frameSize)) {
 			thread t = thread(tLoadIFrame, std::ref(table), std::ref(iRec), params[INDEX_PARAM].value, frameSize, true);
 			t.detach();
 			recFrame = false;
 			recIndex = 0;
-			lights[RECFRAME_LIGHT].value=0.0f;
+			lights[RECFRAME_LIGHT].setBrightness(0.0f);
 		}
 	}
 
-	float pitchCv = 12.0f * inputs[PITCH_INPUT].value;
-	float pitchFine = 3.0f * dsp::quadraticBipolar(params[FINE_PARAM].value);
+	float pitchCv = 12.0f * inputs[PITCH_INPUT].getVoltage();
+	float pitchFine = 3.0f * dsp::quadraticBipolar(params[FINE_PARAM].getValue());
 	if (inputs[FM_INPUT].active) {
-		pitchCv += dsp::quadraticBipolar(params[FM_PARAM].value) * 12.0f * inputs[FM_INPUT].value;
+		pitchCv += dsp::quadraticBipolar(params[FM_PARAM].getValue()) * 12.0f * inputs[FM_INPUT].getVoltage();
 	}
-	float idx=clamp(params[WTINDEX_PARAM].value+inputs[WTINDEX_INPUT].value*0.1f*params[WTINDEXATT_PARAM].value,0.0f,1.0f);
+	float idx=clamp(params[WTINDEX_PARAM].getValue() + inputs[WTINDEX_INPUT].getVoltage() * 0.1f * params[WTINDEXATT_PARAM].getValue(),0.0f,1.0f);
 	outputs[OUT].value = 0.0f;
 
-	float ur = clamp(params[UNISSONRANGE_PARAM].value + inputs[UNISSONRANGE_INPUT].value / 10.0f,0.0f,0.1f);
-	for (size_t i=0; i<(size_t)params[UNISSON_PARAM].value; i++) {
+	float ur = clamp(params[UNISSONRANGE_PARAM].getValue() + inputs[UNISSONRANGE_INPUT].getVoltage() / 10.0f,0.0f,0.1f);
+	for (size_t i=0; i<(size_t)params[UNISSON_PARAM].getValue(); i++) {
 		float pFC = pitchFine;
-		if (params[UNISSON_PARAM].value>2) {
+		if (params[UNISSON_PARAM].getValue() > 2) {
 			if (i==1) {	pFC += ur;} else if (i==2) { pFC -= ur;}
 		}
-		else if (params[UNISSON_PARAM].value>1) {
+		else if (params[UNISSON_PARAM].getValue() > 1) {
 			i==0 ? pFC+=ur : pFC-=ur;
 		}
-		osc[i].soft = (params[SYNC_PARAM].value + inputs[SYNCMODE_INPUT].value) <= 0.0f;
-		osc[i].setPitch(params[FREQ_PARAM].value, pFC + pitchCv);
-		osc[i].syncEnabled = inputs[SYNC_INPUT].active;
-		osc[i].prepare(args.sampleTime, inputs[SYNC_INPUT].value);
+		osc[i].soft = (params[SYNC_PARAM].getValue() + inputs[SYNCMODE_INPUT].getVoltage()) <= 0.0f;
+		osc[i].setPitch(params[FREQ_PARAM].getValue(), pFC + pitchCv);
+		osc[i].syncEnabled = inputs[SYNC_INPUT].isConnected();
+		osc[i].prepare(args.sampleTime, inputs[SYNC_INPUT].getVoltage());
 	}
 
-	for(size_t i=0; i<(size_t)params[UNISSON_PARAM].value; i++) {
+	for(size_t i=0; i<(size_t)params[UNISSON_PARAM].getValue(); i++) {
 		osc[i].updateBuffer(idx);
 	}
 
-	for(size_t i=0; i<(size_t)params[UNISSON_PARAM].value; i++) {
-			outputs[OUT].value += osc[i].out();
+	for(size_t i=0; i<(size_t)params[UNISSON_PARAM].getValue(); i++) {
+			outputs[OUT].setVoltage(outputs[OUT].getVoltage() + osc[i].out());
 	}
 
-	outputs[OUT].value *= 3.0 / sqrt(params[UNISSON_PARAM].value);
+	outputs[OUT].setVoltage(outputs[OUT].getVoltage() * 3.0 / sqrt(params[UNISSON_PARAM].getValue()));
 }
 
 struct LIMONADEBinsDisplay : OpaqueWidget {
@@ -762,7 +836,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
-    if (module) {
+    if (module && (module->displayMode == 0)) {
       size_t fs = module->table.nFrames;
   		size_t idx = 0;
   		size_t wtidx = 0;
@@ -779,7 +853,6 @@ struct LIMONADEWavDisplay : OpaqueWidget {
   		nvgFillColor(args.vg, YELLOW_BIDOO);
 
   		nvgText(args.vg, width+6, height-10, ("V=" + to_string((int)module->params[LIMONADE::UNISSON_PARAM].value)).c_str(), NULL);
-
 
   		for (size_t n=0; n<fs; n++) {
   			nvgBeginPath(args.vg);
@@ -873,139 +946,10 @@ void LIMONADETextField::onButton(const event::Button &e) {
   LedDisplayTextField::onButton(e);
 }
 
-struct LimonadeBlueBtnLoadSample : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->loadSample();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnLoadPNG : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->loadPNG();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnLoadFrame : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->loadFrame();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnMorphWavetable : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->morphWavetable();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnMorphSpectrum : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->morphSpectrum();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnMorphSpectrumConstantPhase : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->morphSpectrumConstantPhase();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnDeleteMorphing : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->deleteMorphing();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnNormalizeAllFrames : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->normalizeAllFrames();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnRemoveDCOffset : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->removeDCOffset();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnNormalizeWt : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->normalizeWt();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnNormalizeFrame : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->normalizeFrame();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnWindowWt : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->windowWt();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnSmoothWt : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->smoothWt();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnWindowFrame : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->windowFrame();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnSmoothFrame : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->smoothFrame();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnAddFrame : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->addFrame();
-		BlueBtn::onButton(e);
-	}
-};
-
-struct LimonadeBlueBtnDeleteFrame : BlueBtn {
-  LIMONADE *module;
-	virtual void onButton(const event::Button &e) override {
-		dynamic_cast<LIMONADE*>(this->module)->deleteFrame();
-		BlueBtn::onButton(e);
+struct moduleDisplayModeItem : MenuItem {
+	LIMONADE *module;
+	void onAction(const event::Action &e) override {
+		module->displayMode = (module->displayMode == 0) ? 1 : 0;
 	}
 };
 
@@ -1043,125 +987,77 @@ struct LIMONADEWidget : ModuleWidget {
   		addChild(textField);
   	}
 
-  	{
-  		LimonadeBlueBtnLoadSample *btn = new LimonadeBlueBtnLoadSample();
-  		btn->box.pos = Vec(170, 240);
-  		btn->caption = "≈";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnLoadPNG *btn = new LimonadeBlueBtnLoadPNG();
-  		btn->box.pos = Vec(190, 240);
-  		btn->caption = "☺";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnLoadFrame *btn = new LimonadeBlueBtnLoadFrame();
-  		btn->box.pos = Vec(210, 240);
-  		btn->caption = "~";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnMorphWavetable *btn = new LimonadeBlueBtnMorphWavetable();
-  		btn->box.pos = Vec(170, 260);
-  		btn->caption = "≡";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnMorphSpectrum *btn = new LimonadeBlueBtnMorphSpectrum();
-  		btn->box.pos = Vec(190, 260);
-  		btn->caption = "∞";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnMorphSpectrumConstantPhase *btn = new LimonadeBlueBtnMorphSpectrumConstantPhase();
-  		btn->box.pos = Vec(210, 260);
-  		btn->caption = "Փ";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnDeleteMorphing *btn = new LimonadeBlueBtnDeleteMorphing();
-  		btn->box.pos = Vec(230, 260);
-  		btn->caption = "Ø";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnNormalizeAllFrames *btn = new LimonadeBlueBtnNormalizeAllFrames();
-  		btn->box.pos = Vec(170, 280);
-  		btn->caption = "↕";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnRemoveDCOffset *btn = new LimonadeBlueBtnRemoveDCOffset();
-  		btn->box.pos = Vec(190, 280);
-  		btn->caption = "↨";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnNormalizeWt *btn = new LimonadeBlueBtnNormalizeWt();
-  		btn->box.pos = Vec(210, 280);
-  		btn->caption = "↕≈";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnNormalizeFrame *btn = new LimonadeBlueBtnNormalizeFrame();
-  		btn->box.pos = Vec(230, 280);
-  		btn->caption = "↕~";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnWindowWt *btn = new LimonadeBlueBtnWindowWt();
-  		btn->box.pos = Vec(170, 300);
-  		btn->caption = "∩≈";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnSmoothWt *btn = new LimonadeBlueBtnSmoothWt();
-  		btn->box.pos = Vec(190, 300);
-  		btn->caption = "ƒ≈";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnWindowFrame *btn = new LimonadeBlueBtnWindowFrame();
-  		btn->box.pos = Vec(210, 300);
-  		btn->caption = "∩~";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnSmoothFrame *btn = new LimonadeBlueBtnSmoothFrame();
-  		btn->box.pos = Vec(230, 300);
-  		btn->caption = "ƒ~";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnAddFrame *btn = new LimonadeBlueBtnAddFrame();
-  		btn->box.pos = Vec(170, 320);
-  		btn->caption = "+";
-  		btn->module = module;
-  		addChild(btn);
-  	}
-  	{
-  		LimonadeBlueBtnDeleteFrame *btn = new LimonadeBlueBtnDeleteFrame();
-  		btn->box.pos = Vec(190, 320);
-  		btn->caption = "-";
-  		btn->module = module;
-  		addChild(btn);
-  	}
+		BlueBtn *loadSampleParam = createParam<BlueBtn>(Vec(170, 240), module, LIMONADE::LOADSAMPLE_PARAM);
+		loadSampleParam->caption = "≈";
+		addParam(loadSampleParam);
+
+		BlueBtn *loadPngParam = createParam<BlueBtn>(Vec(190, 240), module, LIMONADE::LOADPNG_PARAM);
+		loadPngParam->caption = "☺";
+		addParam(loadPngParam);
+
+		BlueBtn *loadFrameParam = createParam<BlueBtn>(Vec(210, 240), module, LIMONADE::LOADFRAME_PARAM);
+		loadFrameParam->caption = "~";
+		addParam(loadFrameParam);
+
+		BlueBtn *morphWtParam = createParam<BlueBtn>(Vec(170, 260), module, LIMONADE::MORPHWT_PARAM);
+		morphWtParam->caption = "≡";
+		addParam(morphWtParam);
+
+		BlueBtn *morphSpectrumParam = createParam<BlueBtn>(Vec(190, 260), module, LIMONADE::MORPHSPECTRUM_PARAM);
+		morphSpectrumParam->caption = "∞";
+		addParam(morphSpectrumParam);
+
+		BlueBtn *morphSpectrumPhaseConstantParam = createParam<BlueBtn>(Vec(210, 260), module, LIMONADE::MORPHSPECTRUMCONSTANTPHASE_PARAM);
+		morphSpectrumPhaseConstantParam->caption = "Փ";
+		addParam(morphSpectrumPhaseConstantParam);
+
+		BlueBtn *removeMorphingParam = createParam<BlueBtn>(Vec(230, 260), module, LIMONADE::REMOVEMORPH_PARAM);
+		removeMorphingParam->caption = "Ø";
+		addParam(removeMorphingParam);
+
+		BlueBtn *normalizeAllFramesParam = createParam<BlueBtn>(Vec(170, 280), module, LIMONADE::NORMALIZEALLFRAMES_PARAM);
+		normalizeAllFramesParam->caption = "↕";
+		addParam(normalizeAllFramesParam);
+
+		BlueBtn *removeDCParam = createParam<BlueBtn>(Vec(190, 280), module, LIMONADE::REMOVEDC_PARAM);
+		removeDCParam->caption = "↨";
+		addParam(removeDCParam);
+
+		BlueBtn *normalizeWtParam = createParam<BlueBtn>(Vec(210, 280), module, LIMONADE::NORMALIZEWT_PARAM);
+		normalizeWtParam->caption = "↕≈";
+		addParam(normalizeWtParam);
+
+		BlueBtn *normalizeFrameParam = createParam<BlueBtn>(Vec(230, 280), module, LIMONADE::NORMALIZEFRAME_PARAM);
+		normalizeFrameParam->caption = "↕~";
+		addParam(normalizeFrameParam);
+
+		BlueBtn *windowWtParam = createParam<BlueBtn>(Vec(170, 300), module, LIMONADE::WINDOWWT_PARAM);
+		windowWtParam->caption = "∩≈";
+		addParam(windowWtParam);
+
+		BlueBtn *smoothWtParam = createParam<BlueBtn>(Vec(190, 300), module, LIMONADE::SMOOTHWT_PARAM);
+		smoothWtParam->caption = "ƒ≈";
+		addParam(smoothWtParam);
+
+		BlueBtn *windowFrameParam = createParam<BlueBtn>(Vec(210, 300), module, LIMONADE::WINDOWFRAME_PARAM);
+		windowFrameParam->caption = "∩~";
+		addParam(windowFrameParam);
+
+		BlueBtn *smoothFrameParam = createParam<BlueBtn>(Vec(230, 300), module, LIMONADE::SMOOTHFRAME_PARAM);
+		smoothFrameParam->caption = "ƒ~";
+		addParam(smoothFrameParam);
+
+		BlueBtn *addFrameParam = createParam<BlueBtn>(Vec(170, 320), module, LIMONADE::ADDFRAME_PARAM);
+		addFrameParam->caption = "+";
+		addParam(addFrameParam);
+
+		BlueBtn *removeFrameParam = createParam<BlueBtn>(Vec(190, 320), module, LIMONADE::REMOVEFRAME_PARAM);
+		removeFrameParam->caption = "-";
+		addParam(removeFrameParam);
+
+		BlueBtn *displayModeParam = createParam<BlueBtn>(Vec(170, 340), module, LIMONADE::DISPLAYMODE_PARAM);
+		displayModeParam->caption = "d";
+		addParam(displayModeParam);
 
   	addParam(createParam<BidooGreenKnob>(Vec(230.0f, 208.0f), module, LIMONADE::INDEX_PARAM));
 
@@ -1176,18 +1072,16 @@ struct LIMONADEWidget : ModuleWidget {
   	addParam(createParam<CKSS>(Vec(352, 336), module, LIMONADE::SYNC_PARAM));
   	addInput(createInput<TinyPJ301MPort>(Vec(317, 339), module, LIMONADE::SYNCMODE_INPUT));
 
-  	{
-  		RedBtn *btn = createParam<RedBtn>(Vec(254.0f, 324), module, LIMONADE::RECWT_PARAM);
-  		btn->caption = "≈";
-  		addParam(btn);
-  	}
+		RedBtn *btnRecWt = createParam<RedBtn>(Vec(254.0f, 324), module, LIMONADE::RECWT_PARAM);
+		btnRecWt->caption = "≈";
+		addParam(btnRecWt);
+
   	addChild(createLight<SmallLight<RedLight>>(Vec(244.0f, 329), module, LIMONADE::RECWT_LIGHT));
 
-  	{
-  		RedBtn *btn = createParam<RedBtn>(Vec(254.0f, 344), module, LIMONADE::RECFRAME_PARAM);
-  		btn->caption = "~";
-  		addParam(btn);
-  	}
+		RedBtn *btnRecFrame = createParam<RedBtn>(Vec(254.0f, 344), module, LIMONADE::RECFRAME_PARAM);
+		btnRecFrame->caption = "~";
+		addParam(btnRecFrame);
+
   	addChild(createLight<SmallLight<RedLight>>(Vec(244.0f, 349), module, LIMONADE::RECFRAME_LIGHT));
 
   	addInput(createInput<PJ301MPort>(Vec(277, 295), module, LIMONADE::UNISSONRANGE_INPUT));
@@ -1199,6 +1093,16 @@ struct LIMONADEWidget : ModuleWidget {
   	addInput(createInput<PJ301MPort>(Vec(277, 335), module, LIMONADE::IN));
   	addOutput(createOutput<PJ301MPort>(Vec(417, 335), module, LIMONADE::OUT));
   }
+
+	void appendContextMenu(Menu *menu) override {
+		LIMONADE *m = dynamic_cast<LIMONADE*>(this->module);
+		menu->addChild(new MenuEntry);
+		moduleDisplayModeItem *modeItem = new moduleDisplayModeItem;
+		modeItem->text = "Wavetable display: ";
+		modeItem->rightText = (m->displayMode == 0) ? "ON✔ OFF" : "ON  OFF✔";
+		modeItem->module = m;
+		menu->addChild(modeItem);
+	}
 };
 
 Model *modelLIMONADE = createModel<LIMONADE, LIMONADEWidget>("liMonADe");

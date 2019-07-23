@@ -4,7 +4,7 @@
 
 using namespace std;
 
-struct BAR : Module {
+struct MINIBAR : Module {
 	enum ParamIds {
 		THRESHOLD_PARAM,
 		RATIO_PARAM,
@@ -18,34 +18,29 @@ struct BAR : Module {
 	};
 	enum InputIds {
 		IN_L_INPUT,
-		IN_R_INPUT,
 		SC_L_INPUT,
-		SC_R_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
 		OUT_L_OUTPUT,
-		OUT_R_OUTPUT,
 		NUM_OUTPUTS
 	};
 	enum LightIds {
 		NUM_LIGHTS
 	};
 
-	dsp::DoubleRingBuffer<float,16384> vu_L_Buffer, vu_R_Buffer;
-	dsp::DoubleRingBuffer<float,512> rms_L_Buffer, rms_R_Buffer;
+	dsp::DoubleRingBuffer<float,16384> vu_L_Buffer;
+	dsp::DoubleRingBuffer<float,512> rms_L_Buffer;
 	float runningVU_L_Sum = 1e-6f, runningRMS_L_Sum = 1e-6f, rms_L = -96.3f, vu_L = -96.3f, peakL = -96.3f;
-	float runningVU_R_Sum = 1e-6f, runningRMS_R_Sum = 1e-6f, rms_R = -96.3f, vu_R = -96.3f, peakR = -96.3f;
 	float in_L_dBFS = 1e-6f;
-	float in_R_dBFS = 1e-6f;
 	float dist = 0.0f, gain = 1.0f, gaindB = 1.0f, ratio = 1.0f, threshold = 1.0f, knee = 0.0f;
 	float attackTime = 0.0f, releaseTime = 0.0f, makeup = 1.0f, previousPostGain = 1.0f, mix = 1.0f;
 	int indexVU = 0, indexRMS = 0, lookAheadWriteIndex=0;
 	int maxIndexVU = 0, maxIndexRMS = 0, maxLookAheadWriteIndex=0;
 	int lookAhead;
-	float buffL[20000] = {0.0f}, buffR[20000] = {0.0f};
+	float buffL[20000] = {0.0f};
 
-	BAR() {
+	MINIBAR() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(THRESHOLD_PARAM, -93.6f, 0.0f, 0.0f, "Threshold");
 		configParam(RATIO_PARAM, 1.0f, 20.0f, 1.0f, "Ratio");
@@ -61,20 +56,16 @@ struct BAR : Module {
 
 };
 
-void BAR::process(const ProcessArgs &args) {
+void MINIBAR::process(const ProcessArgs &args) {
 	if (indexVU>=16384) {
 		runningVU_L_Sum -= *vu_L_Buffer.startData();
-		runningVU_R_Sum -= *vu_R_Buffer.startData();
 		vu_L_Buffer.startIncr(1);
-		vu_R_Buffer.startIncr(1);
 		indexVU--;
 	}
 
 	if (indexRMS>=512) {
 		runningRMS_L_Sum -= *rms_L_Buffer.startData();
-		runningRMS_R_Sum -= *rms_R_Buffer.startData();
 		rms_L_Buffer.startIncr(1);
-		rms_R_Buffer.startIncr(1);
 		indexRMS--;
 	}
 
@@ -82,7 +73,6 @@ void BAR::process(const ProcessArgs &args) {
 	indexRMS++;
 
 	buffL[lookAheadWriteIndex]=inputs[IN_L_INPUT].getVoltage();
-	buffR[lookAheadWriteIndex]=inputs[IN_R_INPUT].getVoltage();
 
 	if (!inputs[SC_L_INPUT].active && inputs[IN_L_INPUT].active)
 		in_L_dBFS = max(20.0f*log10((abs(inputs[IN_L_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
@@ -91,33 +81,19 @@ void BAR::process(const ProcessArgs &args) {
 	else
 		in_L_dBFS = -96.3f;
 
-	if (!inputs[SC_R_INPUT].active && inputs[IN_R_INPUT].active)
-		in_R_dBFS = max(20.0f*log10((abs(inputs[IN_R_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
-	else if (inputs[SC_R_INPUT].active)
-		in_R_dBFS = max(20.0f*log10((abs(inputs[SC_R_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
-	else
-		in_R_dBFS = -96.3f;
-
 	float data_L = in_L_dBFS*in_L_dBFS;
-	float data_R = in_R_dBFS*in_R_dBFS;
 
 	if (!vu_L_Buffer.full()) {
 		vu_L_Buffer.push(data_L);
-		vu_R_Buffer.push(data_R);
 	}
 	if (!rms_L_Buffer.full()) {
 		rms_L_Buffer.push(data_L);
-		rms_R_Buffer.push(data_R);
 	}
 
 	runningVU_L_Sum += data_L;
 	runningRMS_L_Sum += data_L;
-	runningVU_R_Sum += data_R;
-	runningRMS_R_Sum += data_R;
 	rms_L = clamp(-1 * sqrtf(runningRMS_L_Sum/512), -96.3f,0.0f);
 	vu_L = clamp(-1 * sqrtf(runningVU_L_Sum/16384), -96.3f,0.0f);
-	rms_R = clamp(-1 * sqrtf(runningRMS_R_Sum/512), -96.3f,0.0f);
-	vu_R = clamp(-1 * sqrtf(runningVU_R_Sum/16384), -96.3f,0.0f);
 	threshold = params[THRESHOLD_PARAM].getValue();
 	attackTime = params[ATTACK_PARAM].getValue();
 	releaseTime = params[RELEASE_PARAM].getValue();
@@ -130,13 +106,8 @@ void BAR::process(const ProcessArgs &args) {
 	else
 		peakL -= 50.0f / args.sampleRate;
 
-	if (in_R_dBFS>peakR)
-		peakR=in_R_dBFS;
-	else
-		peakR -= 50.0f / args.sampleRate;
-
 	float slope = 1.0f/ratio-1.0f;
-	float maxIn = max(in_L_dBFS,in_R_dBFS);
+	float maxIn = in_L_dBFS;
 	float dist = maxIn-threshold;
 	float gcurve = 0.0f;
 
@@ -175,52 +146,44 @@ void BAR::process(const ProcessArgs &args) {
 	}
 
 	outputs[OUT_L_OUTPUT].setVoltage(buffL[readIndex] * (gain*mix + (1.0f - mix)));
-	outputs[OUT_R_OUTPUT].setVoltage(buffR[readIndex] * (gain*mix + (1.0f - mix)));
 
 	lookAheadWriteIndex = (lookAheadWriteIndex+1)%20000;
 }
 
-struct BARDisplay : TransparentWidget {
-	BAR *module;
+struct MINIBARDisplay : TransparentWidget {
+	MINIBAR *module;
 	std::shared_ptr<Font> font;
-	BARDisplay() {
+	MINIBARDisplay() {
 		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 	}
 
 void draw(NVGcontext *vg) override {
-	float height = 150.0f;
-	float width = 15.0f;
-	float spacer = 3.0f;
+	float height = 250.0f;
+	float width = 8.0f;
+	float spacer = 2.0f;
 	float vuL = rescale(module->vu_L,-97.0f,0.0f,0.0f,height);
 	float rmsL = rescale(module->rms_L,-97.0f,0.0f,0.0f,height);
-	float vuR = rescale(module->vu_R,-97.0f,0.0f,0.0f,height);
-	float rmsR = rescale(module->rms_R,-97.0f,0.0f,0.0f,height);
 	float threshold = rescale(module->threshold,0.0f,-97.0f,0.0f,height);
 	float gain = rescale(1-(module->gaindB-module->makeup),-97.0f,0.0f,97.0f,0.0f);
 	float makeup = rescale(module->makeup,0.0f,60.0f,0.0f,60.0f);
 	float peakL = rescale(module->peakL,0.0f,-97.0f,0.0f,height);
-	float peakR = rescale(module->peakR,0.0f,-97.0f,0.0f,height);
 	float inL = rescale(module->in_L_dBFS,-97.0f,0.0f,0.0f,height);
-	float inR = rescale(module->in_R_dBFS,-97.0f,0.0f,0.0f,height);
 	nvgSave(vg);
 	nvgStrokeWidth(vg, 0.0f);
 	nvgBeginPath(vg);
 	nvgFillColor(vg, BLUE_BIDOO);
 	nvgRoundedRect(vg,0.0f,height-vuL,width,vuL,0.0f);
-	nvgRoundedRect(vg,3.0f*(width+spacer),height-vuR,width,vuR,0.0f);
 	nvgFill(vg);
 	nvgClosePath(vg);
 	nvgBeginPath(vg);
 	nvgFillColor(vg, LIGHTBLUE_BIDOO);
 	nvgRoundedRect(vg,width+spacer,height-rmsL,width,rmsL,0.0f);
-	nvgRoundedRect(vg,2.0f*(width+spacer),height-rmsR,width,rmsR,0.0f);
 	nvgFill(vg);
 	nvgClosePath(vg);
 
 	nvgFillColor(vg, RED_BIDOO);
 	nvgBeginPath(vg);
 	nvgRoundedRect(vg,width+spacer,peakL,width,2.0f,0.0f);
-	nvgRoundedRect(vg,2.0f*(width+spacer),peakR,width,2.0f,0.0f);
 	nvgFill(vg);
 	nvgClosePath(vg);
 
@@ -228,75 +191,38 @@ void draw(NVGcontext *vg) override {
 	nvgBeginPath(vg);
 	if (inL>rmsL+3.0f)
 		nvgRoundedRect(vg,width+spacer,height-inL+1.0f,width,inL-rmsL-2.0f,0.0f);
-	if (inR>rmsR+3)
-		nvgRoundedRect(vg,2.0f*(width+spacer),height-inR+1.0f,width,inR-rmsR-2.0f,0.0f);
+
 	nvgFill(vg);
 	nvgClosePath(vg);
 
-	nvgStrokeWidth(vg, 0.5f);
+	nvgStrokeWidth(vg, 2.0f);
 	nvgFillColor(vg, nvgRGBA(255, 255, 255, 255));
 	nvgStrokeColor(vg, nvgRGBA(255, 255, 255, 255));
 	nvgBeginPath(vg);
-	nvgMoveTo(vg, width+spacer+5.0f, threshold);
-	nvgLineTo(vg, 3.0f*width+2.0f*spacer-5.0f, threshold);
-	//nvgRoundedRect(vg,22,threshold+50,22,2,0);
-	{
-		nvgMoveTo(vg, width+spacer, threshold-3.0f);
-		nvgLineTo(vg, width+spacer, threshold+3.0f);
-		nvgLineTo(vg, width+spacer+5.0f, threshold);
-		nvgLineTo(vg, width+spacer, threshold-3.0f);
-		nvgMoveTo(vg, 3.0f*width+2.0f*spacer, threshold-3.0f);
-		nvgLineTo(vg, 3*width+2*spacer, threshold+3.0f);
-		nvgLineTo(vg, 3.0f*width+2.0f*spacer-5.0f, threshold);
-		nvgLineTo(vg, 3.0f*width+2.0f*spacer, threshold-3.0f);
-	}
+	nvgMoveTo(vg, width+spacer, threshold);
+	nvgLineTo(vg, 2*width+spacer, threshold);
+
 	nvgClosePath(vg);
 	nvgStroke(vg);
 	nvgFill(vg);
 
-	float offset = 11.0f;
+	float offset = 2.0f;
 	nvgStrokeWidth(vg, 0.5f);
 	nvgFillColor(vg, YELLOW_BIDOO);
 	nvgStrokeColor(vg, YELLOW_BIDOO);
 	nvgBeginPath(vg);
-	nvgRoundedRect(vg,4.0f*(width+spacer)+offset,70.0f,width,-gain-makeup,0.0f);
-	nvgMoveTo(vg, 5.0f*(width+spacer)+7.0f+offset, 70.0f-3.0f);
-	nvgLineTo(vg, 5.0f*(width+spacer)+7.0f+offset, 70.0f+3.0f);
-	nvgLineTo(vg, 5.0f*(width+spacer)+2.0f+offset, 70.0f);
-	nvgLineTo(vg, 5.0f*(width+spacer)+7.0f+offset, 70.0f-3.0f);
+	nvgRoundedRect(vg,2.0f*(width+spacer)+offset,70.0f,width,-gain-makeup,0.0f);
 	nvgClosePath(vg);
 	nvgStroke(vg);
 	nvgFill(vg);
-
-	char tTresh[128],tRatio[128],tAtt[128],tRel[128],tKnee[128],tMakeUp[128],tMix[128],tLookAhead[128];
-	snprintf(tTresh, sizeof(tTresh), "%2.1f", module->threshold);
-	snprintf(tRatio, sizeof(tTresh), "%2.0f:1", module->ratio);
-	snprintf(tAtt, sizeof(tTresh), "%1.0f/%1.0f", module->attackTime,module->releaseTime);
-	snprintf(tRel, sizeof(tTresh), "%3.0f", module->releaseTime);
-	snprintf(tKnee, sizeof(tTresh), "%2.1f", module->knee);
-	snprintf(tMakeUp, sizeof(tTresh), "%2.1f", module->makeup);
-	snprintf(tMix, sizeof(tTresh), "%1.0f/%1.0f", (1-module->mix)*100,module->mix*100);
-	snprintf(tLookAhead, sizeof(tTresh), "%3i", module->lookAhead);
-	nvgFontSize(vg, 14.0f);
-	nvgFontFaceId(vg, font->handle);
-	nvgTextLetterSpacing(vg, -2.0f);
-	nvgFillColor(vg, YELLOW_BIDOO);
-	nvgTextAlign(vg, NVG_ALIGN_CENTER);
-	nvgText(vg, 8.0f, height+31.0f, tTresh, NULL);
-	nvgText(vg, 50.0f, height+31.0f, tRatio, NULL);
-	nvgText(vg, 96.0f, height+31.0f, tAtt, NULL);
-	nvgText(vg, 8.0f, height+63.0f, tKnee, NULL);
-	nvgText(vg, 40.0f, height+63.0f, tMakeUp, NULL);
-	nvgText(vg, 75.0f, height+63.0f, tMix, NULL);
-	nvgText(vg, 107.0f, height+63.0f, tLookAhead, NULL);
 	nvgRestore(vg);
 }
 };
 
-struct BARWidget : ModuleWidget {
-	BARWidget(BAR *module) {
+struct MINIBARWidget : ModuleWidget {
+	MINIBARWidget(MINIBAR *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/BAR.svg")));
+		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/MINIBAR.svg")));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
@@ -304,30 +230,26 @@ struct BARWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
 		if (module) {
-			BARDisplay *display = new BARDisplay();
+			MINIBARDisplay *display = new MINIBARDisplay();
 			display->module = module;
-			display->box.pos = Vec(12.0f, 40.0f);
-			display->box.size = Vec(110.0f, 70.0f);
+			display->box.pos = Vec(39.0f, 45.0f);
+			display->box.size = Vec(70.0f, 70.0f);
 			addChild(display);
 		}
 
-		addParam(createParam<BidooBlueTrimpot>(Vec(10.0f,265.0f), module, BAR::THRESHOLD_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(42.0f,265.0f), module, BAR::RATIO_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(74.0f,265.0f), module, BAR::ATTACK_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(106.0f,265.0f), module, BAR::RELEASE_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(10.0f,291.0f), module, BAR::KNEE_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(42.0f,291.0f), module, BAR::MAKEUP_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(74.0f,291.0f), module, BAR::MIX_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(106.0f,291.0f), module, BAR::LOOKAHEAD_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(2.0f,37.0f), module, MINIBAR::THRESHOLD_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(15.0f,72.0f), module, MINIBAR::RATIO_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(2.0f,107.0f), module, MINIBAR::ATTACK_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(15.0f,142.0f), module, MINIBAR::RELEASE_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(2.0f,177.0f), module, MINIBAR::KNEE_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(15.0f,212.0f), module, MINIBAR::MAKEUP_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(2.0f,247.0f), module, MINIBAR::MIX_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(15.0f,282.0f), module, MINIBAR::LOOKAHEAD_PARAM));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 319.0f), module, BAR::IN_L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 339.0f), module, BAR::IN_R_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(66.0f, 319.0f), module, BAR::SC_L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(66.0f, 339.0f), module, BAR::SC_R_INPUT));
-
-		addOutput(createOutput<TinyPJ301MPort>(Vec(109.0f, 319.0f), module, BAR::OUT_L_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(109.0f, 339.0f), module, BAR::OUT_R_OUTPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(6.0f, 323.0f), module, MINIBAR::IN_L_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(30.0f, 323.0f), module, MINIBAR::SC_L_INPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(54.0f, 323.0f), module, MINIBAR::OUT_L_OUTPUT));
 	}
 };
 
-Model *modelBAR = createModel<BAR, BARWidget>("baR");
+Model *modelMINIBAR = createModel<MINIBAR, MINIBARWidget>("mINIBar");

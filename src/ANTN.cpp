@@ -57,55 +57,45 @@ size_t WriteUrlCallback(void *contents, size_t size, size_t nmemb, void *userp)
 void * threadDecodeTask(threadDecodeData data)
 {
   data.free->store(false);
-
   mp3dec_frame_info_t info;
   dsp::DoubleRingBuffer<dsp::Frame<2>,4096> *tmpBuffer = new dsp::DoubleRingBuffer<dsp::Frame<2>,4096>();
   dsp::SampleRateConverter<2> conv;
   int inSize;
   int outSize;
-
   while (data.dc->load()) {
     short pcm[MINIMP3_MAX_SAMPLES_PER_FRAME];
     if (data.dataToDecodeRingBuffer->size() > 64000) {
-
       int samples = mp3dec_decode_frame(&data.mp3d, (const uint8_t*)data.dataToDecodeRingBuffer->startData(), data.dataToDecodeRingBuffer->size(), pcm, &info);
-
-      if (info.frame_bytes > 0) {
-        if (samples > 0) {
-          if (info.channels == 1) {
-            for(int i = 0; i < samples; i++) {
-              if (!data.dc->load()) break;
-              dsp::Frame<2> newFrame;
-              newFrame.samples[0]=(float)pcm[i] * 30517578125e-15f;
-              newFrame.samples[1]=(float)pcm[i] * 30517578125e-15f;
-              tmpBuffer->push(newFrame);
-            }
-          }
-          else {
-            for(int i = 0; i < 2 * samples; i=i+2) {
-              if (!data.dc->load()) break;
-              dsp::Frame<2> newFrame;
-              newFrame.samples[0]=(float)pcm[i] * 30517578125e-15f;
-              newFrame.samples[1]=(float)pcm[i+1] * 30517578125e-15f;
-              tmpBuffer->push(newFrame);
-            }
+      if ((info.frame_bytes > 0) && (samples > 0)) {
+        if (info.channels == 1) {
+          for(int i = 0; i < samples; i++) {
+            if (!data.dc->load()) break;
+            dsp::Frame<2> newFrame;
+            newFrame.samples[0]=(float)pcm[i] * 30517578125e-15f;
+            newFrame.samples[1]=(float)pcm[i] * 30517578125e-15f;
+            tmpBuffer->push(newFrame);
           }
         }
-        if (samples == 0) {
-          //printf("invalid data \n");
+        else {
+          for(int i = 0; i < 2 * samples; i=i+2) {
+            if (!data.dc->load()) break;
+            dsp::Frame<2> newFrame;
+            newFrame.samples[0]=(float)pcm[i] * 30517578125e-15f;
+            newFrame.samples[1]=(float)pcm[i+1] * 30517578125e-15f;
+            tmpBuffer->push(newFrame);
+          }
         }
         data.dataToDecodeRingBuffer->startIncr(info.frame_bytes);
         conv.setRates(info.hz, data.sr);
         conv.setQuality(10);
         inSize = tmpBuffer->size();
         outSize = data.dataAudioRingBuffer->capacity();
-        conv.process(tmpBuffer->startData(), &inSize,data.dataAudioRingBuffer->endData(), &outSize);
+        conv.process(tmpBuffer->startData(), &inSize, data.dataAudioRingBuffer->endData(), &outSize);
         tmpBuffer->startIncr(inSize);
         data.dataAudioRingBuffer->endIncr((size_t)outSize);
       }
     }
   }
-
   data.free->store(true);
   return 0;
 }
@@ -122,7 +112,6 @@ void * threadReadTask(threadReadData data)
 
   std::string zeUrl;
   data.secUrl == "" ? zeUrl = data.url : zeUrl = data.secUrl;
-  zeUrl.erase(std::remove_if(zeUrl.begin(), zeUrl.end(), [](unsigned char x){return std::isspace(x);}), zeUrl.end());
   if (rack::string::filenameExtension(data.url) == "pls") {
     istringstream iss(zeUrl);
     for (std::string line; std::getline(iss, line); )
@@ -324,6 +313,30 @@ void ANTNTextField::onButton(const event::Button &e) {
   LedDisplayTextField::onButton(e);
 }
 
+struct ANTNDisplay : TransparentWidget {
+	ANTN *module;
+	std::shared_ptr<Font> font;
+	ANTNDisplay() {
+		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+	}
+
+void draw(NVGcontext *vg) override {
+  if (module) {
+    nvgSave(vg);
+  	nvgStrokeWidth(vg, 1.0f);
+    nvgStrokeColor(vg, YELLOW_BIDOO);
+    nvgFillColor(vg, YELLOW_BIDOO);
+  	nvgBeginPath(vg);
+    nvgRoundedRect(vg,0,0,115.f * module->dataToDecodeRingBuffer.size()/262144.f,5.f,0.0f);
+    nvgRoundedRect(vg,0,10.f,115.f * module->dataAudioRingBuffer.size()/262144.f,5.f,0.0f);
+  	nvgClosePath(vg);
+    nvgStroke(vg);
+  	nvgFill(vg);
+  	nvgRestore(vg);
+  }
+}
+};
+
 struct ANTNWidget : ModuleWidget {
   TextField *textField;
 	json_t *toJson() override;
@@ -332,6 +345,14 @@ struct ANTNWidget : ModuleWidget {
 	ANTNWidget(ANTN *module) {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/ANTN.svg")));
+
+    if (module) {
+			ANTNDisplay *display = new ANTNDisplay();
+			display->module = module;
+			display->box.pos = Vec(10.0f, 145.0f);
+			display->box.size = Vec(70.0f, 70.0f);
+			addChild(display);
+		}
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));

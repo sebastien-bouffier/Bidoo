@@ -85,6 +85,10 @@ struct REI : Module {
 		pShifter = new PitchShifter(BUFF_SIZE, 8, sr);
 	}
 
+	~REI() {
+		free(pShifter);
+	}
+
 	void process(const ProcessArgs &args) override {
 		float outL = 0.0f, outR = 0.0f;
 		float wOutL = 0.0f, wOutR = 0.0f;
