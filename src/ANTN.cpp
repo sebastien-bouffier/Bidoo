@@ -26,7 +26,7 @@ struct threadReadData {
 
 struct threadDecodeData {
   dsp::DoubleRingBuffer<char,262144> *dataToDecodeRingBuffer;
-  dsp::DoubleRingBuffer<dsp::Frame<2>,262144> *dataAudioRingBuffer;
+  dsp::DoubleRingBuffer<dsp::Frame<2>,2097152> *dataAudioRingBuffer;
   mp3dec_t mp3d;
   std::atomic<bool> *dc;
   std::atomic<bool> *free;
@@ -182,7 +182,7 @@ struct ANTN : Module {
   std::string url;
 	dsp::SchmittTrigger trigTrigger;
   bool read = false;
-  dsp::DoubleRingBuffer<dsp::Frame<2>,262144> dataAudioRingBuffer;
+  dsp::DoubleRingBuffer<dsp::Frame<2>,2097152> dataAudioRingBuffer;
   dsp::DoubleRingBuffer<char,262144> dataToDecodeRingBuffer;
   thread rThread, dThread;
   threadReadData rData;
@@ -328,7 +328,7 @@ void draw(NVGcontext *vg) override {
     nvgFillColor(vg, YELLOW_BIDOO);
   	nvgBeginPath(vg);
     nvgRoundedRect(vg,0,0,115.f * module->dataToDecodeRingBuffer.size()/262144.f,5.f,0.0f);
-    nvgRoundedRect(vg,0,10.f,115.f * module->dataAudioRingBuffer.size()/262144.f,5.f,0.0f);
+    nvgRoundedRect(vg,0,10.f,115.f * module->dataAudioRingBuffer.size()/2097152.f,5.f,0.0f);
   	nvgClosePath(vg);
     nvgStroke(vg);
   	nvgFill(vg);
@@ -349,7 +349,7 @@ struct ANTNWidget : ModuleWidget {
     if (module) {
 			ANTNDisplay *display = new ANTNDisplay();
 			display->module = module;
-			display->box.pos = Vec(10.0f, 145.0f);
+			display->box.pos = Vec(10.0f, 140.0f);
 			display->box.size = Vec(70.0f, 70.0f);
 			addChild(display);
 		}
