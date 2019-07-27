@@ -235,22 +235,6 @@ struct LabelMICROWidget : TransparentWidget {
 	}
 };
 
-struct BidooBlueTrimpotWithDisplay : BidooBlueTrimpot {
-	LabelMICROWidget *lblDisplay = NULL;
-	float *valueForDisplay = NULL;
-	const char *format = NULL;
-	const char *header = NULL;
-
-	void onEnter(const event::Enter &e) override {
-		if (lblDisplay && valueForDisplay && format) {
-			lblDisplay->value = valueForDisplay;
-			lblDisplay->format = format;
-		}
-		if (lblDisplay && header) lblDisplay->header = header;
-		BidooBlueTrimpot::onEnter(e);
-	}
-};
-
 struct TinyPJ301MPortWithDisplay : TinyPJ301MPort {
 	LabelMICROWidget *lblDisplay = NULL;
 	float *valueForDisplay = NULL;
@@ -265,6 +249,22 @@ struct TinyPJ301MPortWithDisplay : TinyPJ301MPort {
 		}
 		if (lblDisplay && header) lblDisplay->header = header;
 		TinyPJ301MPort::onEnter(e);
+	}
+};
+
+struct BidooBlueTrimpotWithDisplay : BidooBlueTrimpot {
+	LabelMICROWidget *lblDisplay = NULL;
+	float *valueForDisplay = NULL;
+	const char *format = NULL;
+	const char *header = NULL;
+
+	void onEnter(const event::Enter &e) override {
+		if (lblDisplay && valueForDisplay && format) {
+			lblDisplay->value = valueForDisplay;
+			lblDisplay->format = format;
+		}
+		if (lblDisplay && header) lblDisplay->header = header;
+		BidooBlueTrimpot::onEnter(e);
 	}
 };
 

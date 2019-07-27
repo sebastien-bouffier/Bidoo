@@ -112,7 +112,7 @@ void * threadReadTask(threadReadData data)
 
   std::string zeUrl;
   data.secUrl == "" ? zeUrl = data.url : zeUrl = data.secUrl;
-  if (rack::string::filenameExtension(data.url) == "pls") {
+  if ((rack::string::filenameExtension(data.url) == "pls") || (rack::string::filenameExtension(data.url) == "m3u")) {
     istringstream iss(zeUrl);
     for (std::string line; std::getline(iss, line); )
     {
@@ -194,7 +194,7 @@ struct ANTN : Module {
 
 	ANTN() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(GAIN_PARAM, 0.5f, 3.f, 1.f, "Gain");
+		configParam(GAIN_PARAM, 0.0f, 3.f, 1.f, "Gain");
     configParam(TRIG_PARAM, 0.f, 1.f, 0.f, "Trig");
 
     tDl.store(true);
@@ -293,25 +293,26 @@ void ANTN::process(const ProcessArgs &args) {
 }
 
 struct ANTNTextField : LedDisplayTextField {
+  ANTN *module;
+
   ANTNTextField(ANTN *mod) {
     module = mod;
     font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
-  	color = YELLOW_BIDOO;
+  	color = GREEN_BIDOO;
   	textOffset = Vec(3, 3);
     if (module != NULL) text = module->url;
   }
-	void onButton(const event::Button &e) override;
-	ANTN *module;
-};
 
-void ANTNTextField::onButton(const event::Button &e) {
-	if (text.size() > 0) {
+	void onChange(const event::Change &e) override{
+    if (text.size() > 0) {
       std::string tText = text;
       tText.erase(std::remove_if(tText.begin(), tText.end(), [](unsigned char x){return std::isspace(x);}), tText.end());
       if (module != NULL) module->url = tText;
-	}
-  LedDisplayTextField::onButton(e);
-}
+	  }
+    LedDisplayTextField::onChange(e);
+  };
+};
+
 
 struct ANTNDisplay : TransparentWidget {
 	ANTN *module;
@@ -324,8 +325,8 @@ void draw(NVGcontext *vg) override {
   if (module) {
     nvgSave(vg);
   	nvgStrokeWidth(vg, 1.0f);
-    nvgStrokeColor(vg, YELLOW_BIDOO);
-    nvgFillColor(vg, YELLOW_BIDOO);
+    nvgStrokeColor(vg, BLUE_BIDOO);
+    nvgFillColor(vg, BLUE_BIDOO);
   	nvgBeginPath(vg);
     nvgRoundedRect(vg,0,0,115.f * module->dataToDecodeRingBuffer.size()/262144.f,5.f,0.0f);
     nvgRoundedRect(vg,0,10.f,115.f * module->dataAudioRingBuffer.size()/2097152.f,5.f,0.0f);

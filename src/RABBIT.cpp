@@ -47,14 +47,9 @@ struct RABBIT : Module {
 	RABBIT() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		for (int i = 0; i < 8; i++) {
-			configParam<tpCycle>(BITOFF_PARAM + i, 0.f, 1.f, 0.f, "Bit " + std::to_string(i + 1));//LEDBezel momentary = true stops on/off tooltip functioning correctly
+			configParam<tpCycle>(BITOFF_PARAM + i, 0.f, 1.f, 0.f, "Bit " + std::to_string(i + 1));
 			configParam<tpCycle>(BITREV_PARAM + i, 0.f, 1.f, 0.f, "Bit " + std::to_string(i + 1) + " Reverse");
 		}
-		
-		/*
-		addParam(createParam<LEDBezel>(Vec(27.0f, 50.0f + 32.0f * i), module, RABBIT::BITOFF_PARAM + i, 0.0f, 1.0f, 0.0f));
-		addParam(createParam<LEDBezel>(Vec(57.0f, 50.0f + 32.0f * i), module, RABBIT::BITREV_PARAM + i, 0.0f, 1.0f, 0.0f));
-		*/
 
 		memset(&bitOff, 0, 8 * sizeof(bool));
 		memset(&bitRev, 0, 8 * sizeof(bool));

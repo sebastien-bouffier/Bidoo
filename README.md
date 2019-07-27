@@ -13,7 +13,10 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## Last changes
 
+27/07/2019 => 1.0.4 Thanks to all of you users and devs for your interest/involvement/help.
+
 24/07/2019 => 1.0.3
+
 14/07/2019 => 1.0.2
 
 ## License

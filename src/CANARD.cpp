@@ -157,7 +157,7 @@ void CANARD::loadSample(std::string path) {
   unsigned int sr;
   drwav_uint64 sc;
 	float* pSampleData;
-  pSampleData = drwav_open_and_read_file_f32(path.c_str(), &c, &sr, &sc);
+  pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
   if (pSampleData != NULL)  {
 		lastPath = path;
 		waveFileName = rack::string::filename(path);

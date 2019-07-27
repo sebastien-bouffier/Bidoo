@@ -45,32 +45,32 @@ struct BISTROT : Module {
 
 
 void BISTROT::process(const ProcessArgs &args) {
-    if ((!inputs[ADCCLOCK_INPUT].active) || (acdClockTrigger.process(inputs[ADCCLOCK_INPUT].value)))
+    if ((!inputs[ADCCLOCK_INPUT].isConnected()) || (acdClockTrigger.process(inputs[ADCCLOCK_INPUT].getVoltage())))
     {
-      in = roundf(clamp(clamp(inputs[INPUT].value,-10.0f,10.0f) / 20.0f + 0.5f, 0.0f, 1.0f) * 255);
+      in = roundf(clamp(clamp(inputs[INPUT].getVoltage(),-10.0f,10.0f) / 20.0f + 0.5f, 0.0f, 1.0f) * 255);
     }
 
     for (int i = 0 ; i != 8 ; i++)
     {
       int bitValue = ((in & (1U << i)) != 0);
-      lights[BIT_INPUT_LIGHTS+i].value = 1-bitValue;
-      outputs[BIT_OUTPUT+i].value = (1-bitValue) * 10;
+      lights[BIT_INPUT_LIGHTS+i].setBrightness(1-bitValue);
+      outputs[BIT_OUTPUT+i].setVoltage((1-bitValue) * 10);
     }
 
-    if ((!inputs[DACCLOCK_INPUT].active) || (dacClockTrigger.process(inputs[DACCLOCK_INPUT].value)))
+    if ((!inputs[DACCLOCK_INPUT].isConnected()) || (dacClockTrigger.process(inputs[DACCLOCK_INPUT].getVoltage())))
     {
       for (int i = 0 ; i != 8 ; i++)
       {
-        if ((inputs[BIT_INPUT+i].active) && (inputs[BIT_INPUT+i].value != 0)) {
+        if ((inputs[BIT_INPUT+i].isConnected()) && (inputs[BIT_INPUT+i].getVoltage() != 0)) {
           out |= 1U << i;
         }
 				else {
 					out &= ~(1U << i);
 				}
-        lights[BIT_OUTPUT_LIGHTS+i].value = (out >> i) & 1U;
+        lights[BIT_OUTPUT_LIGHTS+i].setBrightness((out >> i) & 1U);
       }
     }
-		outputs[OUTPUT].value = -1.0f * clamp(((((float)out/255.0f))-0.5f)*10.0f,-10.0f,10.0f);
+		outputs[OUTPUT].setVoltage(-1.0f * clamp(((((float)out/255.0f))-0.5f)*10.0f,-10.0f,10.0f));
 }
 
 struct BISTROTWidget : ModuleWidget {

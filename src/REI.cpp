@@ -5,7 +5,7 @@
 #include "dep/filters/pitchshifter.h"
 #include "dsp/digital.hpp"
 
-#define BUFF_SIZE 1024
+#define REIBUFF_SIZE 1024
 
 using namespace std;
 
@@ -42,33 +42,33 @@ struct REI : Module {
 		NUM_LIGHTS
 	};
 
-	dsp::DoubleRingBuffer<float, BUFF_SIZE> in_Buffer;
-	dsp::DoubleRingBuffer<float, 2 * BUFF_SIZE> pin_Buffer;
+	dsp::DoubleRingBuffer<float, REIBUFF_SIZE> in_Buffer;
+	dsp::DoubleRingBuffer<float, 2 * REIBUFF_SIZE> pin_Buffer;
 	revmodel revprocessor;
 	dsp::SchmittTrigger freezeTrigger;
 	bool freeze = false;
-	float sr = APP->engine->getSampleRate();
-	PitchShifter *pShifter = NULL;
+	PitchShifter *pShifter;
 	int delay = 0;
+	bool first = true;
 
-	///Tooltip
-	struct tpFreeze : ParamQuantity {
-		std::string getDisplayValueString() override {
-			if (getValue() == 10.f)
-				return "Cycled";
-			else
-				return "Cycle";
-		}
-	};
-	struct tpOnOff : ParamQuantity {
-		std::string getDisplayValueString() override {
-			if (getValue() < 1.f)
-				return "On";
-			else
-				return "Off";
-		}
-	};
-	///Tooltip
+	// ///Tooltip
+	// struct tpFreeze : ParamQuantity {
+	// 	std::string getDisplayValueString() override {
+	// 		if (getValue() == 10.f)
+	// 			return "Cycled";
+	// 		else
+	// 			return "Cycle";
+	// 	}
+	// };
+	// struct tpOnOff : ParamQuantity {
+	// 	std::string getDisplayValueString() override {
+	// 		if (getValue() < 1.f)
+	// 			return "On";
+	// 		else
+	// 			return "Off";
+	// 	}
+	// };
+	// ///Tooltip
 
 	REI() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -79,17 +79,22 @@ struct REI : Module {
 		configParam(WET_PARAM, 0.f, 1.f, .5f, "Wet", "%", 0.f, 100.f);
 		configParam(SHIMM_PARAM, 0.f, 1.f, 0.f, "Feedback", "%", 0.f, 100.f);
 		configParam(SHIMMPITCH_PARAM, .5f, 4.f, 2.f, "Pitch shift", " Hz"); //Could use sdt::pow TODO find out what pitch it is, to make calibration
-		configParam<tpFreeze>(FREEZE_PARAM, 0.f, 10.f, 0.f, "Freeze");//non momentary might work better? if using on/off
-		configParam<tpOnOff>(CLIPPING_PARAM, 0.f, 1.f, 1.f, "Clipping");//Unsure which is on/off
+		configParam(FREEZE_PARAM, 0.f, 10.f, 0.f, "Freeze");//non momentary might work better? if using on/off
+		configParam(CLIPPING_PARAM, 0.f, 1.f, 1.f, "Clipping");//Unsure which is on/off
 
-		pShifter = new PitchShifter(BUFF_SIZE, 8, sr);
+		pShifter = new PitchShifter();
 	}
 
 	~REI() {
-		free(pShifter);
+		delete pShifter;
 	}
 
 	void process(const ProcessArgs &args) override {
+		if (first) {
+			pShifter->init(REIBUFF_SIZE, 8, args.sampleRate);
+			first = false;
+		}
+
 		float outL = 0.0f, outR = 0.0f;
 		float wOutL = 0.0f, wOutR = 0.0f;
 		float inL = 0.0f, inR = 0.0f;
@@ -109,7 +114,7 @@ struct REI : Module {
 
 		float fact = clamp(params[SHIMM_PARAM].getValue() + rescale(inputs[SHIMM_INPUT].getVoltage(), 0.0f, 10.0f, 0.0f, 1.0f), 0.0f, 1.0f);
 
-		if (pin_Buffer.size() > BUFF_SIZE) {
+		if (pin_Buffer.size() > REIBUFF_SIZE) {
 			revprocessor.process(inL, inR, fact*(*pin_Buffer.startData()), outL, outR, wOutL, wOutR);
 			pin_Buffer.startIncr(1);
 		} else {

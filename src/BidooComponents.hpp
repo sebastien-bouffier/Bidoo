@@ -307,5 +307,4 @@ struct MiniLEDButton : SvgSwitch {
 	}
 };
 
-
 } // namespace rack

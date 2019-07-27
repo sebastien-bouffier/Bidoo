@@ -209,6 +209,7 @@ struct wtTable {
   void window();
   void windowFrame(size_t index);
   void removeDCOffset();
+  void calcFFT();
   void removeFrameDCOffset(size_t index);
   void addFrame(size_t index);
   void removeFrame(size_t index);
@@ -287,6 +288,12 @@ inline void wtTable::windowFrame(size_t index) {
 inline void wtTable::removeDCOffset() {
   for(size_t i=0; i<nFrames;i++) {
     frames[i].removeDCOffset();
+  }
+}
+
+inline void wtTable::calcFFT() {
+  for(size_t i=0; i<nFrames;i++) {
+    frames[i].calcFFT();
   }
 }
 
@@ -486,8 +493,7 @@ struct wtOscillator {
 			deltaPhase *= -1.0f;
 	}
 
-  void updateBuffer(float index) {
-    size_t idx = index*(table->nFrames-1);
+  void updateBuffer(size_t idx) {
     for (int i = 0; i < 16; i++) {
 			if (syncIndex == i) {
 				if (soft) {

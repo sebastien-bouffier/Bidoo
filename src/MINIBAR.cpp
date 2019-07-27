@@ -34,10 +34,10 @@ struct MINIBAR : Module {
 	float runningVU_L_Sum = 1e-6f, runningRMS_L_Sum = 1e-6f, rms_L = -96.3f, vu_L = -96.3f, peakL = -96.3f;
 	float in_L_dBFS = 1e-6f;
 	float dist = 0.0f, gain = 1.0f, gaindB = 1.0f, ratio = 1.0f, threshold = 1.0f, knee = 0.0f;
-	float attackTime = 0.0f, releaseTime = 0.0f, makeup = 1.0f, previousPostGain = 1.0f, mix = 1.0f;
+	float attackTime = 0.0f, releaseTime = 0.0f, makeup = 1.0f, previousPostGain = 1.0f, mix = 1.0f, mixDisplay = 1.0f;
 	int indexVU = 0, indexRMS = 0, lookAheadWriteIndex=0;
 	int maxIndexVU = 0, maxIndexRMS = 0, maxLookAheadWriteIndex=0;
-	int lookAhead;
+	float lookAhead;
 	float buffL[20000] = {0.0f};
 
 	MINIBAR() {
@@ -135,7 +135,8 @@ void MINIBAR::process(const ProcessArgs &args) {
 	gain = pow(10.0f, gaindB/20.0f);
 
 	mix = params[MIX_PARAM].getValue();
-	lookAhead = params[LOOKAHEAD_PARAM].getValue();
+	mixDisplay = mix*100.f;
+	lookAhead = floor(params[LOOKAHEAD_PARAM].getValue());
 
 	int nbSamples = clamp(floor(lookAhead * attackTime * args.sampleRate * 0.000001f),0.0f,19999.0f);
 	int readIndex;
@@ -158,8 +159,8 @@ struct MINIBARDisplay : TransparentWidget {
 	}
 
 void draw(NVGcontext *vg) override {
-	float height = 250.0f;
-	float width = 8.0f;
+	float height = 230.0f;
+	float width = 10.0f;
 	float spacer = 2.0f;
 	float vuL = rescale(module->vu_L,-97.0f,0.0f,0.0f,height);
 	float rmsL = rescale(module->rms_L,-97.0f,0.0f,0.0f,height);
@@ -206,7 +207,7 @@ void draw(NVGcontext *vg) override {
 	nvgStroke(vg);
 	nvgFill(vg);
 
-	float offset = 2.0f;
+	float offset = 1.0f;
 	nvgStrokeWidth(vg, 0.5f);
 	nvgFillColor(vg, YELLOW_BIDOO);
 	nvgStrokeColor(vg, YELLOW_BIDOO);
@@ -217,6 +218,53 @@ void draw(NVGcontext *vg) override {
 	nvgFill(vg);
 	nvgRestore(vg);
 }
+};
+
+struct LabelMICROBARWidget : TransparentWidget {
+	float *value = NULL;
+	const char *format = NULL;
+	const char *header = "Ready";
+	const char *tail = "";
+	std::shared_ptr<Font> font;
+
+	LabelMICROBARWidget() {
+		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+	};
+
+	void draw(const DrawArgs &args) override {
+		nvgFontFaceId(args.vg, font->handle);
+		nvgTextLetterSpacing(args.vg, -2.0f);
+		nvgFillColor(args.vg, GREEN_BIDOO);
+		nvgTextAlign(args.vg, NVG_ALIGN_LEFT);
+		if (header) {
+			nvgFontSize(args.vg, 12.0f);
+			nvgText(args.vg, 0.0f, 0.0f, header, NULL);
+		}
+		if (value && format) {
+			char display[64];
+			snprintf(display, sizeof(display), format, *value);
+			nvgFontSize(args.vg, 12.0f);
+			nvgText(args.vg, 0.0f, 10.0f, strcat(display,tail), NULL);
+		}
+	}
+};
+
+struct BidooBlueTrimpotWithDisplay : BidooBlueTrimpot {
+	LabelMICROBARWidget *lblDisplay = NULL;
+	float *valueForDisplay = NULL;
+	const char *format = NULL;
+	const char *header = NULL;
+	const char *tail = "";
+
+	void onEnter(const event::Enter &e) override {
+		if (lblDisplay && valueForDisplay && format) {
+			lblDisplay->value = valueForDisplay;
+			lblDisplay->format = format;
+			lblDisplay->tail = tail;
+		}
+		if (lblDisplay && header) lblDisplay->header = header;
+		BidooBlueTrimpot::onEnter(e);
+	}
 };
 
 struct MINIBARWidget : ModuleWidget {
@@ -232,19 +280,77 @@ struct MINIBARWidget : ModuleWidget {
 		if (module) {
 			MINIBARDisplay *display = new MINIBARDisplay();
 			display->module = module;
-			display->box.pos = Vec(39.0f, 45.0f);
+			display->box.pos = Vec(34.0f, 45.0f);
 			display->box.size = Vec(70.0f, 70.0f);
 			addChild(display);
 		}
 
-		addParam(createParam<BidooBlueTrimpot>(Vec(2.0f,37.0f), module, MINIBAR::THRESHOLD_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(15.0f,72.0f), module, MINIBAR::RATIO_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(2.0f,107.0f), module, MINIBAR::ATTACK_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(15.0f,142.0f), module, MINIBAR::RELEASE_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(2.0f,177.0f), module, MINIBAR::KNEE_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(15.0f,212.0f), module, MINIBAR::MAKEUP_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(2.0f,247.0f), module, MINIBAR::MIX_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(15.0f,282.0f), module, MINIBAR::LOOKAHEAD_PARAM));
+		LabelMICROBARWidget *display = new LabelMICROBARWidget();
+		display->box.pos = Vec(32, 287);
+		addChild(display);
+
+		BidooBlueTrimpotWithDisplay* tresh = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,37.0f), module, MINIBAR::THRESHOLD_PARAM);
+		tresh->lblDisplay = display;
+		tresh->valueForDisplay = module ? &module->threshold : NULL;
+		tresh->format = "%2.1f";
+		tresh->header = "Tresh.";
+		tresh->tail = " dB";
+		addParam(tresh);
+
+		BidooBlueTrimpotWithDisplay* ratio = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,72.0f), module, MINIBAR::RATIO_PARAM);
+		ratio->lblDisplay = display;
+		ratio->valueForDisplay = module ? &module->ratio : NULL;
+		ratio->format = "%1.0f:1";
+		ratio->header = "Ratio";
+		addParam(ratio);
+
+		BidooBlueTrimpotWithDisplay* attack = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,107.0f), module, MINIBAR::ATTACK_PARAM);
+		attack->lblDisplay = display;
+		attack->valueForDisplay = module ? &module->attackTime : NULL;
+		attack->format = "%1.0f";
+		attack->header = "Attack";
+		attack->tail = " ms";
+		addParam(attack);
+
+		BidooBlueTrimpotWithDisplay* release = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,142.0f), module, MINIBAR::RELEASE_PARAM);
+		release->lblDisplay = display;
+		release->valueForDisplay = module ? &module->releaseTime : NULL;
+		release->format = "%1.0f";
+		release->header = "Release";
+		release->tail = " ms";
+		addParam(release);
+
+		BidooBlueTrimpotWithDisplay* knee = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,177.0f), module, MINIBAR::KNEE_PARAM);
+		knee->lblDisplay = display;
+		knee->valueForDisplay = module ? &module->knee : NULL;
+		knee->format = "%1.1f";
+		knee->header = "Knee";
+		knee->tail = " dB";
+		addParam(knee);
+
+		BidooBlueTrimpotWithDisplay* makeup = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,212.0f), module, MINIBAR::MAKEUP_PARAM);
+		makeup->lblDisplay = display;
+		makeup->valueForDisplay = module ? &module->makeup : NULL;
+		makeup->format = "%1.1f";
+		makeup->header = "Gain";
+		makeup->tail = " dB";
+		addParam(makeup);
+
+		BidooBlueTrimpotWithDisplay* mix = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,247.0f), module, MINIBAR::MIX_PARAM);
+		mix->lblDisplay = display;
+		mix->valueForDisplay = module ? &module->mixDisplay : NULL;
+		mix->format = "%1.0f%";
+		mix->header = "Mix";
+		mix->tail = " %";
+		addParam(mix);
+
+		BidooBlueTrimpotWithDisplay* looka = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,282.0f), module, MINIBAR::LOOKAHEAD_PARAM);
+		looka->lblDisplay = display;
+		looka->valueForDisplay = module ? &module->lookAhead : NULL;
+		looka->format = "%1.0f";
+		looka->header = "Look.";
+		looka->tail = " %";
+		addParam(looka);
 
 		addInput(createInput<TinyPJ301MPort>(Vec(6.0f, 323.0f), module, MINIBAR::IN_L_INPUT));
 		addInput(createInput<TinyPJ301MPort>(Vec(30.0f, 323.0f), module, MINIBAR::SC_L_INPUT));
