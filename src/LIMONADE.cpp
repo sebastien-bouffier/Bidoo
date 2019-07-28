@@ -350,12 +350,15 @@ struct LIMONADE : Module {
 		}
 		json_object_set_new(rootJ, "nFrames", json_integer(nFrames));
 		json_object_set_new(rootJ, "morphType", json_integer(morphType));
+		json_object_set_new(rootJ, "displayMode", json_integer(displayMode));
+		json_object_set_new(rootJ, "displayEditedFrame", json_integer(displayEditedFrame));
+		json_object_set_new(rootJ, "displayPlayedFrame", json_integer(displayPlayedFrame));
+		json_object_set_new(rootJ, "frameSize", json_integer(frameSize));
 		json_object_set_new(rootJ, "frames", framesJ);
 		return rootJ;
 	}
 
 	void dataFromJson(json_t *rootJ) override {
-
 		size_t nFrames = 0;
 		json_t *nFramesJ = json_object_get(rootJ, "nFrames");
 		if (nFramesJ)
@@ -364,6 +367,22 @@ struct LIMONADE : Module {
 		json_t *morphTypeJ = json_object_get(rootJ, "morphType");
 		if (morphTypeJ)
 			morphType = json_integer_value(morphTypeJ);
+
+		json_t *displayModeJ = json_object_get(rootJ, "displayMode");
+		if (displayModeJ)
+			displayMode = json_integer_value(displayModeJ);
+
+		json_t *displayEditedFrameJ = json_object_get(rootJ, "displayEditedFrame");
+		if (displayEditedFrameJ)
+			displayEditedFrame = json_integer_value(displayEditedFrameJ);
+
+		json_t *displayPlayedFrameJ = json_object_get(rootJ, "displayPlayedFrame");
+		if (displayPlayedFrameJ)
+			displayPlayedFrame = json_integer_value(displayPlayedFrameJ);
+
+		json_t *frameSizeJ = json_object_get(rootJ, "frameSize");
+		if (frameSizeJ)
+			frameSize = json_integer_value(frameSizeJ);
 
 		if (nFrames>0)
 		{
@@ -520,18 +539,6 @@ void LIMONADE::process(const ProcessArgs &args) {
 	if (displayPlayedFrameTrigger.process(params[DISPLAYPLAYEDFRAME_PARAM].getValue())) {
 		displayPlayedFrame = (displayPlayedFrame == 0) ? 1 : 0;
 	}
-
-	// if (loadSampleTrigger.process(params[LOADSAMPLE_PARAM].getValue())) {
-	// 	loadSample();
-	// }
-	//
-	// if (loadPngTrigger.process(params[LOADPNG_PARAM].getValue())) {
-	// 	loadPNG();
-	// }
-	//
-	// if (loadFrameTrigger.process(params[LOADFRAME_PARAM].getValue())) {
-	// 	loadFrame();
-	// }
 
 	if (morphWtTrigger.process(params[MORPHWT_PARAM].getValue())) {
 		morphWavetable();
@@ -799,54 +806,50 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
   		nvgResetScissor(args.vg);
   		nvgRestore(args.vg);
 
-			if (module->displayPlayedFrame == 0) {
-				if (playedFrame.sample.size()>0) {
-					nvgStrokeColor(args.vg, RED_BIDOO);
-					nvgSave(args.vg);
-					float invNbSample = 1.f / (float)playedFrame.sample.size();
-					nvgBeginPath(args.vg);
-					for (size_t i = 0; i < playedFrame.sample.size(); i++) {
-						float x, y;
-						x = (float)i * invNbSample  * 420.f;
-						y = playedFrame.sample[i] * 18.f + 35.f;
-						if (i == 0) {
-							nvgMoveTo(args.vg, x, y);
-						}
-						else {
-							nvgLineTo(args.vg, x, y);
-						}
+			if ((module->displayPlayedFrame == 0) && (playedFrame.sample.size()>0)) {
+				nvgStrokeColor(args.vg, RED_BIDOO);
+				nvgSave(args.vg);
+				float invNbSample = 1.f / (float)playedFrame.sample.size();
+				nvgBeginPath(args.vg);
+				for (size_t i = 0; i < playedFrame.sample.size(); i++) {
+					float x, y;
+					x = (float)i * invNbSample  * 420.f;
+					y = playedFrame.sample[i] * 18.f + 35.f;
+					if (i == 0) {
+						nvgMoveTo(args.vg, x, y);
 					}
-					nvgLineCap(args.vg, NVG_MITER);
-					nvgStrokeWidth(args.vg, 1);
-					nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-					nvgStroke(args.vg);
-					nvgRestore(args.vg);
+					else {
+						nvgLineTo(args.vg, x, y);
+					}
 				}
+				nvgLineCap(args.vg, NVG_MITER);
+				nvgStrokeWidth(args.vg, 1);
+				nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+				nvgStroke(args.vg);
+				nvgRestore(args.vg);
 			}
 
-			if (module->displayEditedFrame == 0) {
-				if (frame.sample.size()>0) {
-					nvgStrokeColor(args.vg, GREEN_BIDOO);
-					nvgSave(args.vg);
-					float invNbSample = 1.f / (float)frame.sample.size();
-					nvgBeginPath(args.vg);
-					for (size_t i = 0; i < frame.sample.size(); i++) {
-						float x, y;
-						x = (float)i * invNbSample * 420.f;
-						y = frame.sample[i] * 18.f + 35.f;
-						if (i == 0) {
-							nvgMoveTo(args.vg, x, y);
-						}
-						else {
-							nvgLineTo(args.vg, x, y);
-						}
+			if ((module->displayEditedFrame == 0) && (frame.sample.size()>0)) {
+				nvgStrokeColor(args.vg, GREEN_BIDOO);
+				nvgSave(args.vg);
+				float invNbSample = 1.f / (float)frame.sample.size();
+				nvgBeginPath(args.vg);
+				for (size_t i = 0; i < frame.sample.size(); i++) {
+					float x, y;
+					x = (float)i * invNbSample * 420.f;
+					y = frame.sample[i] * 18.f + 35.f;
+					if (i == 0) {
+						nvgMoveTo(args.vg, x, y);
 					}
-					nvgLineCap(args.vg, NVG_MITER);
-					nvgStrokeWidth(args.vg, 1);
-					nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-					nvgStroke(args.vg);
-					nvgRestore(args.vg);
+					else {
+						nvgLineTo(args.vg, x, y);
+					}
 				}
+				nvgLineCap(args.vg, NVG_MITER);
+				nvgStrokeWidth(args.vg, 1);
+				nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+				nvgStroke(args.vg);
+				nvgRestore(args.vg);
 			}
     }
 	}
@@ -999,7 +1002,7 @@ struct LIMONADETextField : LedDisplayTextField {
     font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
   	color = YELLOW_BIDOO;
   	textOffset = Vec(2,0);
-    text = "2048";
+    text = module ? std::to_string(module->frameSize) : "2048";
   }
 	void onChange(const event::Change &e) override;
 	LIMONADE *module;

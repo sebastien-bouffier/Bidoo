@@ -224,7 +224,7 @@ struct LabelMICROBARWidget : TransparentWidget {
 	float *value = NULL;
 	const char *format = NULL;
 	const char *header = "Ready";
-	const char *tail = "";
+	const char *tail = NULL;
 	std::shared_ptr<Font> font;
 
 	LabelMICROBARWidget() {
@@ -240,7 +240,7 @@ struct LabelMICROBARWidget : TransparentWidget {
 			nvgFontSize(args.vg, 12.0f);
 			nvgText(args.vg, 0.0f, 0.0f, header, NULL);
 		}
-		if (value && format) {
+		if (value && format && tail) {
 			char display[64];
 			snprintf(display, sizeof(display), format, *value);
 			nvgFontSize(args.vg, 12.0f);
@@ -249,15 +249,15 @@ struct LabelMICROBARWidget : TransparentWidget {
 	}
 };
 
-struct BidooBlueTrimpotWithDisplay : BidooBlueTrimpot {
+struct MicrobarTrimpotWithDisplay : BidooBlueTrimpot {
 	LabelMICROBARWidget *lblDisplay = NULL;
 	float *valueForDisplay = NULL;
 	const char *format = NULL;
 	const char *header = NULL;
-	const char *tail = "";
+	const char *tail = NULL;
 
 	void onEnter(const event::Enter &e) override {
-		if (lblDisplay && valueForDisplay && format) {
+		if (lblDisplay && valueForDisplay && format && tail) {
 			lblDisplay->value = valueForDisplay;
 			lblDisplay->format = format;
 			lblDisplay->tail = tail;
@@ -289,7 +289,7 @@ struct MINIBARWidget : ModuleWidget {
 		display->box.pos = Vec(32, 287);
 		addChild(display);
 
-		BidooBlueTrimpotWithDisplay* tresh = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,37.0f), module, MINIBAR::THRESHOLD_PARAM);
+		MicrobarTrimpotWithDisplay* tresh = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,37.0f), module, MINIBAR::THRESHOLD_PARAM);
 		tresh->lblDisplay = display;
 		tresh->valueForDisplay = module ? &module->threshold : NULL;
 		tresh->format = "%2.1f";
@@ -297,14 +297,15 @@ struct MINIBARWidget : ModuleWidget {
 		tresh->tail = " dB";
 		addParam(tresh);
 
-		BidooBlueTrimpotWithDisplay* ratio = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,72.0f), module, MINIBAR::RATIO_PARAM);
+		MicrobarTrimpotWithDisplay* ratio = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,72.0f), module, MINIBAR::RATIO_PARAM);
 		ratio->lblDisplay = display;
 		ratio->valueForDisplay = module ? &module->ratio : NULL;
 		ratio->format = "%1.0f:1";
 		ratio->header = "Ratio";
+		ratio->tail = " ";
 		addParam(ratio);
 
-		BidooBlueTrimpotWithDisplay* attack = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,107.0f), module, MINIBAR::ATTACK_PARAM);
+		MicrobarTrimpotWithDisplay* attack = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,107.0f), module, MINIBAR::ATTACK_PARAM);
 		attack->lblDisplay = display;
 		attack->valueForDisplay = module ? &module->attackTime : NULL;
 		attack->format = "%1.0f";
@@ -312,7 +313,7 @@ struct MINIBARWidget : ModuleWidget {
 		attack->tail = " ms";
 		addParam(attack);
 
-		BidooBlueTrimpotWithDisplay* release = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,142.0f), module, MINIBAR::RELEASE_PARAM);
+		MicrobarTrimpotWithDisplay* release = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,142.0f), module, MINIBAR::RELEASE_PARAM);
 		release->lblDisplay = display;
 		release->valueForDisplay = module ? &module->releaseTime : NULL;
 		release->format = "%1.0f";
@@ -320,7 +321,7 @@ struct MINIBARWidget : ModuleWidget {
 		release->tail = " ms";
 		addParam(release);
 
-		BidooBlueTrimpotWithDisplay* knee = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,177.0f), module, MINIBAR::KNEE_PARAM);
+		MicrobarTrimpotWithDisplay* knee = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,177.0f), module, MINIBAR::KNEE_PARAM);
 		knee->lblDisplay = display;
 		knee->valueForDisplay = module ? &module->knee : NULL;
 		knee->format = "%1.1f";
@@ -328,7 +329,7 @@ struct MINIBARWidget : ModuleWidget {
 		knee->tail = " dB";
 		addParam(knee);
 
-		BidooBlueTrimpotWithDisplay* makeup = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,212.0f), module, MINIBAR::MAKEUP_PARAM);
+		MicrobarTrimpotWithDisplay* makeup = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,212.0f), module, MINIBAR::MAKEUP_PARAM);
 		makeup->lblDisplay = display;
 		makeup->valueForDisplay = module ? &module->makeup : NULL;
 		makeup->format = "%1.1f";
@@ -336,7 +337,7 @@ struct MINIBARWidget : ModuleWidget {
 		makeup->tail = " dB";
 		addParam(makeup);
 
-		BidooBlueTrimpotWithDisplay* mix = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,247.0f), module, MINIBAR::MIX_PARAM);
+		MicrobarTrimpotWithDisplay* mix = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,247.0f), module, MINIBAR::MIX_PARAM);
 		mix->lblDisplay = display;
 		mix->valueForDisplay = module ? &module->mixDisplay : NULL;
 		mix->format = "%1.0f%";
@@ -344,7 +345,7 @@ struct MINIBARWidget : ModuleWidget {
 		mix->tail = " %";
 		addParam(mix);
 
-		BidooBlueTrimpotWithDisplay* looka = createParam<BidooBlueTrimpotWithDisplay>(Vec(2.0f,282.0f), module, MINIBAR::LOOKAHEAD_PARAM);
+		MicrobarTrimpotWithDisplay* looka = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,282.0f), module, MINIBAR::LOOKAHEAD_PARAM);
 		looka->lblDisplay = display;
 		looka->valueForDisplay = module ? &module->lookAhead : NULL;
 		looka->format = "%1.0f";
