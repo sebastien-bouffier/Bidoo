@@ -468,8 +468,9 @@ void LIMONADE::loadSample() {
 	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
 	if (path) {
 		lastPath=path;
-		thread t = thread(tLoadSample, std::ref(table), path, frameSize, true);
-		t.detach();
+		tLoadSample(table, path, frameSize, true);
+		// thread t = thread(tLoadSample, std::ref(table), path, frameSize, true);
+		// t.detach();
 		free(path);
 		morphType = -1;
 	}

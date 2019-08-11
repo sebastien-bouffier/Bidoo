@@ -364,9 +364,10 @@ struct OUAIVEDisplay : OpaqueWidget {
   			nvgStrokeColor(args.vg, PINK_BIDOO);
   			nvgSave(args.vg);
   			Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, height));
+				size_t inc = std::max(vL.size()/zoomWidth/4,1.f);
   			nvgScissor(args.vg, 0, b.pos.y, width, height);
   			nvgBeginPath(args.vg);
-  			for (size_t i = 0; i < vL.size(); i++) {
+  			for (size_t i = 0; i < vL.size(); i+=inc) {
   				float x, y;
   				x = (float)i/vL.size();
   				y = vL[i] / 2.0f + 0.5f;
@@ -388,7 +389,7 @@ struct OUAIVEDisplay : OpaqueWidget {
   			b = Rect(Vec(zoomLeftAnchor, height+10), Vec(zoomWidth, height));
   			nvgScissor(args.vg, 0, b.pos.y, width, height);
   			nvgBeginPath(args.vg);
-  			for (size_t i = 0; i < vR.size(); i++) {
+  			for (size_t i = 0; i < vR.size(); i+=inc) {
   				float x, y;
   				x = (float)i/vR.size();
   				y = vR[i] / 2.0f + 0.5f;
