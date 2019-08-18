@@ -249,7 +249,7 @@ struct LIMONADE : Module {
 	};
 
 	std::string lastPath;
-	size_t frameSize = FS;
+	size_t frameSize=FS;
 	int morphType = -1;
 	bool recWt = false;
 	bool recFrame = false;
@@ -361,28 +361,22 @@ struct LIMONADE : Module {
 	void dataFromJson(json_t *rootJ) override {
 		size_t nFrames = 0;
 		json_t *nFramesJ = json_object_get(rootJ, "nFrames");
-		if (nFramesJ)
-			nFrames = json_integer_value(nFramesJ);
+		if (nFramesJ)	nFrames = json_integer_value(nFramesJ);
 
 		json_t *morphTypeJ = json_object_get(rootJ, "morphType");
-		if (morphTypeJ)
-			morphType = json_integer_value(morphTypeJ);
+		if (morphTypeJ)	morphType = json_integer_value(morphTypeJ);
 
 		json_t *displayModeJ = json_object_get(rootJ, "displayMode");
-		if (displayModeJ)
-			displayMode = json_integer_value(displayModeJ);
+		if (displayModeJ)	displayMode = json_integer_value(displayModeJ);
 
 		json_t *displayEditedFrameJ = json_object_get(rootJ, "displayEditedFrame");
-		if (displayEditedFrameJ)
-			displayEditedFrame = json_integer_value(displayEditedFrameJ);
+		if (displayEditedFrameJ) displayEditedFrame = json_integer_value(displayEditedFrameJ);
 
 		json_t *displayPlayedFrameJ = json_object_get(rootJ, "displayPlayedFrame");
-		if (displayPlayedFrameJ)
-			displayPlayedFrame = json_integer_value(displayPlayedFrameJ);
+		if (displayPlayedFrameJ) displayPlayedFrame = json_integer_value(displayPlayedFrameJ);
 
 		json_t *frameSizeJ = json_object_get(rootJ, "frameSize");
-		if (frameSizeJ)
-			frameSize = json_integer_value(frameSizeJ);
+		if (frameSizeJ)	frameSize = json_integer_value(frameSizeJ);
 
 		if (nFrames>0)
 		{
@@ -768,7 +762,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
   		nvgText(args.vg, 130.0f, heightMagn + graphGap/2+4, "▲ Magnitude ▼ Phase", NULL);
 
   		if (module->table.nFrames>0) {
-  			nvgText(args.vg, 0.0f, heightMagn + graphGap/2+4, ("Frame " + to_string(module->idx + 1) + " / " + to_string(module->table.nFrames)).c_str(), NULL);
+  			nvgText(args.vg, 0.0f, heightMagn + graphGap/2+4, ("Frame " + to_string((int)(module->params[LIMONADE::INDEX_PARAM].value*(module->table.nFrames-1) + 1)) + " / " + to_string(module->table.nFrames)).c_str(), NULL);
   			for (size_t i = 0; i < FS2/2; i++) {
   				float x, y;
   				x = (float)i * IFS2;
@@ -998,25 +992,36 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 };
 
 struct LIMONADETextField : LedDisplayTextField {
+	LIMONADE *module;
+	bool init = true;
+
   LIMONADETextField(LIMONADE *mod) {
     module = mod;
     font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
   	color = YELLOW_BIDOO;
   	textOffset = Vec(2,0);
-    text = module ? std::to_string(module->frameSize) : "2048";
+		if (module != NULL) text = std::to_string(module->frameSize);
   }
-	void onChange(const event::Change &e) override;
-	LIMONADE *module;
+
+	void onChange(const event::Change &e) override {
+		if (text.size() > 0) {
+	      std::string tText = text;
+	      tText.erase(std::remove_if(tText.begin(), tText.end(), [](unsigned char x){return std::isspace(x);}), tText.end());
+	      module->frameSize = std::stoi(tText);
+		}
+	  LedDisplayTextField::onChange(e);
+	};
+
+	void draw(const DrawArgs &args) override {
+		if ((init) && (module != NULL) && (module->frameSize != (size_t)std::stoi(text))) {
+			text = std::to_string(module->frameSize);
+			init = false;
+		}
+		LedDisplayTextField::draw(args);
+	}
 };
 
-void LIMONADETextField::onChange(const event::Change &e) {
-	if (text.size() > 0) {
-      std::string tText = text;
-      tText.erase(std::remove_if(tText.begin(), tText.end(), [](unsigned char x){return std::isspace(x);}), tText.end());
-      module->frameSize = std::stoi(tText);
-	}
-  LedDisplayTextField::onChange(e);
-}
+
 
 struct moduleDisplayModeItem : MenuItem {
 	LIMONADE *module;
@@ -1088,6 +1093,7 @@ struct LIMONADEWidget : ModuleWidget {
 
   	{
   		LIMONADETextField *textField = new LIMONADETextField(module);
+
   		textField->box.pos = Vec(170, 208);
   		textField->box.size = Vec(38, 19);
   		textField->multiline = false;

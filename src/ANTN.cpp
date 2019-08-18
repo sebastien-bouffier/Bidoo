@@ -303,7 +303,7 @@ struct ANTNTextField : LedDisplayTextField {
     if (module != NULL) text = module->url;
   }
 
-	void onChange(const event::Change &e) override{
+	void onChange(const event::Change &e) override {
     if (text.size() > 0) {
       std::string tText = text;
       tText.erase(std::remove_if(tText.begin(), tText.end(), [](unsigned char x){return std::isspace(x);}), tText.end());

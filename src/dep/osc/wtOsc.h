@@ -328,19 +328,21 @@ void wtTable::morphFrames() {
   deleteMorphing();
   if (nFrames>1) {
     size_t fs = nFrames;
-    size_t fCount = (NF - fs)/(fs-1);
+    size_t fCount = (NF-fs)/(fs-1);
 
-    for (size_t i=0; i<fs; i++) {
+    for (size_t i=fs-1; i>0; i--) {
+      frames[i].morphed = true;
+      frames[i].used = false;
       copyFrame(i, i*(fCount+1));
       frames[i*(fCount+1)].morphed = false;
       frames[i*(fCount+1)].used = true;
     }
 
-    for (size_t i=0; i<(fs-1); i++) {
-      for (size_t j=0; j<fCount; j++) {
-        size_t idx = i*(fCount+1) + j + 1;
+    for (size_t i=0; i<fs-1; i++) {
+      for (size_t j=1; j<fCount+1; j++) {
+        size_t idx = i*(fCount+1) + j;
         for(size_t k=0; k<FS; k++) {
-          frames[idx].sample[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].sample[k],frames[(i+1)*(fCount+1)].sample[k]);
+          frames[idx].sample[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].sample[k],frames[(i+1)*(fCount+1)].sample[k]);
         }
         frames[idx].morphed=true;
         frames[idx].used=true;
@@ -354,21 +356,25 @@ void wtTable::morphSpectrum() {
   deleteMorphing();
   if (nFrames>1) {
     size_t fs = nFrames;
-    size_t fCount = (NF - fs)/(fs-1);
+    size_t fCount = (NF-fs)/(fs-1);
 
-    for (size_t i=0; i<fs; i++) {
+    frames[0].calcFFT();
+
+    for (size_t i=fs-1; i>0; i--) {
       frames[i].calcFFT();
+      frames[i].morphed = true;
+      frames[i].used = false;
       copyFrame(i, i*(fCount+1));
       frames[i*(fCount+1)].morphed = false;
       frames[i*(fCount+1)].used = true;
     }
 
-    for (size_t i=0; i<(fs-1); i++) {
-      for (size_t j=0; j<fCount; j++) {
-        size_t idx = i*(fCount+1) + j + 1;
+    for (size_t i=0; i<fs-1; i++) {
+      for (size_t j=1; j<fCount+1; j++) {
+        size_t idx = i*(fCount+1) + j;
         for(size_t k=0; k<FS2; k++) {
-          frames[idx].magnitude[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[(i+1)*(fCount+1)].magnitude[k]);
-          frames[idx].phase[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[(i+1)*(fCount+1)].phase[k]);
+          frames[idx].magnitude[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[(i+1)*(fCount+1)].magnitude[k]);
+          frames[idx].phase[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[(i+1)*(fCount+1)].phase[k]);
         }
         frames[idx].calcIFFT();
         frames[idx].morphed=true;
@@ -383,27 +389,29 @@ void wtTable::morphSpectrumConstantPhase() {
   deleteMorphing();
   if (nFrames>1) {
     size_t fs = nFrames;
-    size_t fCount = (NF - fs)/(fs-1);
+    size_t fCount = (NF-fs)/(fs-1);
 
-    for (size_t i=0; i<fs; i++) {
+    frames[0].calcFFT();
+
+    for (size_t i=fs-1; i>0; i--) {
       frames[i].calcFFT();
-      if (i>0) {
-        for(size_t k=0; k<FS2; k++) {
-          frames[i].phase[k]=frames[0].phase[k];
-        }
-        frames[i].calcIFFT();
+      for(size_t k=0; k<FS2; k++) {
+        frames[i].phase[k]=frames[0].phase[k];
       }
+      frames[i].calcIFFT();
+      frames[i].morphed = true;
+      frames[i].used = false;
       copyFrame(i, i*(fCount+1));
       frames[i*(fCount+1)].morphed = false;
       frames[i*(fCount+1)].used = true;
     }
 
-    for (size_t i=0; i<(fs-1); i++) {
-      for (size_t j=0; j<fCount; j++) {
-        size_t idx = i*(fCount+1) + j + 1;
+    for (size_t i=0; i<fs-1; i++) {
+      for (size_t j=1; j<fCount+1; j++) {
+        size_t idx = i*(fCount+1) + j;
         for(size_t k=0; k<FS2; k++) {
-          frames[idx].magnitude[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[(i+1)*(fCount+1)].magnitude[k]);
-          frames[idx].phase[k]=rescale(j+1,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[(i+1)*(fCount+1)].phase[k]);
+          frames[idx].magnitude[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[(i+1)*(fCount+1)].magnitude[k]);
+          frames[idx].phase[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[(i+1)*(fCount+1)].phase[k]);
         }
         frames[idx].calcIFFT();
         frames[idx].morphed=true;
