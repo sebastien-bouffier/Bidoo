@@ -627,7 +627,7 @@ struct CANARDDisplay : OpaqueWidget {
 				for (size_t i = 0; i < vL.size(); i++) {
 					float x, y;
 					x = (float)i * invNbSample ;
-					y = vL[i] * 0.5f + 0.5f;
+					y = (-1.f)*vL[i] * 0.5f + 0.5f;
 					Vec p;
 					p.x = b.pos.x + b.size.x * x;
 					p.y = b.pos.y + b.size.y * (1.0f - y);
@@ -638,7 +638,7 @@ struct CANARDDisplay : OpaqueWidget {
 						nvgLineTo(args.vg, p.x, p.y);
 					}
 				}
-				//nvgClosePath(vg);
+
 				nvgLineCap(args.vg, NVG_MITER);
 				nvgStrokeWidth(args.vg, 1);
 				nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
@@ -650,7 +650,7 @@ struct CANARDDisplay : OpaqueWidget {
 				for (size_t i = 0; i < vR.size(); i++) {
 					float x, y;
 					x = (float)i * invNbSample;
-					y = vR[i] * 0.5f + 0.5f;
+					y = (-1.f)*vR[i] * 0.5f + 0.5f;
 					Vec p;
 					p.x = b.pos.x + b.size.x * x;
 					p.y = b.pos.y + b.size.y * (1.0f - y);
@@ -660,7 +660,6 @@ struct CANARDDisplay : OpaqueWidget {
 						nvgLineTo(args.vg, p.x, p.y);
 					}
 				}
-				//nvgClosePath(args.vg);
 				nvgLineCap(args.vg, NVG_MITER);
 				nvgStrokeWidth(args.vg, 1);
 				nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);

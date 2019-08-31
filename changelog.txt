@@ -1,8 +1,0 @@
-### v1.0.6
-- liMonADe small wavetables morphing issue fixed.
-- liMonADe frame number is now linked to the edited frame.
-- liMonADe frame size editor displays the correct value.
-
-### v1.0.5
-- liMonADe wavetable loading bugfix
-- OUAIve waveform display optimization

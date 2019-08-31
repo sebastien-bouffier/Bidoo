@@ -203,9 +203,9 @@ void OUAIVE::process(const ProcessArgs &args) {
 
 			if (trigMode == 0) {
 				if (readMode != 1)
-					samplePos = samplePos + speed * channels;
+					samplePos = samplePos + speed;
 				else
-					samplePos = samplePos - speed * channels;
+					samplePos = samplePos - speed;
 				//manage eof readMode
 				if ((readMode == 0) && (samplePos >= totalSampleCount))
 						play = false;
@@ -217,9 +217,9 @@ void OUAIVE::process(const ProcessArgs &args) {
 			else if (trigMode == 2)
 			{
 				if (readMode != 1)
-					samplePos = samplePos + speed * channels;
+					samplePos = samplePos + speed;
 				else
-					samplePos = samplePos - speed * channels;
+					samplePos = samplePos - speed;
 
 				//manage eof readMode
 				if ((readMode == 0) && ((samplePos >= (sliceIndex+1) * sliceLength) || (samplePos >= totalSampleCount)))
@@ -370,7 +370,7 @@ struct OUAIVEDisplay : OpaqueWidget {
   			for (size_t i = 0; i < vL.size(); i+=inc) {
   				float x, y;
   				x = (float)i/vL.size();
-  				y = vL[i] / 2.0f + 0.5f;
+  				y = (-1.f)*vL[i] / 2.0f + 0.5f;
   				Vec p;
   				p.x = b.pos.x + b.size.x * x;
   				p.y = b.pos.y + b.size.y * (1.0f - y);
@@ -392,7 +392,7 @@ struct OUAIVEDisplay : OpaqueWidget {
   			for (size_t i = 0; i < vR.size(); i+=inc) {
   				float x, y;
   				x = (float)i/vR.size();
-  				y = vR[i] / 2.0f + 0.5f;
+  				y = (-1.f)*vR[i] / 2.0f + 0.5f;
   				Vec p;
   				p.x = b.pos.x + b.size.x * x;
   				p.y = b.pos.y + b.size.y * (1.0f - y);

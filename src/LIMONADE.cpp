@@ -809,7 +809,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 				for (size_t i = 0; i < playedFrame.sample.size(); i++) {
 					float x, y;
 					x = (float)i * invNbSample  * 420.f;
-					y = playedFrame.sample[i] * 18.f + 35.f;
+					y = (-1.f)*playedFrame.sample[i] * 18.f + 35.f;
 					if (i == 0) {
 						nvgMoveTo(args.vg, x, y);
 					}
@@ -832,7 +832,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 				for (size_t i = 0; i < frame.sample.size(); i++) {
 					float x, y;
 					x = (float)i * invNbSample * 420.f;
-					y = frame.sample[i] * 18.f + 35.f;
+					y = (-1.f)*frame.sample[i] * 18.f + 35.f;
 					if (i == 0) {
 						nvgMoveTo(args.vg, x, y);
 					}
@@ -925,7 +925,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
   			for (size_t i=0; i<FS; i++) {
   				y3D = 10.0f * (fs-n-1)/fs-5.0f;
   				x3D = 10.0f * i * IFS -5.0f;
-  				z3D = module->table.frames[fs-1-n].sample[i];
+  				z3D = (-1.f)*module->table.frames[fs-1-n].sample[i];
   				y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
   				x2D = ca2*x3D+sa2*y3D+7.5f;
   				if (i == 0) {
@@ -952,7 +952,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
   				float x3D, y3D, z3D, x2D, y2D;
   				y3D = 10.0f * idx/fs -5.0f;
   				x3D = 10.0f * i * IFS -5.0f;
-  				z3D = module->table.frames[idx].sample[i];
+  				z3D = (-1.f)*module->table.frames[idx].sample[i];
   				y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
   				x2D = ca2*x3D+sa2*y3D+7.5f;
   				if (i == 0) {
@@ -971,7 +971,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
   				float x3D, y3D, z3D, x2D, y2D;
   				y3D = 10.0f * wtidx/fs -5.0f;
   				x3D = 10.0f * i * IFS -5.0f;
-  				z3D = module->table.frames[wtidx].sample[i];
+  				z3D = (-1.f)*module->table.frames[wtidx].sample[i];
   				y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
   				x2D = ca2*x3D+sa2*y3D+7.5f;
   				if (i == 0) {
@@ -1007,7 +1007,13 @@ struct LIMONADETextField : LedDisplayTextField {
 		if (text.size() > 0) {
 	      std::string tText = text;
 	      tText.erase(std::remove_if(tText.begin(), tText.end(), [](unsigned char x){return std::isspace(x);}), tText.end());
-	      module->frameSize = std::stoi(tText);
+				try
+			  {
+					size_t val = std::stoi(tText);
+			    module->frameSize = val;
+			  }
+			  catch (int e)
+			  {  }
 		}
 	  LedDisplayTextField::onChange(e);
 	};

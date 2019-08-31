@@ -412,7 +412,7 @@ struct PENEQUEWavDisplay : OpaqueWidget {
   		for (size_t i = 0; i < FRAME_SIZE; i++) {
   			float x, y;
   			x = (float)i * invNbSample ;
-  			y = module->wav[i] * 0.48f + 0.5f;
+  			y = (-1.f)*module->wav[i] * 0.48f + 0.5f;
   			Vec p;
   			p.x = b.pos.x + b.size.x * x;
   			p.y = b.pos.y + b.size.y * (1.0f - y);
@@ -423,13 +423,12 @@ struct PENEQUEWavDisplay : OpaqueWidget {
   				nvgLineTo(args.vg, p.x, p.y);
   			}
   		}
-  		//nvgClosePath(vg);
   		nvgLineCap(args.vg, NVG_MITER);
   		nvgStrokeWidth(args.vg, 1);
   		nvgStroke(args.vg);
   		nvgResetScissor(args.vg);
   		nvgRestore(args.vg);
-    }	
+    }
 	}
 };
 
