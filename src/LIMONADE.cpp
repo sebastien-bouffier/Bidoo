@@ -1101,7 +1101,7 @@ struct LIMONADEWidget : ModuleWidget {
   		LIMONADETextField *textField = new LIMONADETextField(module);
 
   		textField->box.pos = Vec(170, 208);
-  		textField->box.size = Vec(38, 19);
+  		textField->box.size = Vec(45, 19);
   		textField->multiline = false;
   		addChild(textField);
   	}

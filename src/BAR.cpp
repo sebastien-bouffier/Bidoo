@@ -1,6 +1,7 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/ringbuffer.hpp"
+#include "dsp/digital.hpp"
 
 using namespace std;
 
@@ -14,6 +15,7 @@ struct BAR : Module {
 		MAKEUP_PARAM,
 		MIX_PARAM,
 		LOOKAHEAD_PARAM,
+		BYPASS_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -29,6 +31,7 @@ struct BAR : Module {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
+		BYPASS_LIGHT,
 		NUM_LIGHTS
 	};
 
@@ -44,6 +47,8 @@ struct BAR : Module {
 	int maxIndexVU = 0, maxIndexRMS = 0, maxLookAheadWriteIndex=0;
 	int lookAhead;
 	float buffL[20000] = {0.0f}, buffR[20000] = {0.0f};
+	dsp::SchmittTrigger bypassTrigger;
+	bool bypass = false;
 
 	BAR() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -55,6 +60,7 @@ struct BAR : Module {
 		configParam(MAKEUP_PARAM, 0.0f, 60.0f, 0.0f, "Make up");
 		configParam(MIX_PARAM, 0.0f, 1.0f, 1.0f, "Mix");
 		configParam(LOOKAHEAD_PARAM, 0.0f, 200.0f, 0.0f, "Lookahead");
+		configParam(BYPASS_PARAM, 0.0f, 1.0f, 0.0f, "Bypass");
 	}
 
 	void process(const ProcessArgs &args) override;
@@ -62,6 +68,11 @@ struct BAR : Module {
 };
 
 void BAR::process(const ProcessArgs &args) {
+	if (bypassTrigger.process(params[BYPASS_PARAM].value)) {
+		bypass = !bypass;
+	}
+	lights[BYPASS_LIGHT].value = bypass ? 1.0f : 0.0f;
+
 	if (indexVU>=16384) {
 		runningVU_L_Sum -= *vu_L_Buffer.startData();
 		runningVU_R_Sum -= *vu_R_Buffer.startData();
@@ -174,8 +185,8 @@ void BAR::process(const ProcessArgs &args) {
 		readIndex = 20000 - abs(lookAheadWriteIndex-nbSamples);
 	}
 
-	outputs[OUT_L_OUTPUT].setVoltage(buffL[readIndex] * (gain*mix + (1.0f - mix)));
-	outputs[OUT_R_OUTPUT].setVoltage(buffR[readIndex] * (gain*mix + (1.0f - mix)));
+	outputs[OUT_L_OUTPUT].setVoltage(buffL[readIndex] * (bypass ? 1.0f : (gain*mix + (1.0f - mix))));
+	outputs[OUT_R_OUTPUT].setVoltage(buffR[readIndex] * (bypass ? 1.0f : (gain*mix + (1.0f - mix))));
 
 	lookAheadWriteIndex = (lookAheadWriteIndex+1)%20000;
 }
@@ -310,6 +321,9 @@ struct BARWidget : ModuleWidget {
 			display->box.size = Vec(110.0f, 70.0f);
 			addChild(display);
 		}
+
+		addParam(createParam<MiniLEDButton>(Vec(91.0f, 11.0f), module, BAR::BYPASS_PARAM));
+		addChild(createLight<SmallLight<RedLight>>(Vec(91.0f, 11.0f), module, BAR::BYPASS_LIGHT));
 
 		addParam(createParam<BidooBlueTrimpot>(Vec(10.0f,265.0f), module, BAR::THRESHOLD_PARAM));
 		addParam(createParam<BidooBlueTrimpot>(Vec(42.0f,265.0f), module, BAR::RATIO_PARAM));

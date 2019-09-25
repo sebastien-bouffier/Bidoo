@@ -1,3 +1,9 @@
+### v1.0.8 (25/09/2019)
+- liMonADe change frameSize text editor width
+- baR add bypass led button
+- mINIBar add bypass led button
+- MOiRE fix jump led button click action
+
 ### v1.0.7 (27/08/2019)
 - liMonADe fix inversion of waveform display
 - OUAIve fix inversion of waveform display

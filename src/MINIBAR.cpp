@@ -1,6 +1,7 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/ringbuffer.hpp"
+#include "dsp/digital.hpp"
 
 using namespace std;
 
@@ -14,6 +15,7 @@ struct MINIBAR : Module {
 		MAKEUP_PARAM,
 		MIX_PARAM,
 		LOOKAHEAD_PARAM,
+		BYPASS_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -26,6 +28,7 @@ struct MINIBAR : Module {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
+		BYPASS_LIGHT,
 		NUM_LIGHTS
 	};
 
@@ -39,6 +42,8 @@ struct MINIBAR : Module {
 	int maxIndexVU = 0, maxIndexRMS = 0, maxLookAheadWriteIndex=0;
 	float lookAhead;
 	float buffL[20000] = {0.0f};
+	dsp::SchmittTrigger bypassTrigger;
+	bool bypass = false;
 
 	MINIBAR() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -50,6 +55,7 @@ struct MINIBAR : Module {
 		configParam(MAKEUP_PARAM, 0.0f, 60.0f, 0.0f, "Make up");
 		configParam(MIX_PARAM, 0.0f, 1.0f, 1.0f, "Mix");
 		configParam(LOOKAHEAD_PARAM, 0.0f, 200.0f, 0.0f, "Lookahead");
+		configParam(BYPASS_PARAM, 0.0f, 1.0f, 0.0f, "Bypass");
 	}
 
 	void process(const ProcessArgs &args) override;
@@ -57,6 +63,11 @@ struct MINIBAR : Module {
 };
 
 void MINIBAR::process(const ProcessArgs &args) {
+	if (bypassTrigger.process(params[BYPASS_PARAM].value)) {
+		bypass = !bypass;
+	}
+	lights[BYPASS_LIGHT].value = bypass ? 1.0f : 0.0f;
+
 	if (indexVU>=16384) {
 		runningVU_L_Sum -= *vu_L_Buffer.startData();
 		vu_L_Buffer.startIncr(1);
@@ -146,7 +157,7 @@ void MINIBAR::process(const ProcessArgs &args) {
 		readIndex = 20000 - abs(lookAheadWriteIndex-nbSamples);
 	}
 
-	outputs[OUT_L_OUTPUT].setVoltage(buffL[readIndex] * (gain*mix + (1.0f - mix)));
+	outputs[OUT_L_OUTPUT].setVoltage(buffL[readIndex] * (bypass ? 1.0f : (gain*mix + (1.0f - mix))));
 
 	lookAheadWriteIndex = (lookAheadWriteIndex+1)%20000;
 }
@@ -288,6 +299,9 @@ struct MINIBARWidget : ModuleWidget {
 		LabelMICROBARWidget *display = new LabelMICROBARWidget();
 		display->box.pos = Vec(32, 287);
 		addChild(display);
+
+		addParam(createParam<MiniLEDButton>(Vec(34.0f, 9.0f), module, MINIBAR::BYPASS_PARAM));
+		addChild(createLight<SmallLight<RedLight>>(Vec(34.0f, 9.0f), module, MINIBAR::BYPASS_LIGHT));
 
 		MicrobarTrimpotWithDisplay* tresh = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,37.0f), module, MINIBAR::THRESHOLD_PARAM);
 		tresh->lblDisplay = display;

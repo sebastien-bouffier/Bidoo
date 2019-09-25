@@ -66,7 +66,7 @@ struct BidooBlueTrimpot : Trimpot {
 	}
 };
 
-struct BlueCKD6 : SvgSwitch {
+struct BlueCKD6 : app::SvgSwitch {
 	BlueCKD6() {
 		momentary = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueCKD6_0.svg")));
@@ -74,7 +74,7 @@ struct BlueCKD6 : SvgSwitch {
 	}
 };
 
-struct BlueBtn : SvgSwitch {
+struct BlueBtn : app::SvgSwitch {
 	std::string caption;
 	shared_ptr<Font> font;
 
@@ -189,6 +189,7 @@ struct BidooMorphKnob : RoundKnob {
 };
 
 struct BidooColoredTrimpot : RoundKnob {
+
 	BidooColoredTrimpot() {
 		minAngle = -0.75f*M_PI;
 		maxAngle = 0.75f*M_PI;
@@ -199,20 +200,18 @@ struct BidooColoredTrimpot : RoundKnob {
 		for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
 			std::string str(shape->id);
 			if (str == "bidooTrimPot") {
-				if ((paramQuantity == NULL) || (paramQuantity->getValue() == 0.0f)) {
-					shape->fill.color = (((unsigned int)128) | ((unsigned int)128 << 8) | ((unsigned int)128 << 16));
-					shape->fill.color |= (unsigned int)(120) << 24;
-				} else {
-					shape->fill.color = (((unsigned int)255) | (((unsigned int)(205 - (paramQuantity->getValue() * 15.0f))) << 8) | ((unsigned int)10 << 16));
-					shape->fill.color |= ((unsigned int)255) << 24;
+				if (paramQuantity)  {
+					shape->fill.color = 255 | 20 * (int)paramQuantity->getSmoothValue() << 8 | 10 << 16;
+					shape->fill.color |= 255 << 24;
 				}
 			}
 		}
+
 		RoundKnob::draw(args);
 	}
 };
 
-struct BidooSlidePotLong : SvgSlider {
+struct BidooSlidePotLong : app::SvgSlider {
 	BidooSlidePotLong() {
 		snap = true;
 		maxHandlePos = Vec(0.0f, 0.0f);
@@ -231,7 +230,7 @@ struct BidooSlidePotLong : SvgSlider {
   }
 };
 
-struct BidooSlidePotShort : SvgSlider {
+struct BidooSlidePotShort : app::SvgSlider {
 	BidooSlidePotShort() {
 		snap = true;
 		maxHandlePos = Vec(0.0f, 0.0f);
@@ -250,7 +249,7 @@ struct BidooSlidePotShort : SvgSlider {
   }
 };
 
-struct BidooLongSlider : SvgSlider {
+struct BidooLongSlider : app::SvgSlider {
 	BidooLongSlider() {
 		maxHandlePos = Vec(0.0f, 0.0f);
 		minHandlePos = Vec(0.0f, 84.0f);
@@ -263,7 +262,7 @@ struct BidooLongSlider : SvgSlider {
 	}
 };
 
-struct CKSS8 : SvgSwitch {
+struct CKSS8 : app::SvgSwitch {
 	CKSS8() {
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/CKSS8_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/CKSS8_1.svg")));
@@ -278,7 +277,7 @@ struct CKSS8 : SvgSwitch {
 	}
 };
 
-struct CKSS4 : SvgSwitch {
+struct CKSS4 : app::SvgSwitch {
 	CKSS4() {
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/CKSS4_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/CKSS4_1.svg")));
@@ -289,7 +288,7 @@ struct CKSS4 : SvgSwitch {
 	}
 };
 
-struct TinyPJ301MPort : SvgPort {
+struct TinyPJ301MPort : app::SvgPort {
 	TinyPJ301MPort() {
 		// background->svg = APP->window->loadSvg(asset::system("res/ComponentLibrary/TinyPJ301M.svg"));
 		// background->wrap();
@@ -299,11 +298,10 @@ struct TinyPJ301MPort : SvgPort {
 	}
 };
 
-struct MiniLEDButton : SvgSwitch {
+struct MiniLEDButton : app::SvgSwitch {
 	MiniLEDButton() {
+		momentary = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/miniLEDButton.svg")));
-		sw->wrap();
-		box.size = sw->box.size;
 	}
 };
 

@@ -298,19 +298,17 @@ struct ACNEWidget : ModuleWidget {
 
 struct ACNETrimPot : BidooColoredTrimpot {
 	void onChange(const event::Change &e) override {
-			ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
-			ACNE *module = dynamic_cast<ACNE*>(this->paramQuantity->module);
-			if (parent && module) {
-				module->snapshots[module->currentSnapshot][(int)((this->paramQuantity->paramId - ACNE::FADERS_PARAMS) / ACNE_NB_TRACKS)][(this->paramQuantity->paramId - ACNE::FADERS_PARAMS) % ACNE_NB_TRACKS] = this->paramQuantity->getValue();
-			}
-			BidooColoredTrimpot::onChange(e);
+		ACNE *module = dynamic_cast<ACNE*>(this->paramQuantity->module);
+		if (module) {
+			module->snapshots[module->currentSnapshot][(int)((this->paramQuantity->paramId - ACNE::FADERS_PARAMS) / ACNE_NB_TRACKS)][(this->paramQuantity->paramId - ACNE::FADERS_PARAMS) % ACNE_NB_TRACKS] = this->paramQuantity->getValue();
+		}
+		BidooColoredTrimpot::onChange(e);
 	}
 
 	virtual void onButton(const event::Button &e) override {
 		BidooColoredTrimpot::onButton(e);
-		ACNEWidget *parent = dynamic_cast<ACNEWidget*>(this->parent);
 		ACNE *module = dynamic_cast<ACNE*>(this->paramQuantity->module);
-		if (parent && module) {
+		if (module) {
 			if ((e.button == GLFW_MOUSE_BUTTON_MIDDLE) || ((e.button == GLFW_MOUSE_BUTTON_LEFT) && ((e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)))) {
 				this->paramQuantity->setValue(10);
 				module->snapshots[module->currentSnapshot][(int)((this->paramQuantity->paramId - ACNE::FADERS_PARAMS) / ACNE_NB_TRACKS)][(this->paramQuantity->paramId - ACNE::FADERS_PARAMS) % ACNE_NB_TRACKS] = 10;
@@ -426,20 +424,18 @@ void ACNEWidget::UpdateSnapshot(int snapshot) {
 }
 
 void ACNEWidget::step() {
-	frames++;
-	if (frames>2){
+	if (frames++>2){
 		ACNE *module = dynamic_cast<ACNE*>(this->module);
-    if (module != NULL) {
-      if (module->version != moduleVersion) {
-  			for (int i = 0; i < ACNE_NB_OUTS; i++) {
-  				for (int j = 0; j < ACNE_NB_TRACKS; j++) {
-  					if (faders[i][j]->paramQuantity->getValue() != module->snapshots[module->currentSnapshot][i][j])
-  						faders[i][j]->paramQuantity->setValue(module->snapshots[module->currentSnapshot][i][j]);
-  				}
-  			}
-  			moduleVersion = module->version;
-  		}
-    }
+    if ((module) && (module->version != moduleVersion)) {
+			for (int i = 0; i < ACNE_NB_OUTS; i++) {
+				for (int j = 0; j < ACNE_NB_TRACKS; j++) {
+					if (faders[i][j]->paramQuantity->getValue() != module->snapshots[module->currentSnapshot][i][j]) {
+						faders[i][j]->paramQuantity->setValue(module->snapshots[module->currentSnapshot][i][j]);
+					}
+				}
+			}
+			moduleVersion = module->version;
+		}
 		frames = 0;
 	}
 	ModuleWidget::step();
