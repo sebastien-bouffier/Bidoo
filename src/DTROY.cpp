@@ -565,11 +565,8 @@ struct DTROY : Module {
 		}
 	}
 
-	// Quantization inspired from  https://github.com/jeremywen/JW-Modules
-
-	float closestVoltageInScale(float voltsIn){
-		rootNote = (int)clamp(patterns[playedPattern].rootNote + inputs[ROOT_NOTE_INPUT].value, 0.0f, 11.0f);
-		curScaleVal = (int)clamp(patterns[playedPattern].scale + inputs[SCALE_INPUT].value, 0.0f, 17.0f);
+	float closestVoltageInScale(float voltsIn, int rootNote, float scaleVal){
+		curScaleVal = scaleVal;
 		int *curScaleArr;
 		int notesInScale = 0;
 		switch(curScaleVal){
@@ -592,20 +589,19 @@ struct DTROY : Module {
 			case TURKISH:        curScaleArr = SCALE_TURKISH;       notesInScale=LENGTHOF(SCALE_TURKISH); break;
 			case NONE:           return voltsIn;
 		}
-
-		float closestVal = 10.0f;
-		float closestDist = 10.0f;
-		int octaveInVolts = int(voltsIn);
+		float closestVal = 0.0f;
+		float closestDist = 1.0f;
+		int octaveInVolts = sgn(voltsIn) == 1.0f ? int(voltsIn) : (int(voltsIn)-1);
 		for (int i = 0; i < notesInScale; i++) {
-			float scaleNoteInVolts = octaveInVolts +  curScaleArr[i] / 12.0f;
+			float scaleNoteInVolts = octaveInVolts + curScaleArr[i] / 12.0f;
 			float distAway = fabs(voltsIn - scaleNoteInVolts);
 			if(distAway < closestDist) {
 				closestVal = scaleNoteInVolts;
 				closestDist = distAway;
 			}
 		}
-		float transposeVolatge = inputs[TRANSPOSE_INPUT].active ? ((((int)rescale(clamp(inputs[TRANSPOSE_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-48.0f,48.0f)) / 12.0f)) : 0.0f;
-		return clamp(closestVal + (rootNote / 12.0f) + transposeVolatge,0.0f,10.0f);
+		float transposeVoltage = inputs[TRANSPOSE_INPUT].active ? ((((int)rescale(clamp(inputs[TRANSPOSE_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-48.0f,48.0f)) / 12.0f)) : 0.0f;
+		return clamp(closestVal + (rootNote / 12.0f) + transposeVoltage,-4.0f,6.0f);
 	}
 };
 
@@ -812,8 +808,8 @@ void DTROY::process(const ProcessArgs &args) {
 
 	// Steps && Pulses Management
 	if (nextStep) {
-		// Advance step
-		candidateForPreviousPitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch * patterns[playedPattern].sensitivity);
+		candidateForPreviousPitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch * patterns[playedPattern].sensitivity, clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].value, 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f,11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
+
 
 		auto nextT = patterns[playedPattern].GetNextStep(reStart);
 		index = std::get<0>(nextT);
@@ -871,7 +867,7 @@ void DTROY::process(const ProcessArgs &args) {
 	}
 
 	//pitch management
-	pitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch * patterns[playedPattern].sensitivity);
+	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch,-4.0f,6.0f) * patterns[playedPattern].sensitivity,clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].value, 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
 			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].value * 0.1f, -0.1f, 0.99f);

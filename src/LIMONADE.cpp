@@ -1004,22 +1004,16 @@ struct LIMONADETextField : LedDisplayTextField {
   }
 
 	void onChange(const event::Change &e) override {
-		if (text.size() > 0) {
-	      std::string tText = text;
-	      tText.erase(std::remove_if(tText.begin(), tText.end(), [](unsigned char x){return std::isspace(x);}), tText.end());
-				try
-			  {
-					size_t val = std::stoi(tText);
-			    module->frameSize = val;
-			  }
-			  catch (int e)
-			  {  }
+		LedDisplayTextField::onChange(e);
+		if ((text.size() > 0) && (text != "")) {
+			size_t val;
+			std::istringstream(text)>>val;
+	    module->frameSize = val;
 		}
-	  LedDisplayTextField::onChange(e);
 	};
 
 	void draw(const DrawArgs &args) override {
-		if ((init) && (module != NULL) && (module->frameSize != (size_t)std::stoi(text))) {
+		if (init && module) {
 			text = std::to_string(module->frameSize);
 			init = false;
 		}

@@ -1,3 +1,7 @@
+### v1.0.9 (03/10/2019)
+- liMonADe fix framesize edition crash
+- dTrOY fix pitch knobs range
+
 ### v1.0.8 (25/09/2019)
 - liMonADe change frameSize text editor width
 - baR add bypass led button

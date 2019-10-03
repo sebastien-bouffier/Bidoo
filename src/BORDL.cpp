@@ -623,8 +623,6 @@ struct BORDL : Module {
 		}
 	}
 
-	// Quantization inspired from  https://github.com/jeremywen/JW-Modules
-
 	float closestVoltageInScale(float voltsIn, int rootNote, float scaleVal){
 		curScaleVal = scaleVal;
 		int *curScaleArr;
