@@ -649,7 +649,7 @@ struct BORDL : Module {
 		}
 		float closestVal = 0.0f;
 		float closestDist = 1.0f;
-		int octaveInVolts = sgn(voltsIn) == 1.0f ? int(voltsIn) : (int(voltsIn)-1);
+		int octaveInVolts = voltsIn >= 0.0f ? int(voltsIn) : (int(voltsIn)-1);
 		for (int i = 0; i < notesInScale; i++) {
 			float scaleNoteInVolts = octaveInVolts + curScaleArr[i] / 12.0f;
 			float distAway = fabs(voltsIn - scaleNoteInVolts);
@@ -796,13 +796,13 @@ void BORDL::process(const ProcessArgs &args) {
 
 	if (upTrigger.process(params[UP_PARAM].getValue())) {
 		for (int i = 0; i < 8; i++) {
-			params[TRIG_PITCH_PARAM+i].setValue(min(params[TRIG_PITCH_PARAM+i].getValue() + 0.1f,10.0f));
+			params[TRIG_PITCH_PARAM+i].setValue(min(params[TRIG_PITCH_PARAM+i].getValue() + 1.f/12.f,6.0f));
 		}
 	}
 
 	if (downTrigger.process(params[DOWN_PARAM].getValue())) {
 		for (int i = 0; i < 8; i++) {
-			params[TRIG_PITCH_PARAM+i].setValue(max(params[TRIG_PITCH_PARAM+i].getValue() - 0.1f,0.0f));
+			params[TRIG_PITCH_PARAM+i].setValue(max(params[TRIG_PITCH_PARAM+i].getValue() - 1.f/12.f,-4.0f));
 		}
 	}
 

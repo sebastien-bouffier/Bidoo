@@ -1,3 +1,7 @@
+### v1.0.10 (06/10/2019)
+- dTrOY fix pitch knobs reset issue, and shift up and down buttons
+- bordL fix pitch knobs reset issue, and shift up and down buttons
+
 ### v1.0.9 (03/10/2019)
 - liMonADe fix framesize edition crash
 - dTrOY fix pitch knobs range
