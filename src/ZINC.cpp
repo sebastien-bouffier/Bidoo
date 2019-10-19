@@ -38,6 +38,9 @@ struct ZINC : Module {
 	float freq[BANDS] = { 125.0f, 185.0f, 270.0f, 350.0f, 430.0f, 530.0f, 630.0f, 780.0f,
 						  950.0f, 1150.0f, 1380.0f, 1680.0f, 2070.0f, 2780.0f, 3800.0f, 6400.0f };
 	float peaks[BANDS] = { 0.0f };
+	const float slewMin = 0.001f;
+	const float slewMax = 500.0f;
+	const float shapeScale = 0.1f;
 
 	ZINC() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -62,9 +65,6 @@ struct ZINC : Module {
 	void process(const ProcessArgs &args) override {
 		float inM = inputs[IN_MOD].getVoltage() / 5.0f;
 		float inC = inputs[IN_CARR].getVoltage() / 5.0f;
-		const float slewMin = 0.001f;
-		const float slewMax = 500.0f;
-		const float shapeScale = 1.0f / 10.0f;
 		float attack = params[ATTACK_PARAM].getValue();
 		float decay = params[DECAY_PARAM].getValue();
 		float slewAttack = slewMax * powf(slewMin / slewMax, attack);

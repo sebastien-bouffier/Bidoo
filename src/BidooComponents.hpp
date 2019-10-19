@@ -46,6 +46,12 @@ struct BidooSmallBlueKnob : RoundKnob {
 	}
 };
 
+struct BidooSmallSnapBlueKnob : RoundBlackSnapKnob {
+	BidooSmallSnapBlueKnob() {
+		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/SmallBlueKnobBidoo.svg")));
+	}
+};
+
 struct BidooBlueSnapKnob : RoundBlackSnapKnob  {
 	BidooBlueSnapKnob() {
 		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueKnobBidoo.svg")));

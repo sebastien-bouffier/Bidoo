@@ -107,9 +107,7 @@ void CURT::process(const ProcessArgs &args) {
 	in_Buffer.startIncr(1);
 	in_Buffer.push(inputs[INPUT].isConnected() ? inputs[INPUT].getVoltage() : 0.f);
 
-	readSteps++;
-
-	if (readSteps>=(buff_size/overlap)) {
+	if (readSteps++ >=(buff_size/overlap)) {
 		index=(index+1)%overlap;
 		for(size_t i=0; i<buff_size; i++) {
 			bins[index][i]=*(in_Buffer.startData()+i);
@@ -118,18 +116,16 @@ void CURT::process(const ProcessArgs &args) {
 		readSteps = 0;
 	}
 
-	writeSteps++;
-
-	if ((writeSteps>=((float)buff_size*params[PITCH_PARAM].getValue()/(float)overlap))) {
+	if (writeSteps++ >=((float)buff_size*params[PITCH_PARAM].getValue()/(float)overlap)) {
 		if ((index%2==0) || (mode)) {
 			for(size_t i=0; i<buff_size; i++) {
-				out_Buffer.data[out_Buffer.mask(out_Buffer.end-buff_size+i)] += bins[index][i];
+				out_Buffer.data[out_Buffer.mask(out_Buffer.end-buff_size+i)] += bins[index][i]*(params[PITCH_PARAM].getValue()<0.f ? powf(params[PITCH_PARAM].getValue()/overlap,20.f) : 1.f);
 			}
 		}
 		else
 		{
 			for(size_t i=0; i<buff_size; i++) {
-				out_Buffer.data[out_Buffer.mask(out_Buffer.end-buff_size+i)] += bins[index][buff_size-i-1];
+				out_Buffer.data[out_Buffer.mask(out_Buffer.end-buff_size+i)] += bins[index][buff_size-i-1]*(params[PITCH_PARAM].getValue()<0.f ? powf(params[PITCH_PARAM].getValue()/overlap,20.f) : 1.f);
 			}
 		}
 		writeSteps = 0;

@@ -30,7 +30,6 @@ struct MultiFilter {
 		mem1 = g * hp + bp;
 		mem2 = g * bp + lp;
 	}
-
 };
 
 struct PERCO : Module {
@@ -61,17 +60,16 @@ struct PERCO : Module {
 
 	PERCO() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(CUTOFF_PARAM, 0.f, 1.f, 1.f, "Center Freq.", " Hz", params[CUTOFF_PARAM].getValue(), 20.f * 410.58f);//freqC > max 8211.6 Hz min 22ish
-		configParam(Q_PARAM, .1f, 1.f, .1f, "Q factor", "", params[Q_PARAM].getValue(), 20.f);
+		configParam(CUTOFF_PARAM, 0.f, 1.f, 1.f, "Center Freq.", "Hz", std::pow(2, 10.f), dsp::FREQ_C4 / std::pow(2, 5.f));
+		configParam(Q_PARAM, .1f, 1.f, .1f, "Q", "%", 0.f, 100.f);
 		configParam(CMOD_PARAM, -1.f, 1.f, 0.f, "Freq. Mod", "%", 0.f, 100.f);
 	}
 
 	void process(const ProcessArgs &args) override {
-		float cfreq = std::pow(2.0f, rescale(clamp(params[CUTOFF_PARAM].getValue() + params[CMOD_PARAM].getValue() * inputs[CUTOFF_INPUT].getVoltage() / 5.0f, 0.0f, 1.0f), 0.0f, 1.0f, 4.5f, 13.0f));
+		float cfreq = std::pow(2.0f, rescale(clamp(params[CUTOFF_PARAM].getValue() + params[CMOD_PARAM].getValue() * inputs[CUTOFF_INPUT].getVoltage() * 0.2f, 0.0f, 1.0f), 0.0f, 1.0f, 4.5f, 14.0f));
 		float q = 10.0f * clamp(params[Q_PARAM].getValue() + inputs[Q_INPUT].getVoltage() * 0.2f, 0.1f, 1.0f);
 		filter.setParams(cfreq, q, args.sampleRate);
-		float in = inputs[IN].getVoltage() * 0.2f; //normalise to -1/+1 we consider VCV Rack standard is #+5/-5V on VCO1
-		//filtering
+		float in = inputs[IN].getVoltage() * 0.2f;
 		filter.calcOutput(in);
 		outputs[OUT_LP].setVoltage(filter.lp * 5.0f);
 		outputs[OUT_HP].setVoltage(filter.hp * 5.0f);

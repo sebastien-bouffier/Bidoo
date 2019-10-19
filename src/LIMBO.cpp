@@ -47,12 +47,12 @@ struct LadderFilter {
 	float calcOutput(float sample) {
 		float g = std::tan(pi*freq / smpRate);
 		float G = g / (1.0f + g);
-		G = G * G*G*G;
+		G = G*G*G*G;
 		float S1 = stage1.mem / (1.0f + g);
 		float S2 = stage2.mem / (1.0f + g);
 		float S3 = stage3.mem / (1.0f + g);
 		float S4 = stage4.mem / (1.0f + g);
-		float S = G * G*G*S1 + G * G*S2 + G * S3 + S4;
+		float S = G*G*G*S1 + G*G*S2 + G*S3 + S4;
 		return stage4.Filter(stage3.Filter(stage2.Filter(stage1.Filter((sample - q * S) / (1.0f + q * G),
 			freq, smpRate, gain, mode), freq, smpRate, gain, mode), freq, smpRate, gain, mode), freq, smpRate, gain, mode);
 	}
@@ -101,8 +101,8 @@ struct LIMBO : Module {
 
 	LIMBO() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(CUTOFF_PARAM, 0.0f, 1.0f, 1.0f, "Frequency", " Hz", 941.26f, rescale(params[CUTOFF_PARAM].getValue(), 0.0f, 1.0f, 4.5f, 14.0f) * 4.44f);//Not quite the Hz value
-		configParam(Q_PARAM, 0.0f, 1.0f, 0.0f, "Q Factor", "", params[Q_PARAM].getValue(), 20.f);
+		configParam(CUTOFF_PARAM, 0.0f, 1.0f, 1.0f, "Frequency","Hz", std::pow(2, 10.f), dsp::FREQ_C4 / std::pow(2, 5.f));
+		configParam(Q_PARAM, 0.0f, 1.0f, 0.0f, "Q", "%", 0.f, 100.f);
 		configParam(MUG_PARAM, 0.0f, 1.0f, 0.0f, "Gain Boost", "%", 0.f, 100.f);
 		configParam(CMOD_PARAM, -1.0f, 1.0f, 0.0f, "Freq. Mod", "%", 0.f, 100.f);
 		configParam<tpOnOff>(MODE_PARAM, 0.0f, 1.0f, 0.0f, "Linear");

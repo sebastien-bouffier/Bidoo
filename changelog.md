@@ -1,3 +1,6 @@
+### v1.0.11 (19/10/2019)
+- *NEW* bAFIs (means mustache in Marseille's slang) Multiband distortion
+
 ### v1.0.10 (06/10/2019)
 - dTrOY fix pitch knobs reset issue, and shift up and down buttons
 - bordL fix pitch knobs reset issue, and shift up and down buttons

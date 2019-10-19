@@ -41,6 +41,7 @@ extern Model *modelPENEQUE;
 extern Model *modelLIMONADE;
 extern Model *modelLIMBO;
 extern Model *modelPERCO;
+extern Model *modelBAFIS;
 extern Model *modelFFILTR;
 extern Model *modelBAR;
 extern Model *modelMINIBAR;
