@@ -13,9 +13,9 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## License
 
-The license is a BSD 3-Clause with the addition that any commercial use requires explicit permission of the author. That applies for the source code.
+All **source code** is copyright © 2019 Sébastien Bouffier (sebastien.bouffier@gmail.com) and is licensed under the [GNU General Public License v3.0](gpl-3.0.txt).
 
-For the image resources (all SVG files), any use requires explicit permission of the author.
+All **graphics** in the `res` directory are copyright © 2019 Sébastien Bouffier (sebastien.bouffier@gmail.com) and licensed under [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/).
 
 ## Donate
 
