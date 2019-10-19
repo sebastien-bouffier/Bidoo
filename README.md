@@ -13,7 +13,7 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## License
 
-All **source code** is copyright © 2019 Sébastien Bouffier (sebastien.bouffier@gmail.com) and is licensed under the [GNU General Public License v3.0](gpl-3.0.txt).
+All **source code** is copyright © 2019 Sébastien Bouffier (sebastien.bouffier@gmail.com) and is licensed under the [GNU General Public License v3.0](LICENSE.txt).
 
 All **graphics** in the `res` directory are copyright © 2019 Sébastien Bouffier (sebastien.bouffier@gmail.com) and licensed under [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/).
 
