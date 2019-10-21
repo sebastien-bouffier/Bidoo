@@ -1,3 +1,11 @@
+### v1.0.12 (21/10/2019)
+- dTrOY add CV input for pitch sensitivity knob
+- bordL add CV input for pitch sensitivity knob
+- baR fix peak display
+- mINIBar fix peak display
+- bAFIs fix Drive param value display
+- fix plugin.json Invalid license ID
+
 ### v1.0.11 (19/10/2019)
 - *NEW* bAFIs (means mustache in Marseille's slang) Multiband distortion
 

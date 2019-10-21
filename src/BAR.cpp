@@ -209,22 +209,18 @@ void draw(NVGcontext *vg) override {
 	float threshold = rescale(module->threshold,0.0f,-97.0f,0.0f,height);
 	float gain = rescale(1-(module->gaindB-module->makeup),-97.0f,0.0f,97.0f,0.0f);
 	float makeup = rescale(module->makeup,0.0f,60.0f,0.0f,60.0f);
-	float peakL = rescale(module->peakL,0.0f,-97.0f,0.0f,height);
-	float peakR = rescale(module->peakR,0.0f,-97.0f,0.0f,height);
+	float peakL = clamp(rescale(module->peakL,0.0f,-97.0f,0.0f,height),0.f,height);
+	float peakR = clamp(rescale(module->peakR,0.0f,-97.0f,0.0f,height),0.f,height);
 	float inL = rescale(module->in_L_dBFS,-97.0f,0.0f,0.0f,height);
 	float inR = rescale(module->in_R_dBFS,-97.0f,0.0f,0.0f,height);
+
 	nvgSave(vg);
 	nvgStrokeWidth(vg, 0.0f);
-	nvgBeginPath(vg);
+
 	nvgFillColor(vg, BLUE_BIDOO);
+	nvgBeginPath(vg);
 	nvgRoundedRect(vg,0.0f,height-vuL,width,vuL,0.0f);
 	nvgRoundedRect(vg,3.0f*(width+spacer),height-vuR,width,vuR,0.0f);
-	nvgFill(vg);
-	nvgClosePath(vg);
-	nvgBeginPath(vg);
-	nvgFillColor(vg, LIGHTBLUE_BIDOO);
-	nvgRoundedRect(vg,width+spacer,height-rmsL,width,rmsL,0.0f);
-	nvgRoundedRect(vg,2.0f*(width+spacer),height-rmsR,width,rmsR,0.0f);
 	nvgFill(vg);
 	nvgClosePath(vg);
 
@@ -238,9 +234,16 @@ void draw(NVGcontext *vg) override {
 	nvgFillColor(vg, ORANGE_BIDOO);
 	nvgBeginPath(vg);
 	if (inL>rmsL+3.0f)
-		nvgRoundedRect(vg,width+spacer,height-inL+1.0f,width,inL-rmsL-2.0f,0.0f);
-	if (inR>rmsR+3)
-		nvgRoundedRect(vg,2.0f*(width+spacer),height-inR+1.0f,width,inR-rmsR-2.0f,0.0f);
+		nvgRoundedRect(vg,width+spacer,max(height-inL+1.0f,0.f),width,inL-rmsL-2.0f,0.0f);
+	if (inR>rmsR+3.0f)
+		nvgRoundedRect(vg,2.0f*(width+spacer),max(height-inR+1.0f,0.f),width,inR-rmsR-2.0f,0.0f);
+	nvgFill(vg);
+	nvgClosePath(vg);
+
+	nvgFillColor(vg, LIGHTBLUE_BIDOO);
+	nvgBeginPath(vg);
+	nvgRoundedRect(vg,width+spacer,height-rmsL,width,rmsL,0.0f);
+	nvgRoundedRect(vg,2.0f*(width+spacer),height-rmsR,width,rmsR,0.0f);
 	nvgFill(vg);
 	nvgClosePath(vg);
 
@@ -250,7 +253,6 @@ void draw(NVGcontext *vg) override {
 	nvgBeginPath(vg);
 	nvgMoveTo(vg, width+spacer+5.0f, threshold);
 	nvgLineTo(vg, 3.0f*width+2.0f*spacer-5.0f, threshold);
-	//nvgRoundedRect(vg,22,threshold+50,22,2,0);
 	{
 		nvgMoveTo(vg, width+spacer, threshold-3.0f);
 		nvgLineTo(vg, width+spacer, threshold+3.0f);

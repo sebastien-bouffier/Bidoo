@@ -89,7 +89,7 @@ struct BAFIS : Module {
 
     for (int i=0;i<4;i++) {
       configParam(Q_PARAM+i, .1f, 1.f, .1f, "Q", "%", 0.f, 100.f);
-      configParam(GAIN_PARAM+i, 1.f, 10.f, 1.f, "Drive", "%", 0.f, 100.f);
+      configParam(GAIN_PARAM+i, 1.f, 10.f, 1.f, "Drive", "%", 0.f, 10.f,-10.f);
       configParam<tpType>(TYPE_PARAM+i, 0.f, 2.f, 0.f, "Dist. type");
       configParam<tpPrePost>(PREPOST_PARAM+i, 0.f, 1.f, 0.f, "Pre/Post");
       configParam(VOLUME_PARAM+i, 0.f, 1.f, 0.5f, "Volume", "%", 0.f, 100.f);

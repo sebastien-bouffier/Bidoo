@@ -233,6 +233,7 @@ struct DTROY : Module {
 		EXTGATE2_INPUT,
 		PATTERN_INPUT,
 		TRANSPOSE_INPUT,
+		SENSITIVITY_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -808,7 +809,7 @@ void DTROY::process(const ProcessArgs &args) {
 
 	// Steps && Pulses Management
 	if (nextStep) {
-		candidateForPreviousPitch = closestVoltageInScale(patterns[playedPattern].CurrentStep().pitch * patterns[playedPattern].sensitivity, clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].value, 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f,11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
+		candidateForPreviousPitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity + (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f), clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].value, 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f,11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
 
 
 		auto nextT = patterns[playedPattern].GetNextStep(reStart);
@@ -867,7 +868,7 @@ void DTROY::process(const ProcessArgs &args) {
 	}
 
 	//pitch management
-	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch,-4.0f,6.0f) * patterns[playedPattern].sensitivity,clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].value, 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
+	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity + (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f),clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].value, 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
 			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].value * 0.1f, -0.1f, 0.99f);
@@ -1049,6 +1050,7 @@ DTROYWidget::DTROYWidget(DTROY *module) {
 
 	sensitivityParam = createParam<BidooBlueTrimpot>(Vec(portX1[6]+21.0f, 18.0f), module, DTROY::SENSITIVITY_PARAM);
 	addParam(sensitivityParam);
+	addInput(createInput<TinyPJ301MPort>(Vec(portX1[6]-10.f, 18.0f), module, DTROY::SENSITIVITY_INPUT));
 
 	addInput(createInput<PJ301MPort>(Vec(portX0[0], 286.0f), module, DTROY::TRANSPOSE_INPUT));
 	addParam(createParam<BlueCKD6>(Vec(portX0[1]-1.0f, 285.0f), module, DTROY::COPY_PARAM));
