@@ -1,3 +1,7 @@
+### v1.0.13 (25/10/2019)
+- OUAIve, cANARd and liMonADe aiff format support
+- liMonADe sync FFT computation after normalization and windowing
+
 ### v1.0.12 (21/10/2019)
 - dTrOY add CV input for pitch sensitivity knob
 - bordL add CV input for pitch sensitivity knob

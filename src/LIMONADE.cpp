@@ -12,6 +12,7 @@
 #include <iostream>
 #include <fstream>
 #include "dep/lodepng/lodepng.h"
+#include "dep/AudioFile/AudioFile.h"
 
 using namespace std;
 
@@ -21,24 +22,44 @@ void tUpdateWaveTable(wtTable &table, float index) {
 }
 
 void tLoadSample(wtTable &table, std::string path, size_t frameLen, bool interpolate) {
-	unsigned int c;
-  unsigned int sr;
-  drwav_uint64 sc;
-	float *pSampleData;
-	float *sample;
-
-  pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
-  if (pSampleData != NULL)  {
-		sc = sc/c;
-		sample = (float*)calloc(sc,sizeof(float));
-		for (unsigned int i=0; i < sc; i++) {
-			if (c == 1) sample[i] = pSampleData[i];
-			else sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
+	std::string waveExtension = rack::string::filenameExtension(rack::string::filename(path));
+	if (waveExtension == "wav") {
+		unsigned int c;
+	  unsigned int sr;
+	  drwav_uint64 sc;
+		float *pSampleData;
+		float *sample;
+	  pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
+	  if (pSampleData != NULL)  {
+			sc = sc/c;
+			sample = (float*)calloc(sc,sizeof(float));
+			for (unsigned int i=0; i < sc; i++) {
+				if (c == 1) sample[i] = pSampleData[i];
+				else sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
+			}
+			drwav_free(pSampleData);
+			table.loadSample(sc, frameLen, interpolate, sample);
+			free(sample);
+			table.calcFFT();
 		}
-		drwav_free(pSampleData);
-		table.loadSample(sc, frameLen, interpolate, sample);
-		free(sample);
-		table.calcFFT();
+	}
+	else if (waveExtension == "aiff") {
+		float *sample;
+		AudioFile<float> audioFile;
+		if (audioFile.load(path.c_str()))  {
+			sample = (float*)calloc(audioFile.getNumSamplesPerChannel(),sizeof(float));
+			for (int i=0; i < audioFile.getNumSamplesPerChannel(); i++) {
+				if (audioFile.isMono()) {
+					sample[i] = audioFile.samples[0][i];
+				}
+				else {
+					sample[i] = 0.5f*(audioFile.samples[0][i]+audioFile.samples[1][i]);
+				}
+			}
+			table.loadSample(audioFile.getNumSamplesPerChannel(), frameLen, interpolate, sample);
+			free(sample);
+			table.calcFFT();
+		}
 	}
 }
 
@@ -60,31 +81,54 @@ void tLoadIFrame(wtTable &table, float *iRec, float index, size_t frameLen, bool
 }
 
 void tLoadFrame(wtTable &table, std::string path, float index, bool interpolate) {
-	unsigned int c;
-  unsigned int sr;
-  drwav_uint64 sc;
-	float *pSampleData;
-	float *sample;
-
-  pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
-  if (pSampleData != NULL)  {
-		sc = sc/c;
-		sample = (float*)calloc(sc,sizeof(float));
-		for (unsigned int i=0; i < sc; i++) {
-			if (c == 1) sample[i] = pSampleData[i];
-			else sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
+	std::string waveExtension = rack::string::filenameBase(path);
+	if (waveExtension == "wav") {
+		unsigned int c;
+	  unsigned int sr;
+	  drwav_uint64 sc;
+		float *pSampleData;
+		float *sample;
+	  pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
+	  if (pSampleData != NULL)  {
+			sc = sc/c;
+			sample = (float*)calloc(sc,sizeof(float));
+			for (unsigned int i=0; i < sc; i++) {
+				if (c == 1) sample[i] = pSampleData[i];
+				else sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
+			}
+			drwav_free(pSampleData);
+			size_t i = index*(table.nFrames-1);
+			if (i<table.nFrames) {
+				table.frames[i].loadSample(sc, interpolate, sample);
+			}
+			else if (table.nFrames==0) {
+				table.addFrame(0);
+				table.frames[0].loadSample(sc, interpolate, sample);
+			}
+			free(sample);
+			table.calcFFT();
 		}
-		drwav_free(pSampleData);
-		size_t i = index*(table.nFrames-1);
-		if (i<table.nFrames) {
-			table.frames[i].loadSample(sc, interpolate, sample);
-		}
-		else if (table.nFrames==0) {
-			table.addFrame(0);
-			table.frames[0].loadSample(sc, interpolate, sample);
-		}
-		free(sample);
-		table.calcFFT();
+	}
+	else if (waveExtension == "aiff") {
+		float *sample;
+			AudioFile<float> audioFile;
+			if (audioFile.load(path.c_str()))  {
+				sample = (float*)calloc(audioFile.getNumSamplesPerChannel(),sizeof(float));
+				for (int i=0; i < audioFile.getNumSamplesPerChannel(); i++) {
+					if (audioFile.isMono()) sample[i] = audioFile.samples[0][i];
+					else sample[i] = 0.5f*(audioFile.samples[0][i]+audioFile.samples[1][i]);
+				}
+				size_t i = index*(table.nFrames-1);
+				if (i<table.nFrames) {
+					table.frames[i].loadSample(audioFile.getNumSamplesPerChannel(), interpolate, sample);
+				}
+				else if (table.nFrames==0) {
+					table.addFrame(0);
+					table.frames[0].loadSample(audioFile.getNumSamplesPerChannel(), interpolate, sample);
+				}
+				free(sample);
+				table.calcFFT();
+			}
 	}
 }
 
@@ -119,20 +163,24 @@ void tCalcFFT(wtTable &table) {
 
 void tWindowWt(wtTable &table) {
 	table.window();
+	table.calcFFT();
 }
 
 void tSmoothWt(wtTable &table) {
 	table.smooth();
+	table.calcFFT();
 }
 
 void tWindowFrame(wtTable &table, float index) {
 	size_t i = index*(table.nFrames-1);
 	table.windowFrame(i);
+	table.frames[i].calcFFT();
 }
 
 void tSmoothFrame(wtTable &table, float index) {
 	size_t i = index*(table.nFrames-1);
 	table.smoothFrame(i);
+	table.frames[i].calcFFT();
 }
 
 void tRemoveDCOffset(wtTable &table) {
@@ -142,14 +190,17 @@ void tRemoveDCOffset(wtTable &table) {
 void tNormalizeFrame(wtTable &table, float index) {
 	size_t i = index*(table.nFrames-1);
 	table.frames[i].normalize();
+	table.frames[i].calcFFT();
 }
 
 void tNormalizeWt(wtTable &table) {
 	table.normalize();
+	table.calcFFT();
 }
 
 void tNormalizeAllFrames(wtTable &table) {
 	table.normalizeAllFrames();
+	table.calcFFT();
 }
 
 void tFFTSample(wtTable &table, float index) {

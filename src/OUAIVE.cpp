@@ -10,6 +10,7 @@
 #include <sstream>
 #include "window.hpp"
 #include <mutex>
+#include "dep/AudioFile/AudioFile.h"
 
 using namespace std;
 
@@ -45,7 +46,7 @@ struct OUAIVE : Module {
 	unsigned int channels;
   unsigned int sampleRate;
   drwav_uint64 totalSampleCount;
-
+	AudioFile<float> audioFile;
 	float samplePos = 0.0f;
 	vector<vector<float>> playBuffer;
 	std::string lastPath;
@@ -113,31 +114,51 @@ struct OUAIVE : Module {
 };
 
 void OUAIVE::loadSample(std::string path) {
-	loading = true;
-	unsigned int c;
-  unsigned int sr;
-  drwav_uint64 sc;
-	float* pSampleData;
-  pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
-  if (pSampleData != NULL)  {
-		lastPath = path;
-    waveFileName = rack::string::filename(lastPath);
-    waveExtension = rack::string::filenameBase(lastPath);
-		channels = c;
-		sampleRate = sr;
-		playBuffer[0].clear();
-		playBuffer[1].clear();
-		for (unsigned int i=0; i < sc; i = i + c) {
-			playBuffer[0].push_back(pSampleData[i]);
-			if (channels == 2)
-				playBuffer[1].push_back((float)pSampleData[i+1]);
-			else
-				playBuffer[1].push_back((float)pSampleData[i]);
+	lastPath = path;
+	waveFileName = rack::string::filename(lastPath);
+	waveExtension = rack::string::filenameExtension(rack::string::filename(lastPath));
+	if (waveExtension == "wav") {
+		loading = true;
+		unsigned int c;
+		unsigned int sr;
+		drwav_uint64 sc;
+		float* pSampleData;
+		pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
+		if (pSampleData != NULL)  {
+			channels = c;
+			sampleRate = sr;
+			playBuffer[0].clear();
+			playBuffer[1].clear();
+			for (unsigned int i=0; i < sc; i = i + c) {
+				playBuffer[0].push_back(pSampleData[i]);
+				if (channels == 2)
+					playBuffer[1].push_back((float)pSampleData[i+1]);
+				else
+					playBuffer[1].push_back((float)pSampleData[i]);
+			}
+			totalSampleCount = playBuffer[0].size();
+			drwav_free(pSampleData);
 		}
-		totalSampleCount = playBuffer[0].size();
-		drwav_free(pSampleData);
+		loading = false;
 	}
-	loading = false;
+	else if (waveExtension == "aiff") {
+		loading = true;
+		if (audioFile.load (path.c_str()))  {
+			channels = audioFile.getNumChannels();
+			sampleRate = audioFile.getSampleRate();
+			totalSampleCount = audioFile.getNumSamplesPerChannel();
+			playBuffer[0].clear();
+			playBuffer[1].clear();
+			for (unsigned int i=0; i < totalSampleCount; i++) {
+				playBuffer[0].push_back(audioFile.samples[0][i]);
+				if (channels == 2)
+					playBuffer[1].push_back(audioFile.samples[1][i]);
+				else
+					playBuffer[1].push_back(audioFile.samples[0][i]);
+			}
+		}
+		loading = false;
+	}
 }
 
 void OUAIVE::process(const ProcessArgs &args) {
