@@ -1,3 +1,8 @@
+### v1.1.0 (12/11/2019)
+- ACnE fix faders (trimpots) color gradient
+- ACnE recording of faders movements doesn't jump anymore when using scenes automation
+- ziNC fix frequency knobs color gradient depending carrier signal
+
 ### v1.0.13 (25/10/2019)
 - OUAIve, cANARd and liMonADe aiff format support
 - liMonADe sync FFT computation after normalization and windowing

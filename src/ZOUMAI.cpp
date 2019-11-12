@@ -452,8 +452,8 @@ inline void pattern::reset(const bool fill) {
 struct ZOUMAI : Module {
 	enum ParamIds {
 		STEPS_PARAMS,
-		TRACK_PARAMS = STEPS_PARAMS + 16,
-		FREE_PARAMS = TRACK_PARAMS + 8,
+		TRACKS_PARAMS = STEPS_PARAMS + 16,
+		FREE_PARAMS = TRACKS_PARAMS + 8,
 		TRIG_PAGE_PARAM = FREE_PARAMS + 8,
 		FILL_PARAM = TRIG_PAGE_PARAM + 4,
 		PATTERN_PARAM,
@@ -495,6 +495,7 @@ struct ZOUMAI : Module {
 	dsp::SchmittTrigger trigPageTriggers[4];
 	dsp::SchmittTrigger trackResetTriggers[8];
 	dsp::SchmittTrigger trackActiveTriggers[8];
+	dsp::SchmittTrigger stepsTriggers[16];
 	dsp::SchmittTrigger fillTrigger;
 	dsp::SchmittTrigger copyPasteTrigger;
 
@@ -530,7 +531,7 @@ struct ZOUMAI : Module {
   	}
 
   	for (size_t i=0;i<8;i++){
-      configParam(TRACK_PARAMS + i, 0.0f, 2.0f, 10.0f);
+      configParam(TRACKS_PARAMS + i, 0.0f, 2.0f, 10.0f);
       configParam(FREE_PARAMS + i, 1.0f, 5.0f, 10.0f);
   	}
 
@@ -743,14 +744,13 @@ void ZOUMAI::process(const ProcessArgs &args) {
 	lights[COPY_LIGHT].value = copyTrackId > -1 ? 10.0f : 0.0f;
 
 	for (size_t i = 0; i<8; i++) {
-
 		if (trackResetTriggers[i].process(inputs[TRACK_RESET_INPUTS+i].value)) {
 			for (size_t j = 0; j<8; j++) {
 				patterns[j].tracks[i].reset(fill,i==0?false:patterns[j].tracks[i-1].pre);
 			}
 		}
 
-		if (trackActiveTriggers[i].process(inputs[TRACK_ACTIVE_INPUTS+i].value)) {
+		if (trackActiveTriggers[i].process(inputs[TRACK_ACTIVE_INPUTS+i].value + params[TRACKS_PARAMS+i].value)) {
 			patterns[currentPattern].tracks[i].isActive = !patterns[currentPattern].tracks[i].isActive;
 		}
 
@@ -803,6 +803,10 @@ void ZOUMAI::process(const ProcessArgs &args) {
 	}
 
 	for (size_t i = 0; i<16; i++) {
+		if (stepsTriggers[i].process(params[STEPS_PARAMS+i].value)) {
+			patterns[currentPattern].tracks[currentTrack].trigs[i + (trigPage * 16)].isActive = !patterns[currentPattern].tracks[currentTrack].trigs[i + (trigPage * 16)].isActive;
+		}
+
 		size_t shiftedIndex = i + (trigPage*16);
 		if (patterns[currentPattern].tracks[currentTrack].getCurrentTrig().index == shiftedIndex) {
 			lights[STEPS_LIGHTS+(i*3)].value = 1.0f;
@@ -1121,67 +1125,72 @@ struct ZOUMAILight : BASE {
 
 struct ZOUMAITRIGLEDBezel : LEDBezel {
 	size_t index;
-	virtual void onButton(const event::Button &e) override {
-		LEDBezel::onButton(e);
+	size_t flag = 0;
+
+	// virtual void onButton(const event::Button &e) override {
+	// 	LEDBezel::onButton(e);
+	// 	ZOUMAI *module = dynamic_cast<ZOUMAI*>(this->paramQuantity->module);
+	// 	if (module && (e.button == GLFW_MOUSE_BUTTON_LEFT) && (flag==0)) {
+	// 		module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[index + (module->trigPage * 16)].isActive = !module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[index + (module->trigPage * 16)].isActive;
+	// 	}
+	// 	if (flag++==2) flag=0;
+	// }
+
+	virtual void onHover(const event::Hover &e) override {
+		LEDBezel::onHover(e);
 		ZOUMAIWidget *parent = dynamic_cast<ZOUMAIWidget*>(this->parent);
 		ZOUMAI *module = dynamic_cast<ZOUMAI*>(this->paramQuantity->module);
 		if (parent && module) {
-			if ((e.button == GLFW_MOUSE_BUTTON_MIDDLE) || (e.button == GLFW_MOUSE_BUTTON_RIGHT))  {
-				module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[index + (module->trigPage * 16)].isActive = !module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[index + (module->trigPage * 16)].isActive;
+			module->currentTrig = index + (module->trigPage * 16);
+			module->selector = 1;
+
+			parent->selector[0]->visible = true;
+			parent->selector[1]->visible = true;
+
+			if (module->pageIndex == 0) {
+				parent->freeParam[0]->visible = true;
+				parent->freeParam[1]->visible = true;
+				parent->freeParam[2]->visible = true;
+				parent->freeParam[3]->visible = true;
+				parent->freeParam[4]->visible = true;
+				parent->freeParam[5]->visible = true;
+				parent->freeParam[6]->visible = true;
+				parent->freeParam[7]->visible = true;
+
+				parent->freeParam[0]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].length+0.5f,0.0f,3000.0f,1.0f,5.0f));
+				parent->freeParam[1]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].pulseCount+0.5f,1.0f,192.0f,1.0f,5.0f));
+				parent->freeParam[2]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].pulseDistance+0.5f,1.0f,768.0f,1.0f,5.0f));
+				parent->freeParam[3]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].trigType+0.5f,0.0f,2.0f,1.0f,5.0f));
+				parent->freeParam[4]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].VO+0.001f,0.0f,10.0f,1.0f,5.0f));
+				parent->freeParam[5]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].slide,0.0f,10.0f,1.0f,5.0f));
+				parent->freeParam[6]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].CV1,0.0f,10.0f,1.0f,5.0f));
+				parent->freeParam[7]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].CV2,0.0f,10.0f,1.0f,5.0f));
+
 			}
-			else if (e.button == GLFW_MOUSE_BUTTON_LEFT) {
-				module->currentTrig = index + (module->trigPage * 16);
-				module->selector = 1;
-
-				parent->selector[0]->visible = true;
-				parent->selector[1]->visible = true;
-
-				if (module->pageIndex == 0) {
-					parent->freeParam[0]->visible = true;
-					parent->freeParam[1]->visible = true;
+			else {
+				parent->freeParam[0]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].trim+0.5f,-191.0f,191.0f,1.0f,5.0f));
+				parent->freeParam[1]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].proba+0.5f,0.0f,7.0f,1.0f,5.0f));
+				parent->freeParam[2]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].count+0.5f,1.0f,100.0f,1.0f,5.0f));
+				parent->freeParam[3]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].countReset+0.5f,1.0f,100.0f,1.0f,5.0f));
+				parent->freeParam[0]->visible = true;
+				parent->freeParam[1]->visible = true;
+				if (module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].proba == 0) {
+					parent->freeParam[2]->visible = true;
+					parent->freeParam[3]->visible = false;
+				}
+				else if (module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].proba == 1) {
 					parent->freeParam[2]->visible = true;
 					parent->freeParam[3]->visible = true;
-					parent->freeParam[4]->visible = true;
-					parent->freeParam[5]->visible = true;
-					parent->freeParam[6]->visible = true;
-					parent->freeParam[7]->visible = true;
-
-					parent->freeParam[0]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].length+0.5f,0.0f,3000.0f,1.0f,5.0f));
-					parent->freeParam[1]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].pulseCount+0.5f,1.0f,192.0f,1.0f,5.0f));
-					parent->freeParam[2]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].pulseDistance+0.5f,1.0f,768.0f,1.0f,5.0f));
-					parent->freeParam[3]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].trigType+0.5f,0.0f,2.0f,1.0f,5.0f));
-					parent->freeParam[4]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].VO+0.001f,0.0f,10.0f,1.0f,5.0f));
-					parent->freeParam[5]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].slide,0.0f,10.0f,1.0f,5.0f));
-					parent->freeParam[6]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].CV1,0.0f,10.0f,1.0f,5.0f));
-					parent->freeParam[7]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].CV2,0.0f,10.0f,1.0f,5.0f));
-
 				}
 				else {
-					parent->freeParam[0]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].trim+0.5f,-191.0f,191.0f,1.0f,5.0f));
-					parent->freeParam[1]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].proba+0.5f,0.0f,7.0f,1.0f,5.0f));
-					parent->freeParam[2]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].count+0.5f,1.0f,100.0f,1.0f,5.0f));
-					parent->freeParam[3]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].countReset+0.5f,1.0f,100.0f,1.0f,5.0f));
-					parent->freeParam[0]->visible = true;
-					parent->freeParam[1]->visible = true;
-					if (module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].proba == 0) {
-						parent->freeParam[2]->visible = true;
-						parent->freeParam[3]->visible = false;
-					}
-					else if (module->patterns[module->currentPattern].tracks[module->currentTrack].trigs[module->currentTrig].proba == 1) {
-						parent->freeParam[2]->visible = true;
-						parent->freeParam[3]->visible = true;
-					}
-					else {
-						parent->freeParam[2]->visible = false;
-						parent->freeParam[3]->visible = false;
-					}
-
-					parent->freeParam[4]->visible = false;
-					parent->freeParam[5]->visible = false;
-					parent->freeParam[6]->visible = false;
-					parent->freeParam[7]->visible = false;
+					parent->freeParam[2]->visible = false;
+					parent->freeParam[3]->visible = false;
 				}
 
+				parent->freeParam[4]->visible = false;
+				parent->freeParam[5]->visible = false;
+				parent->freeParam[6]->visible = false;
+				parent->freeParam[7]->visible = false;
 			}
 		}
 	}
@@ -1189,36 +1198,41 @@ struct ZOUMAITRIGLEDBezel : LEDBezel {
 
 struct ZOUMAITRACKLEDBezel : LEDBezel {
 	size_t index;
+	size_t flag = 0;
 
-	virtual void onButton(const event::Button &e) override {
-		LEDBezel::onButton(e);
+	// virtual void onButton(const event::Button &e) override {
+	// 	LEDBezel::onButton(e);
+	// 	ZOUMAI *module = dynamic_cast<ZOUMAI*>(this->paramQuantity->module);
+	// 	if (module && (e.button == GLFW_MOUSE_BUTTON_LEFT) && (flag==0)) {
+	// 		module->patterns[module->currentPattern].tracks[index].isActive = !module->patterns[module->currentPattern].tracks[index].isActive;
+	// 	}
+	// 	if (flag++==2) flag=0;
+	// }
+
+	virtual void onHover(const event::Hover &e) override {
+		LEDBezel::onHover(e);
 		ZOUMAIWidget *parent = dynamic_cast<ZOUMAIWidget*>(this->parent);
 		ZOUMAI *module = dynamic_cast<ZOUMAI*>(this->paramQuantity->module);
 		if (parent && module) {
-			if ((e.button == GLFW_MOUSE_BUTTON_MIDDLE) || (e.button == GLFW_MOUSE_BUTTON_RIGHT)) {
-				module->patterns[module->currentPattern].tracks[index].isActive = !module->patterns[module->currentPattern].tracks[index].isActive;
-			}
-			else if (e.button == GLFW_MOUSE_BUTTON_LEFT) {
-				module->currentTrack = index;
-				module->selector = 0;
+			module->currentTrack = index;
+			module->selector = 0;
 
-				parent->freeParam[0]->visible = true;
-				parent->freeParam[1]->visible = true;
-				parent->freeParam[2]->visible = true;
-				parent->freeParam[3]->visible = true;
-				parent->freeParam[4]->visible = false;
-				parent->freeParam[5]->visible = false;
-				parent->freeParam[6]->visible = false;
-				parent->freeParam[7]->visible = false;
+			parent->freeParam[0]->visible = true;
+			parent->freeParam[1]->visible = true;
+			parent->freeParam[2]->visible = true;
+			parent->freeParam[3]->visible = true;
+			parent->freeParam[4]->visible = false;
+			parent->freeParam[5]->visible = false;
+			parent->freeParam[6]->visible = false;
+			parent->freeParam[7]->visible = false;
 
-				parent->selector[0]->visible = false;
-				parent->selector[1]->visible = false;
+			parent->selector[0]->visible = false;
+			parent->selector[1]->visible = false;
 
-				parent->freeParam[0]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].length+0.5f,1.0f,64.0f,1.0f,5.0f));
-				parent->freeParam[1]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].speed,0.5f,16.0f,1.0f,5.0f));
-				parent->freeParam[2]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].readMode+0.5f,0.0f,4.0f,1.0f,5.0f));
-				parent->freeParam[3]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].swing,0.0f,100.0f,1.0f,5.0f));
-			}
+			parent->freeParam[0]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].length+0.5f,1.0f,64.0f,1.0f,5.0f));
+			parent->freeParam[1]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].speed,0.5f,16.0f,1.0f,5.0f));
+			parent->freeParam[2]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].readMode+0.5f,0.0f,4.0f,1.0f,5.0f));
+			parent->freeParam[3]->paramQuantity->setValue(rescale(module->patterns[module->currentPattern].tracks[module->currentTrack].swing,0.0f,100.0f,1.0f,5.0f));
 		}
 	}
 };
@@ -1421,7 +1435,7 @@ ZOUMAIWidget::ZOUMAIWidget(ZOUMAI *module) {
 	for (size_t i=0;i<8;i++){
 		addInput(createInput<TinyPJ301MPort>(Vec(50.0f, 55.0f + i*28.0f), module, ZOUMAI::TRACK_ACTIVE_INPUTS + i));
 		addInput(createInput<TinyPJ301MPort>(Vec(70.0f, 55.0f + i*28.0f), module, ZOUMAI::TRACK_RESET_INPUTS + i));
-		tracksParam[i] = createParam<ZOUMAITRACKLEDBezel>(Vec(90.0f , 51.0f + i*28.0f), module, ZOUMAI::TRACK_PARAMS + i);
+		tracksParam[i] = createParam<ZOUMAITRACKLEDBezel>(Vec(90.0f , 51.0f + i*28.0f), module, ZOUMAI::TRACKS_PARAMS + i);
 		ZOUMAITRACKLEDBezel *btnTrack = dynamic_cast<ZOUMAITRACKLEDBezel*>(tracksParam[i]);
 		btnTrack->index = i;
 		addParam(tracksParam[i]);
