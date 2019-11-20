@@ -253,7 +253,6 @@ struct DTROY : Module {
 		NUM_LIGHTS
 	};
 
-	//copied from http://www.grantmuller.com/MidiReference/doc/midiReference/ScaleReference.html
 	int SCALE_AEOLIAN        [7] = {0, 2, 3, 5, 7, 8, 10};
 	int SCALE_BLUES          [9] = {0, 2, 3, 4, 5, 7, 9, 10, 11};
 	int SCALE_CHROMATIC      [12]= {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
@@ -822,7 +821,7 @@ void DTROY::process(const ProcessArgs &args) {
 		if (((!stepOutputsMode) && (pulse == 0)) || (stepOutputsMode))
 			stepPulse[patterns[playedPattern].CurrentStep().index].trigger(10 * invESR);
 
-		lights[STEPS_LIGHTS+patterns[playedPattern].CurrentStep().index].value = 1.0f;
+		lights[STEPS_LIGHTS+patterns[playedPattern].CurrentStep().index].setBrightness(1.0f);
 	}
 
 	// Lights & steps outputs

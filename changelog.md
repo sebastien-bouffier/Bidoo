@@ -1,7 +1,10 @@
+### v1.1.1 (21/11/2019)
+- zOù MAï reborn
+
 ### v1.1.0 (12/11/2019)
 - ACnE fix faders (trimpots) color gradient
 - ACnE recording of faders movements doesn't jump anymore when using scenes automation
-- ziNC fix frequency knobs color gradient depending carrier signal
+- ziNC fix frequency knobs color gradient depending on carrier signal
 
 ### v1.0.13 (25/10/2019)
 - OUAIve, cANARd and liMonADe aiff format support
