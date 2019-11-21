@@ -1130,7 +1130,7 @@ struct ZOUMAI : Module {
 };
 
 void ZOUMAI::process(const ProcessArgs &args) {
-	currentPattern = (int)clamp((inputs[PATTERN_INPUT].active ? rescale(clamp(inputs[PATTERN_INPUT].getVoltage(), 0.0f, 10.0f),0.0f,10.0f,0.0f,15.0f) : 0) + (int)params[PATTERN_PARAM].getValue(), 0.0f, 15.0f);
+	currentPattern = (int)clamp((inputs[PATTERN_INPUT].active ? rescale(clamp(inputs[PATTERN_INPUT].getVoltage(), 0.0f, 10.0f),0.0f,10.0f,0.0f,7.0f) : 0) + (int)params[PATTERN_PARAM].getValue(), 0.0f, 7.0f);
 
 	if (inputs[FILL_INPUT].active) {
 		if (((inputs[FILL_INPUT].getVoltage() > 0.0f) && !fill) || ((inputs[FILL_INPUT].getVoltage() == 0.0f) && fill)) fill=!fill;
