@@ -96,7 +96,7 @@ inline void trig::randomize() {
 	length = (int)(random::uniform()*190);
 	pulseCount = (int)(random::uniform()*10);
 	pulseDistance = (int)(random::uniform()*700);
-	octave = random::uniform()*5.0f - 5.0f;
+	octave = random::uniform()*4.0f - 4.0f;
 	semitones = random::uniform()*11.0f;
 	CV1 = random::uniform()*10.0f;
 	CV2 = random::uniform()*10.0f;
@@ -334,8 +334,8 @@ inline float track::getVO() {
 	}
 	else
 	{
-		float subPhase = (float)memTrig->getRelativeTrackPosition(trackIndex);
-		float fullLength = (float)memTrig->getFullLength();
+		float subPhase = memTrig->getRelativeTrackPosition(trackIndex);
+		float fullLength = memTrig->getFullLength();
 		if (fullLength > 0.0f) {
 			subPhase = subPhase/fullLength;
 		}
@@ -356,29 +356,23 @@ inline float track::getCV2() {
 
 inline void track::reset(const bool fill, const bool pNei) {
 	pre = false;
-	if (readMode != 1)
+	if (readMode == 1)
 	{
-		fwd = true;
-		currentTrig = trigs;
-		currentTrig->init(fill,pre,pNei);
-		trackIndex = speed;
-		if (currentTrig->isActive && !currentTrig->isSleeping) {
-			prevTrig = memTrig;
-			memTrig = currentTrig;
-		}
-		nextIndex = getNextIndex();
+		currentTrig = trigs+length-1;
+		trackIndex = currentTrig->reference + speed;
 	}
 	else
 	{
-		currentTrig = trigs+length-1;
-		currentTrig->init(fill,pre,pNei);
-		trackIndex = currentTrig->reference + speed;
-		if (currentTrig->isActive && !currentTrig->isSleeping) {
-			prevTrig = memTrig;
-			memTrig = currentTrig;
-		}
-		nextIndex = getNextIndex();
+		fwd = true;
+		currentTrig = trigs;
+		trackIndex = speed;
 	}
+	currentTrig->init(fill,pre,pNei);
+	if (currentTrig->isActive && !currentTrig->isSleeping) {
+		prevTrig = memTrig;
+		memTrig = currentTrig;
+	}
+	nextIndex = getNextIndex();
 }
 
 inline int track::getNextIndex() {
@@ -579,12 +573,19 @@ struct ZOUMAI : Module {
 		PATTERN_PARAM = NOTE_PARAMS + 12,
 		COPYTRACK_PARAM,
 		COPYPATTERN_PARAM,
+		COPYTRIG_PARAM,
+		PASTETRACK_PARAM,
+		PASTEPATTERN_PARAM,
+		PASTETRIG_PARAM,
 		CLEARTRACK_PARAM,
 		CLEARPATTERN_PARAM,
+		CLEARTRIG_PARAM,
 		RNDTRACK_PARAM,
 		RNDPATTERN_PARAM,
+		RNDTRIG_PARAM,
 		FRNDTRACK_PARAM,
 		FRNDPATTERN_PARAM,
+		FRNDTRIG_PARAM,
 		RIGHTTRACK_PARAM,
 		LEFTTRACK_PARAM,
 		UPTRACK_PARAM,
@@ -636,12 +637,19 @@ struct ZOUMAI : Module {
 		NOTES_LIGHT = OCTAVE_LIGHT + 7,
 		COPYTRACK_LIGHT = NOTES_LIGHT + 12*3,
 		COPYPATTERN_LIGHT,
+		COPYTRIG_LIGHT,
+		PASTETRACK_LIGHT,
+		PASTETRIG_LIGHT,
+		PASTEPATTERN_LIGHT,
 		CLEARTRACK_LIGHT,
 		CLEARPATTERN_LIGHT,
+		CLEARTRIG_LIGHT,
 		RNDTRACK_LIGHT,
 		RNDPATTERN_LIGHT,
+		RNDTRIG_LIGHT,
 		FRNDTRACK_LIGHT,
 		FRNDPATTERN_LIGHT,
+		FRNDTRIG_LIGHT,
 		RIGHTTRACK_LIGHT,
 		LEFTTRACK_LIGHT,
 		UPTRACK_LIGHT,
@@ -659,14 +667,21 @@ struct ZOUMAI : Module {
 	dsp::SchmittTrigger octaveTriggers[7];
 	dsp::SchmittTrigger noteTriggers[12];
 	dsp::SchmittTrigger fillTrigger;
-	dsp::SchmittTrigger copyPasteTrackTrigger;
-	dsp::SchmittTrigger copyPastePatternTrigger;
+	dsp::SchmittTrigger copyTrackTrigger;
+	dsp::SchmittTrigger copyPatternTrigger;
+	dsp::SchmittTrigger copyTrigTrigger;
+	dsp::SchmittTrigger pasteTrackTrigger;
+	dsp::SchmittTrigger pastePatternTrigger;
+	dsp::SchmittTrigger pasteTrigTrigger;
 	dsp::SchmittTrigger clearTrackTrigger;
 	dsp::SchmittTrigger clearPatternTrigger;
+	dsp::SchmittTrigger clearTrigTrigger;
 	dsp::SchmittTrigger rndTrackTrigger;
 	dsp::SchmittTrigger rndPatternTrigger;
+	dsp::SchmittTrigger rndTrigTrigger;
 	dsp::SchmittTrigger fRndTrackTrigger;
 	dsp::SchmittTrigger fRndPatternTrigger;
+	dsp::SchmittTrigger fRndTrigTrigger;
 	dsp::SchmittTrigger rightTrackTrigger;
 	dsp::SchmittTrigger leftTrackTrigger;
 	dsp::SchmittTrigger upTrackTrigger;
@@ -687,6 +702,7 @@ struct ZOUMAI : Module {
 	bool fill = false;
 	int copyTrackId = -1;
 	int copyPatternId = -1;
+	int copyTrigId = -1;
 
 	ZOUMAI() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -699,12 +715,19 @@ struct ZOUMAI : Module {
     configParam(PATTERN_PARAM, 0.0f, 7.0f, 0.0f);
     configParam(COPYTRACK_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(COPYPATTERN_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(COPYTRIG_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(PASTETRACK_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(PASTEPATTERN_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(PASTETRIG_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(CLEARTRACK_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(CLEARPATTERN_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(CLEARTRIG_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(RNDTRACK_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(RNDPATTERN_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(RNDTRIG_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(FRNDTRACK_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(FRNDPATTERN_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(FRNDTRIG_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(RIGHTTRACK_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(LEFTTRACK_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(UPTRACK_PARAM, 0.0f, 1.0f, 0.0f);
@@ -946,7 +969,6 @@ struct ZOUMAI : Module {
 		patterns[currentPattern].tracks[currentTrack].length = params[TRACKLENGTH_PARAM].getValue();
 		patterns[currentPattern].tracks[currentTrack].speed = params[TRACKSPEED_PARAM].getValue()*0.5f;
 		patterns[currentPattern].tracks[currentTrack].readMode = params[TRACKREADMODE_PARAM].getValue();
-		//patterns[currentPattern].tracks[currentTrack].swing = params[TRACKSWING_PARAM].getValue();
 	}
 
 	void updateParamsToTrig() {
@@ -970,37 +992,54 @@ struct ZOUMAI : Module {
 		lights[UPTRACK_LIGHT].setBrightness(lights[UPTRACK_LIGHT].getBrightness()-0.0001f*lights[UPTRACK_LIGHT].getBrightness());
 		lights[FRNDTRACK_LIGHT].setBrightness(lights[FRNDTRACK_LIGHT].getBrightness()-0.0001f*lights[FRNDTRACK_LIGHT].getBrightness());
 		lights[FRNDPATTERN_LIGHT].setBrightness(lights[FRNDPATTERN_LIGHT].getBrightness()-0.0001f*lights[FRNDPATTERN_LIGHT].getBrightness());
+		lights[FRNDTRIG_LIGHT].setBrightness(lights[FRNDTRIG_LIGHT].getBrightness()-0.0001f*lights[FRNDTRIG_LIGHT].getBrightness());
 		lights[RNDTRACK_LIGHT].setBrightness(lights[RNDTRACK_LIGHT].getBrightness()-0.0001f*lights[RNDTRACK_LIGHT].getBrightness());
 		lights[RNDPATTERN_LIGHT].setBrightness(lights[RNDPATTERN_LIGHT].getBrightness()-0.0001f*lights[RNDPATTERN_LIGHT].getBrightness());
+		lights[RNDTRIG_LIGHT].setBrightness(lights[RNDTRIG_LIGHT].getBrightness()-0.0001f*lights[RNDTRIG_LIGHT].getBrightness());
 		lights[CLEARTRACK_LIGHT].setBrightness(lights[CLEARTRACK_LIGHT].getBrightness()-0.0001f*lights[CLEARTRACK_LIGHT].getBrightness());
 		lights[CLEARPATTERN_LIGHT].setBrightness(lights[CLEARPATTERN_LIGHT].getBrightness()-0.0001f*lights[CLEARPATTERN_LIGHT].getBrightness());
+		lights[CLEARTRIG_LIGHT].setBrightness(lights[CLEARTRIG_LIGHT].getBrightness()-0.0001f*lights[CLEARTRIG_LIGHT].getBrightness());
+		lights[COPYTRACK_LIGHT].setBrightness(lights[COPYTRACK_LIGHT].getBrightness()-0.0001f*lights[COPYTRACK_LIGHT].getBrightness());
+		lights[COPYPATTERN_LIGHT].setBrightness(lights[COPYPATTERN_LIGHT].getBrightness()-0.0001f*lights[COPYPATTERN_LIGHT].getBrightness());
+		lights[COPYTRIG_LIGHT].setBrightness(lights[COPYTRIG_LIGHT].getBrightness()-0.0001f*lights[COPYTRIG_LIGHT].getBrightness());
+		lights[PASTETRACK_LIGHT].setBrightness(lights[PASTETRACK_LIGHT].getBrightness()-0.0001f*lights[PASTETRACK_LIGHT].getBrightness());
+		lights[PASTEPATTERN_LIGHT].setBrightness(lights[PASTEPATTERN_LIGHT].getBrightness()-0.0001f*lights[PASTEPATTERN_LIGHT].getBrightness());
+		lights[PASTETRIG_LIGHT].setBrightness(lights[PASTETRIG_LIGHT].getBrightness()-0.0001f*lights[PASTETRIG_LIGHT].getBrightness());
 
-		if (copyPastePatternTrigger.process(params[COPYPATTERN_PARAM].getValue())) {
-			if (copyPatternId == -1) {
+		if (copyPatternTrigger.process(params[COPYPATTERN_PARAM].getValue())) {
 				copyPatternId = currentPattern;
 				lights[COPYPATTERN_LIGHT].setBrightness(1.0f);
-			}
-			else {
-				patterns[currentPattern].copy(&patterns[copyPatternId]);
-				copyPatternId = -1.0f;
-				lights[COPYPATTERN_LIGHT].setBrightness(0.0f);
-				updateTrackToParams();
-				updateTrigToParams();
-			}
 		}
 
-		if (copyPasteTrackTrigger.process(params[COPYTRACK_PARAM].getValue())) {
-			if (copyTrackId == -1) {
+		if (pastePatternTrigger.process(params[PASTEPATTERN_PARAM].getValue())) {
+			patterns[currentPattern].copy(&patterns[copyPatternId]);
+			lights[PASTEPATTERN_LIGHT].setBrightness(1.0f);
+			updateTrackToParams();
+			updateTrigToParams();
+		}
+
+		if (copyTrackTrigger.process(params[COPYTRACK_PARAM].getValue())) {
 				copyTrackId = currentTrack;
 				lights[COPYTRACK_LIGHT].setBrightness(1.0f);
-			}
-			else {
-				patterns[currentPattern].tracks[currentTrack].copy(&patterns[currentPattern].tracks[copyTrackId]);
-				copyTrackId = -1.0f;
-				lights[COPYTRACK_LIGHT].setBrightness(0.0f);
-				updateTrackToParams();
-				updateTrigToParams();
-			}
+		}
+
+		if (pasteTrackTrigger.process(params[PASTETRACK_PARAM].getValue())) {
+			patterns[currentPattern].tracks[currentTrack].copy(&patterns[currentPattern].tracks[copyTrackId]);
+			lights[PASTETRACK_LIGHT].setBrightness(1.0f);
+			updateTrackToParams();
+			updateTrigToParams();
+		}
+
+		if (copyTrigTrigger.process(params[COPYTRIG_PARAM].getValue())) {
+				copyTrigId = currentTrig;
+				lights[COPYTRIG_LIGHT].setBrightness(1.0f);
+		}
+
+		if (pasteTrigTrigger.process(params[PASTETRIG_PARAM].getValue())) {
+			patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].copy(&patterns[currentPattern].tracks[currentTrack].trigs[copyTrigId]);
+			lights[PASTETRIG_LIGHT].setBrightness(1.0f);
+			updateTrackToParams();
+			updateTrigToParams();
 		}
 
 		if (clearPatternTrigger.process(params[CLEARPATTERN_PARAM].getValue())) {
@@ -1014,6 +1053,12 @@ struct ZOUMAI : Module {
 				patterns[currentPattern].tracks[currentTrack].clear();
 				lights[CLEARTRACK_LIGHT].setBrightness(1.0f);
 				updateTrackToParams();
+				updateTrigToParams();
+		}
+
+		if (clearTrigTrigger.process(params[CLEARTRIG_PARAM].getValue())) {
+				patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].reset();
+				lights[CLEARTRIG_LIGHT].setBrightness(1.0f);
 				updateTrigToParams();
 		}
 
@@ -1031,6 +1076,12 @@ struct ZOUMAI : Module {
 				updateTrigToParams();
 		}
 
+		if (rndTrigTrigger.process(params[RNDTRIG_PARAM].getValue())) {
+				patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].randomize();
+				lights[RNDTRIG_LIGHT].setBrightness(1.0f);
+				updateTrigToParams();
+		}
+
 		if (fRndPatternTrigger.process(params[FRNDPATTERN_PARAM].getValue())) {
 				patterns[currentPattern].fullRandomize();
 				lights[FRNDPATTERN_LIGHT].setBrightness(1.0f);
@@ -1041,6 +1092,13 @@ struct ZOUMAI : Module {
 		if (fRndTrackTrigger.process(params[FRNDTRACK_PARAM].getValue())) {
 				patterns[currentPattern].tracks[currentTrack].fullRandomize();
 				lights[FRNDTRACK_LIGHT].setBrightness(1.0f);
+				updateTrackToParams();
+				updateTrigToParams();
+		}
+
+		if (fRndTrigTrigger.process(params[FRNDTRIG_PARAM].getValue())) {
+				patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].fullRandomize();
+				lights[FRNDTRIG_LIGHT].setBrightness(1.0f);
 				updateTrackToParams();
 				updateTrigToParams();
 		}
@@ -1084,9 +1142,10 @@ void ZOUMAI::process(const ProcessArgs &args) {
 
 	for (int i = 0; i<8; i++) {
 		if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage())) {
-			for (int j = 0; j<8; j++) {
-				patterns[j].tracks[i].reset(fill,i==0?false:patterns[j].tracks[i-1].pre);
-			}
+			// for (int j = 0; j<8; j++) {
+			// 	patterns[j].tracks[i].reset(fill,i==0?false:patterns[j].tracks[i-1].pre);
+			// }
+			patterns[currentPattern].tracks[i].reset(fill,i==0?false:patterns[currentPattern].tracks[i-1].pre);
 		}
 
 		if (trackActiveTriggers[i].process(inputs[TRACKACTIVE_INPUTS+i].getVoltage() + params[TRACKSONOFF_PARAMS+i].getValue())) {
@@ -1200,17 +1259,21 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		if (resetTrigger.process(inputs[RESET_INPUT].getVoltage())) {
 			phase = 0.0f;
 			currentTickCount = 0.0f;
+			// for (int i = 0; i<8; i++) {
+			// 	for (int j = 0; j < 8; j++) {
+			// 		if (!inputs[TRACKRESET_INPUTS+j].isConnected()) patterns[i].tracks[j].reset(fill, i==0?false:patterns[i].tracks[j-1].pre);
+			// 	}
+			// }
 			for (int i = 0; i<8; i++) {
-				for (int j = 0; j < 8; j++) {
-					if (!inputs[TRACKRESET_INPUTS+j].isConnected()) patterns[i].tracks[j].reset(fill, i==0?false:patterns[i].tracks[j-1].pre);
-				}
+				if (!inputs[TRACKRESET_INPUTS+i].isConnected()) patterns[currentPattern].tracks[i].reset(fill, i==0?false:patterns[currentPattern].tracks[i-1].pre);
 			}
 			ppqn = 0;
 		}
 		else if (phase*192>=ppqn) {
-			for (int i = 0; i<8; i++) {
-				patterns[i].moveNext(fill);
-			}
+			// for (int i = 0; i<8; i++) {
+			// 	patterns[i].moveNext(fill);
+			// }
+			patterns[currentPattern].moveNext(fill);
 			ppqn++;
 		}
 	}
@@ -1496,46 +1559,61 @@ struct ZOUMAIWidget : ModuleWidget {
 		addParam(createParam<BlueCKD6>(Vec(40.0f, portY0[6]-1.0f), module, ZOUMAI::FILL_PARAM));
 		addChild(createLight<SmallLight<BlueLight>>(Vec(73.0f, portY0[6]+10.0f), module, ZOUMAI::FILL_LIGHT));
 
-		static const float portX0[4] = {389.0f, 404.0f, 419.0f, 434.0f};
+		static const float portX0[5] = {374.0f, 389.0f, 404.0f, 419.0f, 434.0f};
 
-		addParam(createParam<MiniLEDButton>(Vec(portX0[0], 315.0f), module, ZOUMAI::TRIGPAGE_PARAM));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[1], 315.0f), module, ZOUMAI::TRIGPAGE_PARAM+1));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[2], 315.0f), module, ZOUMAI::TRIGPAGE_PARAM+2));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[3], 315.0f), module, ZOUMAI::TRIGPAGE_PARAM+3));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[1], 317.0f), module, ZOUMAI::TRIGPAGE_PARAM));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[2], 317.0f), module, ZOUMAI::TRIGPAGE_PARAM+1));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[3], 317.0f), module, ZOUMAI::TRIGPAGE_PARAM+2));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[4], 317.0f), module, ZOUMAI::TRIGPAGE_PARAM+3));
 
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(portX0[0], 315.0f), module, ZOUMAI::TRIGPAGE_LIGHTS));
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(portX0[1], 315.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+3));
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(portX0[2], 315.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+6));
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(portX0[3], 315.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+9));
+		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(portX0[1], 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS));
+		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(portX0[2], 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+3));
+		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(portX0[3], 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+6));
+		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(portX0[4], 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+9));
 
-		static const float portYFunctions[3] = {253.0f, 265.0f, 277.0f};
+		static const float portYFunctions[4] = {244.0f, 256.0f, 268.0f, 280.0f};
 
 		addParam(createParam<MiniLEDButton>(Vec(portX0[0], portYFunctions[0]), module, ZOUMAI::COPYPATTERN_PARAM));
 		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[0], portYFunctions[0]), module, ZOUMAI::COPYPATTERN_LIGHT));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[1], portYFunctions[0]), module, ZOUMAI::CLEARPATTERN_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[1], portYFunctions[0]), module, ZOUMAI::CLEARPATTERN_LIGHT));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[2], portYFunctions[0]), module, ZOUMAI::RNDPATTERN_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[2], portYFunctions[0]), module, ZOUMAI::RNDPATTERN_LIGHT));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[3], portYFunctions[0]), module, ZOUMAI::FRNDPATTERN_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[3], portYFunctions[0]), module, ZOUMAI::FRNDPATTERN_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[1], portYFunctions[0]), module, ZOUMAI::PASTEPATTERN_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[1], portYFunctions[0]), module, ZOUMAI::PASTEPATTERN_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[2], portYFunctions[0]), module, ZOUMAI::CLEARPATTERN_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[2], portYFunctions[0]), module, ZOUMAI::CLEARPATTERN_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[3], portYFunctions[0]), module, ZOUMAI::RNDPATTERN_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[3], portYFunctions[0]), module, ZOUMAI::RNDPATTERN_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[4], portYFunctions[0]), module, ZOUMAI::FRNDPATTERN_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[4], portYFunctions[0]), module, ZOUMAI::FRNDPATTERN_LIGHT));
 
-		addParam(createParam<MiniLEDButton>(Vec(portX0[0], portYFunctions[1]), module, ZOUMAI::COPYTRACK_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[0], portYFunctions[1]), module, ZOUMAI::COPYTRACK_LIGHT));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[1], portYFunctions[1]), module, ZOUMAI::CLEARTRACK_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[1], portYFunctions[1]), module, ZOUMAI::CLEARTRACK_LIGHT));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[2], portYFunctions[1]), module, ZOUMAI::RNDTRACK_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[2], portYFunctions[1]), module, ZOUMAI::RNDTRACK_LIGHT));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[3], portYFunctions[1]), module, ZOUMAI::FRNDTRACK_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[3], portYFunctions[1]), module, ZOUMAI::FRNDTRACK_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[0], portYFunctions[1]), module, ZOUMAI::COPYTRIG_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[0], portYFunctions[1]), module, ZOUMAI::COPYTRIG_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[1], portYFunctions[1]), module, ZOUMAI::PASTETRIG_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[1], portYFunctions[1]), module, ZOUMAI::PASTETRIG_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[2], portYFunctions[1]), module, ZOUMAI::CLEARTRIG_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[2], portYFunctions[1]), module, ZOUMAI::CLEARTRIG_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[3], portYFunctions[1]), module, ZOUMAI::RNDTRIG_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[3], portYFunctions[1]), module, ZOUMAI::RNDTRIG_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[4], portYFunctions[1]), module, ZOUMAI::FRNDTRIG_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[4], portYFunctions[1]), module, ZOUMAI::FRNDTRIG_LIGHT));
 
-		addParam(createParam<MiniLEDButton>(Vec(portX0[0], portYFunctions[2]), module, ZOUMAI::RIGHTTRACK_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[0], portYFunctions[2]), module, ZOUMAI::RIGHTTRACK_LIGHT));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[1], portYFunctions[2]), module, ZOUMAI::LEFTTRACK_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[1], portYFunctions[2]), module, ZOUMAI::LEFTTRACK_LIGHT));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[2], portYFunctions[2]), module, ZOUMAI::UPTRACK_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[2], portYFunctions[2]), module, ZOUMAI::UPTRACK_LIGHT));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[3], portYFunctions[2]), module, ZOUMAI::DOWNTRACK_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[3], portYFunctions[2]), module, ZOUMAI::DOWNTRACK_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[0], portYFunctions[2]), module, ZOUMAI::COPYTRACK_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[0], portYFunctions[2]), module, ZOUMAI::COPYTRACK_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[1], portYFunctions[2]), module, ZOUMAI::PASTETRACK_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[1], portYFunctions[2]), module, ZOUMAI::PASTETRACK_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[2], portYFunctions[2]), module, ZOUMAI::CLEARTRACK_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[2], portYFunctions[2]), module, ZOUMAI::CLEARTRACK_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[3], portYFunctions[2]), module, ZOUMAI::RNDTRACK_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[3], portYFunctions[2]), module, ZOUMAI::RNDTRACK_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[4], portYFunctions[2]), module, ZOUMAI::FRNDTRACK_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[4], portYFunctions[2]), module, ZOUMAI::FRNDTRACK_LIGHT));
+
+		addParam(createParam<MiniLEDButton>(Vec(portX0[0], portYFunctions[3]), module, ZOUMAI::RIGHTTRACK_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[0], portYFunctions[3]), module, ZOUMAI::RIGHTTRACK_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[1], portYFunctions[3]), module, ZOUMAI::LEFTTRACK_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[1], portYFunctions[3]), module, ZOUMAI::LEFTTRACK_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[2], portYFunctions[3]), module, ZOUMAI::UPTRACK_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[2], portYFunctions[3]), module, ZOUMAI::UPTRACK_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(portX0[3], portYFunctions[3]), module, ZOUMAI::DOWNTRACK_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[3], portYFunctions[3]), module, ZOUMAI::DOWNTRACK_LIGHT));
 
 		for (int i=0;i<8;i++){
 			addInput(createInput<TinyPJ301MPort>(Vec(50.0f, 67.0f + i*28.0f), module, ZOUMAI::TRACKRESET_INPUTS + i));
