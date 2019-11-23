@@ -1401,15 +1401,15 @@ struct ZOUMAIDisplay : TransparentWidget {
 		nvgText(args.vg, portX1[4], portY0[5], sTrim.str().c_str(), NULL);
 		nvgText(args.vg, portX1[5], portY0[4], "Slide", NULL);
 		nvgText(args.vg, portX1[5], portY0[5], sSlide.str().c_str(), NULL);
-		nvgText(args.vg, portX1[5], portY0[6], "V/Oct", NULL);
-		nvgText(args.vg, portX1[5], portY0[7], sVO.str().c_str(), NULL);
 		nvgText(args.vg, portX1[0], portY0[6], "CV1", NULL);
 		nvgText(args.vg, portX1[0], portY0[7], sCV1.str().c_str(), NULL);
 		nvgText(args.vg, portX1[1], portY0[6], "CV2", NULL);
 		nvgText(args.vg, portX1[1], portY0[7], sCV2.str().c_str(), NULL);
 		nvgText(args.vg, portX1[2], portY0[6], "Prob.", NULL);
 		nvgText(args.vg, portX1[2], portY0[7], sProb.str().c_str(), NULL);
-
+		nvgFillColor(args.vg, nvgRGBA(255, 255, 255, 255));
+		nvgText(args.vg, portX1[5], portY0[6], "V/Oct", NULL);
+		nvgText(args.vg, portX1[5], portY0[7], sVO.str().c_str(), NULL);
 	}
 
 	std::string displayReadMode(int value) {

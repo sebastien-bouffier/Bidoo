@@ -49,12 +49,13 @@ struct TOCANTE : Module {
 	int stepsPerTriplet = 1;
 	dsp::PulseGenerator gatePulse;
 	dsp::PulseGenerator gatePulse_triplets;
+	dsp::PulseGenerator gatePulse_Measure;
 	dsp::SchmittTrigger runningTrigger;
 	dsp::SchmittTrigger resetTrigger;
 	bool running = true;
 	bool reset = false;
 	float runningLight = 0.0f;
-	bool pulseEven = false, pulseTriplets = false;
+	bool pulseEven = false, pulseTriplets = false, pulseMeasure = false;
 	float bpm = 0.0f;
 
 	TOCANTE() {
@@ -112,10 +113,16 @@ void TOCANTE::process(const ProcessArgs &args) {
 		gatePulse_triplets.trigger(1e-3f);
 	}
 
+	if (currentStep == 0) {
+		gatePulse_Measure.trigger(1e-3f);
+	}
+
 	pulseEven = gatePulse.process(args.sampleTime);
 	pulseTriplets = gatePulse_triplets.process(args.sampleTime);
+	pulseMeasure = gatePulse_Measure.process(args.sampleTime);
 
-	outputs[OUT_MEASURE].value = (currentStep == 0) ? 10.0f : 0.0f;
+
+	outputs[OUT_MEASURE].value = pulseMeasure ? 10.0f : 0.0f;
 	outputs[OUT_BEAT].value = (pulseEven && (currentStep % stepsPerBeat == 0)) ? 10.0f : 0.0f;
 	outputs[OUT_TRIPLET].value = (pulseTriplets && (currentStep % stepsPerTriplet == 0)) ? 10.0f : 0.0f;
 	outputs[OUT_QUARTER].value = (pulseEven && (currentStep % stepsPerQuarter == 0)) ? 10.0f : 0.0f;
