@@ -79,8 +79,8 @@ struct DUKEWidget : ModuleWidget {
 			addParam(createParam<BidooBlueKnob>(Vec(portX0[i]-2.0f, 51.0f), module, DUKE::MAX_PARAM + i));
 			addParam(createParam<BidooBlueKnob>(Vec(portX0[i]-2.0f, 95.0f), module, DUKE::MIN_PARAM + i));
 			addParam(createParam<CKSS>(Vec(portX0[i]+6.0f, 139.0f), module, DUKE::TYPE_PARAM + i));
-			addParam(createParam<LEDSliderGreen>(Vec(portX0[i]+4.0f, 176.0f), module, DUKE::SLIDER_PARAM + i));
-			addInput(createInput<PJ301MPort>(Vec(portX0[i]+1.0f, 284.0f), module, DUKE::SLIDER_INPUT + i));
+			addParam(createParam<LEDSliderGreen>(Vec(portX0[i]+3.0f, 184.0f), module, DUKE::SLIDER_PARAM + i));
+			addInput(createInput<PJ301MPort>(Vec(portX0[i]+1.0f, 281.0f), module, DUKE::SLIDER_INPUT + i));
 			addOutput(createOutput<PJ301MPort>(Vec(portX0[i]+1.0f, 323.0f), module, DUKE::CV_OUTPUT + i));
 		}
 	}
