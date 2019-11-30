@@ -84,20 +84,20 @@ struct TOCANTE : Module {
 };
 
 void TOCANTE::process(const ProcessArgs &args) {
-	if (runningTrigger.process(params[RUN_PARAM].value)) {
+	if (runningTrigger.process(params[RUN_PARAM].getValue())) {
 		running = !running;
 		if(running){
 			currentStep = 0;
 		}
 	}
 
-	if (resetTrigger.process(params[RESET_PARAM].value)){
+	if (resetTrigger.process(params[RESET_PARAM].getValue())){
 		currentStep = 0;
 	}
 
-	ref = clamp(powf(2.0f,params[REF_PARAM].value+(int)rescale(clamp(inputs[REF_INPUT].value,0.0f,10.0f),0.0f,10.0f,0.0f,3.0f)),2.0f,16.0f);
-	beats = clamp(params[BEATS_PARAM].value+rescale(clamp(inputs[BEATS_INPUT].value,0.0f,10.0f),0.0f,10.0f,0.0f,32.0f),1.0f,32.0f);
-	bpm = clamp(round(params[BPM_PARAM].value+rescale(clamp(inputs[BPM_INPUT].value,0.0f,10.0f),0.0f,10.0f,0.0f,350.0f)) + round(100*(params[BPMFINE_PARAM].value+rescale(clamp(inputs[BPMFINE_INPUT].value,0.0f,10.0f),0.0f,10.0f,0.0f,0.99f))) * 0.01f, 1.0f, 350.0f);
+	ref = clamp(powf(2.0f,params[REF_PARAM].getValue()+(int)rescale(clamp(inputs[REF_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,3.0f)),2.0f,16.0f);
+	beats = clamp(params[BEATS_PARAM].getValue()+rescale(clamp(inputs[BEATS_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,32.0f),1.0f,32.0f);
+	bpm = clamp(round(params[BPM_PARAM].getValue()+rescale(clamp(inputs[BPM_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,350.0f)) + round(100*(params[BPMFINE_PARAM].getValue()+rescale(clamp(inputs[BPMFINE_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,0.99f))) * 0.01f, 1.0f, 350.0f);
 	stepsPerSixteenth =  floor(args.sampleRate / bpm * 60 * ref / 32) * 2;
 	stepsPerEighth = stepsPerSixteenth * 2;
 	stepsPerQuarter = stepsPerEighth * 2;
@@ -122,16 +122,16 @@ void TOCANTE::process(const ProcessArgs &args) {
 	pulseMeasure = gatePulse_Measure.process(args.sampleTime);
 
 
-	outputs[OUT_MEASURE].value = pulseMeasure ? 10.0f : 0.0f;
-	outputs[OUT_BEAT].value = (pulseEven && (currentStep % stepsPerBeat == 0)) ? 10.0f : 0.0f;
-	outputs[OUT_TRIPLET].value = (pulseTriplets && (currentStep % stepsPerTriplet == 0)) ? 10.0f : 0.0f;
-	outputs[OUT_QUARTER].value = (pulseEven && (currentStep % stepsPerQuarter == 0)) ? 10.0f : 0.0f;
-	outputs[OUT_EIGHTH].value = (pulseEven && (currentStep % stepsPerEighth == 0)) ? 10.0f : 0.0f;
-	outputs[OUT_SIXTEENTH].value = (pulseEven && (currentStep % stepsPerSixteenth == 0)) ? 10.0f : 0.0f;
+	outputs[OUT_MEASURE].setVoltage(pulseMeasure ? 10.0f : 0.0f);
+	outputs[OUT_BEAT].setVoltage((pulseEven && (currentStep % stepsPerBeat == 0)) ? 10.0f : 0.0f);
+	outputs[OUT_TRIPLET].setVoltage((pulseTriplets && (currentStep % stepsPerTriplet == 0)) ? 10.0f : 0.0f);
+	outputs[OUT_QUARTER].setVoltage((pulseEven && (currentStep % stepsPerQuarter == 0)) ? 10.0f : 0.0f);
+	outputs[OUT_EIGHTH].setVoltage((pulseEven && (currentStep % stepsPerEighth == 0)) ? 10.0f : 0.0f);
+	outputs[OUT_SIXTEENTH].setVoltage((pulseEven && (currentStep % stepsPerSixteenth == 0)) ? 10.0f : 0.0f);
 	if (running) {
 		currentStep = floor((currentStep + 1) % stepsPerMeasure);
 	}
-	lights[RUNNING_LIGHT].value = running ? 1.0 : 0.0;
+	lights[RUNNING_LIGHT].setBrightness(running ? 1.0 : 0.0);
 }
 
 struct TOCANTEDisplay : TransparentWidget {

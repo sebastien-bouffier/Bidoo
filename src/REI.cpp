@@ -121,7 +121,7 @@ struct REI : Module {
 			revprocessor.process(inL, inR, 0.0f, outL, outR, wOutL, wOutR);
 		}
 
-		if (params[CLIPPING_PARAM].value == 1.0f) {
+		if (params[CLIPPING_PARAM].getValue() == 1.0f) {
 			outL = clamp(outL, -7.0f, 7.0f);
 			outR = clamp(outR, -7.0f, 7.0f);
 		} else {

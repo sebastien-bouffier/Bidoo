@@ -136,7 +136,7 @@ void EMILE::process(const ProcessArgs &args) {
       outBuffer.endIncr(FFT_SIZE/STEPS);
     }
 
-		outputs[OUT].value = params[GAIN_PARAM].value * clamp(*outBuffer.startData() * 10.0f,-10.0f,10.0f);
+		outputs[OUT].setVoltage(params[GAIN_PARAM].value * clamp(*outBuffer.startData() * 10.0f,-10.0f,10.0f));
     outBuffer.startIncr(1);
 
 		delay++;

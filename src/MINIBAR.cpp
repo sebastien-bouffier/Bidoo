@@ -63,10 +63,10 @@ struct MINIBAR : Module {
 };
 
 void MINIBAR::process(const ProcessArgs &args) {
-	if (bypassTrigger.process(params[BYPASS_PARAM].value)) {
+	if (bypassTrigger.process(params[BYPASS_PARAM].getValue())) {
 		bypass = !bypass;
 	}
-	lights[BYPASS_LIGHT].value = bypass ? 1.0f : 0.0f;
+	lights[BYPASS_LIGHT].setBrightness(bypass ? 1.0f : 0.0f);
 
 	if (indexVU>=16384) {
 		runningVU_L_Sum -= *vu_L_Buffer.startData();

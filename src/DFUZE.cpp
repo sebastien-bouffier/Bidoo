@@ -39,6 +39,7 @@ struct DFUZE : Module {
 
 
 	ty_gverb *verb;
+	float lOut = 0.f, rOut = 0.f;
 
 	DFUZE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -67,7 +68,9 @@ void DFUZE::process(const ProcessArgs &args) {
 	gverb_set_earlylevel(verb, clamp(params[EARLYLEVEL_PARAM].value+inputs[EARLYLEVEL_INPUT].value,0.0f,10.0f));
 	gverb_set_taillevel(verb, clamp(params[TAIL_PARAM].value+inputs[TAIL_INPUT].value,0.0f,10.0f));
 
-	gverb_do(verb, inputs[IN_INPUT].value/10.0f, &outputs[OUT_L_OUTPUT].value, &outputs[OUT_R_OUTPUT].value);
+	gverb_do(verb, inputs[IN_INPUT].value/10.0f, &lOut, &rOut);
+	outputs[OUT_L_OUTPUT].setVoltage(lOut);
+	outputs[OUT_R_OUTPUT].setVoltage(rOut);
 }
 
 struct DFUZEWidget : ModuleWidget {

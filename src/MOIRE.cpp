@@ -120,17 +120,17 @@ struct MOIRE : Module {
 };
 
 void MOIRE::process(const ProcessArgs &args) {
-	targetScene = clamp(floor(inputs[TARGETSCENE_INPUT].value * 1.6f) + params[TARGETSCENE_PARAM].value , 0.0f, 15.0f);
-	currentScene = clamp(floor(inputs[CURRENTSCENE_INPUT].value * 1.6f) + params[CURRENTSCENE_PARAM].value , 0.0f, 15.0f);
+	targetScene = clamp(floor(inputs[TARGETSCENE_INPUT].getVoltage() * 1.6f) + params[TARGETSCENE_PARAM].getValue() , 0.0f, 15.0f);
+	currentScene = clamp(floor(inputs[CURRENTSCENE_INPUT].getVoltage() * 1.6f) + params[CURRENTSCENE_PARAM].getValue() , 0.0f, 15.0f);
 
 	for (int i = 0; i < 16; i++) {
-		if (typeTriggers[i].process(params[TYPE_PARAMS + i].value)) {
+		if (typeTriggers[i].process(params[TYPE_PARAMS + i].getValue())) {
 			controlsTypes[i] = controlsTypes[i] == 0 ? 1 : 0;
 		}
-		lights[TYPE_LIGHTS + i].value = controlsTypes[i];
+		lights[TYPE_LIGHTS + i].setBrightness(controlsTypes[i]);
 	}
 
-	float coeff = clamp(inputs[MORPH_INPUT].value + params[MORPH_PARAM].value, 0.0f, 10.0f);
+	float coeff = clamp(inputs[MORPH_INPUT].getVoltage() + params[MORPH_PARAM].getValue(), 0.0f, 10.0f);
 
 	for (int i = 0 ; i < 16; i++) {
 		if (!controlFocused[i]) {
@@ -146,9 +146,9 @@ void MOIRE::process(const ProcessArgs &args) {
 			}
 		}
 		else {
-			currentValues[i] = params[CONTROLS_PARAMS + i].value;
+			currentValues[i] = params[CONTROLS_PARAMS + i].getValue();
 		}
-		outputs[CV_OUTPUTS + i].value = currentValues[i] - 5.0f * params[VOLTAGE_PARAM].value;
+		outputs[CV_OUTPUTS + i].setVoltage(currentValues[i] - 5.0f * params[VOLTAGE_PARAM].getValue());
 	}
 }
 

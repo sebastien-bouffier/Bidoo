@@ -186,7 +186,7 @@ void ACNE::process(const ProcessArgs &args) {
 		}
 	}
 
-	if (inputs[SNAPSHOT_INPUT].active) {
+	if (inputs[SNAPSHOT_INPUT].isConnected()) {
 		int newSnapshot = clamp((int)(inputs[SNAPSHOT_INPUT].getVoltage() * 16 * 0.1f),0,ACNE_NB_SNAPSHOTS-1);
 		if (currentSnapshot != newSnapshot) {
 			previousSnapshot = currentSnapshot;
@@ -222,7 +222,7 @@ void ACNE::process(const ProcessArgs &args) {
 		if (linksTriggers[i].process(params[TRACKLINK_PARAMS + i].getValue()))
 			links[i] = !links[i];
 
-		lights[TRACKLINK_LIGHTS + i].value = (links[i] == true) ? 1 : 0;
+		lights[TRACKLINK_LIGHTS + i].setBrightness(links[i] == true ? 1 : 0);
 	}
 
 	for (int i = 0; i < ACNE_NB_TRACKS; i++) {
@@ -275,44 +275,44 @@ void ACNE::process(const ProcessArgs &args) {
 			}
 			if (sum > 0) {
 				for (int j = 0; j < ACNE_NB_TRACKS; j ++) {
-					if ((inputs[TRACKS_INPUTS + j].active) && (inSolo[j])) {
-						outputs[TRACKS_OUTPUTS + i].value += (getRampedValue(i,j) * 0.1f) * inputs[TRACKS_INPUTS + j].value * 30517578125e-15f;
+					if ((inputs[TRACKS_INPUTS + j].isConnected()) && (inSolo[j])) {
+						outputs[TRACKS_OUTPUTS + i].setVoltage(outputs[TRACKS_OUTPUTS + i].getVoltage() + getRampedValue(i,j) * 0.1f * inputs[TRACKS_INPUTS + j].getVoltage() * 30517578125e-15f);
 					}
 				}
 			}
 			else {
 				for (int j = 0; j < ACNE_NB_TRACKS; j ++) {
-					if ((inputs[TRACKS_INPUTS + j].active) && (!inMutes[j])) {
+					if ((inputs[TRACKS_INPUTS + j].isConnected()) && (!inMutes[j])) {
 						if (rampSize>0) {
 							rampedValue = crossfade(snapshots[currentSnapshot][i][j],snapshots[previousSnapshot][i][j],(float)rampSteps/(float)rampSize);
 						}
 						else {
 							rampedValue = snapshots[currentSnapshot][i][j];
 						}
-						outputs[TRACKS_OUTPUTS + i].value += (getRampedValue(i,j) * 0.1f) * inputs[TRACKS_INPUTS + j].value * 30517578125e-15f;
+						outputs[TRACKS_OUTPUTS + i].setVoltage(outputs[TRACKS_OUTPUTS + i].getVoltage() + getRampedValue(i,j) * 0.1f * inputs[TRACKS_INPUTS + j].getVoltage() * 30517578125e-15f);
 					}
 				}
 			}
-			outputs[TRACKS_OUTPUTS + i].value = outputs[TRACKS_OUTPUTS + i].value * 32768.0f;
+			outputs[TRACKS_OUTPUTS + i].setVoltage(outputs[TRACKS_OUTPUTS + i].getVoltage() * 32768.0f);
 		}
 	}
 
 	if (rampSteps > 0)
 		rampSteps--;
 
-	outputs[TRACKS_OUTPUTS].value = outputs[TRACKS_OUTPUTS].value * params[MAIN_OUT_GAIN_PARAM].value * 0.1f;
-	outputs[TRACKS_OUTPUTS + 1].value = outputs[TRACKS_OUTPUTS + 1].value * params[MAIN_OUT_GAIN_PARAM].value * 0.1f;
+	outputs[TRACKS_OUTPUTS].setVoltage(outputs[TRACKS_OUTPUTS].getVoltage() * params[MAIN_OUT_GAIN_PARAM].value * 0.1f);
+	outputs[TRACKS_OUTPUTS + 1].setVoltage(outputs[TRACKS_OUTPUTS + 1].getVoltage() * params[MAIN_OUT_GAIN_PARAM].value * 0.1f);
 
-	lights[COPY_LIGHT].value = (copyState == true) ? 1 : 0;
+	lights[COPY_LIGHT].setBrightness(copyState == true ? 1 : 0);
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
-		lights[OUT_MUTE_LIGHTS + i].value = (outMutes[i] == true) ? 1 : 0;
+		lights[OUT_MUTE_LIGHTS + i].setBrightness(outMutes[i] == true ? 1 : 0);
 	}
 	for (int i = 0; i < ACNE_NB_TRACKS; i++) {
-		lights[IN_MUTE_LIGHTS + i].value = (inMutes[i] == true) ? 1 : 0;
-		lights[IN_SOLO_LIGHTS + i].value = (inSolo[i] == true) ? 1 : 0;
+		lights[IN_MUTE_LIGHTS + i].setBrightness(inMutes[i] == true ? 1 : 0);
+		lights[IN_SOLO_LIGHTS + i].setBrightness(inSolo[i] == true ? 1 : 0);
 	}
 	for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
-		lights[SNAPSHOT_LIGHTS + i].value = (i == currentSnapshot) ? 1 : 0;
+		lights[SNAPSHOT_LIGHTS + i].setBrightness(i == currentSnapshot ? 1 : 0);
 	}
 }
 

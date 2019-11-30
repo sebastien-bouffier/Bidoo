@@ -29,7 +29,6 @@ struct ZINC : Module {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
-		LEARN_LIGHT,
 		NUM_LIGHTS
 	};
 	Biquad* iFilter[2 * BANDS];

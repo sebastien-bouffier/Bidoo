@@ -666,7 +666,7 @@ void LIMONADE::process(const ProcessArgs &args) {
 			lights[RECWT_LIGHT].setBrightness(0.0f);
 		}
 		else if (recFrame && (recIndex==frameSize)) {
-			thread t = thread(tLoadIFrame, std::ref(table), std::ref(iRec), params[INDEX_PARAM].value, frameSize, true);
+			thread t = thread(tLoadIFrame, std::ref(table), std::ref(iRec), params[INDEX_PARAM].getValue(), frameSize, true);
 			t.detach();
 			recFrame = false;
 			recIndex = 0;
@@ -745,7 +745,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 
 	void onDragMove(const event::DragMove &e) override {
 		if ((!scroll) && (module->table.nFrames>0)) {
-			size_t i = module->params[LIMONADE::INDEX_PARAM].value*(module->table.nFrames-1);
+			size_t i = module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames-1);
 			if (refY<=heightMagn) {
 				if ((appGet()->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_CONTROL)) {
 					module->table.frames[i].magnitude[refIdx] = 0.0f;
@@ -813,7 +813,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
   		nvgText(args.vg, 130.0f, heightMagn + graphGap/2+4, "▲ Magnitude ▼ Phase", NULL);
 
   		if (module->table.nFrames>0) {
-  			nvgText(args.vg, 0.0f, heightMagn + graphGap/2+4, ("Frame " + to_string((int)(module->params[LIMONADE::INDEX_PARAM].value*(module->table.nFrames-1) + 1)) + " / " + to_string(module->table.nFrames)).c_str(), NULL);
+  			nvgText(args.vg, 0.0f, heightMagn + graphGap/2+4, ("Frame " + to_string((int)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames-1) + 1)) + " / " + to_string(module->table.nFrames)).c_str(), NULL);
   			for (size_t i = 0; i < FS2/2; i++) {
   				float x, y;
   				x = (float)i * IFS2;
@@ -958,8 +958,8 @@ struct LIMONADEWavDisplay : OpaqueWidget {
   		size_t idx = 0;
   		size_t wtidx = 0;
   		if (fs>0) {
-  			idx = module->params[LIMONADE::INDEX_PARAM].value*(fs-1);
-  			wtidx = clamp(module->params[LIMONADE::WTINDEX_PARAM].value+module->inputs[LIMONADE::WTINDEX_INPUT].value*0.1f*module->params[LIMONADE::WTINDEXATT_PARAM].value,0.0f,1.0f)*(fs-1);
+  			idx = module->params[LIMONADE::INDEX_PARAM].getValue()*(fs-1);
+  			wtidx = clamp(module->params[LIMONADE::WTINDEX_PARAM].getValue()+module->inputs[LIMONADE::WTINDEX_INPUT].getVoltage()*0.1f*module->params[LIMONADE::WTINDEXATT_PARAM].getValue(),0.0f,1.0f)*(fs-1);
   		}
 
   		nvgSave(args.vg);
@@ -969,7 +969,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
   		nvgTextLetterSpacing(args.vg, -2.0f);
   		nvgFillColor(args.vg, YELLOW_BIDOO);
 
-  		nvgText(args.vg, width+6, height-10, ("V=" + to_string((int)module->params[LIMONADE::UNISSON_PARAM].value)).c_str(), NULL);
+  		nvgText(args.vg, width+6, height-10, ("V=" + to_string((int)module->params[LIMONADE::UNISSON_PARAM].getValue())).c_str(), NULL);
 
   		for (size_t n=0; n<fs; n++) {
   			nvgBeginPath(args.vg);

@@ -162,24 +162,24 @@ void OUAIVE::loadSample(std::string path) {
 }
 
 void OUAIVE::process(const ProcessArgs &args) {
-	if (trigModeTrigger.process(params[TRIG_MODE_PARAM].value)) {
+	if (trigModeTrigger.process(params[TRIG_MODE_PARAM].getValue())) {
 		trigMode = (((int)trigMode + 1) % 3);
 	}
-	if (inputs[READ_MODE_INPUT].active) {
-		readMode = round(rescale(inputs[READ_MODE_INPUT].value, 0.0f,10.0f,0.0f,2.0f));
-	} else if (readModeTrigger.process(params[READ_MODE_PARAM].value + inputs[READ_MODE_INPUT].value)) {
+	if (inputs[READ_MODE_INPUT].isConnected()) {
+		readMode = round(rescale(inputs[READ_MODE_INPUT].getVoltage(), 0.0f,10.0f,0.0f,2.0f));
+	} else if (readModeTrigger.process(params[READ_MODE_PARAM].getValue() + inputs[READ_MODE_INPUT].getVoltage())) {
 		readMode = (((int)readMode + 1) % 3);
 	}
-	nbSlices = clamp(roundl(params[NB_SLICES_PARAM].value + params[CVSLICES_PARAM].value * inputs[NB_SLICES_INPUT].value), 1, 128);
-	speed = clamp(params[SPEED_PARAM].value + params[CVSPEED_PARAM].value * inputs[SPEED_INPUT].value, 0.2f, 10.0f);
+	nbSlices = clamp(roundl(params[NB_SLICES_PARAM].getValue() + params[CVSLICES_PARAM].getValue() * inputs[NB_SLICES_INPUT].getVoltage()), 1, 128);
+	speed = clamp(params[SPEED_PARAM].getValue() + params[CVSPEED_PARAM].getValue() * inputs[SPEED_INPUT].getVoltage(), 0.2f, 10.0f);
 
 	if (!loading) {
 		sliceLength = clamp(totalSampleCount / nbSlices, 1, totalSampleCount);
 
-		if ((trigMode == 0) && (playTrigger.process(inputs[GATE_INPUT].value))) {
+		if ((trigMode == 0) && (playTrigger.process(inputs[GATE_INPUT].getVoltage()))) {
 			play = true;
-			if (inputs[POS_INPUT].active)
-				samplePos = clamp((int)(inputs[POS_INPUT].value * totalSampleCount * 0.1f), 0 , totalSampleCount - 1);
+			if (inputs[POS_INPUT].isConnected())
+				samplePos = clamp((int)(inputs[POS_INPUT].getVoltage() * totalSampleCount * 0.1f), 0 , totalSampleCount - 1);
 			else {
 				if (readMode != 1)
 					samplePos = 0;
@@ -187,12 +187,12 @@ void OUAIVE::process(const ProcessArgs &args) {
 					samplePos = totalSampleCount - 1;
 			}
 		}	else if (trigMode == 1) {
-			play = (inputs[GATE_INPUT].value > 0);
-			samplePos = clamp((int)(inputs[POS_INPUT].value * totalSampleCount * 0.1f), 0 , totalSampleCount - 1);
-		} else if ((trigMode == 2) && (playTrigger.process(inputs[GATE_INPUT].value))) {
+			play = (inputs[GATE_INPUT].getVoltage() > 0);
+			samplePos = clamp((int)(inputs[POS_INPUT].getVoltage() * totalSampleCount * 0.1f), 0 , totalSampleCount - 1);
+		} else if ((trigMode == 2) && (playTrigger.process(inputs[GATE_INPUT].getVoltage()))) {
 			play = true;
-			if (inputs[POS_INPUT].active)
-				sliceIndex = clamp((int)(inputs[POS_INPUT].value * nbSlices * 0.1f), 0, nbSlices);
+			if (inputs[POS_INPUT].isConnected())
+				sliceIndex = clamp((int)(inputs[POS_INPUT].getVoltage() * nbSlices * 0.1f), 0, nbSlices);
 			 else
 				sliceIndex = (sliceIndex+1)%nbSlices;
 			if (readMode != 1)
@@ -201,24 +201,24 @@ void OUAIVE::process(const ProcessArgs &args) {
 				samplePos = clamp((sliceIndex + 1) * sliceLength - 1, 0 , totalSampleCount);
 		}
 
-		if (posResetTrigger.process(inputs[POS_RESET_INPUT].value)) {
+		if (posResetTrigger.process(inputs[POS_RESET_INPUT].getVoltage())) {
 			sliceIndex = 0;
 			samplePos = 0;
 		}
 
 		if ((!loading) && (play) && (samplePos>=0) && (samplePos < totalSampleCount)) {
 			if (channels == 1) {
-				outputs[OUTL_OUTPUT].value = 5.0f * playBuffer[0][floor(samplePos)];
-				outputs[OUTR_OUTPUT].value = 5.0f * playBuffer[0][floor(samplePos)];
+				outputs[OUTL_OUTPUT].setVoltage(5.0f * playBuffer[0][floor(samplePos)]);
+				outputs[OUTR_OUTPUT].setVoltage(5.0f * playBuffer[0][floor(samplePos)]);
 			}
 			else if (channels == 2) {
-				if (outputs[OUTL_OUTPUT].active && outputs[OUTR_OUTPUT].active) {
-					outputs[OUTL_OUTPUT].value = 5.0f * playBuffer[0][floor(samplePos)];
-					outputs[OUTR_OUTPUT].value = 5.0f * playBuffer[1][floor(samplePos)];
+				if (outputs[OUTL_OUTPUT].isConnected() && outputs[OUTR_OUTPUT].isConnected()) {
+					outputs[OUTL_OUTPUT].setVoltage(5.0f * playBuffer[0][floor(samplePos)]);
+					outputs[OUTR_OUTPUT].setVoltage(5.0f * playBuffer[1][floor(samplePos)]);
 				}
 				else {
-					outputs[OUTL_OUTPUT].value = 5.0f * (playBuffer[0][floor(samplePos)] + playBuffer[1][floor(samplePos)]);
-					outputs[OUTR_OUTPUT].value = 5.0f * (playBuffer[0][floor(samplePos)] + playBuffer[1][floor(samplePos)]);
+					outputs[OUTL_OUTPUT].setVoltage(5.0f * (playBuffer[0][floor(samplePos)] + playBuffer[1][floor(samplePos)]));
+					outputs[OUTR_OUTPUT].setVoltage(5.0f * (playBuffer[0][floor(samplePos)] + playBuffer[1][floor(samplePos)]));
 				}
 			}
 
@@ -233,7 +233,7 @@ void OUAIVE::process(const ProcessArgs &args) {
 				else if ((readMode == 1) && (samplePos <=0))
 						play = false;
 				else if ((readMode == 2) && (samplePos >= totalSampleCount))
-					samplePos = clamp((int)(inputs[POS_INPUT].value * totalSampleCount * 0.1f), 0 , totalSampleCount -1);
+					samplePos = clamp((int)(inputs[POS_INPUT].getVoltage() * totalSampleCount * 0.1f), 0 , totalSampleCount -1);
 			}
 			else if (trigMode == 2)
 			{

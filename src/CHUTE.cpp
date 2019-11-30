@@ -100,9 +100,9 @@ void CHUTE::process(const ProcessArgs &args) {
 	}
 
 	//Calculate output
-	outputs[GATE_OUTPUT].value = running ? desc ? 10.0f : 0.0f : 0.0f;
-	outputs[PITCH_OUTPUT].value = running ? 10.0f * altitude/ altitudeInit : 0.0f;
-	outputs[PITCHSTEP_OUTPUT].value = running ? 10.0f * minAlt/ altitudeInit : 0.0f;
+	outputs[GATE_OUTPUT].setVoltage(running ? desc ? 10.0f : 0.0f : 0.0f);
+	outputs[PITCH_OUTPUT].setVoltage(running ? 10.0f * altitude/ altitudeInit : 0.0f);
+	outputs[PITCHSTEP_OUTPUT].setVoltage(running ? 10.0f * minAlt/ altitudeInit : 0.0f);
 }
 
 struct CHUTEDisplay : TransparentWidget {

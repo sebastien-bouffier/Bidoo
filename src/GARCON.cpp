@@ -48,7 +48,7 @@ struct GARCON : Module {
 };
 
 void GARCON::process(const ProcessArgs &args) {
-	in_Buffer.push(inputs[INPUT].value/10.0f);
+	in_Buffer.push(inputs[INPUT].getVoltage()/10.0f);
 	if (in_Buffer.full()) {
 		processor->process(in_Buffer.startData(), &fft, &mylock);
 		in_Buffer.clear();

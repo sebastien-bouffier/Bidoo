@@ -1130,12 +1130,12 @@ struct ZOUMAI : Module {
 };
 
 void ZOUMAI::process(const ProcessArgs &args) {
-	currentPattern = (int)clamp((inputs[PATTERN_INPUT].active ? rescale(clamp(inputs[PATTERN_INPUT].getVoltage(), 0.0f, 10.0f),0.0f,10.0f,0.0f,7.0f) : 0) + (int)params[PATTERN_PARAM].getValue(), 0.0f, 7.0f);
+	currentPattern = (int)clamp((inputs[PATTERN_INPUT].isConnected() ? rescale(clamp(inputs[PATTERN_INPUT].getVoltage(), 0.0f, 10.0f),0.0f,10.0f,0.0f,7.0f) : 0) + (int)params[PATTERN_PARAM].getValue(), 0.0f, 7.0f);
 
-	if (inputs[FILL_INPUT].active) {
+	if (inputs[FILL_INPUT].isConnected()) {
 		if (((inputs[FILL_INPUT].getVoltage() > 0.0f) && !fill) || ((inputs[FILL_INPUT].getVoltage() == 0.0f) && fill)) fill=!fill;
 	}
-	if (fillTrigger.process(params[FILL_PARAM].value)) {
+	if (fillTrigger.process(params[FILL_PARAM].getValue())) {
 		fill = !fill;
 	}
 	lights[FILL_LIGHT].setBrightness(fill ? 1.0f : 0.0f);
@@ -1158,7 +1158,7 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			updateTrigToParams();
 		}
 
-		lights[TRACKSELECT_LIGHTS+i].value = 0.0f;
+		lights[TRACKSELECT_LIGHTS+i].setBrightness(0.0f);
 		if (currentTrack==i) {
 			lights[TRACKSELECT_LIGHTS+i].setBrightness(1.0f);
 		}
@@ -1234,15 +1234,19 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		previousPattern = currentPattern;
 		updateTrackToParams();
 		updateTrigToParams();
+		for (int i = 0; i<8; i++) {
+			patterns[currentPattern].tracks[i].reset(fill, i==0?false:patterns[currentPattern].tracks[i-1].pre);
+		}
+	}
+	else {
+		updateTrigVO();
+		updateParamsToTrack();
+		updateParamsToTrig();
 	}
 
 	performTools();
 
-	updateTrigVO();
-	updateParamsToTrack();
-	updateParamsToTrig();
-
-	if (inputs[EXTCLOCK_INPUT].active) {
+	if (inputs[EXTCLOCK_INPUT].isConnected()) {
 		currentTickCount++;
 		if (lastTickCount > 0.0f) {
 			phase = currentTickCount / lastTickCount;
@@ -1283,11 +1287,11 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			float gate = patterns[currentPattern].tracks[i].getGate();
 			if (gate>0.0f) {
 				if (patterns[currentPattern].tracks[i].getMemTrig().trigType == 0)
-					outputs[GATE_OUTPUTS + i].value = gate;
+					outputs[GATE_OUTPUTS + i].setVoltage(gate);
 				else if (patterns[currentPattern].tracks[i].getMemTrig().trigType == 1)
-					outputs[GATE_OUTPUTS + i].value = inputs[G1_INPUT].getVoltage();
+					outputs[GATE_OUTPUTS + i].setVoltage(inputs[G1_INPUT].getVoltage());
 				else if (patterns[currentPattern].tracks[i].getMemTrig().trigType == 2)
-					outputs[GATE_OUTPUTS + i].value = inputs[G2_INPUT].getVoltage();
+					outputs[GATE_OUTPUTS + i].setVoltage(inputs[G2_INPUT].getVoltage());
 				else
 					outputs[GATE_OUTPUTS + i].setVoltage(0.0f);
 			}

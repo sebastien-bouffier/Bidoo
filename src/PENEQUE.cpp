@@ -211,20 +211,20 @@ void PENEQUE::computeWavelet() {
 }
 
 void PENEQUE::process(const ProcessArgs &args) {
-	oscillator.soft = (params[SYNC_PARAM].value + inputs[SYNCMODE_INPUT].value) <= 0.0f;
-	float pitchFine = 3.0f * dsp::quadraticBipolar(params[FINE_PARAM].value);
-	float pitchCv = 12.0f * inputs[PITCH_INPUT].value;
-	if (inputs[FM_INPUT].active) {
-		pitchCv += dsp::quadraticBipolar(params[FM_PARAM].value) * 12.0f * inputs[FM_INPUT].value;
+	oscillator.soft = (params[SYNC_PARAM].getValue() + inputs[SYNCMODE_INPUT].getVoltage()) <= 0.0f;
+	float pitchFine = 3.0f * dsp::quadraticBipolar(params[FINE_PARAM].getValue());
+	float pitchCv = 12.0f * inputs[PITCH_INPUT].getVoltage();
+	if (inputs[FM_INPUT].isConnected()) {
+		pitchCv += dsp::quadraticBipolar(params[FM_PARAM].getValue()) * 12.0f * inputs[FM_INPUT].getVoltage();
 	}
-	oscillator.setPitch(params[FREQ_PARAM].value, pitchFine + pitchCv);
-	oscillator.syncEnabled = inputs[SYNC_INPUT].active;
-	oscillator.process(args.sampleTime, inputs[SYNC_INPUT].value, wav);
+	oscillator.setPitch(params[FREQ_PARAM].getValue(), pitchFine + pitchCv);
+	oscillator.syncEnabled = inputs[SYNC_INPUT].isConnected();
+	oscillator.process(args.sampleTime, inputs[SYNC_INPUT].getVoltage(), wav);
 
-	if (outputs[OUT].active)
-		outputs[OUT].value = 5.0f * oscillator.wav();
+	if (outputs[OUT].isConnected())
+		outputs[OUT].setVoltage(5.0f * oscillator.wav());
 
-	if (resetTrigger.process(params[RESET_PARAM].value))
+	if (resetTrigger.process(params[RESET_PARAM].getValue()))
 	{
 		memset(phas, 0, BINS*sizeof(float));
 	  memset(magn, 0, BINS*sizeof(float));

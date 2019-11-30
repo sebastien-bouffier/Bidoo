@@ -44,12 +44,13 @@ struct LOURDE : Module {
 
 
 void LOURDE::process(const ProcessArgs &args) {
-  float sum = clamp(params[WEIGHT1].value+inputs[INWEIGHT1].value,-5.0f,5.0f)*inputs[IN1].value + clamp(params[WEIGHT2].value+inputs[INWEIGHT2].value,-5.0f,5.0f)*inputs[IN2].value + clamp(params[WEIGHT3].value+inputs[INWEIGHT3].value,-5.0f,5.0f)*inputs[IN3].value;
-	outputs[OUT].value = sum >= clamp(params[OUTFLOOR].value+inputs[INFLOOR].value,-10.0f,10.0f) ? 10.0f : 0.0f;
+  float sum = clamp(params[WEIGHT1].getValue()+inputs[INWEIGHT1].getVoltage(),-5.0f,5.0f)*inputs[IN1].getVoltage() + clamp(params[WEIGHT2].getValue()+inputs[INWEIGHT2].getVoltage(),-5.0f,5.0f)*inputs[IN2].getVoltage()
+	+ clamp(params[WEIGHT3].getValue()+inputs[INWEIGHT3].getVoltage(),-5.0f,5.0f)*inputs[IN3].getVoltage();
+	outputs[OUT].setVoltage(sum >= clamp(params[OUTFLOOR].getValue()+inputs[INFLOOR].getVoltage(),-10.0f,10.0f) ? 10.0f : 0.0f);
 }
 
 struct LabelDisplayWidget : TransparentWidget {
-  float *value;
+  Param *value;
   std::shared_ptr<Font> font;
 
   LabelDisplayWidget() {
@@ -60,7 +61,7 @@ struct LabelDisplayWidget : TransparentWidget {
   {
     if (value) {
       char display[128];
-  		snprintf(display, sizeof(display), "%2.2f", *value);
+  		snprintf(display, sizeof(display), "%2.2f", value->getValue());
   		nvgFontSize(args.vg, 14.0f);
   		nvgFontFaceId(args.vg, font->handle);
   		nvgTextLetterSpacing(args.vg, -2.0f);
@@ -96,24 +97,24 @@ struct LOURDEWidget : ModuleWidget {
 
 		LabelDisplayWidget *displayW1 = new LabelDisplayWidget();
 		displayW1->box.pos = Vec(15,65);
-		displayW1->value = module ? &module->params[LOURDE::WEIGHT1].value : NULL;
+		displayW1->value = module ? &module->params[LOURDE::WEIGHT1] : NULL;
 		addChild(displayW1);
 
 		LabelDisplayWidget *displayW2 = new LabelDisplayWidget();
 		displayW2->box.pos = Vec(15,135);
-		displayW2->value = module ? &module->params[LOURDE::WEIGHT2].value : NULL;
+		displayW2->value = module ? &module->params[LOURDE::WEIGHT2] : NULL;
 		addChild(displayW2);
 
 		LabelDisplayWidget *displayW3 = new LabelDisplayWidget();
 		displayW3->box.pos = Vec(15,205);
-		displayW3->value = module ? &module->params[LOURDE::WEIGHT3].value : NULL;
+		displayW3->value = module ? &module->params[LOURDE::WEIGHT3] : NULL;
 		addChild(displayW3);
 
     addParam(createParam<BidooBlueKnob>(Vec(22.5,270), module, LOURDE::OUTFLOOR));
 
 		LabelDisplayWidget *displayOF = new LabelDisplayWidget();
 		displayOF->box.pos = Vec(15,285);
-		displayOF->value = module ? &module->params[LOURDE::OUTFLOOR].value : NULL;
+		displayOF->value = module ? &module->params[LOURDE::OUTFLOOR] : NULL;
 		addChild(displayOF);
 
     addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 277.0f), module, LOURDE::INFLOOR));

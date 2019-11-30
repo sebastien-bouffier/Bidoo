@@ -56,7 +56,6 @@ struct LadderFilter {
 		return stage4.Filter(stage3.Filter(stage2.Filter(stage1.Filter((sample - q * S) / (1.0f + q * G),
 			freq, smpRate, gain, mode), freq, smpRate, gain, mode), freq, smpRate, gain, mode), freq, smpRate, gain, mode);
 	}
-
 };
 
 struct LIMBO : Module {

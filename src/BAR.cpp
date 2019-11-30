@@ -68,10 +68,10 @@ struct BAR : Module {
 };
 
 void BAR::process(const ProcessArgs &args) {
-	if (bypassTrigger.process(params[BYPASS_PARAM].value)) {
+	if (bypassTrigger.process(params[BYPASS_PARAM].getValue())) {
 		bypass = !bypass;
 	}
-	lights[BYPASS_LIGHT].value = bypass ? 1.0f : 0.0f;
+	lights[BYPASS_LIGHT].setBrightness(bypass ? 1.0f : 0.0f);
 
 	if (indexVU>=16384) {
 		runningVU_L_Sum -= *vu_L_Buffer.startData();
@@ -95,16 +95,16 @@ void BAR::process(const ProcessArgs &args) {
 	buffL[lookAheadWriteIndex]=inputs[IN_L_INPUT].getVoltage();
 	buffR[lookAheadWriteIndex]=inputs[IN_R_INPUT].getVoltage();
 
-	if (!inputs[SC_L_INPUT].active && inputs[IN_L_INPUT].active)
+	if (!inputs[SC_L_INPUT].isConnected() && inputs[IN_L_INPUT].isConnected())
 		in_L_dBFS = max(20.0f*log10((abs(inputs[IN_L_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
-	else if (inputs[SC_L_INPUT].active)
+	else if (inputs[SC_L_INPUT].isConnected())
 		in_L_dBFS = max(20.0f*log10((abs(inputs[SC_L_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
 	else
 		in_L_dBFS = -96.3f;
 
-	if (!inputs[SC_R_INPUT].active && inputs[IN_R_INPUT].active)
+	if (!inputs[SC_R_INPUT].isConnected() && inputs[IN_R_INPUT].isConnected())
 		in_R_dBFS = max(20.0f*log10((abs(inputs[IN_R_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
-	else if (inputs[SC_R_INPUT].active)
+	else if (inputs[SC_R_INPUT].isConnected())
 		in_R_dBFS = max(20.0f*log10((abs(inputs[SC_R_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
 	else
 		in_R_dBFS = -96.3f;

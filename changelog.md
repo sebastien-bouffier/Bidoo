@@ -1,3 +1,8 @@
+### v1.1.2 (30/11/2019)
+- zOù MAï pattern change sync fix
+- All plugins are v1.0 full compliant (getVoltage, getValue, setBrightness, ....)
+- tOCAnTe Measure output fed by a PulseGenerator as other outputs
+
 ### v1.1.1 (21/11/2019)
 - zOù MAï reborn
 

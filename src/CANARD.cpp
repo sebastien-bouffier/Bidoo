@@ -231,17 +231,17 @@ void CANARD::calcLoop() {
 	index = 0;
 	int sliceStart = 0;;
 	int sliceEnd = totalSampleCount > 0 ? totalSampleCount - 1 : 0;
-	if ((params[MODE_PARAM].value == 1) && (slices.size()>0))
+	if ((params[MODE_PARAM].getValue() == 1) && (slices.size()>0))
 	{
-		index = round(clamp(params[SLICE_PARAM].value + inputs[SLICE_INPUT].value, 0.0f,10.0f)*(slices.size()-1)/10);
+		index = round(clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f,10.0f)*(slices.size()-1)/10);
 		sliceStart = slices[index];
 		sliceEnd = (index < (slices.size() - 1)) ? (slices[index+1] - 1) : (totalSampleCount - 1);
 	}
 
 	if (totalSampleCount > 0) {
-		sampleStart = rescale(clamp(inputs[SAMPLE_START_INPUT].value + params[SAMPLE_START_PARAM].value, 0.0f, 10.0f), 0.0f, 10.0f, sliceStart, sliceEnd);
-		loopLength = clamp(rescale(clamp(inputs[LOOP_LENGTH_INPUT].value + params[LOOP_LENGTH_PARAM].value, 0.0f, 10.0f), 0.0f, 10.0f, 0.0f, sliceEnd - sliceStart + 1),1.0f,sliceEnd-sampleStart+1);
-		fadeLenght = rescale(clamp(inputs[FADE_INPUT].value + params[FADE_PARAM].value, 0.0f, 10.0f), 0.0f, 10.0f,0.0f, floor(loopLength/2));
+		sampleStart = rescale(clamp(inputs[SAMPLE_START_INPUT].getVoltage() + params[SAMPLE_START_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f, sliceStart, sliceEnd);
+		loopLength = clamp(rescale(clamp(inputs[LOOP_LENGTH_INPUT].getVoltage() + params[LOOP_LENGTH_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f, 0.0f, sliceEnd - sliceStart + 1),1.0f,sliceEnd-sampleStart+1);
+		fadeLenght = rescale(clamp(inputs[FADE_INPUT].getVoltage() + params[FADE_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f,0.0f, floor(loopLength/2));
 	}
 	else {
 		loopLength = 0;
@@ -252,7 +252,7 @@ void CANARD::calcLoop() {
 }
 
 void CANARD::initPos() {
-	if ((inputs[SPEED_INPUT].value + params[SPEED_PARAM].value)>=0)
+	if ((inputs[SPEED_INPUT].getVoltage() + params[SPEED_PARAM].getValue())>=0)
 	{
 		samplePos = sampleStart;
 	}
@@ -270,7 +270,7 @@ void CANARD::process(const ProcessArgs &args) {
 		save = false;
 	}
 	if (!loading) {
-		if (clearTrigger.process(inputs[CLEAR_INPUT].value + params[CLEAR_PARAM].value))
+		if (clearTrigger.process(inputs[CLEAR_INPUT].getVoltage() + params[CLEAR_PARAM].getValue()))
 		{
 			mylock.lock();
 			playBuffer[0].clear();
@@ -337,10 +337,10 @@ void CANARD::process(const ProcessArgs &args) {
 			}
 		}
 
-		if (recordTrigger.process(inputs[RECORD_INPUT].value + params[RECORD_PARAM].value))
+		if (recordTrigger.process(inputs[RECORD_INPUT].getVoltage() + params[RECORD_PARAM].getValue()))
 		{
 			if(record) {
-				if (floor(params[MODE_PARAM].value) == 0) {
+				if (floor(params[MODE_PARAM].getValue()) == 0) {
 					mylock.lock();
 					slices.clear();
 					slices.push_back(0);
@@ -369,26 +369,26 @@ void CANARD::process(const ProcessArgs &args) {
 				recordBuffer[0].resize(0);
 				recordBuffer[1].resize(0);
 				mylock.unlock();
-				lights[REC_LIGHT].value = 0.0f;
+				lights[REC_LIGHT].setBrightness(0.0f);
 			}
 			record = !record;
 		}
 
 		if (record) {
-			lights[REC_LIGHT].value = 10.0f;
+			lights[REC_LIGHT].setBrightness(10.0f);
 			mylock.lock();
-			recordBuffer[0].push_back(inputs[INL_INPUT].value/10);
-			recordBuffer[1].push_back(inputs[INR_INPUT].value/10);
+			recordBuffer[0].push_back(inputs[INL_INPUT].getVoltage()/10);
+			recordBuffer[1].push_back(inputs[INR_INPUT].getVoltage()/10);
 			mylock.unlock();
 		}
 
-		int trigMode = inputs[TRIG_INPUT].active ? 1 : (inputs[GATE_INPUT].active ? 2 : 0);
-		int readMode = round(clamp(inputs[READ_MODE_INPUT].value + params[READ_MODE_PARAM].value,0.0f,2.0f));
-		speed = inputs[SPEED_INPUT].value + params[SPEED_PARAM].value;
+		int trigMode = inputs[TRIG_INPUT].isConnected() ? 1 : (inputs[GATE_INPUT].isConnected() ? 2 : 0);
+		int readMode = round(clamp(inputs[READ_MODE_INPUT].getVoltage() + params[READ_MODE_PARAM].getValue(),0.0f,2.0f));
+		speed = inputs[SPEED_INPUT].getVoltage() + params[SPEED_PARAM].getValue();
 		calcLoop();
 
 		if (trigMode == 1) {
-			if (trigTrigger.process(inputs[TRIG_INPUT].value) && (prevTrigState == 0.0f))
+			if (trigTrigger.process(inputs[TRIG_INPUT].getVoltage()) && (prevTrigState == 0.0f))
 			{
 				initPos();
 				play = true;
@@ -426,7 +426,7 @@ void CANARD::process(const ProcessArgs &args) {
 		}
 		else if (trigMode == 2)
 		{
-			if (inputs[GATE_INPUT].value>0)
+			if (inputs[GATE_INPUT].getVoltage()>0)
 			{
 				if (prevGateState == 0.0f) {
 					initPos();
@@ -467,8 +467,8 @@ void CANARD::process(const ProcessArgs &args) {
 				play = false;
 			}
 		}
-		prevGateState = inputs[GATE_INPUT].value;
-		prevTrigState = inputs[TRIG_INPUT].value;
+		prevGateState = inputs[GATE_INPUT].getVoltage();
+		prevTrigState = inputs[TRIG_INPUT].getVoltage();
 
 		if (play) {
 			newStop = true;
@@ -484,20 +484,20 @@ void CANARD::process(const ProcessArgs &args) {
 				else
 					fadeCoeff = 1.0f;
 
-				outputs[OUTL_OUTPUT].value = playBuffer[0][floor(samplePos)]*fadeCoeff*5;
-				outputs[OUTR_OUTPUT].value = playBuffer[1][floor(samplePos)]*fadeCoeff*5;
+				outputs[OUTL_OUTPUT].setVoltage(playBuffer[0][floor(samplePos)]*fadeCoeff*5);
+				outputs[OUTR_OUTPUT].setVoltage(playBuffer[1][floor(samplePos)]*fadeCoeff*5);
 			}
 		}
 		else {
-			outputs[OUTL_OUTPUT].value = 0.0f;
-			outputs[OUTR_OUTPUT].value = 0.0f;
+			outputs[OUTL_OUTPUT].setVoltage(0.0f);
+			outputs[OUTR_OUTPUT].setVoltage(0.0f);
 		}
 	}
 	else {
-		outputs[OUTL_OUTPUT].value = 0.0f;
-		outputs[OUTR_OUTPUT].value = 0.0f;
+		outputs[OUTL_OUTPUT].setVoltage(0.0f);
+		outputs[OUTR_OUTPUT].setVoltage(0.0f);
 	}
-	outputs[EOC_OUTPUT].value = eocPulse.process(1 / args.sampleRate) ? 10.0f : 0.0f;
+	outputs[EOC_OUTPUT].setVoltage(eocPulse.process(1 / args.sampleRate) ? 10.0f : 0.0f);
 }
 
 struct CANARDDisplay : OpaqueWidget {
@@ -693,7 +693,7 @@ struct CANARDDisplay : OpaqueWidget {
 
 				//draw slices
 
-				if (floor(module->params[CANARD::MODE_PARAM].value) == 1) {
+				if (floor(module->params[CANARD::MODE_PARAM].getValue()) == 1) {
 					nvgScissor(args.vg, 0, 0, width, 2*height+10);
 					for (size_t i = 0; i < s.size(); i++) {
 						if (s[i] != module->deleteSliceMarker) {
@@ -824,7 +824,7 @@ struct CANARDWidget : ModuleWidget {
 						}
 					}
 				}
-				if ((nrgy > module->params[CANARD::THRESHOLD_PARAM].value) && (nrgy > 10*prevNrgy))
+				if ((nrgy > module->params[CANARD::THRESHOLD_PARAM].getValue()) && (nrgy > 10*prevNrgy))
 					module->slices.push_back(i+zcIdx);
 				i+=size;
 				prevNrgy = nrgy;

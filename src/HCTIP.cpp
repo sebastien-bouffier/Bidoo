@@ -51,7 +51,7 @@ struct HCTIP : Module {
 		}
 
 		if (out_Buffer.size() > 0) {
-			outputs[OUTPUT].setVoltage(*out_Buffer.startData() * 5.0f); // x * 1 || 0 == x, disposable??
+			outputs[OUTPUT].setVoltage(*out_Buffer.startData() * 5.0f); 
 			out_Buffer.startIncr(1);
 		}
 	}

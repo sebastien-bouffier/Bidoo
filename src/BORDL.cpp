@@ -68,18 +68,18 @@ struct PatternExtended {
 			}
 			steps[i].skipParam = (skips[steps[i].index] == 't');
 			steps[i].slide = (slides[steps[i].index] == 't');
-			if ((countMode == 1) && ((pCount + (int)pulses[steps[i].index].value) >= numberOfSteps)) {
+			if ((countMode == 1) && ((pCount + (int)pulses[steps[i].index].getValue()) >= numberOfSteps)) {
 				steps[i].pulses = max(numberOfSteps - pCount, 0);
 			}	else {
-				steps[i].pulses = (int)(pulses + steps[i].index)->value;
+				steps[i].pulses = (int)(pulses + steps[i].index)->getValue();
 			}
-			steps[i].pulsesParam = (int)(pulses + steps[i].index)->value;
-			steps[i].pitch = (pitches + steps[i].index)->value;
-			steps[i].type = (int)(types + steps[i].index)->value;
-			steps[i].gateProb = (probGates + steps[i].index)->value;
-			steps[i].pitchRnd = (rndPitches + steps[i].index)->value;
-			steps[i].accent = (accents + steps[i].index)->value;
-			steps[i].accentRnd = (rndAccents + steps[i].index)->value;
+			steps[i].pulsesParam = (int)(pulses + steps[i].index)->getValue();
+			steps[i].pitch = (pitches + steps[i].index)->getValue();
+			steps[i].type = (int)(types + steps[i].index)->getValue();
+			steps[i].gateProb = (probGates + steps[i].index)->getValue();
+			steps[i].pitchRnd = (rndPitches + steps[i].index)->getValue();
+			steps[i].accent = (accents + steps[i].index)->getValue();
+			steps[i].accentRnd = (rndAccents + steps[i].index)->getValue();
 
 			pCount = pCount + steps[i].pulses;
 		}
@@ -659,14 +659,14 @@ struct BORDL : Module {
 				closestDist = distAway;
 			}
 		}
-		float transposeVoltage = inputs[TRANSPOSE_INPUT].active ? ((((int)rescale(clamp(inputs[TRANSPOSE_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-48.0f,48.0f)) / 12.0f)) : 0.0f;
+		float transposeVoltage = inputs[TRANSPOSE_INPUT].isConnected() ? ((((int)rescale(clamp(inputs[TRANSPOSE_INPUT].getVoltage(),-10.0f,10.0f),-10.0f,10.0f,-48.0f,48.0f)) / 12.0f)) : 0.0f;
 		return clamp(closestVal + (rootNote / 12.0f) + transposeVoltage,-4.0f,6.0f);
 	}
 };
 
 void BORDL::UpdatePattern() {
-	patterns[selectedPattern].Update(playMode, countMode, numSteps, roundf(params[STEPS_PARAM].value), roundf(params[ROOT_NOTE_PARAM].value),
-	 roundf(params[SCALE_PARAM].value), params[GATE_TIME_PARAM].value, params[SLIDE_TIME_PARAM].value, params[SENSITIVITY_PARAM].value ,
+	patterns[selectedPattern].Update(playMode, countMode, numSteps, roundf(params[STEPS_PARAM].getValue()), roundf(params[ROOT_NOTE_PARAM].getValue()),
+	 roundf(params[SCALE_PARAM].getValue()), params[GATE_TIME_PARAM].getValue(), params[SLIDE_TIME_PARAM].getValue(), params[SENSITIVITY_PARAM].getValue() ,
 		skipState, slideState, &params[TRIG_COUNT_PARAM], &params[TRIG_PITCH_PARAM], &params[TRIG_TYPE_PARAM], &params[TRIG_GATEPROB_PARAM],
 		 &params[TRIG_PITCHRND_PARAM], &params[TRIG_ACCENT_PARAM], &params[TRIG_RNDACCENT_PARAM]);
 }
@@ -676,17 +676,17 @@ void BORDL::process(const ProcessArgs &args) {
 	float invESR = 1 / args.sampleRate;
 
 	// Run
-	if (runningTrigger.process(params[RUN_PARAM].value)) {
+	if (runningTrigger.process(params[RUN_PARAM].getValue())) {
 		running = !running;
 	}
-	lights[RUNNING_LIGHT].value = running ? 1.0f : 0.0f;
+	lights[RUNNING_LIGHT].setBrightness(running ? 1.0f : 0.0f);
 	bool nextStep = false;
 
 	// Phase calculation
 	if (running) {
-		if (inputs[EXT_CLOCK_INPUT].active) {
+		if (inputs[EXT_CLOCK_INPUT].isConnected()) {
 			tCurrent += invESR;
-			float clockTime = powf(2.0f, params[CLOCK_PARAM].value + inputs[CLOCK_INPUT].value);
+			float clockTime = powf(2.0f, params[CLOCK_PARAM].getValue() + inputs[CLOCK_INPUT].getVoltage());
 			if (tLastTrig > 0.0f) {
 				phase = tCurrent / tLastTrig;
 			}
@@ -694,7 +694,7 @@ void BORDL::process(const ProcessArgs &args) {
 				phase += clockTime * invESR;
 			}
 			// External clock
-			if (clockTrigger.process(inputs[EXT_CLOCK_INPUT].value)) {
+			if (clockTrigger.process(inputs[EXT_CLOCK_INPUT].getVoltage())) {
 				tLastTrig = tCurrent;
 				tCurrent = 0.0f;
 				phase = 0.0f;
@@ -703,7 +703,7 @@ void BORDL::process(const ProcessArgs &args) {
 		}
 		else {
 			// Internal clock
-			float clockTime = powf(2.0f, params[CLOCK_PARAM].value + inputs[CLOCK_INPUT].value);
+			float clockTime = powf(2.0f, params[CLOCK_PARAM].getValue() + inputs[CLOCK_INPUT].getVoltage());
 			phase += clockTime * invESR;
 			if (phase >= 1.0f) {
 				phase--;
@@ -713,18 +713,18 @@ void BORDL::process(const ProcessArgs &args) {
 	}
 
 	// Reset
-	if (resetTrigger.process(params[RESET_PARAM].value + inputs[RESET_INPUT].value)) {
+	if (resetTrigger.process(params[RESET_PARAM].getValue() + inputs[RESET_INPUT].getVoltage())) {
 		phase = 0.0f;
 		reStart = true;
 		nextStep = true;
-		lights[RESET_LIGHT].value = 1.0f;
+		lights[RESET_LIGHT].setBrightness(1.0f);
 	}
 
 	//copy/paste
-	lights[COPY_LIGHT].value = copyState ? 1.0f : 0.0f;
+	lights[COPY_LIGHT].setBrightness(copyState ? 1.0f : 0.0f);
 
 	//patternNumber
-	int newPattern = clamp((inputs[PATTERN_INPUT].active ? (int)(rescale(inputs[PATTERN_INPUT].value,0.0f,10.0f,1.0f,16.1f)) : (int)(params[PATTERN_PARAM].value)) - 1, 0, 15);
+	int newPattern = clamp((inputs[PATTERN_INPUT].isConnected() ? (int)(rescale(inputs[PATTERN_INPUT].getVoltage(),0.0f,10.0f,1.0f,16.1f)) : (int)(params[PATTERN_PARAM].getValue())) - 1, 0, 15);
 	if (newPattern != playedPattern) {
 		int cStep = patterns[playedPattern].currentStep;
 		int cPulse = patterns[playedPattern].currentPulse;
@@ -761,7 +761,7 @@ void BORDL::process(const ProcessArgs &args) {
 		if (!copyState) {
 			copyPattern = selectedPattern;
 			copyState = true;
-			lights[COPY_LIGHT].value = 1.0f;
+			lights[COPY_LIGHT].setBrightness(1.0f);
 		}
 		else if (copyPattern != selectedPattern)
 		{
@@ -786,12 +786,12 @@ void BORDL::process(const ProcessArgs &args) {
 			}
 			copyState = false;
 			copyPattern = -1;
-			lights[COPY_LIGHT].value = 0.0f;
+			lights[COPY_LIGHT].setBrightness(0.0f);
 		}
 		else 		{
 			copyState = false;
 			copyPattern = -1;
-			lights[COPY_LIGHT].value = 0.0f;
+			lights[COPY_LIGHT].setBrightness(0.0f);
 		}
 	}
 
@@ -872,23 +872,23 @@ void BORDL::process(const ProcessArgs &args) {
 	if ((updateFlag) || (!loadedFromJson)) {
 		// Trigs Update
 		for (int i = 0; i < 8; i++) {
-			if (slideTriggers[i].process(params[TRIG_SLIDE_PARAM + i].value)) {
+			if (slideTriggers[i].process(params[TRIG_SLIDE_PARAM + i].getValue())) {
 				slideState[i] = slideState[i] == 't' ? 'f' : 't';
 			}
-			if (skipTriggers[i].process(params[TRIG_SKIP_PARAM + i].value)) {
+			if (skipTriggers[i].process(params[TRIG_SKIP_PARAM + i].getValue())) {
 				skipState[i] = skipState[i] == 't' ? 'f' : 't';
 			}
 		}
 		// playMode
-		if (playModeTrigger.process(params[PLAY_MODE_PARAM].value)) {
+		if (playModeTrigger.process(params[PLAY_MODE_PARAM].getValue())) {
 			playMode = (((int)playMode + 1) % 5);
 		}
 		// countMode
-		if (countModeTrigger.process(params[COUNT_MODE_PARAM].value)) {
+		if (countModeTrigger.process(params[COUNT_MODE_PARAM].getValue())) {
 			countMode = (((int)countMode + 1) % 2);
 		}
 		// numSteps
-		numSteps = clamp(roundf(params[STEPS_PARAM].value + inputs[STEPS_INPUT].value), 1.0f, 16.0f);
+		numSteps = clamp(roundf(params[STEPS_PARAM].getValue() + inputs[STEPS_INPUT].getVoltage()), 1.0f, 16.0f);
 		UpdatePattern();
 		if (!loadedFromJson) {
 			loadedFromJson = true;
@@ -899,7 +899,8 @@ void BORDL::process(const ProcessArgs &args) {
 	// Steps && Pulses Management
 	if (nextStep) {
 		// Advance step
-		candidateForPreviousPitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity + (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f), clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].value, 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f,11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
+		candidateForPreviousPitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity + (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f),
+		 clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f,11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
 
 		prevIndex = index;
 		auto nextT = patterns[playedPattern].GetNextStep(reStart);
@@ -916,19 +917,19 @@ void BORDL::process(const ProcessArgs &args) {
 		rndPitch = index != prevIndex ? rescale(random::uniform(),0.0f,1.0f,patterns[playedPattern].CurrentStep().pitchRnd * -5.0f, patterns[playedPattern].CurrentStep().pitchRnd * 5.0f) : rndPitch;
 		accent = index != prevIndex ? clamp(patterns[playedPattern].CurrentStep().accent + rescale(random::uniform(),0.0f,1.0f,patterns[playedPattern].CurrentStep().accentRnd * -5.0f,patterns[playedPattern].CurrentStep().accentRnd * 5.0f),0.0f,10.0f)  : accent;
 
-		lights[STEPS_LIGHTS+patterns[playedPattern].CurrentStep().index].value = 1.0f;
+		lights[STEPS_LIGHTS+patterns[playedPattern].CurrentStep().index].setBrightness(1.0f);
 	}
 
 	// Lights & steps outputs
 	for (int i = 0; i < 8; i++) {
-		lights[STEPS_LIGHTS + i].value -= lights[STEPS_LIGHTS + i].value * invLightLambda * invESR;
-		lights[SLIDES_LIGHTS + i].value = slideState[i] == 't' ? 1.0f - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
-		lights[SKIPS_LIGHTS + i].value = skipState[i]== 't' ? 1.0f - lights[STEPS_LIGHTS + i].value : lights[STEPS_LIGHTS + i].value;
+		lights[STEPS_LIGHTS + i].setBrightness(lights[STEPS_LIGHTS + i].getBrightness() - lights[STEPS_LIGHTS + i].getBrightness() * invLightLambda * invESR);
+		lights[SLIDES_LIGHTS + i].setBrightness(slideState[i] == 't' ? 1.0f - lights[STEPS_LIGHTS + i].getBrightness() : lights[STEPS_LIGHTS + i].getBrightness());
+		lights[SKIPS_LIGHTS + i].setBrightness(skipState[i] == 't' ? 1.0f - lights[STEPS_LIGHTS + i].getBrightness() : lights[STEPS_LIGHTS + i].getBrightness());
 
-		outputs[STEP_OUTPUT+i].value = stepPulse[i].process(invESR) ? 10.0f : 0.0f;
+		outputs[STEP_OUTPUT+i].setVoltage(stepPulse[i].process(invESR) ? 10.0f : 0.0f);
 	}
-	lights[RESET_LIGHT].value -= lights[RESET_LIGHT].value * invLightLambda * invESR;
-	lights[COPY_LIGHT].value = (copyPattern >= 0) ? 1 : 0;
+	lights[RESET_LIGHT].setBrightness(lights[RESET_LIGHT].getBrightness() - lights[RESET_LIGHT].getBrightness() * invLightLambda * invESR);
+	lights[COPY_LIGHT].setBrightness(copyPattern >= 0 ? 1 : 0);
 
 	// Caclulate Outputs
 	gateOn = running && (!patterns[playedPattern].CurrentStep().skip);
@@ -940,7 +941,7 @@ void BORDL::process(const ProcessArgs &args) {
 		else if (((patterns[playedPattern].CurrentStep().type == 1) && (pulse == 0))
 				|| (patterns[playedPattern].CurrentStep().type == 2)
 				|| ((patterns[playedPattern].CurrentStep().type == 3) && (pulse == patterns[playedPattern].CurrentStep().pulses))) {
-			float gateCoeff = clamp(patterns[playedPattern].gateTime - 0.02f + inputs[GATE_TIME_INPUT].value * 0.1f, 0.0f, 0.99f);
+			float gateCoeff = clamp(patterns[playedPattern].gateTime - 0.02f + inputs[GATE_TIME_INPUT].getVoltage() * 0.1f, 0.0f, 0.99f);
 			gateOn = phase < gateCoeff;
 			gateValue = 10.0f;
 		}
@@ -950,11 +951,11 @@ void BORDL::process(const ProcessArgs &args) {
 		}
 		else if (patterns[playedPattern].CurrentStep().type == 4) {
 			gateOn = true;
-			gateValue = inputs[EXTGATE1_INPUT].value;
+			gateValue = inputs[EXTGATE1_INPUT].getVoltage();
 		}
 		else if (patterns[playedPattern].CurrentStep().type == 5) {
 			gateOn = true;
-			gateValue = inputs[EXTGATE2_INPUT].value;
+			gateValue = inputs[EXTGATE2_INPUT].getVoltage();
 		}
 		else {
 			gateOn = false;
@@ -962,18 +963,19 @@ void BORDL::process(const ProcessArgs &args) {
 		}
 	}
 	//pitch management
-	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity + (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f),clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].value, 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].value);
+	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity + (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f),
+		clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
-			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].value * 0.1f, -0.1f, 0.99f);
+			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].getVoltage() * 0.1f, -0.1f, 0.99f);
 			pitch = pitch - (1.0f - powf(phase, slideCoeff)) * (pitch - previousPitch);
 		}
 	}
 
 	// Update Outputs
-	outputs[GATE_OUTPUT].value = gateOn ? (probGate ? gateValue : 0.0f) : 0.0f;
-	outputs[PITCH_OUTPUT].value = pitch;
-	outputs[ACC_OUTPUT].value = accent;
+	outputs[GATE_OUTPUT].setVoltage(gateOn ? (probGate ? gateValue : 0.0f) : 0.0f);
+	outputs[PITCH_OUTPUT].setVoltage(pitch);
+	outputs[ACC_OUTPUT].setVoltage(accent);
 
 	if (nextStep && gateOn)
 		previousPitch = candidateForPreviousPitch;
@@ -1067,7 +1069,7 @@ struct BORDLDisplay : TransparentWidget {
 
 	void draw(NVGcontext *vg) override {
 		if (module) {
-			note = displayRootNote(clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].value,0.0f,10.0f),0.0f,10.0f,0.0f,11.0f),0.0f, 11.0f));
+			note = displayRootNote(clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,11.0f),0.0f, 11.0f));
 			steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);
 			playMode = displayPlayMode(module->patterns[module->selectedPattern].playMode);
 			scale = displayScale(module->patterns[module->selectedPattern].scale);
@@ -1090,7 +1092,7 @@ struct BORDLGateDisplay : TransparentWidget {
 
 	void drawGate(const DrawArgs &args, Vec pos) {
 		if (module) {
-			int gateType = (int)module->params[BORDL::TRIG_TYPE_PARAM+index].value;
+			int gateType = (int)module->params[BORDL::TRIG_TYPE_PARAM+index].getValue();
 			nvgStrokeWidth(args.vg, 1.0f);
 			nvgStrokeColor(args.vg, YELLOW_BIDOO);
 			nvgFillColor(args.vg, YELLOW_BIDOO);
@@ -1165,7 +1167,7 @@ struct BORDLPulseDisplay : TransparentWidget {
 			nvgFontFaceId(args.vg, font->handle);
 			nvgTextLetterSpacing(args.vg, -2.0f);
 			char tCount[128];
-			snprintf(tCount, sizeof(tCount), "%1i", (int)module->params[BORDL::TRIG_COUNT_PARAM+index].value);
+			snprintf(tCount, sizeof(tCount), "%1i", (int)module->params[BORDL::TRIG_COUNT_PARAM+index].getValue());
 			nvgText(args.vg, pos.x, pos.y, tCount, NULL);
 		}
 	}
@@ -1215,8 +1217,8 @@ struct BORDLPitchDisplay : TransparentWidget {
 			nvgFontSize(args.vg, 16.0f);
 			nvgFontFaceId(args.vg, font->handle);
 			nvgTextLetterSpacing(args.vg, -2.0f);
-			nvgText(args.vg, pos.x, pos.y-9.0f, displayNote(module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].value * clamp(module->patterns[module->playedPattern].sensitivity + (module->inputs[BORDL::SENSITIVITY_INPUT].isConnected() ? rescale(module->inputs[BORDL::SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) ,
-				clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].value, 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f),
+			nvgText(args.vg, pos.x, pos.y-9.0f, displayNote(module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].getValue() * clamp(module->patterns[module->playedPattern].sensitivity + (module->inputs[BORDL::SENSITIVITY_INPUT].isConnected() ? rescale(module->inputs[BORDL::SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) ,
+				clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f),
 				module->patterns[module->selectedPattern].scale)).c_str(), NULL);
 		}
 	}
