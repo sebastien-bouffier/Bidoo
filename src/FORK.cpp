@@ -171,11 +171,6 @@ struct FORKWidget : ModuleWidget {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/FORK.svg")));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-
   	addParam(createParam<BidooLargeBlueKnob>(Vec(26.0f,40.0f), module, FORK::PITCH_PARAM));
   	addParam(createParam<BlueCKD6>(Vec(30.0f,274.0f), module, FORK::PRESET_PARAM));
 
@@ -202,8 +197,8 @@ struct FORKWidget : ModuleWidget {
   	addParam(createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 6 + 25 * 8 + 20), module, FORK::A_PARAM + 3));
   	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 6 + 25 * 8 + 20 + 2), module, FORK::A_INPUT + 3));
 
-  	addInput(createInput<PJ301MPort>(Vec(15,320), module, FORK::PITCH_INPUT));
-  	addOutput(createOutput<PJ301MPort>(Vec(50,320), module, FORK::SIGNAL_OUTPUT));
+  	addInput(createInput<PJ301MPort>(Vec(7,330), module, FORK::PITCH_INPUT));
+  	addOutput(createOutput<PJ301MPort>(Vec(58.3f,330), module, FORK::SIGNAL_OUTPUT));
   }
 };
 

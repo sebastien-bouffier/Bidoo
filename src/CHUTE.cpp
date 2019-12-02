@@ -155,16 +155,16 @@ struct CHUTEWidget : ModuleWidget {
 		addInput(createInput<PJ301MPort>(Vec(portX[0], portY[0]), module, CHUTE::ALTITUDE_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(portX[0], portY[1]), module, CHUTE::GRAVITY_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(portX[0], portY[2]), module, CHUTE::COR_INPUT));
-    addInput(createInput<PJ301MPort>(Vec(11.0f, 270.0f), module, CHUTE::TRIG_INPUT));
+    addInput(createInput<PJ301MPort>(Vec(7.0f, 270.0f), module, CHUTE::TRIG_INPUT));
 
 		addParam(createParam<BidooBlueKnob>(Vec(portX[1]-1, portY[0]-2.0f), module, CHUTE::ALTITUDE_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX[1]-1, portY[1]-2.0f), module, CHUTE::GRAVITY_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX[1]-1, portY[2]-2.0f), module, CHUTE::COR_PARAM));
 		addParam(createParam<BlueCKD6>(Vec(51.0f, 269.0f), module, CHUTE::RUN_PARAM));
 
-		addOutput(createOutput<PJ301MPort>(Vec(11, 320), module, CHUTE::GATE_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(54, 320), module, CHUTE::PITCH_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(96, 320), module, CHUTE::PITCHSTEP_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(7, 330), module, CHUTE::GATE_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(55, 330), module, CHUTE::PITCH_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(103.5f, 330), module, CHUTE::PITCHSTEP_OUTPUT));
 	}
 };
 

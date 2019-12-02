@@ -219,8 +219,6 @@ struct LabelMICROWidget : TransparentWidget {
 	};
 
 	void draw(const DrawArgs &args) override {
-		nvgFontFaceId(args.vg, font->handle);
-		nvgTextLetterSpacing(args.vg, -2.0f);
 		nvgFillColor(args.vg, YELLOW_BIDOO);
 		nvgTextAlign(args.vg, NVG_ALIGN_LEFT);
 		if (header) {
@@ -290,7 +288,7 @@ struct MUWidget : ModuleWidget {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/MU.svg")));
 
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(40, 15), module, MU::GATE_LIGHT));
+		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(34, 15), module, MU::GATE_LIGHT));
 
 		addParam(createParam<LEDButton>(Vec(5, 5), module, MU::START_PARAM));
 		addChild(createLight<SmallLight<BlueLight>>(Vec(11, 11), module, MU::START_LIGHT));

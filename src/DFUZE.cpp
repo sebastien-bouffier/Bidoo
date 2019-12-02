@@ -94,9 +94,9 @@ struct DFUZEWidget : ModuleWidget {
 		addInput(createInput<PJ301MPort>(Vec(65.0f, 277.0f), module, DFUZE::TAIL_INPUT));
 
 	 	//Changed ports opposite way around
-		addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 329.0f), module, DFUZE::IN_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(78.0f, 319.0f), module, DFUZE::OUT_L_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(78.0f, 339.0f), module, DFUZE::OUT_R_OUTPUT));
+		addInput(createInput<PJ301MPort>(Vec(7.0f, 330.0f), module, DFUZE::IN_INPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f, 340.0f), module, DFUZE::OUT_L_OUTPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f+22.0f, 340.0f), module, DFUZE::OUT_R_OUTPUT));
 	}
 };
 

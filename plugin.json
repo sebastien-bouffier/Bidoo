@@ -20,7 +20,8 @@
       "tags": [
         "Physical modeling",
         "Blank",
-        "Controller"
+        "Controller",
+        "Utility"
       ]
     },
     {
@@ -69,6 +70,7 @@
       "description": "Compressor",
       "tags": [
         "Dynamics"
+        ,"Effect"
       ]
     },
     {
@@ -77,6 +79,7 @@
       "description": "Compressor",
       "tags": [
         "Dynamics"
+        ,"Effect"
       ]
     },
     {
@@ -118,6 +121,7 @@
       "description": "Reverb",
       "tags": [
         "Reverb"
+        ,"Effect"
       ]
     },
     {
@@ -151,7 +155,7 @@
       "tags": [
         "VCF",
         "filter",
-        "vcf"
+        "Effect"
       ]
     },
     {
@@ -195,7 +199,7 @@
       "tags": [
         "VCF",
         "filter",
-        "vcf"
+        "Effect"
       ]
     },
     {
@@ -211,7 +215,8 @@
       "name": "LoURdE",
       "description": "Neural comparator & gate",
       "tags": [
-        "Logic"
+        "Logic",
+        "Effect"
       ]
     },
     {
@@ -227,7 +232,8 @@
       "name": "MS",
       "description": "Mid/Side Decoder/Encoder",
       "tags": [
-        "Effect"
+        "Effect",
+        "Utility"
       ]
     },
     {
@@ -262,7 +268,7 @@
       "tags": [
         "VCF",
         "filter",
-        "vcf"
+        "Effect"
       ]
     },
     {
@@ -279,7 +285,8 @@
       "name": "REI",
       "description": "Reverb",
       "tags": [
-        "Reverb"
+        "Reverb",
+        "Effect"
       ]
     },
     {
@@ -322,6 +329,7 @@
       "description": "Multiband distortion",
       "tags": [
         "Effect",
+        "VCF",
         "Distortion"
       ]
     }

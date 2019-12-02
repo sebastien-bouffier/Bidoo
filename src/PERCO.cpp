@@ -92,13 +92,13 @@ struct PERCOWidget : ModuleWidget {
 		addParam(createParam<BidooLargeBlueKnob>(Vec(12, 143), module, PERCO::Q_PARAM));
 		addParam(createParam<BidooLargeBlueKnob>(Vec(71, 143), module, PERCO::CMOD_PARAM));
 		///Innies
-		addInput(createInput<PJ301MPort>(Vec(10, 276), module, PERCO::IN));
-		addInput(createInput<PJ301MPort>(Vec(48, 276), module, PERCO::CUTOFF_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(85, 276), module, PERCO::Q_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 283), module, PERCO::IN));
+		addInput(createInput<PJ301MPort>(Vec(48, 283), module, PERCO::CUTOFF_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(85, 283), module, PERCO::Q_INPUT));
 		///Outies
-		addOutput(createOutput<PJ301MPort>(Vec(10, 320), module, PERCO::OUT_LP));
-		addOutput(createOutput<PJ301MPort>(Vec(48, 320), module, PERCO::OUT_BP));
-		addOutput(createOutput<PJ301MPort>(Vec(85, 320), module, PERCO::OUT_HP));
+		addOutput(createOutput<PJ301MPort>(Vec(10, 330), module, PERCO::OUT_LP));
+		addOutput(createOutput<PJ301MPort>(Vec(48, 330), module, PERCO::OUT_BP));
+		addOutput(createOutput<PJ301MPort>(Vec(85, 330), module, PERCO::OUT_HP));
 	}
 };
 

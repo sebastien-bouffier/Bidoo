@@ -36,11 +36,6 @@ struct SIGMAWidget : ModuleWidget {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/SIGMA.svg")));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-
 		for (int i = 0; i < SIGMA::NUM_OUTPUTS; i++) {
 			addOutput(createOutput<TinyPJ301MPort>(Vec(15.0f + round(i / 3)*30.0f, 120.0f + (i % 3)*100.0f), module, i));
 		}

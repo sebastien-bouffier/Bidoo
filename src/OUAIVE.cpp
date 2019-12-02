@@ -487,10 +487,10 @@ struct OUAIVEWidget : ModuleWidget {
 		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]+15, 275), module, OUAIVE::CVSPEED_PARAM));
 		addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 277), module, OUAIVE::SPEED_INPUT));
 
-		addInput(createInput<PJ301MPort>(Vec(portX0[0]-25, 321), module, OUAIVE::GATE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[1]-19, 321), module, OUAIVE::POS_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[2]-13, 331), module, OUAIVE::OUTL_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[2]+11, 331), module, OUAIVE::OUTR_OUTPUT));
+		addInput(createInput<PJ301MPort>(Vec(7, 330), module, OUAIVE::GATE_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(40, 330), module, OUAIVE::POS_INPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[2]-11, 340), module, OUAIVE::OUTL_OUTPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[2]+11, 340), module, OUAIVE::OUTR_OUTPUT));
 	}
 
   struct OUAIVEItem : MenuItem {

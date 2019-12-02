@@ -138,17 +138,17 @@ struct LIMBOWidget : ModuleWidget {
 		addParam(createParam<BidooLargeBlueKnob>(Vec(12, 143), module, LIMBO::Q_PARAM));
 		addParam(createParam<BidooLargeBlueKnob>(Vec(71, 143), module, LIMBO::MUG_PARAM));
 		addParam(createParam<BidooLargeBlueKnob>(Vec(12, 208), module, LIMBO::CMOD_PARAM));
-		addParam(createParam<CKSS>(Vec(83, 217), module, LIMBO::MODE_PARAM));
+		addParam(createParam<CKSS>(Vec(82.5f, 217), module, LIMBO::MODE_PARAM));
 
-		addInput(createInput<PJ301MPort>(Vec(12, 280), module, LIMBO::CUTOFF_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(47, 280), module, LIMBO::Q_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(82, 280), module, LIMBO::MUG_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(7, 283), module, LIMBO::CUTOFF_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(48, 283), module, LIMBO::Q_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(88.5f, 283), module, LIMBO::MUG_INPUT));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(24, 319), module, LIMBO::IN_L));
-		addInput(createInput<TinyPJ301MPort>(Vec(24, 339), module, LIMBO::IN_R));
+		addInput(createInput<TinyPJ301MPort>(Vec(8.f, 340), module, LIMBO::IN_L));
+		addInput(createInput<TinyPJ301MPort>(Vec(8.f+22.f, 340), module, LIMBO::IN_R));
 
-		addOutput(createOutput<TinyPJ301MPort>(Vec(95, 319), module, LIMBO::OUT_L));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(95, 339), module, LIMBO::OUT_R));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(75.f, 340), module, LIMBO::OUT_L));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(75.f+22.f, 340), module, LIMBO::OUT_R));
 	}
 };
 

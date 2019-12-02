@@ -388,15 +388,15 @@ struct TIAREWidget : ModuleWidget {
 		addParam(createParam<BidooBlueTrimpot>(Vec(18, 45), module, TIARE::FM_PARAM));
 
 		addInput(createInput<TinyPJ301MPort>(Vec(38, 83), module, TIARE::FM_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(11, 276), module, TIARE::PITCH_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(45, 276), module, TIARE::SYNC_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(80, 276), module, TIARE::DIST_X_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(114, 276), module, TIARE::DIST_Y_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(7, 283), module, TIARE::PITCH_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(44, 283), module, TIARE::SYNC_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(81.5f, 283), module, TIARE::DIST_X_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(118.5f, 283), module, TIARE::DIST_Y_INPUT));
 
-		addOutput(createOutput<PJ301MPort>(Vec(11, 320), module, TIARE::SIN_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(45, 320), module, TIARE::TRI_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(80, 320), module, TIARE::SAW_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(114, 320), module, TIARE::SQR_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(7, 330), module, TIARE::SIN_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(44, 330), module, TIARE::TRI_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(81.5f, 330), module, TIARE::SAW_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(118.5f, 330), module, TIARE::SQR_OUTPUT));
 	}
 
 	void appendContextMenu(Menu *menu) override {

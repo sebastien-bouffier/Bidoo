@@ -432,9 +432,9 @@ struct CLACOSWidget : ModuleWidget {
 		addParam(createParam<BidooBlueTrimpot>(Vec(18.0f, 45.0f), module, CLACOS::FM_PARAM));
 		addInput(createInput<TinyPJ301MPort>(Vec(38.0f, 83.0f), module, CLACOS::FM_INPUT));
 
-		addInput(createInput<PJ301MPort>(Vec(11.0f, 330.0f), module, CLACOS::PITCH_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(45.0f, 330.0f), module, CLACOS::SYNC_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(114.0f, 330.0f), module, CLACOS::MAIN_OUTPUT));
+		addInput(createInput<PJ301MPort>(Vec(7.0f, 330.0f), module, CLACOS::PITCH_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(40.0f, 330.0f), module, CLACOS::SYNC_INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(118.5f, 330.0f), module, CLACOS::MAIN_OUTPUT));
 	}
 };
 

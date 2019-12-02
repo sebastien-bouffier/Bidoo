@@ -769,10 +769,10 @@ struct CANARDWidget : ModuleWidget {
 
 		addParam(createParam<CKSS>(Vec(90, 325), module, CANARD::MODE_PARAM));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(19, 331), module, CANARD::INL_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(19+24, 331), module, CANARD::INR_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(138, 331), module, CANARD::OUTL_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(138+24, 331), module, CANARD::OUTR_OUTPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(8, 340), module, CANARD::INL_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(8+22, 340), module, CANARD::INR_INPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(150, 340), module, CANARD::OUTL_OUTPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(150+22, 340), module, CANARD::OUTR_OUTPUT));
 	}
 
 	struct CANARDDeleteSlice : MenuItem {

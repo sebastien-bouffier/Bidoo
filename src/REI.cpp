@@ -148,11 +148,6 @@ struct REIWidget : ModuleWidget {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/REI.svg")));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-
 		addParam(createParam<BidooBlueKnob>(Vec(13, 45), module, REI::SIZE_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(13, 85), module, REI::DAMP_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(13, 125), module, REI::WIDTH_PARAM));
@@ -170,11 +165,11 @@ struct REIWidget : ModuleWidget {
 		addInput(createInput<PJ301MPort>(Vec(65.0f, 207.0f), module, REI::SHIMM_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(65.0f, 247.0f), module, REI::SHIMMPITCH_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(65.0f, 287.0f), module, REI::FREEZE_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 319.0f), module, REI::IN_L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 339.0f), module, REI::IN_R_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(8.0f, 340.0f), module, REI::IN_L_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(8.0f+22.0f, 340.0f), module, REI::IN_R_INPUT));
 		//Outies
-		addOutput(createOutput<TinyPJ301MPort>(Vec(78.0f, 319.0f), module, REI::OUT_L_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(78.0f, 339.0f), module, REI::OUT_R_OUTPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f, 340.0f), module, REI::OUT_L_OUTPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f+22.0f, 340.0f), module, REI::OUT_R_OUTPUT));
 	}
 };
 

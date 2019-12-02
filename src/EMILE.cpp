@@ -253,9 +253,9 @@ struct EMILEWidget : ModuleWidget {
     addParam(createParam<BidooBlueKnob>(Vec(portX0[1]-15, 180), module, EMILE::GAIN_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[1]-15, 235), module, EMILE::CURVE_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[1]-15, 290), module, EMILE::SPEED_PARAM));
-		addInput(createInput<PJ301MPort>(Vec(portX0[0]-25, 321), module, EMILE::GATE_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX0[0]-27, 330), module, EMILE::GATE_INPUT));
 
-		addOutput(createOutput<PJ301MPort>(Vec(portX0[2], 321), module, EMILE::OUT));
+		addOutput(createOutput<PJ301MPort>(Vec(portX0[2]+2.5f, 330), module, EMILE::OUT));
 	}
 
   struct EMILEItem : MenuItem {

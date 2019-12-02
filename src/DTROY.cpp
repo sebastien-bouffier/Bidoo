@@ -898,8 +898,8 @@ struct DTROYDisplay : TransparentWidget {
 
 	void drawMessage(NVGcontext *vg, Vec pos, std::string note, std::string playMode, std::string selectedPattern, std::string playedPattern, std::string steps, std::string scale) {
 		nvgFontSize(vg, 18.0f);
-		nvgFontFaceId(vg, font->handle);
-		nvgTextLetterSpacing(vg, -2.0f);
+		// nvgFontFaceId(vg, font->handle);
+		// nvgTextLetterSpacing(vg, -2.0f);
 		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgText(vg, pos.x + 4.0f, pos.y + 8.0f, playMode.c_str(), NULL);
 		nvgFontSize(vg, 14.0f);

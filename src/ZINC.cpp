@@ -150,9 +150,9 @@ struct ZINCWidget : ModuleWidget {
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[1] + 20, 268), module, ZINC::GCARR_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[2] + 20, 268), module, ZINC::G_PARAM));
 
-		addInput(createInput<PJ301MPort>(Vec(portX0[0] + 27.5, 320), module, ZINC::IN_MOD));
-		addInput(createInput<PJ301MPort>(Vec(portX0[1] + 22.5, 320), module, ZINC::IN_CARR));
-		addOutput(createOutput<PJ301MPort>(Vec(portX0[2] + 16.5, 320), module, ZINC::OUT));
+		addInput(createInput<PJ301MPort>(Vec(7.f, 330), module, ZINC::IN_MOD));
+		addInput(createInput<PJ301MPort>(Vec(85.f, 330), module, ZINC::IN_CARR));
+		addOutput(createOutput<PJ301MPort>(Vec(163.5f, 330), module, ZINC::OUT));
 	}
 
 	void step() override;

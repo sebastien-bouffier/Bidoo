@@ -141,19 +141,14 @@ struct CURTWidget : ModuleWidget {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/CURT.svg")));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
-
-		addParam(createParam<BidooBlueKnob>(Vec(8, 90), module, CURT::PITCH_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(8, 70), module, CURT::PITCH_PARAM));
 		addParam(createParam<BlueCKD6>(Vec(8, 175.0f), module, CURT::MODE_PARAM));
 		addParam(createParam<BidooBlueSnapTrimpot>(Vec(2, 205), module, CURT::BUFF_SIZE_PARAM));
 		addParam(createParam<BidooBlueSnapTrimpot>(Vec(24, 205), module, CURT::OVERLAP_PARAM));
 
-		addInput(createInput<PJ301MPort>(Vec(10, 140.0f), module, CURT::PITCH_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10, 245.66f), module, CURT::INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10, 299), module, CURT::OUTPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 130.0f), module, CURT::PITCH_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 283.0f), module, CURT::INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10, 330.0f), module, CURT::OUTPUT));
 	}
 };
 

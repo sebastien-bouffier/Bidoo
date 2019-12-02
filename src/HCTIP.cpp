@@ -51,7 +51,7 @@ struct HCTIP : Module {
 		}
 
 		if (out_Buffer.size() > 0) {
-			outputs[OUTPUT].setVoltage(*out_Buffer.startData() * 5.0f); 
+			outputs[OUTPUT].setVoltage(*out_Buffer.startData() * 5.0f);
 			out_Buffer.startIncr(1);
 		}
 	}
@@ -66,15 +66,11 @@ struct HCTIPWidget : ModuleWidget {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/HCTIP.svg")));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(createParam<BidooBlueKnob>(Vec(8, 100), module, HCTIP::PITCH_PARAM));
-		addInput(createInput<PJ301MPort>(Vec(10, 150.66f), module, HCTIP::PITCH_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10, 242.66f), module, HCTIP::INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10, 299), module, HCTIP::OUTPUT));
+		addParam(createParam<BidooBlueKnob>(Vec(8, 70), module, HCTIP::PITCH_PARAM));
+		addInput(createInput<PJ301MPort>(Vec(10, 130.f), module, HCTIP::PITCH_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 283.0f), module, HCTIP::INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10, 330), module, HCTIP::OUTPUT));
 	}
 };
 

@@ -278,8 +278,8 @@ struct BAFISWidget : ModuleWidget {
 			addInput(createInput<TinyPJ301MPort>(Vec(15+i*35, 287), module, BAFIS::VOLUME_INPUT+i));
     }
 
-		addInput(createInput<PJ301MPort>(Vec(10, 320), module, BAFIS::IN));
-		addOutput(createOutput<PJ301MPort>(Vec(116, 320), module, BAFIS::OUT));
+		addInput(createInput<PJ301MPort>(Vec(6.8f, 330), module, BAFIS::IN));
+		addOutput(createOutput<PJ301MPort>(Vec(118.4f, 330), module, BAFIS::OUT));
 	}
 };
 

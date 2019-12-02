@@ -244,8 +244,6 @@ struct LabelMICROBARWidget : TransparentWidget {
 	};
 
 	void draw(const DrawArgs &args) override {
-		nvgFontFaceId(args.vg, font->handle);
-		nvgTextLetterSpacing(args.vg, -2.0f);
 		nvgFillColor(args.vg, GREEN_BIDOO);
 		nvgTextAlign(args.vg, NVG_ALIGN_LEFT);
 		if (header) {
@@ -284,11 +282,6 @@ struct MINIBARWidget : ModuleWidget {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/MINIBAR.svg")));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
-
 		if (module) {
 			MINIBARDisplay *display = new MINIBARDisplay();
 			display->module = module;
@@ -301,8 +294,8 @@ struct MINIBARWidget : ModuleWidget {
 		display->box.pos = Vec(32, 287);
 		addChild(display);
 
-		addParam(createParam<MiniLEDButton>(Vec(34.0f, 9.0f), module, MINIBAR::BYPASS_PARAM));
-		addChild(createLight<SmallLight<RedLight>>(Vec(34.0f, 9.0f), module, MINIBAR::BYPASS_LIGHT));
+		addParam(createParam<MiniLEDButton>(Vec(34.0f, 15.0f), module, MINIBAR::BYPASS_PARAM));
+		addChild(createLight<SmallLight<RedLight>>(Vec(34.0f, 15.0f), module, MINIBAR::BYPASS_LIGHT));
 
 		MicrobarTrimpotWithDisplay* tresh = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,37.0f), module, MINIBAR::THRESHOLD_PARAM);
 		tresh->lblDisplay = display;
@@ -368,9 +361,9 @@ struct MINIBARWidget : ModuleWidget {
 		looka->tail = " %";
 		addParam(looka);
 
-		addInput(createInput<TinyPJ301MPort>(Vec(6.0f, 323.0f), module, MINIBAR::IN_L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(30.0f, 323.0f), module, MINIBAR::SC_L_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(54.0f, 323.0f), module, MINIBAR::OUT_L_OUTPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(6.0f, 335.0f), module, MINIBAR::IN_L_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(30.0f, 335.0f), module, MINIBAR::SC_L_INPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(54.0f, 335.0f), module, MINIBAR::OUT_L_OUTPUT));
 	}
 };
 

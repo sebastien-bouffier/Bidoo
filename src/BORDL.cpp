@@ -994,8 +994,8 @@ struct BORDLDisplay : TransparentWidget {
 
 	void drawMessage(NVGcontext *vg, Vec pos, std::string note, std::string playMode, std::string selectedPattern, std::string playedPattern, std::string steps, std::string scale) {
 		nvgFontSize(vg, 18.0f);
-		nvgFontFaceId(vg, font->handle);
-		nvgTextLetterSpacing(vg, -2.0f);
+		// nvgFontFaceId(vg, font->handle);
+		// nvgTextLetterSpacing(vg, -2.0f);
 		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgText(vg, pos.x + 4.0f, pos.y + 8.0f, playMode.c_str(), NULL);
 		nvgFontSize(vg, 14.0f);
@@ -1215,8 +1215,8 @@ struct BORDLPitchDisplay : TransparentWidget {
 			nvgFillColor(args.vg, YELLOW_BIDOO);
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 			nvgFontSize(args.vg, 16.0f);
-			nvgFontFaceId(args.vg, font->handle);
-			nvgTextLetterSpacing(args.vg, -2.0f);
+			// nvgFontFaceId(args.vg, font->handle);
+			// nvgTextLetterSpacing(args.vg, -2.0f);
 			nvgText(args.vg, pos.x, pos.y-9.0f, displayNote(module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].getValue() * clamp(module->patterns[module->playedPattern].sensitivity + (module->inputs[BORDL::SENSITIVITY_INPUT].isConnected() ? rescale(module->inputs[BORDL::SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) ,
 				clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f),
 				module->patterns[module->selectedPattern].scale)).c_str(), NULL);
@@ -1318,7 +1318,7 @@ struct BORDLWidget : ModuleWidget {
 			{
 				BORDLPitchDisplay *displayPitch = new BORDLPitchDisplay();
 				displayPitch->module = module;
-				displayPitch->box.pos = Vec(portX1[i]+15.0f, 52.0f);
+				displayPitch->box.pos = Vec(portX1[i]+16.0f, 52.0f);
 				displayPitch->box.size = Vec(20.0f, 10.0f);
 				displayPitch->index = i;
 				addChild(displayPitch);
@@ -1355,11 +1355,11 @@ struct BORDLWidget : ModuleWidget {
 			addOutput(createOutput<TinyPJ301MPort>(Vec(portX1[i]+9.0f, 344.0f), module, BORDL::STEP_OUTPUT + i));
 		}
 
-		addInput(createInput<PJ301MPort>(Vec(10.0f, 331.0f), module, BORDL::EXTGATE1_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(43.0f, 331.0f), module, BORDL::EXTGATE2_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(76.5f, 331.0f), module, BORDL::GATE_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(109.5f, 331.0f), module, BORDL::PITCH_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(143.0f, 331.0f), module, BORDL::ACC_OUTPUT));
+		addInput(createInput<PJ301MPort>(Vec(9.5f, 331.0f), module, BORDL::EXTGATE1_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(42.5f, 331.0f), module, BORDL::EXTGATE2_INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(76.f, 331.0f), module, BORDL::GATE_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(109.f, 331.0f), module, BORDL::PITCH_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(142.0f, 331.0f), module, BORDL::ACC_OUTPUT));
 	}
 };
 

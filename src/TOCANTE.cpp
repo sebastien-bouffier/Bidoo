@@ -149,8 +149,8 @@ struct TOCANTEDisplay : TransparentWidget {
 			snprintf(tBeats, sizeof(tBeats), "%1i/%1i", module->beats, module->ref);
 			//nvgSave(args.vg);
 			nvgFontSize(args.vg, 16.0f);
-			nvgFontFaceId(args.vg, font->handle);
-			nvgTextLetterSpacing(args.vg, -2.0f);
+			// nvgFontFaceId(args.vg, font->handle);
+			// nvgTextLetterSpacing(args.vg, -2.0f);
 			nvgFillColor(args.vg, YELLOW_BIDOO);
 			nvgText(args.vg, 0.0f, 0.0f, tBPM, NULL);
 			nvgText(args.vg, 0.0f, 15.0f, tBeats, NULL);
@@ -163,11 +163,6 @@ struct TOCANTEWidget : ModuleWidget {
 	TOCANTEWidget(TOCANTE *module) {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/TOCANTE.svg")));
-
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
 		TOCANTEDisplay *display = new TOCANTEDisplay();
 		display->module = module;
@@ -189,12 +184,12 @@ struct TOCANTEWidget : ModuleWidget {
 		addInput(createInput<TinyPJ301MPort>(Vec(45, 125), module, TOCANTE::BEATS_INPUT));
 		addInput(createInput<TinyPJ301MPort>(Vec(80, 125), module, TOCANTE::REF_INPUT));
 
-		addOutput(createOutput<PJ301MPort>(Vec(18.0f, 230.0f), module, TOCANTE::OUT_MEASURE));
-		addOutput(createOutput<PJ301MPort>(Vec(62.0f, 230.0f), module, TOCANTE::OUT_BEAT));
-		addOutput(createOutput<PJ301MPort>(Vec(18.0f, 280.0f), module, TOCANTE::OUT_QUARTER));
-		addOutput(createOutput<PJ301MPort>(Vec(62.0f, 280.0f), module, TOCANTE::OUT_TRIPLET));
-		addOutput(createOutput<PJ301MPort>(Vec(18.0f, 331.0f), module, TOCANTE::OUT_EIGHTH));
-		addOutput(createOutput<PJ301MPort>(Vec(62.0f, 331.0f), module, TOCANTE::OUT_SIXTEENTH));
+		addOutput(createOutput<PJ301MPort>(Vec(7.0f, 236.0f), module, TOCANTE::OUT_MEASURE));
+		addOutput(createOutput<PJ301MPort>(Vec(73.5f, 236.0f), module, TOCANTE::OUT_BEAT));
+		addOutput(createOutput<PJ301MPort>(Vec(7.0f, 283.0f), module, TOCANTE::OUT_QUARTER));
+		addOutput(createOutput<PJ301MPort>(Vec(73.5f, 283.0f), module, TOCANTE::OUT_TRIPLET));
+		addOutput(createOutput<PJ301MPort>(Vec(7.0f, 330.0f), module, TOCANTE::OUT_EIGHTH));
+		addOutput(createOutput<PJ301MPort>(Vec(73.5f, 330.0f), module, TOCANTE::OUT_SIXTEENTH));
 	}
 };
 

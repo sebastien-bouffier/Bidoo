@@ -291,8 +291,8 @@ void draw(NVGcontext *vg) override {
 	snprintf(tMix, sizeof(tTresh), "%1.0f/%1.0f", (1-module->mix)*100,module->mix*100);
 	snprintf(tLookAhead, sizeof(tTresh), "%3i", module->lookAhead);
 	nvgFontSize(vg, 14.0f);
-	nvgFontFaceId(vg, font->handle);
-	nvgTextLetterSpacing(vg, -2.0f);
+	// nvgFontFaceId(vg, font->handle);
+	// nvgTextLetterSpacing(vg, -2.0f);
 	nvgFillColor(vg, YELLOW_BIDOO);
 	nvgTextAlign(vg, NVG_ALIGN_CENTER);
 	nvgText(vg, 8.0f, height+31.0f, tTresh, NULL);
@@ -336,13 +336,13 @@ struct BARWidget : ModuleWidget {
 		addParam(createParam<BidooBlueTrimpot>(Vec(74.0f,291.0f), module, BAR::MIX_PARAM));
 		addParam(createParam<BidooBlueTrimpot>(Vec(106.0f,291.0f), module, BAR::LOOKAHEAD_PARAM));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 319.0f), module, BAR::IN_L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 339.0f), module, BAR::IN_R_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(66.0f, 319.0f), module, BAR::SC_L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(66.0f, 339.0f), module, BAR::SC_R_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(5.0f, 340.0f), module, BAR::IN_L_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(5.0f+22.f, 340.0f), module, BAR::IN_R_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(49.0f, 340.0f), module, BAR::SC_L_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(49.0f+22.f, 340.0f), module, BAR::SC_R_INPUT));
 
-		addOutput(createOutput<TinyPJ301MPort>(Vec(109.0f, 319.0f), module, BAR::OUT_L_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(109.0f, 339.0f), module, BAR::OUT_R_OUTPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(93.0f, 340.0f), module, BAR::OUT_L_OUTPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(93.0f+22.0f, 340.0f), module, BAR::OUT_R_OUTPUT));
 	}
 };
 

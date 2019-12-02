@@ -66,14 +66,11 @@ struct FFILTRWidget : ModuleWidget {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/FFILTR.svg")));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-
-		addParam(createParam<BidooBlueKnob>(Vec(8, 100), module, FFILTR::CUTOFF_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(8, 70), module, FFILTR::CUTOFF_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(8, 185), module, FFILTR::RES_PARAM));
-		addInput(createInput<PJ301MPort>(Vec(10, 150.66f), module, FFILTR::CUTOFF_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10, 242.66f), module, FFILTR::INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10, 299), module, FFILTR::OUTPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 130), module, FFILTR::CUTOFF_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 283.0f), module, FFILTR::INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10, 330.0f), module, FFILTR::OUTPUT));
 	}
 };
 

@@ -124,7 +124,7 @@ struct GARCONWidget : ModuleWidget {
   		addChild(display);
   	}
 
-  	addInput(createInput<PJ301MPort>(Vec(11, 330), module, GARCON::INPUT));
+  	addInput(createInput<PJ301MPort>(Vec(7, 330), module, GARCON::INPUT));
   }
 };
 

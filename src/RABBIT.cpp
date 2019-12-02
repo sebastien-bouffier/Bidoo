@@ -132,11 +132,6 @@ struct RABBITWidget : ModuleWidget {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/RABBIT.svg")));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-
 		for (int i = 0; i < 8; i++) {
 			addParam(createParam<LEDBezel>(Vec(27.0f, 50.0f + 32.0f * i), module, RABBIT::BITOFF_PARAM + i));
 			addChild(createLight<RabbitLight<RedLight>>(Vec(29.0f, 52.0f + 32.0f * i), module, RABBIT::BITOFF_LIGHTS + i));
@@ -148,10 +143,10 @@ struct RABBITWidget : ModuleWidget {
 			addChild(createLight<RabbitLight<BlueLight>>(Vec(59.0f, 52.0f + 32.0f * i), module, RABBIT::BITREV_LIGHTS + i));
 		}
 
-		addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 319.0f), module, RABBIT::L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(24.0f, 339.0f), module, RABBIT::R_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(78.0f, 319.0f), module, RABBIT::L_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(78.0f, 339.0f), module, RABBIT::R_OUTPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(8.0f, 340.0f), module, RABBIT::L_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(8.f+22.0f, 340.0f), module, RABBIT::R_INPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f, 340.0f), module, RABBIT::L_OUTPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f+22.0f, 340.0f), module, RABBIT::R_OUTPUT));
 	}
 };
 

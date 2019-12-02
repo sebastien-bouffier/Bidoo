@@ -75,19 +75,14 @@ struct LATEWidget : ModuleWidget {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/LATE.svg")));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		
 		addParam(createParam<BidooBlueKnob>(Vec(8, 70), module, LATE::SWING_PARAM));
 		addParam(createParam<BidooBlueTrimpot>(Vec(13, 105), module, LATE::CVCOEFF_PARAM));
 
 		addInput(createInput<PJ301MPort>(Vec(10, 130), module, LATE::SWING_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10, 186.33f), module, LATE::RESET_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10, 242.66f), module, LATE::CLOCK_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 236), module, LATE::RESET_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 283.0f), module, LATE::CLOCK_INPUT));
 
-		addOutput(createOutput<PJ301MPort>(Vec(10, 299), module, LATE::CLOCK_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10, 330), module, LATE::CLOCK_OUTPUT));
 	}
 };
 

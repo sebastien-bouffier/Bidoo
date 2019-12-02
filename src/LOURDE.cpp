@@ -63,8 +63,6 @@ struct LabelDisplayWidget : TransparentWidget {
       char display[128];
   		snprintf(display, sizeof(display), "%2.2f", value->getValue());
   		nvgFontSize(args.vg, 14.0f);
-  		nvgFontFaceId(args.vg, font->handle);
-  		nvgTextLetterSpacing(args.vg, -2.0f);
   		nvgFillColor(args.vg, YELLOW_BIDOO);
   		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
   		nvgRotate(args.vg,-1.0f * M_PI_2);
@@ -78,10 +76,6 @@ struct LOURDEWidget : ModuleWidget {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/LOURDE.svg")));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
   	addInput(createInput<PJ301MPort>(Vec(25.5,85), module, LOURDE::IN1));
     addInput(createInput<PJ301MPort>(Vec(25.5,155), module, LOURDE::IN2));
@@ -119,7 +113,7 @@ struct LOURDEWidget : ModuleWidget {
 
     addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 277.0f), module, LOURDE::INFLOOR));
 
-  	addOutput(createOutput<PJ301MPort>(Vec(25.5,320), module, LOURDE::OUT));
+  	addOutput(createOutput<PJ301MPort>(Vec(25.5,330), module, LOURDE::OUT));
   }
 };
 

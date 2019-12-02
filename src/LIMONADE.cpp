@@ -806,8 +806,6 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
   		nvgFill(args.vg);
 
   		nvgFontSize(args.vg, 16.0f);
-  		nvgFontFaceId(args.vg, font->handle);
-  		nvgTextLetterSpacing(args.vg, -2.0f);
   		nvgFillColor(args.vg, YELLOW_BIDOO);
 
   		nvgText(args.vg, 130.0f, heightMagn + graphGap/2+4, "▲ Magnitude ▼ Phase", NULL);
@@ -965,11 +963,9 @@ struct LIMONADEWavDisplay : OpaqueWidget {
   		nvgSave(args.vg);
 
   		nvgFontSize(args.vg, 8.0f);
-  		nvgFontFaceId(args.vg, font->handle);
-  		nvgTextLetterSpacing(args.vg, -2.0f);
   		nvgFillColor(args.vg, YELLOW_BIDOO);
 
-  		nvgText(args.vg, width+6, height-10, ("V=" + to_string((int)module->params[LIMONADE::UNISSON_PARAM].getValue())).c_str(), NULL);
+  		nvgText(args.vg, width+2, height-10, ("V=" + to_string((int)module->params[LIMONADE::UNISSON_PARAM].getValue())).c_str(), NULL);
 
   		for (size_t n=0; n<fs; n++) {
   			nvgBeginPath(args.vg);
@@ -1048,7 +1044,6 @@ struct LIMONADETextField : LedDisplayTextField {
 
   LIMONADETextField(LIMONADE *mod) {
     module = mod;
-    font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
   	color = YELLOW_BIDOO;
   	textOffset = Vec(2,0);
 		if (module != NULL) text = std::to_string(module->frameSize);
