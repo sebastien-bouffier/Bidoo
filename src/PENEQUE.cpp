@@ -464,11 +464,11 @@ struct PENEQUEWidget : ModuleWidget {
   	addParam(createParam<BidooBlueKnob>(Vec(367, 235), module, PENEQUE::FM_PARAM));
   	addParam(createParam<BlueCKD6>(Vec(408.0f, 237), module, PENEQUE::RESET_PARAM));
 
-  	addInput(createInput<PJ301MPort>(Vec(250, 300), module, PENEQUE::SYNCMODE_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(290, 300), module, PENEQUE::PITCH_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(330, 300), module, PENEQUE::SYNC_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(370, 300), module, PENEQUE::FM_INPUT));
-  	addOutput(createOutput<PJ301MPort>(Vec(410, 300), module, PENEQUE::OUT));
+  	addInput(createInput<PJ301MPort>(Vec(250, 283), module, PENEQUE::SYNCMODE_INPUT));
+  	addInput(createInput<PJ301MPort>(Vec(290, 283), module, PENEQUE::PITCH_INPUT));
+  	addInput(createInput<PJ301MPort>(Vec(330, 283), module, PENEQUE::SYNC_INPUT));
+  	addInput(createInput<PJ301MPort>(Vec(370, 283), module, PENEQUE::FM_INPUT));
+  	addOutput(createOutput<PJ301MPort>(Vec(410, 330), module, PENEQUE::OUT));
   }
 };
 

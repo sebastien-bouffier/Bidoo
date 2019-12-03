@@ -1229,36 +1229,37 @@ struct LIMONADEWidget : ModuleWidget {
   	addParam(createParam<BidooGreenKnob>(Vec(230.0f, 208.0f), module, LIMONADE::INDEX_PARAM));
 
   	addParam(createParam<BidooBlueKnob>(Vec(274.0f, 219.0f), module, LIMONADE::UNISSON_PARAM));
-  	addParam(createParam<BidooBlueKnob>(Vec(274.0f, 262.0f), module, LIMONADE::UNISSONRANGE_PARAM));
+  	addParam(createParam<BidooBlueTrimpot>(Vec(279.0f, 262.0f), module, LIMONADE::UNISSONRANGE_PARAM));
   	addParam(createParam<BidooBlueKnob>(Vec(309, 219), module, LIMONADE::FREQ_PARAM));
   	addParam(createParam<BidooBlueKnob>(Vec(344, 219), module, LIMONADE::FINE_PARAM));
   	addParam(createParam<BidooBlueKnob>(Vec(379, 219), module, LIMONADE::FM_PARAM));
   	addParam(createParam<BidooRedKnob>(Vec(414.0f, 219), module, LIMONADE::WTINDEX_PARAM));
-  	addParam(createParam<BidooBlueTrimpot>(Vec(419.0f, 265), module, LIMONADE::WTINDEXATT_PARAM));
+  	addParam(createParam<BidooBlueTrimpot>(Vec(420.0f, 257), module, LIMONADE::WTINDEXATT_PARAM));
 
-  	addParam(createParam<CKSS>(Vec(352, 336), module, LIMONADE::SYNC_PARAM));
-  	addInput(createInput<TinyPJ301MPort>(Vec(317, 339), module, LIMONADE::SYNCMODE_INPUT));
+  	addParam(createParam<CKSS>(Vec(352, 327), module, LIMONADE::SYNC_PARAM));
+  	addInput(createInput<TinyPJ301MPort>(Vec(317, 330), module, LIMONADE::SYNCMODE_INPUT));
 
-		RedBtn *btnRecWt = createParam<RedBtn>(Vec(254.0f, 324), module, LIMONADE::RECWT_PARAM);
+
+		RedBtn *btnRecWt = createParam<RedBtn>(Vec(254.0f, 320), module, LIMONADE::RECWT_PARAM);
 		btnRecWt->caption = "≈";
 		addParam(btnRecWt);
 
-  	addChild(createLight<SmallLight<RedLight>>(Vec(244.0f, 329), module, LIMONADE::RECWT_LIGHT));
+  	addChild(createLight<SmallLight<RedLight>>(Vec(244.0f, 325), module, LIMONADE::RECWT_LIGHT));
 
-		RedBtn *btnRecFrame = createParam<RedBtn>(Vec(254.0f, 344), module, LIMONADE::RECFRAME_PARAM);
+		RedBtn *btnRecFrame = createParam<RedBtn>(Vec(254.0f, 340), module, LIMONADE::RECFRAME_PARAM);
 		btnRecFrame->caption = "~";
 		addParam(btnRecFrame);
 
-  	addChild(createLight<SmallLight<RedLight>>(Vec(244.0f, 349), module, LIMONADE::RECFRAME_LIGHT));
+  	addChild(createLight<SmallLight<RedLight>>(Vec(244.0f, 345), module, LIMONADE::RECFRAME_LIGHT));
 
-  	addInput(createInput<PJ301MPort>(Vec(277, 295), module, LIMONADE::UNISSONRANGE_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(312, 295), module, LIMONADE::PITCH_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(347, 295), module, LIMONADE::SYNC_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(382, 295), module, LIMONADE::FM_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(417, 295), module, LIMONADE::WTINDEX_INPUT));
+  	addInput(createInput<PJ301MPort>(Vec(277, 283), module, LIMONADE::UNISSONRANGE_INPUT));
+  	addInput(createInput<PJ301MPort>(Vec(312, 283), module, LIMONADE::PITCH_INPUT));
+  	addInput(createInput<PJ301MPort>(Vec(347, 283), module, LIMONADE::SYNC_INPUT));
+  	addInput(createInput<PJ301MPort>(Vec(382, 283), module, LIMONADE::FM_INPUT));
+  	addInput(createInput<PJ301MPort>(Vec(417, 283), module, LIMONADE::WTINDEX_INPUT));
 
-  	addInput(createInput<PJ301MPort>(Vec(277, 335), module, LIMONADE::IN));
-  	addOutput(createOutput<PJ301MPort>(Vec(417, 335), module, LIMONADE::OUT));
+  	addInput(createInput<PJ301MPort>(Vec(277, 330), module, LIMONADE::IN));
+  	addOutput(createOutput<PJ301MPort>(Vec(417, 330), module, LIMONADE::OUT));
   }
 
 	void appendContextMenu(Menu *menu) override {

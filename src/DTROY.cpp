@@ -1078,10 +1078,10 @@ DTROYWidget::DTROYWidget(DTROY *module) {
 		addOutput(createOutput<TinyPJ301MPort>(Vec(portX1[i]+4.0f, 344.0f), module, DTROY::STEP_OUTPUT + i));
 	}
 
-	addInput(createInput<PJ301MPort>(Vec(portX0[0], 331.0f), module, DTROY::EXTGATE1_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(portX0[1], 331.0f), module, DTROY::EXTGATE2_INPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-1, 331.0f), module, DTROY::GATE_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(portX0[3]-1, 331.0f), module, DTROY::PITCH_OUTPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[0], 330.0f), module, DTROY::EXTGATE1_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(portX0[1], 330.0f), module, DTROY::EXTGATE2_INPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(portX0[2]-1, 330.0f), module, DTROY::GATE_OUTPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(portX0[3]-1, 330.0f), module, DTROY::PITCH_OUTPUT));
 }
 
 struct DTROYRandPitchItem : MenuItem {

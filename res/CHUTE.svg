@@ -28,9 +28,9 @@
      inkscape:window-height="2066"
      id="namedview188"
      showgrid="false"
-     inkscape:zoom="2.4842105"
-     inkscape:cx="-318.43652"
-     inkscape:cy="234.65616"
+     inkscape:zoom="4.968421"
+     inkscape:cx="75.530456"
+     inkscape:cy="64.621131"
      inkscape:window-x="-11"
      inkscape:window-y="-11"
      inkscape:window-maximized="1"
@@ -836,7 +836,7 @@
      id="flowRoot1083" />
   <g
      id="g1025"
-     transform="translate(70.434086,-6.9914332)">
+     transform="translate(70.434086,-6.7384964)">
     <path
        inkscape:connector-curvature="0"
        id="rect5282-9"
@@ -870,7 +870,7 @@
   </g>
   <g
      id="g1030"
-     transform="translate(66.961012,-9.760589)">
+     transform="translate(66.961012,-9.5076564)">
     <path
        inkscape:connector-curvature="0"
        id="rect5282-9-9"
@@ -899,7 +899,7 @@
   </g>
   <g
      id="g1035"
-     transform="translate(62.427436,-8.5890274)">
+     transform="translate(62.427436,-8.3360964)">
     <path
        inkscape:connector-curvature="0"
        id="rect5282-9-8"
@@ -928,7 +928,7 @@
   </g>
   <g
      id="g1091"
-     transform="translate(21.364169,1.5908633)">
+     transform="translate(21.364169,5.3224589)">
     <path
        style="opacity:1;fill:#020202;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:2.19999981;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:8.19999981;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"
        d="m -18.941252,67.229538 h 5.291667 v 8.898 h -5.291667 z"
@@ -962,7 +962,7 @@
   </g>
   <path
      style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-     d="M 8.4139739,74.973496 H 16.934454"
+     d="M 8.4139739,77.000997 H 16.934454"
      id="path1093"
      inkscape:connector-curvature="0" />
 </svg>

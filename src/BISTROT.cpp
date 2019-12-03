@@ -93,8 +93,8 @@ struct BISTROTWidget : ModuleWidget {
 			addChild(createLight<SmallLight<BlueLight>>(Vec(95.0f, 97.5f + 26.0f * i), module, BISTROT::BIT_OUTPUT_LIGHTS + i));
     }
 
-		addInput(createInput<PJ301MPort>(Vec(29.0f, 320.0f), module, BISTROT::INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(67.0f, 320.0f), module, BISTROT::OUTPUT));
+		addInput(createInput<PJ301MPort>(Vec(29.0f, 330.0f), module, BISTROT::INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(67.0f, 330.0f), module, BISTROT::OUTPUT));
 	}
 };
 

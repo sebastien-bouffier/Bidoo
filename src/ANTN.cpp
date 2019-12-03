@@ -371,8 +371,8 @@ struct ANTNWidget : ModuleWidget {
 
   	static const float portX0[4] = {34, 67, 101};
 
-  	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[1]-18, 334), module, ANTN::OUTL_OUTPUT));
-  	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[1]+4, 334), module, ANTN::OUTR_OUTPUT));
+  	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[1]-18, 340), module, ANTN::OUTL_OUTPUT));
+  	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[1]+4, 340), module, ANTN::OUTR_OUTPUT));
   }
 };
 

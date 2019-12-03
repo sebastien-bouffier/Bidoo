@@ -361,9 +361,9 @@ struct MINIBARWidget : ModuleWidget {
 		looka->tail = " %";
 		addParam(looka);
 
-		addInput(createInput<TinyPJ301MPort>(Vec(6.0f, 335.0f), module, MINIBAR::IN_L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(30.0f, 335.0f), module, MINIBAR::SC_L_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(54.0f, 335.0f), module, MINIBAR::OUT_L_OUTPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(6.0f, 340.0f), module, MINIBAR::IN_L_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(30.0f, 340.0f), module, MINIBAR::SC_L_INPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(54.0f, 340.0f), module, MINIBAR::OUT_L_OUTPUT));
 	}
 };
 

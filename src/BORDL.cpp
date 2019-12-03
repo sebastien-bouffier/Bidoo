@@ -1355,11 +1355,11 @@ struct BORDLWidget : ModuleWidget {
 			addOutput(createOutput<TinyPJ301MPort>(Vec(portX1[i]+9.0f, 344.0f), module, BORDL::STEP_OUTPUT + i));
 		}
 
-		addInput(createInput<PJ301MPort>(Vec(9.5f, 331.0f), module, BORDL::EXTGATE1_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(42.5f, 331.0f), module, BORDL::EXTGATE2_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(76.f, 331.0f), module, BORDL::GATE_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(109.f, 331.0f), module, BORDL::PITCH_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(142.0f, 331.0f), module, BORDL::ACC_OUTPUT));
+		addInput(createInput<PJ301MPort>(Vec(9.5f, 330.0f), module, BORDL::EXTGATE1_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(42.5f, 330.0f), module, BORDL::EXTGATE2_INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(76.f, 330.0f), module, BORDL::GATE_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(109.f, 330.0f), module, BORDL::PITCH_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(142.0f, 330.0f), module, BORDL::ACC_OUTPUT));
 	}
 };
 

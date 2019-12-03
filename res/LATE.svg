@@ -28,9 +28,9 @@
      inkscape:window-height="2066"
      id="namedview53"
      showgrid="false"
-     inkscape:zoom="14.052817"
-     inkscape:cx="-2.146757"
-     inkscape:cy="68.185834"
+     inkscape:zoom="7.0264085"
+     inkscape:cx="-55.514576"
+     inkscape:cy="60.797438"
      inkscape:window-x="-11"
      inkscape:window-y="-11"
      inkscape:window-maximized="1"
@@ -191,7 +191,7 @@
      id="flowRoot912" />
   <g
      id="g880"
-     transform="translate(0,11.981563)">
+     transform="translate(0,12.280725)">
     <path
        inkscape:connector-curvature="0"
        style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000500;stroke-width:0.72085714;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
@@ -221,7 +221,7 @@
   </g>
   <g
      id="g873"
-     transform="translate(0,9.5249989)">
+     transform="translate(0,9.8162239)">
     <path
        inkscape:connector-curvature="0"
        style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000500;stroke-width:0.72085714;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
@@ -246,7 +246,7 @@
   </g>
   <g
      id="g867"
-     transform="translate(0,8.2397381)">
+     transform="translate(0,8.5458792)">
     <path
        style="opacity:1;fill:#cd1f00;fill-opacity:1;fill-rule:evenodd;stroke:#cd1f00;stroke-width:0.72085714;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        d="m 3.5257539,75.70208 h 4.702995 c 0.6299043,0 1.1370114,0.507107 1.1370114,1.137011 v 8.103004 c 0,0.629904 -0.5071071,1.137011 -1.1370114,1.137011 h -4.702995 c -0.6299044,0 -1.1370115,-0.507107 -1.1370115,-1.137011 v -8.103004 c 0,-0.629904 0.5071071,-1.137011 1.1370115,-1.137011 z"
