@@ -262,6 +262,14 @@
       ]
     },
     {
+      "slug": "MAGMA",
+      "name": "maGma",
+      "description": "Sample player",
+      "tags": [
+        "Sampler"
+      ]
+    },
+    {
       "slug": "PeNEqUe",
       "name": "PeNEqUe",
       "description": "Additive osicllator",

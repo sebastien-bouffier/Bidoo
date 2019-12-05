@@ -5,8 +5,35 @@
 #include "dep/AudioFile/AudioFile.h"
 #include <iomanip>
 #include "osdialog.h"
+#include "dsp/resampler.hpp"
 
 using namespace std;
+
+
+#define pi 3.14159265359
+
+struct MultiFilter {
+	float q;
+	float freq;
+	float smpRate;
+	float hp = 0.0f, bp = 0.0f, lp = 0.0f, mem1 = 0.0f, mem2 = 0.0f;
+
+	void setParams(float freq, float q, float smpRate) {
+		this->freq = freq;
+		this->q = q;
+		this->smpRate = smpRate;
+	}
+
+	void calcOutput(float sample) {
+		float g = tan(pi*freq / smpRate);
+		float R = 1.0f / (2.0f*q);
+		hp = (sample - (2.0f*R + g)*mem1 - mem2) / (1.0f + 2.0f * R * g + g * g);
+		bp = g * hp + mem1;
+		lp = g * bp + mem2;
+		mem1 = g * hp + bp;
+		mem2 = g * bp + lp;
+	}
+};
 
 struct channel {
 	float start=0.0f;
@@ -15,9 +42,13 @@ struct channel {
 	float speed=1.0f;
 	float head=0.0f;
 	int gate=0;
+	int filterType=0;
+	float q;
+	float freq;
+	MultiFilter filter;
 };
 
-struct POUPRE : Module {
+struct MAGMA : Module {
 	enum ParamIds {
 		CHANNEL_PARAM,
 		START_PARAM,
@@ -25,6 +56,9 @@ struct POUPRE : Module {
 		LOOP_PARAM,
 		SPEED_PARAM,
 		GATE_PARAM,
+		Q_PARAM,
+		FREQ_PARAM,
+		FILTERTYPE_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -34,6 +68,9 @@ struct POUPRE : Module {
 		LEN_INPUT,
 		LOOP_INPUT,
 		SPEED_INPUT,
+		Q_INPUT,
+		FREQ_INPUT,
+		FILTERTYPE_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -60,7 +97,7 @@ struct POUPRE : Module {
 	std::string waveFileName;
 	std::string waveExtension;
 
-	POUPRE() {
+	MAGMA() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f);
 		configParam(START_PARAM, 0.0f, 1.0f, 0.0f);
@@ -68,6 +105,9 @@ struct POUPRE : Module {
 		configParam(LOOP_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(GATE_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(SPEED_PARAM, 0.0f, 10.0f, 1.0f);
+		configParam(FILTERTYPE_PARAM, 0.0f, 3.0f, 0.0f);
+		configParam(Q_PARAM, 0.1f, 1.0f, 0.1f);
+		configParam(FREQ_PARAM, 0.0f, 1.0f, 1.0f);
 
 		playBuffer.resize(0);
 	}
@@ -87,6 +127,9 @@ struct POUPRE : Module {
 			json_object_set_new(channelJ, "speed", json_real(channels[i].speed));
 			json_object_set_new(channelJ, "loop", json_boolean(channels[i].loop));
 			json_object_set_new(channelJ, "gate", json_integer(channels[i].gate));
+			json_object_set_new(channelJ, "filterType", json_integer(channels[i].filterType));
+			json_object_set_new(channelJ, "q", json_integer(channels[i].q));
+			json_object_set_new(channelJ, "freq", json_integer(channels[i].freq));
 			json_object_set_new(rootJ, ("channel"+ to_string(i)).c_str(), channelJ);
 		}
 		return rootJ;
@@ -117,13 +160,22 @@ struct POUPRE : Module {
 						json_t *gateJ= json_object_get(channelJ, "gate");
 						if (gateJ)
 							channels[i].gate = json_integer_value(gateJ);
+						json_t *filterTypeJ= json_object_get(channelJ, "filterType");
+						if (filterTypeJ)
+							channels[i].filterType = json_integer_value(filterTypeJ);
+						json_t *qJ= json_object_get(channelJ, "q");
+						if (qJ)
+							channels[i].q = json_number_value(qJ);
+						json_t *freqJ= json_object_get(channelJ, "freq");
+						if (freqJ)
+							channels[i].freq = json_number_value(freqJ);
 				}
 			}
 		}
 	}
 };
 
-void POUPRE::loadSample(std::string path) {
+void MAGMA::loadSample(std::string path) {
 	waveFileName = rack::string::filename(path);
 	waveExtension = rack::string::filenameExtension(rack::string::filename(lastPath));
 	lastPath = path;
@@ -171,7 +223,7 @@ void POUPRE::loadSample(std::string path) {
 	}
 }
 
-void POUPRE::saveSample() {
+void MAGMA::saveSample() {
 	drwav_data_format format;
 	format.container = drwav_container_riff;
 	format.format = DR_WAVE_FORMAT_PCM;
@@ -190,7 +242,7 @@ void POUPRE::saveSample() {
 	free(pSamples);
 }
 
-void POUPRE::process(const ProcessArgs &args) {
+void MAGMA::process(const ProcessArgs &args) {
 	if (playBuffer.size()==0) {
 		lights[SAMPLE_LIGHT].setBrightness(1.0f);
 		lights[SAMPLE_LIGHT+1].setBrightness(0.0f);
@@ -209,6 +261,9 @@ void POUPRE::process(const ProcessArgs &args) {
 		params[SPEED_PARAM].setValue(channels[currentChannel].speed);
 		params[LOOP_PARAM].setValue(channels[currentChannel].loop ? 1.0f : 0.0f);
 		params[GATE_PARAM].setValue(channels[currentChannel].gate);
+		params[FILTERTYPE_PARAM].setValue(channels[currentChannel].filterType);
+		params[Q_PARAM].setValue(channels[currentChannel].q);
+		params[FREQ_PARAM].setValue(channels[currentChannel].freq);
 	}
 
 	channels[currentChannel].start = params[START_PARAM].getValue();
@@ -216,6 +271,10 @@ void POUPRE::process(const ProcessArgs &args) {
 	channels[currentChannel].speed = params[SPEED_PARAM].getValue();
 	channels[currentChannel].loop = params[LOOP_PARAM].getValue() == 1.0f;
 	channels[currentChannel].gate = params[GATE_PARAM].getValue();
+	channels[currentChannel].filterType = params[FILTERTYPE_PARAM].getValue();
+	channels[currentChannel].freq = params[FREQ_PARAM].getValue();
+	channels[currentChannel].q = params[Q_PARAM].getValue();
+
 
 	int c = std::max(inputs[TRIG_INPUT].getChannels(), 1);
 
@@ -227,6 +286,9 @@ void POUPRE::process(const ProcessArgs &args) {
 		float speed = clamp(channels[i].speed + (inputs[SPEED_INPUT].isConnected() ? rescale(inputs[SPEED_INPUT].getVoltage(i),0.0f,10.0f,0.0f,1.0f) : 0.0f), 0.0f, 10.0f);
 		bool loop = channels[i].loop && (clamp(inputs[LOOP_INPUT].isConnected() ? inputs[LOOP_INPUT].getVoltage(i) : 1.0f, 0.0f, 1.0f) != 0.0f);
 		int gate = inputs[GATE_INPUT].isConnected() ? rescale(inputs[SPEED_INPUT].getVoltage(i),0.0f,10.0f,0.0f,1.0f) : channels[i].gate;
+		int filterType = inputs[FILTERTYPE_INPUT].isConnected() ? rescale(inputs[FILTERTYPE_INPUT].getVoltage(i),0.0f,10.0f,0.0f,3.0f) : channels[i].filterType;
+		float q = 10.0f *clamp(channels[i].q + (inputs[Q_INPUT].isConnected() ? rescale(inputs[Q_INPUT].getVoltage(i),0.0f,10.0f,0.1f,1.0f) : 0.0f), 0.1f, 1.0f);
+		float freq = std::pow(2.0f, rescale(clamp(channels[i].freq + (inputs[FREQ_INPUT].isConnected() ? rescale(inputs[FREQ_INPUT].getVoltage(i),0.0f,10.0f,0.0f,1.0f) : 0.0f), 0.0f, 1.0f), 0.0f, 1.0f, 4.5f, 14.0f));
 
 		if ((!active[i] || (gate==1.0f)) && (triggers[i].process(inputs[TRIG_INPUT].getVoltage(i)))) {
 			active[i] = true;
@@ -239,7 +301,22 @@ void POUPRE::process(const ProcessArgs &args) {
 		if (active[i]) {
 			int xi = channels[i].head;
 			float xf = channels[i].head - xi;
-			outputs[POLY_OUTPUT].setVoltage(5.0f * crossfade(playBuffer[xi], playBuffer[xi + 1], xf),i);
+			float crossfaded = crossfade(playBuffer[xi], playBuffer[xi + 1], xf);
+			channels[i].filter.setParams(freq, q, args.sampleRate);
+			channels[i].filter.calcOutput(crossfaded);
+			if (channels[i].filterType == 0.0f) {
+				outputs[POLY_OUTPUT].setVoltage(5.0f * crossfaded,i);
+			}
+			else if (channels[i].filterType == 1.0f) {
+				outputs[POLY_OUTPUT].setVoltage(5.0f * channels[i].filter.lp,i);
+			}
+			else if (channels[i].filterType == 2.0f) {
+				outputs[POLY_OUTPUT].setVoltage(5.0f * channels[i].filter.bp,i);
+			}
+			else {
+				outputs[POLY_OUTPUT].setVoltage(5.0f * channels[i].filter.hp,i);
+			}
+
 			channels[i].head += speed;
 			if ((channels[i].head >= (playBuffer.size()-1)) || (channels[i].head > ((start+len)*playBuffer.size()))) {
 				if (loop && (gate==0.0f)) {
@@ -256,33 +333,47 @@ void POUPRE::process(const ProcessArgs &args) {
 	}
 }
 
-struct POUPREWidget : ModuleWidget {
-	POUPREWidget(POUPRE *module) {
+struct MAGMAWidget : ModuleWidget {
+	MAGMAWidget(MAGMA *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/POUPRE.svg")));
+		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/MAGMA.svg")));
 
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(34.0f, 20.0f), module, POUPRE::SAMPLE_LIGHT));
+		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(createParam<BidooBlueSnapKnob>(Vec(23.0f,35.0f), module, POUPRE::CHANNEL_PARAM));
+		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(56.5f, 20.0f), module, MAGMA::SAMPLE_LIGHT));
 
-		addParam(createParam<CKSS>(Vec(49.0f,92.5f), module, POUPRE::GATE_PARAM));
-		addParam(createParam<CKSS>(Vec(49.0f,139.5f), module, POUPRE::LOOP_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(41.0f,182.0f), module, POUPRE::START_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(41.0f,229.0f), module, POUPRE::LEN_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(41.0f,276.0f), module, POUPRE::SPEED_PARAM));
+		addParam(createParam<BidooBlueSnapKnob>(Vec(45.0f,35.0f), module, MAGMA::CHANNEL_PARAM));
 
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 95.0f), module, POUPRE::GATE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 142.0f), module, POUPRE::LOOP_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 189.0f), module, POUPRE::START_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 236.0f), module, POUPRE::LEN_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 283.0f), module, POUPRE::SPEED_INPUT));
+		addParam(createParam<BidooBlueKnob>(Vec(7.0f,100.0f), module, MAGMA::START_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(45.0f,100.0f), module, MAGMA::LEN_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(83.0f,100.0f), module, MAGMA::SPEED_PARAM));
 
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 330.0f), module, POUPRE::TRIG_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(43.5f, 330.0f), module, POUPRE::POLY_OUTPUT));
+		addParam(createParam<BidooBlueSnapKnob>(Vec(7.0f,150.0f), module, MAGMA::FILTERTYPE_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(45.0f,150.0f), module, MAGMA::FREQ_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(83.0f,150.0f), module, MAGMA::Q_PARAM));
+
+		addParam(createParam<CKSS>(Vec(38.0f,191.5f), module, MAGMA::LOOP_PARAM));
+		addParam(createParam<CKSS>(Vec(97.0f,191.5f), module, MAGMA::GATE_PARAM));
+
+		addInput(createInput<PJ301MPort>(Vec(4.0f, 236.0f), module, MAGMA::START_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(33.0f, 236.0f), module, MAGMA::LEN_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(62.5f, 236.0f), module, MAGMA::SPEED_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(91.5f, 236.0f), module, MAGMA::LOOP_INPUT));
+
+		addInput(createInput<PJ301MPort>(Vec(4.0f, 283.0f), module, MAGMA::FILTERTYPE_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(33.0f, 283.0f), module, MAGMA::FREQ_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(62.5f, 283.0f), module, MAGMA::Q_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(91.5f, 283.0f), module, MAGMA::GATE_INPUT));
+
+		addInput(createInput<PJ301MPort>(Vec(7.0f, 330.0f), module, MAGMA::TRIG_INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(88.0f, 330.0f), module, MAGMA::POLY_OUTPUT));
 	}
 
-	struct POUPREItem : MenuItem {
-  	POUPRE *module;
+	struct MAGMAItem : MenuItem {
+  	MAGMA *module;
   	void onAction(const event::Action &e) override {
 
   		std::string dir = module->lastPath.empty() ? asset::user("") : rack::string::directory(module->lastPath);
@@ -297,12 +388,12 @@ struct POUPREWidget : ModuleWidget {
   };
 
   void appendContextMenu(ui::Menu *menu) override {
-		POUPRE *module = dynamic_cast<POUPRE*>(this->module);
+		MAGMA *module = dynamic_cast<MAGMA*>(this->module);
 		assert(module);
 
 		menu->addChild(construct<MenuLabel>());
-		menu->addChild(construct<POUPREItem>(&MenuItem::text, "Load sample", &POUPREItem::module, module));
+		menu->addChild(construct<MAGMAItem>(&MenuItem::text, "Load sample", &MAGMAItem::module, module));
 	}
 };
 
-Model *modelPOUPRE = createModel<POUPRE, POUPREWidget>("POUPRE");
+Model *modelMAGMA = createModel<MAGMA, MAGMAWidget>("MAGMA");

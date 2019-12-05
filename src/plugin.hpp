@@ -32,6 +32,7 @@ extern Model *modelACNE;
 extern Model *modelMS;
 extern Model *modelOUAIVE;
 extern Model *modelPOUPRE;
+extern Model *modelMAGMA;
 extern Model *modelEMILE;
 extern Model *modelFORK;
 extern Model *modelGARCON;
