@@ -128,8 +128,8 @@ struct MAGMA : Module {
 			json_object_set_new(channelJ, "loop", json_boolean(channels[i].loop));
 			json_object_set_new(channelJ, "gate", json_integer(channels[i].gate));
 			json_object_set_new(channelJ, "filterType", json_integer(channels[i].filterType));
-			json_object_set_new(channelJ, "q", json_integer(channels[i].q));
-			json_object_set_new(channelJ, "freq", json_integer(channels[i].freq));
+			json_object_set_new(channelJ, "q", json_real(channels[i].q));
+			json_object_set_new(channelJ, "freq", json_real(channels[i].freq));
 			json_object_set_new(rootJ, ("channel"+ to_string(i)).c_str(), channelJ);
 		}
 		return rootJ;
