@@ -46,11 +46,32 @@ struct channel {
 	float q;
 	float freq;
 	MultiFilter filter;
+
+	void randomize() {
+		q=random::uniform();
+		freq=random::uniform();
+		filterType=random::uniform()*3;
+		gate=random::uniform();
+		loop=random::uniform();
+		start=random::uniform();
+		len=random::uniform();
+		speed=random::uniform();
+	}
+
+	void reset() {
+		q=0.1f;
+		freq=1.0;
+		filterType=0;
+		gate=0;
+		loop=false;
+		start=0.0f;
+		len=1.0f;
+		speed=1.0f;
+	}
 };
 
 struct MAGMA : Module {
 	enum ParamIds {
-		CHANNEL_PARAM,
 		START_PARAM,
 		LEN_PARAM,
 		LOOP_PARAM,
@@ -59,6 +80,7 @@ struct MAGMA : Module {
 		Q_PARAM,
 		FREQ_PARAM,
 		FILTERTYPE_PARAM,
+		CHANNEL_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -99,7 +121,6 @@ struct MAGMA : Module {
 
 	MAGMA() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f);
 		configParam(START_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(LEN_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(LOOP_PARAM, 0.0f, 1.0f, 0.0f);
@@ -108,6 +129,7 @@ struct MAGMA : Module {
 		configParam(FILTERTYPE_PARAM, 0.0f, 3.0f, 0.0f);
 		configParam(Q_PARAM, 0.1f, 1.0f, 0.1f);
 		configParam(FREQ_PARAM, 0.0f, 1.0f, 1.0f);
+		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f);
 
 		playBuffer.resize(0);
 	}
@@ -116,6 +138,34 @@ struct MAGMA : Module {
 
 	void loadSample(std::string path);
 	void saveSample();
+
+	void onRandomize() override {
+		params[START_PARAM].setValue(random::uniform());
+		params[LEN_PARAM].setValue(random::uniform());
+		params[SPEED_PARAM].setValue(random::uniform());
+		params[LOOP_PARAM].setValue(random::uniform());
+		params[GATE_PARAM].setValue(random::uniform());
+		params[FILTERTYPE_PARAM].setValue(random::uniform()*3);
+		params[Q_PARAM].setValue(random::uniform());
+		params[FREQ_PARAM].setValue(random::uniform());
+		for (size_t i = 0; i<16 ; i++) {
+			channels[i].randomize();
+		}
+	}
+
+	void onReset() override {
+		params[START_PARAM].setValue(0.0f);
+		params[LEN_PARAM].setValue(1.0f);
+		params[SPEED_PARAM].setValue(1.0f);
+		params[LOOP_PARAM].setValue(0.0f);
+		params[GATE_PARAM].setValue(0.0f);
+		params[FILTERTYPE_PARAM].setValue(0.0f);
+		params[Q_PARAM].setValue(0.1f);
+		params[FREQ_PARAM].setValue(1.0f);
+		for (size_t i = 0; i<16 ; i++) {
+			channels[i].reset();
+		}
+	}
 
 	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
