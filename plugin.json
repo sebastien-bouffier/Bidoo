@@ -254,6 +254,14 @@
       ]
     },
     {
+      "slug": "POUPRE",
+      "name": "póUPrè",
+      "description": "Sample player",
+      "tags": [
+        "Sampler"
+      ]
+    },
+    {
       "slug": "PeNEqUe",
       "name": "PeNEqUe",
       "description": "Additive osicllator",

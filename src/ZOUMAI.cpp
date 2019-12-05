@@ -1530,7 +1530,7 @@ struct ZOUMAIWidget : ModuleWidget {
 		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[2]), module, ZOUMAI::G1_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[3]), module, ZOUMAI::G2_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[4]), module, ZOUMAI::PATTERN_INPUT));
-		addParam(createParam<RoundBlackSnapKnob>(Vec(8.0f,portY0[5]-13.f), module, ZOUMAI::PATTERN_PARAM));
+		addParam(createParam<RoundBlackSnapKnob>(Vec(7.f,portY0[5]-13.f), module, ZOUMAI::PATTERN_PARAM));
 
 		static const float portX0Controls[3] = {170.0f, 238.5f, 305.0f};
 		static const float portX1Controls[6] = {147.0f, 184.0f, 221.0f, 258.0f, 295.0f, 332.0f};
