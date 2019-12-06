@@ -748,23 +748,23 @@ struct CANARDWidget : ModuleWidget {
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[3]-7, 170), module, CANARD::LOOP_LENGTH_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[4]-7, 170), module, CANARD::READ_MODE_PARAM));
 
-		addInput(createInput<PJ301MPort>(Vec(portX0[0]-4, 202), module, CANARD::RECORD_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[1]-4, 202), module, CANARD::TRIG_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[1]-4, 172), module, CANARD::GATE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[2]-4, 202), module, CANARD::SAMPLE_START_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[3]-4, 202), module, CANARD::LOOP_LENGTH_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[4]-4, 202), module, CANARD::READ_MODE_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX0[0]-4.5f, 202), module, CANARD::RECORD_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX0[1]-4.5f, 202), module, CANARD::TRIG_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX0[1]-4.5f, 172), module, CANARD::GATE_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX0[2]-5.0f, 202), module, CANARD::SAMPLE_START_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX0[3]-5.0f, 202), module, CANARD::LOOP_LENGTH_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX0[4]-4.5f, 202), module, CANARD::READ_MODE_INPUT));
 
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[0]-7, 245), module, CANARD::SPEED_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[1]-7, 245), module, CANARD::FADE_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[2]-7, 245), module, CANARD::SLICE_PARAM));
 		addParam(createParam<BlueCKD6>(Vec(portX0[3]-6, 245), module, CANARD::CLEAR_PARAM));
-		addOutput(createOutput<PJ301MPort>(Vec(portX0[4]-4, 247), module, CANARD::EOC_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(portX0[4]-4.5f, 247), module, CANARD::EOC_OUTPUT));
 
-		addInput(createInput<PJ301MPort>(Vec(portX0[0]-4, 277), module, CANARD::SPEED_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[1]-4, 277), module, CANARD::FADE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[2]-4, 277), module, CANARD::SLICE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[3]-4, 277), module, CANARD::CLEAR_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX0[0]-4.5f, 277), module, CANARD::SPEED_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX0[1]-4.5f, 277), module, CANARD::FADE_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX0[2]-4.5f, 277), module, CANARD::SLICE_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX0[3]-5.0f, 277), module, CANARD::CLEAR_INPUT));
 		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[4]-1, 280), module, CANARD::THRESHOLD_PARAM));
 
 		addParam(createParam<CKSS>(Vec(90, 325), module, CANARD::MODE_PARAM));

@@ -145,7 +145,7 @@ struct MAGMA : Module {
 		params[SPEED_PARAM].setValue(random::uniform());
 		params[LOOP_PARAM].setValue(random::uniform());
 		params[GATE_PARAM].setValue(random::uniform());
-		params[FILTERTYPE_PARAM].setValue(random::uniform()*3);
+		params[FILTERTYPE_PARAM].setValue((int)(random::uniform()*3.0f));
 		params[Q_PARAM].setValue(random::uniform());
 		params[FREQ_PARAM].setValue(random::uniform());
 		for (size_t i = 0; i<16 ; i++) {
