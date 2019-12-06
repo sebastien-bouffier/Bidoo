@@ -5,7 +5,9 @@
 ![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
-![pack](/images/pack.png?raw=true "pack")
+<p align="center">
+   <img src="https://github.com/sebastien-bouffier/Bidoo/blob/v1.0/images/pack.png"/>
+</p>
 
 ## How to
 
