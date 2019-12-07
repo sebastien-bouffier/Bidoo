@@ -99,9 +99,7 @@ struct ZINCDisplay : TransparentWidget {
 
 	void draw(NVGcontext *vg) override {
 		nvgFontSize(vg, 12);
-		nvgFontFaceId(vg, font->handle);
 		nvgStrokeWidth(vg, 2);
-		nvgTextLetterSpacing(vg, -2);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER);
 		static const int portX0[4] = { 20, 63, 106, 149 };
 		if (module) {
