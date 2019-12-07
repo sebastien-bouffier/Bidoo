@@ -144,7 +144,7 @@ struct ACNE : Module {
 		for (int i = 0; i < 8; i++) {
 			json_t *linkJ = json_object_get(rootJ, ("link" + to_string(i)).c_str());
 			if (linkJ)
-				links[i] = json_is_true(linkJ);
+				links[i] = json_boolean_value(linkJ);
 		}
 
 		updateFaders();

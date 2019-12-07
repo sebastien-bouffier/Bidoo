@@ -113,7 +113,7 @@ struct POUPRE : Module {
 							channels[i].speed = json_number_value(speedJ);
 						json_t *loopJ= json_object_get(channelJ, "loop");
 						if (loopJ)
-							channels[i].loop = !!json_integer_value(loopJ);
+							channels[i].loop = json_boolean_value(loopJ);
 						json_t *gateJ= json_object_get(channelJ, "gate");
 						if (gateJ)
 							channels[i].gate = json_integer_value(gateJ);
@@ -125,7 +125,7 @@ struct POUPRE : Module {
 
 void POUPRE::loadSample(std::string path) {
 	waveFileName = rack::string::filename(path);
-	waveExtension = rack::string::filenameExtension(rack::string::filename(lastPath));
+	waveExtension = rack::string::filenameExtension(rack::string::filename(path));
 	lastPath = path;
 	if (waveExtension == "wav") {
 		loading = true;

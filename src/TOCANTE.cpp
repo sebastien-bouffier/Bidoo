@@ -77,7 +77,7 @@ struct TOCANTE : Module {
 	void dataFromJson(json_t *rootJ) override {
 		json_t *runningJ = json_object_get(rootJ, "running");
 		if (runningJ){
-			running = json_is_true(runningJ);
+			running = json_boolean_value(runningJ);
 		}
 }
 

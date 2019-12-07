@@ -826,7 +826,7 @@ struct ZOUMAI : Module {
 					if (trackJ){
 						json_t *isActiveJ = json_object_get(trackJ, "isActive");
 						if (isActiveJ)
-							patterns[i].tracks[j].isActive = json_is_true(isActiveJ) ? 1 : 0;
+							patterns[i].tracks[j].isActive = json_boolean_value(isActiveJ);
 						json_t *lengthJ = json_object_get(trackJ, "length");
 						if (lengthJ)
 							patterns[i].tracks[j].length = json_integer_value(lengthJ);
@@ -845,7 +845,7 @@ struct ZOUMAI : Module {
 						if (trigJ) {
 							json_t *isActiveJ = json_object_get(trigJ, "isActive");
 							if (isActiveJ)
-								patterns[i].tracks[j].trigs[k].isActive = json_is_true(isActiveJ) ? 1 : 0;
+								patterns[i].tracks[j].trigs[k].isActive = json_boolean_value(isActiveJ);
 							json_t *slideJ = json_object_get(trigJ, "slide");
 							if (slideJ)
 								patterns[i].tracks[j].trigs[k].slide = json_number_value(slideJ);

@@ -1,3 +1,6 @@
+### v1.1.4 (07/12/2019)
+- NEW oAï sampler
+
 ### v1.1.3 (05/12/2019)
 - global skins cleaning
 - NEW póUPrè sampler

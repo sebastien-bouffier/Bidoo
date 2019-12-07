@@ -109,11 +109,11 @@ struct RABBIT : Module {
 		for (int i = 0; i < 8; i++) {
 			json_t *jbitOff = json_object_get(rootJ, ("bitOff" + to_string(i)).c_str());
 			if (jbitOff) {
-				bitOff[i] = json_is_true(jbitOff) ? 1 : 0;
+				bitOff[i] = json_boolean_value(jbitOff);
 			}
 			json_t *jbitRev = json_object_get(rootJ, ("bitRev" + to_string(i)).c_str());
 			if (jbitRev) {
-				bitRev[i] = json_is_true(jbitRev) ? 1 : 0;
+				bitRev[i] = json_boolean_value(jbitRev);
 			}
 		}
 	}

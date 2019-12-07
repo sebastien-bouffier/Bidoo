@@ -74,7 +74,7 @@ struct CURT : Module {
 	void dataFromJson(json_t *rootJ) override {
 		json_t *modeJ = json_object_get(rootJ, "mode");
 		if (modeJ)
-			mode = json_is_true(modeJ);
+			mode = json_boolean_value(modeJ);
 	}
 
 	void process(const ProcessArgs &args) override;

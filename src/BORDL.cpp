@@ -490,7 +490,7 @@ struct BORDL : Module {
 			running = json_is_true(runningJ);
 		json_t *playModeJ = json_object_get(rootJ, "playMode");
 		if (playModeJ)
-			playMode = json_integer_value(playModeJ);
+			playMode = json_boolean_value(playModeJ);
 		json_t *countModeJ = json_object_get(rootJ, "countMode");
 		if (countModeJ)
 			countMode = json_integer_value(countModeJ);
@@ -502,15 +502,15 @@ struct BORDL : Module {
 			playedPattern = json_integer_value(playedPatternJ);
 		json_t *stepOutputsModeJ = json_object_get(rootJ, "stepOutputsMode");
 		if (stepOutputsModeJ)
-			stepOutputsMode = json_is_true(stepOutputsModeJ);
+			stepOutputsMode = json_boolean_value(stepOutputsModeJ);
 		json_t *trigsJ = json_object_get(rootJ, "trigs");
 		if (trigsJ) {
 			for (int i = 0; i < 8; i++) {
 				json_t *trigJ = json_array_get(trigsJ, i);
 				if (trigJ)
 				{
-					slideState[i] = json_is_true(json_array_get(trigJ, 0)) ? 't' : 'f';
-					skipState[i] = json_is_true(json_array_get(trigJ, 1)) ? 't' : 'f';
+					slideState[i] = json_boolean_value(json_array_get(trigJ, 0)) ? 't' : 'f';
+					skipState[i] = json_boolean_value(json_array_get(trigJ, 1)) ? 't' : 'f';
 				}
 			}
 		}
