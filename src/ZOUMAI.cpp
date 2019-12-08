@@ -11,9 +11,9 @@
 
 using namespace std;
 
-struct trig {
+struct Trig {
 
-	trig() {
+	Trig() {
 
 	}
 
@@ -48,14 +48,14 @@ struct trig {
 	void randomize();
 	void fullRandomize();
 	bool hasProbability();
-	void copy(const trig *t);
+	void copy(const Trig *t);
 	int getOctave();
 	int getSemiTones();
 	void up();
 	void down();
 };
 
-inline void trig::copy(const trig *t) {
+inline void Trig::copy(const Trig *t) {
 	isActive = t->isActive;
 	slide = t->slide;
 	trigType = t->trigType;
@@ -72,7 +72,7 @@ inline void trig::copy(const trig *t) {
 	countReset = t->countReset;
 }
 
-inline void trig::reset() {
+inline void Trig::reset() {
 	isActive = false;
 	slide = 0.0f;
 	trigType = 0;
@@ -89,7 +89,7 @@ inline void trig::reset() {
 	countReset = 1;
 }
 
-inline void trig::randomize() {
+inline void Trig::randomize() {
 	isActive = random::uniform()>0.5f;
 	slide = random::uniform()*10.0f;
 	trim = (int)(random::uniform()*10) * (random::uniform()>0.5f ? -1 : 1);
@@ -105,7 +105,7 @@ inline void trig::randomize() {
 	countReset = 1;
 }
 
-inline void trig::fullRandomize() {
+inline void Trig::fullRandomize() {
 	isActive = random::uniform()>0.5f;
 	slide = random::uniform()*10.0f;
 	trigType = (int)(random::uniform()*2);
@@ -122,11 +122,11 @@ inline void trig::fullRandomize() {
 	countReset = (int)(random::uniform()*99)+1;
 }
 
-inline bool trig::hasProbability() {
+inline bool Trig::hasProbability() {
 	return (proba != 4) && (proba != 5) && !((proba == 0) && (count == 100));
 }
 
-inline void trig::init(const bool fill, const bool pre, const bool nei) {
+inline void Trig::init(const bool fill, const bool pre, const bool nei) {
 	switch (proba) {
 		case 0:  // dice
 			if (count<100) {
@@ -163,7 +163,7 @@ inline void trig::init(const bool fill, const bool pre, const bool nei) {
 	}
 }
 
-inline float trig::getGateValue(const float trackPosition) {
+inline float Trig::getGateValue(const float trackPosition) {
 	if (isActive && !isSleeping) {
 		float rTTP = getRelativeTrackPosition(trackPosition);
 		if (rTTP >= 0) {
@@ -182,39 +182,39 @@ inline float trig::getGateValue(const float trackPosition) {
 		return 0.0f;
 }
 
-inline float trig::getRelativeTrackPosition(const float trackPosition) {
+inline float Trig::getRelativeTrackPosition(const float trackPosition) {
 	return trackPosition - getTrimedReference();
 }
 
-inline int trig::getFullLength() {
+inline int Trig::getFullLength() {
 	return pulseCount == 1 ? length : ((pulseCount*pulseDistance) + length);
 }
 
-inline int trig::getTrimedReference() {
+inline int Trig::getTrimedReference() {
 	return reference + trim;
 }
 
-inline float trig::getVO() {
+inline float Trig::getVO() {
 	return (float)octave + (float)semitones/12.0f;
 }
 
-inline float trig::getCV1() {
+inline float Trig::getCV1() {
 	return CV1;
 }
 
-inline float trig::getCV2() {
+inline float Trig::getCV2() {
 	return CV2;
 }
 
-inline int trig::getOctave() {
+inline int Trig::getOctave() {
 	return octave;
 }
 
-inline int trig::getSemiTones() {
+inline int Trig::getSemiTones() {
 	return semitones;
 }
 
-inline void trig::up() {
+inline void Trig::up() {
 	if (semitones==11) {
 		octave++;
 		semitones=0;
@@ -224,7 +224,7 @@ inline void trig::up() {
 	}
 }
 
-inline void trig::down() {
+inline void Trig::down() {
 	if (semitones==0) {
 		octave--;
 		semitones=11;
@@ -234,29 +234,30 @@ inline void trig::down() {
 	}
 }
 
-struct track {
-	trig trigs[64];
+struct Track {
+	Trig trigs[64];
 	bool isActive = true;
+	bool isSolo = false;
 	int length = 16;
 	int readMode = 0;
 	float trackIndex = 0.0f;
 	float speed = 1.0f;
-	trig *prevTrig = trigs;
-	trig *memTrig = trigs;
-	trig *currentTrig = trigs;
+	Trig *prevTrig = trigs;
+	Trig *memTrig = trigs;
+	Trig *currentTrig = trigs;
 	int nextIndex = 0;
 	bool fwd = true;
 	bool pre = false;
 
-	track() {
+	Track() {
 		for(int i=0;i<64;i++) {
 			trigs[i].index = i;
 			trigs[i].reference = i*192;
 		}
 	}
 
-	trig getCurrentTrig();
-	trig getMemTrig();
+	Trig getCurrentTrig();
+	Trig getMemTrig();
 	float getGate();
 	float getVO();
 	float getCV1();
@@ -272,14 +273,14 @@ struct track {
 	void clear();
 	void randomize();
 	void fullRandomize();
-	void copy(const track *t);
+	void copy(const Track *t);
 	void up();
 	void down();
 	void left();
 	void right();
 };
 
-inline void track::copy(const track *t) {
+inline void Track::copy(const Track *t) {
 	isActive = t->isActive;
 	length = t->length;
 	readMode = t->readMode;
@@ -289,7 +290,7 @@ inline void track::copy(const track *t) {
 	}
 }
 
-inline void track::clear() {
+inline void Track::clear() {
 	isActive = true;
 	length = 16;
 	readMode = 0;
@@ -300,13 +301,13 @@ inline void track::clear() {
 	}
 }
 
-inline void track::randomize() {
+inline void Track::randomize() {
 	for (int i = 0; i < 64; i++) {
 		trigs[i].randomize();
 	}
 }
 
-inline void track::fullRandomize() {
+inline void Track::fullRandomize() {
 	isActive = random::uniform()>0.5f;
 	length = (int)(random::uniform()*64.0f);
 	readMode = (int)(random::uniform()*4.0f);
@@ -316,19 +317,19 @@ inline void track::fullRandomize() {
 	}
 }
 
-inline trig track::getCurrentTrig() {
+inline Trig Track::getCurrentTrig() {
 	return *currentTrig;
 }
 
-inline trig track::getMemTrig() {
+inline Trig Track::getMemTrig() {
 	return *memTrig;
 }
 
-inline float track::getGate() {
+inline float Track::getGate() {
 	return memTrig->getGateValue(trackIndex);
 }
 
-inline float track::getVO() {
+inline float Track::getVO() {
 	if (memTrig->slide == 0.0f) {
 		return memTrig->getVO();
 	}
@@ -346,15 +347,15 @@ inline float track::getVO() {
 	}
 }
 
-inline float track::getCV1() {
+inline float Track::getCV1() {
 	return memTrig->getCV1();
 }
 
-inline float track::getCV2() {
+inline float Track::getCV2() {
 	return memTrig->getCV2();
 }
 
-inline void track::reset(const bool fill, const bool pNei) {
+inline void Track::reset(const bool fill, const bool pNei) {
 	pre = false;
 	if (readMode == 1)
 	{
@@ -375,7 +376,7 @@ inline void track::reset(const bool fill, const bool pNei) {
 	nextIndex = getNextIndex();
 }
 
-inline int track::getNextIndex() {
+inline int Track::getNextIndex() {
 	switch (readMode) {
 		case 0:
 				return (currentTrig->index+1) > (length-1) ? 0 : (currentTrig->index+1);
@@ -413,7 +414,7 @@ inline int track::getNextIndex() {
 	}
 }
 
-inline void track::moveNextForward(const bool fill, const bool pNei) {
+inline void Track::moveNextForward(const bool fill, const bool pNei) {
 	if ((length>1) && (trackIndex>192) && (currentTrig->index==0) && (nextIndex==0)) nextIndex = getNextIndex();
 	if (trackIndex>(length*192)) trackIndex=0.0f;
 	if (((nextIndex != 0) && (nextIndex<64) && (trigs[nextIndex].getRelativeTrackPosition(trackIndex) >= 0)) || (trackIndex == 0.f)) {
@@ -430,7 +431,7 @@ inline void track::moveNextForward(const bool fill, const bool pNei) {
 	}
 }
 
-inline void track::moveNextBackward(const bool fill, const bool pNei) {
+inline void Track::moveNextBackward(const bool fill, const bool pNei) {
 	if (trackIndex>(currentTrig->reference+191)) {
 		pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
 		trigs[nextIndex].init(fill,pre,pNei);
@@ -444,7 +445,7 @@ inline void track::moveNextBackward(const bool fill, const bool pNei) {
 	}
 }
 
-inline void track::moveNextPendulum(const bool fill, const bool pNei){
+inline void Track::moveNextPendulum(const bool fill, const bool pNei){
 	if (fwd) {
 		moveNextForward(fill, pNei);
 		if (currentTrig->index == length-1) fwd = false;
@@ -455,15 +456,15 @@ inline void track::moveNextPendulum(const bool fill, const bool pNei){
 	}
 }
 
-inline void track::moveNextRandom(const bool fill, const bool pNei){
+inline void Track::moveNextRandom(const bool fill, const bool pNei){
 	moveNextBackward(fill, pNei);
 }
 
-inline void track::moveNextBrownian(const bool fill, const bool pNei){
+inline void Track::moveNextBrownian(const bool fill, const bool pNei){
 	moveNextBackward(fill, pNei);
 }
 
-void track::moveNext(const bool fill, const bool pNei) {
+void Track::moveNext(const bool fill, const bool pNei) {
 		trackIndex += speed;
 		switch (readMode) {
 			case 0: moveNextForward(fill, pNei); break;
@@ -474,20 +475,20 @@ void track::moveNext(const bool fill, const bool pNei) {
 		}
 }
 
-inline void track::up() {
+inline void Track::up() {
 	for (int i = 0; i < 64; i++) {
 		trigs[i].up();
 	}
 }
 
-inline void track::down() {
+inline void Track::down() {
 	for (int i = 0; i < 64; i++) {
 		trigs[i].down();
 	}
 }
 
-inline void track::left() {
-	trig temp = trigs[0];
+inline void Track::left() {
+	Trig temp = trigs[0];
 	for (int i = 0; i < length-1; i++){
 	  trigs[i] = trigs[i + 1];
 	}
@@ -498,8 +499,8 @@ inline void track::left() {
 	}
 }
 
-inline void track::right() {
-	trig temp = trigs[length-1];
+inline void Track::right() {
+	Trig temp = trigs[length-1];
 	for (int i = length-1; i>0; i--){
 	  trigs[i] = trigs[i - 1];
 	}
@@ -510,52 +511,63 @@ inline void track::right() {
 	}
 }
 
-struct pattern {
-	track tracks[8];
+struct Pattern {
+	Track tracks[8];
 
-	pattern() {
+	Pattern() {
 
 	};
 
 	void moveNext(const bool fill);
 	void reset(const bool fill);
-	void copy(const pattern *p);
+	void copy(const Pattern *p);
 	void clear();
 	void randomize();
 	void fullRandomize();
+	bool isSoloed();
 };
 
-inline void pattern::copy(const pattern *p) {
+inline bool Pattern::isSoloed() {
+	for (int i = 0; i < 8; i++) {
+		if (tracks[i].isSolo) {
+			return true;
+			break;
+		}
+	}
+	return false;
+}
+
+inline void Pattern::copy(const Pattern *p) {
 	for (int i = 0; i < 8; i++) {
 		tracks[i].copy(p->tracks + i);
 	}
 }
 
-inline void pattern::moveNext(const bool fill) {
+inline void Pattern::moveNext(const bool fill) {
 	for (int i = 0; i < 8; i++) {
 		tracks[i].moveNext(fill, i==0?false:tracks[i-1].pre);
 	}
 }
 
-inline void pattern::reset(const bool fill) {
+inline void Pattern::reset(const bool fill) {
 	for (int i = 0; i < 8; i++) {
 		tracks[i].reset(fill, i==0?false:tracks[i-1].pre);
 	}
 }
 
-inline void pattern::clear() {
+inline void Pattern::clear() {
 	for (int i = 0; i < 8; i++) {
 		tracks[i].clear();
 	}
 }
 
-inline void pattern::randomize() {
+inline void Pattern::randomize() {
 	for (int i = 0; i < 8; i++) {
 		tracks[i].randomize();
 	}
 }
 
-inline void pattern::fullRandomize() {
+inline void Pattern::fullRandomize() {
 	for (int i = 0; i < 8; i++) {
 		tracks[i].fullRandomize();
 	}
@@ -630,7 +642,7 @@ struct ZOUMAI : Module {
 	enum LightIds {
 		STEPS_LIGHTS,
 		TRACKSONOFF_LIGHTS = STEPS_LIGHTS + 16*3,
-		TRACKSELECT_LIGHTS = TRACKSONOFF_LIGHTS + 8,
+		TRACKSELECT_LIGHTS = TRACKSONOFF_LIGHTS + 8*3,
 		TRIGPAGE_LIGHTS = TRACKSELECT_LIGHTS + 8,
 		FILL_LIGHT = TRIGPAGE_LIGHTS + 4*3,
 		OCTAVE_LIGHT,
@@ -687,7 +699,7 @@ struct ZOUMAI : Module {
 	dsp::SchmittTrigger upTrackTrigger;
 	dsp::SchmittTrigger downTrackTrigger;
 
-	pattern patterns[8];
+	Pattern patterns[8];
 	float lastTickCount = 0.0f;
 	float currentTickCount = 0.0f;
 	float phase = 0.0f;
@@ -703,6 +715,14 @@ struct ZOUMAI : Module {
 	int copyTrackId = -1;
 	int copyPatternId = -1;
 	int copyTrigId = -1;
+
+	Pattern* cP() {
+		return &patterns[currentPattern];
+	}
+
+	Track* cT() {
+		return &cP()->tracks[currentTrack];
+	}
 
 	ZOUMAI() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -901,13 +921,13 @@ struct ZOUMAI : Module {
 	}
 
 	void onRandomize() override {
-		patterns[currentPattern].randomize();
+		cP()->randomize();
 		updateTrackToParams();
 		updateTrigToParams();
 	}
 
 	void onReset() override {
-		patterns[currentPattern].clear();
+		cP()->clear();
 		updateTrackToParams();
 		updateTrigToParams();
 	}
@@ -915,74 +935,74 @@ struct ZOUMAI : Module {
 	void process(const ProcessArgs &args) override;
 
 	void updateTrackToParams() {
-		params[TRACKLENGTH_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].length);
-		params[TRACKSPEED_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].speed*2.0f);
-		params[TRACKREADMODE_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].readMode);
+		params[TRACKLENGTH_PARAM].setValue(cT()->length);
+		params[TRACKSPEED_PARAM].setValue(cT()->speed*2.0f);
+		params[TRACKREADMODE_PARAM].setValue(cT()->readMode);
 	}
 
 	void updateTrigToParams() {
-		params[TRIGLENGTH_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].length);
-		params[TRIGSLIDE_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].slide);
-		params[TRIGTYPE_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].trigType);
-		params[TRIGTRIM_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].trim);
-		params[TRIGPULSECOUNT_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].pulseCount);
-		params[TRIGPULSEDISTANCE_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].pulseDistance);
-		params[TRIGCV1_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].CV1);
-		params[TRIGCV2_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].CV2);
-		params[TRIGPROBA_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].proba);
-		params[TRIGPROBACOUNT_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].count);
-		params[TRIGPROBACOUNTRESET_PARAM].setValue(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].countReset);
+		params[TRIGLENGTH_PARAM].setValue(cT()->trigs[currentTrig].length);
+		params[TRIGSLIDE_PARAM].setValue(cT()->trigs[currentTrig].slide);
+		params[TRIGTYPE_PARAM].setValue(cT()->trigs[currentTrig].trigType);
+		params[TRIGTRIM_PARAM].setValue(cT()->trigs[currentTrig].trim);
+		params[TRIGPULSECOUNT_PARAM].setValue(cT()->trigs[currentTrig].pulseCount);
+		params[TRIGPULSEDISTANCE_PARAM].setValue(cT()->trigs[currentTrig].pulseDistance);
+		params[TRIGCV1_PARAM].setValue(cT()->trigs[currentTrig].CV1);
+		params[TRIGCV2_PARAM].setValue(cT()->trigs[currentTrig].CV2);
+		params[TRIGPROBA_PARAM].setValue(cT()->trigs[currentTrig].proba);
+		params[TRIGPROBACOUNT_PARAM].setValue(cT()->trigs[currentTrig].count);
+		params[TRIGPROBACOUNTRESET_PARAM].setValue(cT()->trigs[currentTrig].countReset);
 	}
 
 	void updateTrigVO() {
 		for (int i=0;i<7;i++) {
 			if (octaveTriggers[i].process(params[OCTAVE_PARAMS+i].getValue())) {
-				patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].octave = i-3;
+				cT()->trigs[currentTrig].octave = i-3;
 			}
-			lights[OCTAVE_LIGHT+i].setBrightness(i-3==patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].octave?1.0f:0.f);
+			lights[OCTAVE_LIGHT+i].setBrightness(i-3==cT()->trigs[currentTrig].octave?1.0f:0.f);
 		}
 
 		for (int i=0;i<12;i++) {
 			if (noteTriggers[i].process(params[NOTE_PARAMS+i].getValue())) {
-				if (patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].semitones == i) {
-					patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].isActive = !patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].isActive;
+				if (cT()->trigs[currentTrig].semitones == i) {
+					cT()->trigs[currentTrig].isActive = !cT()->trigs[currentTrig].isActive;
 				}
 				else {
-					patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].semitones = i;
-					patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].isActive = true;
+					cT()->trigs[currentTrig].semitones = i;
+					cT()->trigs[currentTrig].isActive = true;
 				}
 			}
 			if ((i!=1)&&(i!=3)&&(i!=6)&&(i!=8)&&(i!=10)) {
-				lights[NOTES_LIGHT+i*3].setBrightness(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].semitones == i?(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].isActive?0.0f:0.0f):1.0f);
-				lights[NOTES_LIGHT+(i*3)+1].setBrightness(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].semitones == i?(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].isActive?1.0f:0.5f):1.0f);
-				lights[NOTES_LIGHT+(i*3)+2].setBrightness(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].semitones == i?(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].isActive?0.0f:0.0f):1.0f);
+				lights[NOTES_LIGHT+i*3].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?0.0f:0.0f):1.0f);
+				lights[NOTES_LIGHT+(i*3)+1].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?1.0f:0.5f):1.0f);
+				lights[NOTES_LIGHT+(i*3)+2].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?0.0f:0.0f):1.0f);
 			}
 			else {
-				lights[NOTES_LIGHT+i*3].setBrightness(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].semitones == i?(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].isActive?0.0f:0.0f):0.0f);
-				lights[NOTES_LIGHT+(i*3)+1].setBrightness(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].semitones == i?(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].isActive?1.0f:0.5f):0.0f);
-				lights[NOTES_LIGHT+(i*3)+2].setBrightness(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].semitones == i?(patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].isActive?0.0f:0.0f):0.0f);
+				lights[NOTES_LIGHT+i*3].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?0.0f:0.0f):0.0f);
+				lights[NOTES_LIGHT+(i*3)+1].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?1.0f:0.5f):0.0f);
+				lights[NOTES_LIGHT+(i*3)+2].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?0.0f:0.0f):0.0f);
 			}
 		}
 	}
 
 	void updateParamsToTrack() {
-		patterns[currentPattern].tracks[currentTrack].length = params[TRACKLENGTH_PARAM].getValue();
-		patterns[currentPattern].tracks[currentTrack].speed = params[TRACKSPEED_PARAM].getValue()*0.5f;
-		patterns[currentPattern].tracks[currentTrack].readMode = params[TRACKREADMODE_PARAM].getValue();
+		cT()->length = params[TRACKLENGTH_PARAM].getValue();
+		cT()->speed = params[TRACKSPEED_PARAM].getValue()*0.5f;
+		cT()->readMode = params[TRACKREADMODE_PARAM].getValue();
 	}
 
 	void updateParamsToTrig() {
-		patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].length = params[TRIGLENGTH_PARAM].getValue();
-		patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].slide = params[TRIGSLIDE_PARAM].getValue();
-		patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].trigType = params[TRIGTYPE_PARAM].getValue();
-		patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].trim = params[TRIGTRIM_PARAM].getValue();
-		patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].pulseCount = params[TRIGPULSECOUNT_PARAM].getValue();
-		patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].pulseDistance = params[TRIGPULSEDISTANCE_PARAM].getValue();
-		patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].CV1 = params[TRIGCV1_PARAM].getValue();
-		patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].CV2 = params[TRIGCV2_PARAM].getValue();
-		patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].proba = params[TRIGPROBA_PARAM].getValue();
-		patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].count = params[TRIGPROBACOUNT_PARAM].getValue();
-		patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].countReset = params[TRIGPROBACOUNTRESET_PARAM].getValue();
+		cT()->trigs[currentTrig].length = params[TRIGLENGTH_PARAM].getValue();
+		cT()->trigs[currentTrig].slide = params[TRIGSLIDE_PARAM].getValue();
+		cT()->trigs[currentTrig].trigType = params[TRIGTYPE_PARAM].getValue();
+		cT()->trigs[currentTrig].trim = params[TRIGTRIM_PARAM].getValue();
+		cT()->trigs[currentTrig].pulseCount = params[TRIGPULSECOUNT_PARAM].getValue();
+		cT()->trigs[currentTrig].pulseDistance = params[TRIGPULSEDISTANCE_PARAM].getValue();
+		cT()->trigs[currentTrig].CV1 = params[TRIGCV1_PARAM].getValue();
+		cT()->trigs[currentTrig].CV2 = params[TRIGCV2_PARAM].getValue();
+		cT()->trigs[currentTrig].proba = params[TRIGPROBA_PARAM].getValue();
+		cT()->trigs[currentTrig].count = params[TRIGPROBACOUNT_PARAM].getValue();
+		cT()->trigs[currentTrig].countReset = params[TRIGPROBACOUNTRESET_PARAM].getValue();
 	}
 
 	void performTools() {
@@ -1012,7 +1032,7 @@ struct ZOUMAI : Module {
 		}
 
 		if (pastePatternTrigger.process(params[PASTEPATTERN_PARAM].getValue())) {
-			patterns[currentPattern].copy(&patterns[copyPatternId]);
+			cP()->copy(&patterns[copyPatternId]);
 			lights[PASTEPATTERN_LIGHT].setBrightness(1.0f);
 			updateTrackToParams();
 			updateTrigToParams();
@@ -1024,7 +1044,7 @@ struct ZOUMAI : Module {
 		}
 
 		if (pasteTrackTrigger.process(params[PASTETRACK_PARAM].getValue())) {
-			patterns[currentPattern].tracks[currentTrack].copy(&patterns[currentPattern].tracks[copyTrackId]);
+			cT()->copy(&cP()->tracks[copyTrackId]);
 			lights[PASTETRACK_LIGHT].setBrightness(1.0f);
 			updateTrackToParams();
 			updateTrigToParams();
@@ -1036,93 +1056,93 @@ struct ZOUMAI : Module {
 		}
 
 		if (pasteTrigTrigger.process(params[PASTETRIG_PARAM].getValue())) {
-			patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].copy(&patterns[currentPattern].tracks[currentTrack].trigs[copyTrigId]);
+			cT()->trigs[currentTrig].copy(&cT()->trigs[copyTrigId]);
 			lights[PASTETRIG_LIGHT].setBrightness(1.0f);
 			updateTrackToParams();
 			updateTrigToParams();
 		}
 
 		if (clearPatternTrigger.process(params[CLEARPATTERN_PARAM].getValue())) {
-				patterns[currentPattern].clear();
+				cP()->clear();
 				lights[CLEARPATTERN_LIGHT].setBrightness(1.0f);
 				updateTrackToParams();
 				updateTrigToParams();
 		}
 
 		if (clearTrackTrigger.process(params[CLEARTRACK_PARAM].getValue())) {
-				patterns[currentPattern].tracks[currentTrack].clear();
+				cT()->clear();
 				lights[CLEARTRACK_LIGHT].setBrightness(1.0f);
 				updateTrackToParams();
 				updateTrigToParams();
 		}
 
 		if (clearTrigTrigger.process(params[CLEARTRIG_PARAM].getValue())) {
-				patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].reset();
+				cT()->trigs[currentTrig].reset();
 				lights[CLEARTRIG_LIGHT].setBrightness(1.0f);
 				updateTrigToParams();
 		}
 
 		if (rndPatternTrigger.process(params[RNDPATTERN_PARAM].getValue())) {
-				patterns[currentPattern].randomize();
+				cP()->randomize();
 				lights[RNDPATTERN_LIGHT].setBrightness(1.0f);
 				updateTrackToParams();
 				updateTrigToParams();
 		}
 
 		if (rndTrackTrigger.process(params[RNDTRACK_PARAM].getValue())) {
-				patterns[currentPattern].tracks[currentTrack].randomize();
+				cT()->randomize();
 				lights[RNDTRACK_LIGHT].setBrightness(1.0f);
 				updateTrackToParams();
 				updateTrigToParams();
 		}
 
 		if (rndTrigTrigger.process(params[RNDTRIG_PARAM].getValue())) {
-				patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].randomize();
+				cT()->trigs[currentTrig].randomize();
 				lights[RNDTRIG_LIGHT].setBrightness(1.0f);
 				updateTrigToParams();
 		}
 
 		if (fRndPatternTrigger.process(params[FRNDPATTERN_PARAM].getValue())) {
-				patterns[currentPattern].fullRandomize();
+				cP()->fullRandomize();
 				lights[FRNDPATTERN_LIGHT].setBrightness(1.0f);
 				updateTrackToParams();
 				updateTrigToParams();
 		}
 
 		if (fRndTrackTrigger.process(params[FRNDTRACK_PARAM].getValue())) {
-				patterns[currentPattern].tracks[currentTrack].fullRandomize();
+				cT()->fullRandomize();
 				lights[FRNDTRACK_LIGHT].setBrightness(1.0f);
 				updateTrackToParams();
 				updateTrigToParams();
 		}
 
 		if (fRndTrigTrigger.process(params[FRNDTRIG_PARAM].getValue())) {
-				patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].fullRandomize();
+				cT()->trigs[currentTrig].fullRandomize();
 				lights[FRNDTRIG_LIGHT].setBrightness(1.0f);
 				updateTrackToParams();
 				updateTrigToParams();
 		}
 
 		if (upTrackTrigger.process(params[UPTRACK_PARAM].getValue())) {
-				patterns[currentPattern].tracks[currentTrack].up();
+				cT()->up();
 				lights[UPTRACK_LIGHT].setBrightness(1.0f);
 				updateTrigToParams();
 		}
 
 		if (downTrackTrigger.process(params[DOWNTRACK_PARAM].getValue())) {
-				patterns[currentPattern].tracks[currentTrack].down();
+				cT()->down();
 				lights[DOWNTRACK_LIGHT].setBrightness(1.0f);
 				updateTrigToParams();
 		}
 
 		if (rightTrackTrigger.process(params[RIGHTTRACK_PARAM].getValue())) {
-				patterns[currentPattern].tracks[currentTrack].right();
+				cT()->right();
 				lights[RIGHTTRACK_LIGHT].setBrightness(1.0f);
 				updateTrigToParams();
 		}
 
 		if (leftTrackTrigger.process(params[LEFTTRACK_PARAM].getValue())) {
-				patterns[currentPattern].tracks[currentTrack].left();
+				cT()->left();
 				lights[LEFTTRACK_LIGHT].setBrightness(1.0f);
 				updateTrigToParams();
 		}
@@ -1145,11 +1165,11 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			// for (int j = 0; j<8; j++) {
 			// 	patterns[j].tracks[i].reset(fill,i==0?false:patterns[j].tracks[i-1].pre);
 			// }
-			patterns[currentPattern].tracks[i].reset(fill,i==0?false:patterns[currentPattern].tracks[i-1].pre);
+			cP()->tracks[i].reset(fill,i==0?false:cP()->tracks[i-1].pre);
 		}
 
 		if (trackActiveTriggers[i].process(inputs[TRACKACTIVE_INPUTS+i].getVoltage() + params[TRACKSONOFF_PARAMS+i].getValue())) {
-			patterns[currentPattern].tracks[i].isActive = !patterns[currentPattern].tracks[i].isActive;
+			cP()->tracks[i].isActive = !cP()->tracks[i].isActive;
 		}
 
 		if (trackSelectTriggers[i].process(params[TRACKSELECT_PARAMS+i].getValue())) {
@@ -1163,11 +1183,21 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			lights[TRACKSELECT_LIGHTS+i].setBrightness(1.0f);
 		}
 
-		if (patterns[currentPattern].tracks[i].isActive) {
-			lights[TRACKSONOFF_LIGHTS+i].setBrightness(1.0f);
+		bool solo = cP()->isSoloed();
+		if (!solo && cP()->tracks[i].isActive) {
+			lights[TRACKSONOFF_LIGHTS+(i*3)].setBrightness(0.0f);
+			lights[TRACKSONOFF_LIGHTS+(i*3)+1].setBrightness(1.0f);
+			lights[TRACKSONOFF_LIGHTS+(i*3)+2].setBrightness(0.0f);
+		}
+		else if (solo && cP()->tracks[i].isSolo) {
+			lights[TRACKSONOFF_LIGHTS+(i*3)].setBrightness(1.0f);
+			lights[TRACKSONOFF_LIGHTS+(i*3)+1].setBrightness(0.0f);
+			lights[TRACKSONOFF_LIGHTS+(i*3)+2].setBrightness(0.0f);
 		}
 		else {
-			lights[TRACKSONOFF_LIGHTS+i].setBrightness(0.0f);
+			lights[TRACKSONOFF_LIGHTS+(i*3)].setBrightness(0.0f);
+			lights[TRACKSONOFF_LIGHTS+(i*3)+1].setBrightness(0.0f);
+			lights[TRACKSONOFF_LIGHTS+(i*3)+2].setBrightness(0.0f);
 		}
 	}
 
@@ -1182,7 +1212,7 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			lights[TRIGPAGE_LIGHTS+(i*3)+1].setBrightness(0.0f);
 			lights[TRIGPAGE_LIGHTS+(i*3)+2].setBrightness(1.0f);
 		}
-		else if ((patterns[currentPattern].tracks[currentTrack].getCurrentTrig().index >= (i*16)) && (patterns[currentPattern].tracks[currentTrack].getCurrentTrig().index<(16*(i+1)-1))) {
+		else if ((cT()->getCurrentTrig().index >= (i*16)) && (cT()->getCurrentTrig().index<(16*(i+1)-1))) {
 			lights[TRIGPAGE_LIGHTS+(i*3)].setBrightness(1.0f*(1-phase));
 			lights[TRIGPAGE_LIGHTS+(i*3)+1].setBrightness(0.5f*(1-phase));
 			lights[TRIGPAGE_LIGHTS+(i*3)+2].setBrightness(0.0f*(1-phase));
@@ -1201,12 +1231,12 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		}
 
 		int shiftedIndex = i + (trigPage*16);
-		if (patterns[currentPattern].tracks[currentTrack].getCurrentTrig().index == shiftedIndex) {
+		if (cT()->getCurrentTrig().index == shiftedIndex) {
 			lights[STEPS_LIGHTS+(i*3)].setBrightness(1.0f);
 			lights[STEPS_LIGHTS+(i*3)+1].setBrightness(0.5f);
 			lights[STEPS_LIGHTS+(i*3)+2].setBrightness(0.0f);
 		}
-		else if (patterns[currentPattern].tracks[currentTrack].trigs[shiftedIndex].isActive) {
+		else if (cT()->trigs[shiftedIndex].isActive) {
 			if (shiftedIndex == currentTrig) {
 				lights[STEPS_LIGHTS+(i*3)].setBrightness(0.0f);
 				lights[STEPS_LIGHTS+(i*3)+1].setBrightness(0.0f);
@@ -1235,7 +1265,7 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		updateTrackToParams();
 		updateTrigToParams();
 		for (int i = 0; i<8; i++) {
-			patterns[currentPattern].tracks[i].reset(fill, i==0?false:patterns[currentPattern].tracks[i-1].pre);
+			cP()->tracks[i].reset(fill, i==0?false:cP()->tracks[i-1].pre);
 		}
 	}
 	else {
@@ -1269,7 +1299,7 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			// 	}
 			// }
 			for (int i = 0; i<8; i++) {
-				if (!inputs[TRACKRESET_INPUTS+i].isConnected()) patterns[currentPattern].tracks[i].reset(fill, i==0?false:patterns[currentPattern].tracks[i-1].pre);
+				if (!inputs[TRACKRESET_INPUTS+i].isConnected()) cP()->tracks[i].reset(fill, i==0?false:cP()->tracks[i-1].pre);
 			}
 			ppqn = 0;
 		}
@@ -1277,20 +1307,20 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			// for (int i = 0; i<8; i++) {
 			// 	patterns[i].moveNext(fill);
 			// }
-			patterns[currentPattern].moveNext(fill);
+			cP()->moveNext(fill);
 			ppqn++;
 		}
 	}
 
 	for (int i = 0; i<8; i++) {
-		if (patterns[currentPattern].tracks[i].isActive){
-			float gate = patterns[currentPattern].tracks[i].getGate();
+		if ((cP()->isSoloed() && cP()->tracks[i].isSolo) || (!cP()->isSoloed() && cP()->tracks[i].isActive)) {
+			float gate = cP()->tracks[i].getGate();
 			if (gate>0.0f) {
-				if (patterns[currentPattern].tracks[i].getMemTrig().trigType == 0)
+				if (cP()->tracks[i].getMemTrig().trigType == 0)
 					outputs[GATE_OUTPUTS + i].setVoltage(gate);
-				else if (patterns[currentPattern].tracks[i].getMemTrig().trigType == 1)
+				else if (cP()->tracks[i].getMemTrig().trigType == 1)
 					outputs[GATE_OUTPUTS + i].setVoltage(inputs[G1_INPUT].getVoltage());
-				else if (patterns[currentPattern].tracks[i].getMemTrig().trigType == 2)
+				else if (cP()->tracks[i].getMemTrig().trigType == 2)
 					outputs[GATE_OUTPUTS + i].setVoltage(inputs[G2_INPUT].getVoltage());
 				else
 					outputs[GATE_OUTPUTS + i].setVoltage(0.0f);
@@ -1301,9 +1331,9 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		else
 			outputs[GATE_OUTPUTS + i].setVoltage(0.0f);
 
-		outputs[VO_OUTPUTS + i].setVoltage(patterns[currentPattern].tracks[i].getVO());
-		outputs[CV1_OUTPUTS + i].setVoltage(patterns[currentPattern].tracks[i].getCV1());
-		outputs[CV2_OUTPUTS + i].setVoltage(patterns[currentPattern].tracks[i].getCV2());
+		outputs[VO_OUTPUTS + i].setVoltage(cP()->tracks[i].getVO());
+		outputs[CV1_OUTPUTS + i].setVoltage(cP()->tracks[i].getCV1());
+		outputs[CV2_OUTPUTS + i].setVoltage(cP()->tracks[i].getCV2());
 	}
 }
 
@@ -1450,7 +1480,7 @@ struct ZOUMAIDisplay : TransparentWidget {
 		}
 	}
 
-	std::string displayNote(trig *t) {
+	std::string displayNote(Trig *t) {
 		std::string result = "";
 		if (t->semitones == 0)
 			return "C" + to_string(t->octave+4);
@@ -1502,6 +1532,29 @@ struct BidooProbBlueKnob : BidooBlueSnapKnob {
 			refReset->visible = false;
 		}
 		BidooBlueSnapKnob::draw(args);
+	}
+};
+
+struct ZoumaiLEDBezel : LEDBezel {
+	ZOUMAI *module;
+	int index=0;
+	void onButton(const event::Button &e) override {
+		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
+					module->cP()->tracks[index].isSolo = !module->cP()->tracks[index].isSolo;
+					module->currentTrack = index;
+		}
+		LEDBezel::onButton(e);
+	}
+};
+
+struct ZoumaiTrigLEDBezel : LEDBezel {
+	ZOUMAI *module;
+	int index=0;
+	void onButton(const event::Button &e) override {
+		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
+					module->cT()->trigs[index+module->trigPage*16].isActive = !module->cT()->trigs[index+module->trigPage*16].isActive;
+		}
+		LEDBezel::onButton(e);
 	}
 };
 
@@ -1622,8 +1675,12 @@ struct ZOUMAIWidget : ModuleWidget {
 		for (int i=0;i<8;i++){
 			addInput(createInput<TinyPJ301MPort>(Vec(50.0f, 67.0f + i*28.0f), module, ZOUMAI::TRACKRESET_INPUTS + i));
 			addInput(createInput<TinyPJ301MPort>(Vec(70.0f, 67.0f + i*28.0f), module, ZOUMAI::TRACKACTIVE_INPUTS + i));
-			addParam(createParam<LEDBezel>(Vec(90.0f , 64.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_PARAMS + i));
-			addChild(createLight<ZOUMAILight<GreenLight>>(Vec(92.0f, 66.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_LIGHTS + i));
+			addParam(createParam<ZoumaiLEDBezel>(Vec(90.0f , 64.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_PARAMS + i));
+			ZoumaiLEDBezel *p = createParam<ZoumaiLEDBezel>(Vec(90.0f , 64.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_PARAMS + i);
+			p->module=module;
+			p->index=i;
+			addParam(p);
+			addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(92.0f, 66.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_LIGHTS + i*3));
 
 			addParam(createParam<MiniLEDButton>(Vec(120.0f , 72.0f + i*28.0f), module, ZOUMAI::TRACKSELECT_PARAMS + i));
 			addChild(createLight<SmallLight<BlueLight>>(Vec(120.0f, 72.0f + i*28.0f), module, ZOUMAI::TRACKSELECT_LIGHTS + i));
@@ -1635,7 +1692,10 @@ struct ZOUMAIWidget : ModuleWidget {
 		}
 
 		for (int i=0;i<16;i++){
-			addParam(createParam<LEDBezel>(Vec(12.0f+ 28.0f*i, 330.0f), module, ZOUMAI::STEPS_PARAMS + i));
+			ZoumaiTrigLEDBezel *p = createParam<ZoumaiTrigLEDBezel>(Vec(12.0f+ 28.0f*i, 330.0f), module, ZOUMAI::STEPS_PARAMS + i);
+			p->module=module;
+			p->index=i;
+			addParam(p);
 			addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(14.0f+ 28.0f*i, 332.0f), module, ZOUMAI::STEPS_LIGHTS + i*3));
 		}
 

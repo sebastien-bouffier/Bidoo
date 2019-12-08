@@ -64,7 +64,7 @@ struct POUPRE : Module {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f);
 		configParam(START_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(LEN_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(LEN_PARAM, 0.0f, 1.0f, 1.0f);
 		configParam(LOOP_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(GATE_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(SPEED_PARAM, 0.0f, 10.0f, 1.0f);

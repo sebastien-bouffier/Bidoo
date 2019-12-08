@@ -1,3 +1,7 @@
+### v1.1.5 (08/12/2019)
+- zOù MAï shift + left click on track on/off button solo and select the track
+- zOù MAï shift + left click on trig enable/disable the trig without using the mini keyboard
+
 ### v1.1.4 (07/12/2019)
 - NEW oAï sampler
 
