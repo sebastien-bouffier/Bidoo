@@ -9,8 +9,7 @@
 #include <algorithm>
 #include "window.hpp"
 #include <mutex>
-#include "dep/dr_wav/dr_wav.h"
-#include "dep/AudioFile/AudioFile.h"
+#include "dep/waves.hpp"
 
 using namespace std;
 
@@ -57,11 +56,10 @@ struct CANARD : Module {
 	bool play = false;
 	bool record = false;
 	bool save = false;
-	unsigned int channels = 2;
-  unsigned int sampleRate = 0;
-  drwav_uint64 totalSampleCount = 0;
-	AudioFile<float> audioFile;
-	vector<vector<float>> playBuffer, recordBuffer;
+	int channels = 2;
+  int sampleRate = 0;
+  int totalSampleCount = 0;
+	vector<dsp::Frame<2>> playBuffer, recordBuffer;
 	float samplePos = 0.0f, sampleStart = 0.0f, loopLength = 0.0f, fadeLenght = 0.0f, fadeCoeff = 1.0f, speedFactor = 1.0f;
 	size_t prevPlayedSlice = 0;
 	size_t playedSlice = 0;
@@ -88,6 +86,7 @@ struct CANARD : Module {
 	dsp::PulseGenerator eocPulse;
 	std::mutex mylock;
 	bool newStop = false;
+	bool first=true;
 
 	CANARD() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -102,12 +101,8 @@ struct CANARD : Module {
 		configParam(THRESHOLD_PARAM, 0.01f, 10.0f, 1.0f);
 		configParam(MODE_PARAM, 0.0f, 1.0f, 0.0f);
 
-		playBuffer.resize(2);
-		playBuffer[0].resize(0);
-		playBuffer[1].resize(0);
-		recordBuffer.resize(2);
-		recordBuffer[0].resize(0);
-		recordBuffer[1].resize(0);
+		playBuffer.resize(0);
+		recordBuffer.resize(0);
 	}
 
 	void process(const ProcessArgs &args) override;
@@ -137,7 +132,7 @@ struct CANARD : Module {
 			lastPath = json_string_value(lastPathJ);
 			waveFileName = rack::string::filename(lastPath);
 			waveExtension = rack::string::filenameBase(lastPath);
-			loadSample(lastPath);
+			if (!lastPath.empty()) loadSample(lastPath);
 			if (totalSampleCount>0) {
 				json_t *slicesJ = json_object_get(rootJ, "slices");
 				if (slicesJ) {
@@ -151,79 +146,40 @@ struct CANARD : Module {
 			}
 		}
 	}
+
+	void onSampleRateChange() override {
+		if (!lastPath.empty()) loadSample(lastPath);
+	}
 };
 
 void CANARD::loadSample(std::string path) {
-	waveFileName = rack::string::filename(path);
-	waveExtension = rack::string::filenameExtension(rack::string::filename(lastPath));
 	lastPath = path;
-	if (waveExtension == "wav") {
-		loading = true;
-		unsigned int c;
-	  unsigned int sr;
-	  drwav_uint64 sc;
-		float* pSampleData;
-	  pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
-	  if (pSampleData != NULL)  {
-			channels = c;
-			sampleRate = sr;
-			slices.clear();
-			slices.push_back(0);
-			playBuffer[0].clear();
-			playBuffer[1].clear();
-			for (unsigned int i=0; i < sc; i = i + c) {
-				playBuffer[0].push_back(pSampleData[i]);
-				if (channels == 2)
-					playBuffer[1].push_back((float)pSampleData[i+1]);
-				else
-					playBuffer[1].push_back((float)pSampleData[i]);
-			}
-			totalSampleCount = playBuffer[0].size();
-			drwav_free(pSampleData);
-		}
-		loading = false;
-	}
-	else if (waveExtension == "aiff") {
-		loading = true;
-	  if (audioFile.load (path.c_str()))  {
-			channels = audioFile.getNumChannels();
-			sampleRate = audioFile.getSampleRate();
-			totalSampleCount = audioFile.getNumSamplesPerChannel();
-			slices.clear();
-			slices.push_back(0);
-			playBuffer[0].clear();
-			playBuffer[1].clear();
-			for (unsigned int i=0; i < totalSampleCount; i++) {
-				playBuffer[0].push_back(audioFile.samples[0][i]);
-				if (channels == 2)
-					playBuffer[1].push_back(audioFile.samples[1][i]);
-				else
-					playBuffer[1].push_back(audioFile.samples[0][i]);
-			}
-		}
-		loading = false;
-	}
+	float spmRate = appGet()->engine->getSampleRate();
+	loading = true;
+	appGet()->engine->yieldWorkers();
+	playBuffer = waves::getStereoWav(path, spmRate, waveFileName, waveExtension, channels, sampleRate, totalSampleCount);
+	loading = false;
 }
 
 void CANARD::saveSample() {
-	drwav_data_format format;
-	format.container = drwav_container_riff;
-	format.format = DR_WAVE_FORMAT_PCM;
-	format.channels = 2;
-	format.sampleRate = sampleRate;
-	format.bitsPerSample = 32;
-
-	int *pSamples = (int*)calloc(2*totalSampleCount,sizeof(int));
-	memset(pSamples, 0, 2*totalSampleCount*sizeof(int));
-	for (unsigned int i = 0; i < totalSampleCount; i++) {
-		*(pSamples+2*i)= floor(playBuffer[0][i]*2147483647);
-		*(pSamples+2*i+1)= floor(playBuffer[1][i]*2147483647);
-	}
-
-	drwav* pWav = drwav_open_file_write(lastPath.c_str(), &format);
-	drwav_write(pWav, 2*totalSampleCount, pSamples);
-	drwav_close(pWav);
-	free(pSamples);
+	// drwav_data_format format;
+	// format.container = drwav_container_riff;
+	// format.format = DR_WAVE_FORMAT_PCM;
+	// format.channels = 2;
+	// format.sampleRate = sampleRate;
+	// format.bitsPerSample = 32;
+	//
+	// int *pSamples = (int*)calloc(2*totalSampleCount,sizeof(int));
+	// memset(pSamples, 0, 2*totalSampleCount*sizeof(int));
+	// for (unsigned int i = 0; i < totalSampleCount; i++) {
+	// 	*(pSamples+2*i)= floor(playBuffer[0][i]*2147483647);
+	// 	*(pSamples+2*i+1)= floor(playBuffer[1][i]*2147483647);
+	// }
+	//
+	// drwav* pWav = drwav_open_file_write(lastPath.c_str(), &format);
+	// drwav_write(pWav, 2*totalSampleCount, pSamples);
+	// drwav_close(pWav);
+	// free(pSamples);
 }
 
 void CANARD::calcLoop() {
@@ -273,8 +229,7 @@ void CANARD::process(const ProcessArgs &args) {
 		if (clearTrigger.process(inputs[CLEAR_INPUT].getVoltage() + params[CLEAR_PARAM].getValue()))
 		{
 			mylock.lock();
-			playBuffer[0].clear();
-			playBuffer[1].clear();
+			playBuffer.clear();
 			totalSampleCount = 0;
 			slices.clear();
 			mylock.unlock();
@@ -288,19 +243,17 @@ void CANARD::process(const ProcessArgs &args) {
 			if ((size_t)selected<(slices.size()-1)) {
 				nbSample = slices[selected + 1] - slices[selected] - 1;
 				mylock.lock();
-				playBuffer[0].erase(playBuffer[0].begin() + slices[selected], playBuffer[0].begin() + slices[selected + 1]-1);
-				playBuffer[1].erase(playBuffer[1].begin() + slices[selected], playBuffer[1].begin() + slices[selected + 1]-1);
+				playBuffer.erase(playBuffer.begin() + slices[selected], playBuffer.begin() + slices[selected + 1]-1);
 				mylock.unlock();
 			}
 			else {
 				nbSample = totalSampleCount - slices[selected];
 				mylock.lock();
-				playBuffer[0].erase(playBuffer[0].begin() + slices[selected], playBuffer[0].end());
-				playBuffer[1].erase(playBuffer[1].begin() + slices[selected], playBuffer[1].end());
+				playBuffer.erase(playBuffer.begin() + slices[selected], playBuffer.end());
 				mylock.unlock();
 			}
 			slices.erase(slices.begin()+selected);
-			totalSampleCount = playBuffer[0].size();
+			totalSampleCount = playBuffer.size();
 			for (size_t i = selected; i < slices.size(); i++)
 			{
 				slices[i] = slices[i]-nbSample;
@@ -344,14 +297,12 @@ void CANARD::process(const ProcessArgs &args) {
 					mylock.lock();
 					slices.clear();
 					slices.push_back(0);
-					playBuffer.resize(2);
-					playBuffer[0].resize((int)recordBuffer[0].size());
-					playBuffer[1].resize((int)recordBuffer[0].size());
-					for (int i = 0; i < (int)recordBuffer[0].size(); i++) {
-						playBuffer[0][i] = recordBuffer[0][i];
-						playBuffer[1][i] = recordBuffer[1][i];
+					playBuffer.resize(0);
+					for (int i = 0; i < (int)recordBuffer.size(); i++) {
+						dsp::Frame<2> frame = recordBuffer[i];
+						playBuffer.push_back(frame);
 					}
-					totalSampleCount = playBuffer[0].size();
+					totalSampleCount = playBuffer.size();
 					mylock.unlock();
 					lastPath = "";
 					waveFileName = "";
@@ -360,14 +311,12 @@ void CANARD::process(const ProcessArgs &args) {
 				else {
 					mylock.lock();
 					slices.push_back(totalSampleCount > 0 ? (totalSampleCount-1) : 0);
-					playBuffer[0].insert(playBuffer[0].end(), recordBuffer[0].begin(), recordBuffer[0].end());
-					playBuffer[1].insert(playBuffer[1].end(), recordBuffer[1].begin(), recordBuffer[1].end());
-					totalSampleCount = playBuffer[0].size();
+					playBuffer.insert(playBuffer.end(), recordBuffer.begin(), recordBuffer.end());
+					totalSampleCount = playBuffer.size();
 					mylock.unlock();
 				}
 				mylock.lock();
-				recordBuffer[0].resize(0);
-				recordBuffer[1].resize(0);
+				recordBuffer.resize(0);
 				mylock.unlock();
 				lights[REC_LIGHT].setBrightness(0.0f);
 			}
@@ -377,8 +326,10 @@ void CANARD::process(const ProcessArgs &args) {
 		if (record) {
 			lights[REC_LIGHT].setBrightness(10.0f);
 			mylock.lock();
-			recordBuffer[0].push_back(inputs[INL_INPUT].getVoltage()/10);
-			recordBuffer[1].push_back(inputs[INR_INPUT].getVoltage()/10);
+			dsp::Frame<2> frame;
+			frame.samples[0] = inputs[INL_INPUT].getVoltage()/10.0f;
+			frame.samples[1] = inputs[INR_INPUT].getVoltage()/10.0f;
+			recordBuffer.push_back(frame);
 			mylock.unlock();
 		}
 
@@ -484,8 +435,12 @@ void CANARD::process(const ProcessArgs &args) {
 				else
 					fadeCoeff = 1.0f;
 
-				outputs[OUTL_OUTPUT].setVoltage(playBuffer[0][floor(samplePos)]*fadeCoeff*5);
-				outputs[OUTR_OUTPUT].setVoltage(playBuffer[1][floor(samplePos)]*fadeCoeff*5);
+				int xi = samplePos;
+				float xf = samplePos - xi;
+				float crossfaded = crossfade(playBuffer[xi].samples[0], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0], xf);
+				outputs[OUTL_OUTPUT].setVoltage(crossfaded*fadeCoeff*5.0f);
+				crossfaded = crossfade(playBuffer[xi].samples[1], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[1], xf);
+				outputs[OUTR_OUTPUT].setVoltage(crossfaded*fadeCoeff*5.0f);
 			}
 		}
 		else {
@@ -558,10 +513,14 @@ struct CANARDDisplay : OpaqueWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
-		if (module) {
+		if (module && (module->playBuffer.size()>0)) {
 			module->mylock.lock();
-			std::vector<float> vL(module->playBuffer[0]);
-			std::vector<float> vR(module->playBuffer[1]);
+			std::vector<float> vL;
+  		std::vector<float> vR;
+			for (int i=0;i<module->totalSampleCount;i++) {
+				vL.push_back(module->playBuffer[i].samples[0]);
+				vR.push_back(module->playBuffer[i].samples[1]);
+			}
 			std::vector<int> s(module->slices);
 			module->mylock.unlock();
 			size_t nbSample = vL.size();
@@ -647,8 +606,9 @@ struct CANARDDisplay : OpaqueWidget {
 				Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, height));
 				nvgScissor(args.vg, 0, b.pos.y, width, height);
 				float invNbSample = 1.0f / nbSample;
+				size_t inc = std::max(vL.size()/zoomWidth/4,1.f);
 				nvgBeginPath(args.vg);
-				for (size_t i = 0; i < vL.size(); i++) {
+				for (size_t i = 0; i < vL.size(); i+=inc) {
 					float x, y;
 					x = (float)i * invNbSample ;
 					y = (-1.f)*vL[i] * 0.5f + 0.5f;
@@ -671,7 +631,7 @@ struct CANARDDisplay : OpaqueWidget {
 				b = Rect(Vec(zoomLeftAnchor, height+10), Vec(zoomWidth, height));
 				nvgScissor(args.vg, 0, b.pos.y, width, height);
 				nvgBeginPath(args.vg);
-				for (size_t i = 0; i < vR.size(); i++) {
+				for (size_t i = 0; i < vR.size(); i+=inc) {
 					float x, y;
 					x = (float)i * invNbSample;
 					y = (-1.f)*vR[i] * 0.5f + 0.5f;
@@ -799,24 +759,25 @@ struct CANARDWidget : ModuleWidget {
 	struct CANARDTransientDetect : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
+			appGet()->engine->yieldWorkers();
 			module->slices.clear();
 			module->slices.push_back(0);
-			unsigned int i = 0;
-			unsigned int size = 256;
-			vector<float>::const_iterator first;
-			vector<float>::const_iterator last;
+			int i = 0;
+			int size = 256;
+			vector<dsp::Frame<2>>::const_iterator first;
+			vector<dsp::Frame<2>>::const_iterator last;
 			float prevNrgy = 0.0f;
 			while (i+size<module->totalSampleCount) {
-				first = module->playBuffer[0].begin() + i;
-				last = module->playBuffer[0].begin() + i + size;
-				vector<float> newVec(first, last);
+				first = module->playBuffer.begin() + i;
+				last = module->playBuffer.begin() + i + size;
+				vector<dsp::Frame<2>> newVec(first, last);
 				float nrgy = 0.0f;
 				float zcRate = 0.0f;
 				unsigned int zcIdx = 0;
 				bool first = true;
-				for (unsigned int k = 0; k < size; k++) {
-					nrgy += 100*newVec[k]*newVec[k]/size;
-					if (newVec[k]==0.0f) {
+				for (int k = 0; k < size; k++) {
+					nrgy += 100*newVec[k].samples[0]*newVec[k].samples[0]/size;
+					if (newVec[k].samples[0]==0.0f) {
 						zcRate += 1;
 						if (first) {
 							zcIdx = k;

@@ -6,13 +6,12 @@
 #include "dsp/resampler.hpp"
 #include "dsp/fir.hpp"
 #include "osdialog.h"
-#include "dep/dr_wav/dr_wav.h"
 #include "dep/osc/wtOsc.h"
 #include "../pffft/pffft.h"
 #include <iostream>
 #include <fstream>
 #include "dep/lodepng/lodepng.h"
-#include "dep/AudioFile/AudioFile.h"
+#include "dep/waves.hpp"
 
 using namespace std;
 
@@ -22,45 +21,19 @@ void tUpdateWaveTable(wtTable &table, float index) {
 }
 
 void tLoadSample(wtTable &table, std::string path, size_t frameLen, bool interpolate) {
-	std::string waveExtension = rack::string::filenameExtension(rack::string::filename(path));
-	if (waveExtension == "wav") {
-		unsigned int c;
-	  unsigned int sr;
-	  drwav_uint64 sc;
-		float *pSampleData;
-		float *sample;
-	  pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
-	  if (pSampleData != NULL)  {
-			sc = sc/c;
-			sample = (float*)calloc(sc,sizeof(float));
-			for (unsigned int i=0; i < sc; i++) {
-				if (c == 1) sample[i] = pSampleData[i];
-				else sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
-			}
-			drwav_free(pSampleData);
-			table.loadSample(sc, frameLen, interpolate, sample);
-			free(sample);
-			table.calcFFT();
-		}
+	int c;
+	int sr;
+	int sc;
+	std::string waveFileName;
+	std::string waveExtension;
+	float spmRate = appGet()->engine->getSampleRate();
+	std::vector<dsp::Frame<1>> wav = waves::getMonoWav(path, spmRate, waveFileName, waveExtension, c, sr, sc);
+	float *sample=NULL;
+	for (int i=0;i<sc;i++) {
+		*(sample+i)=wav[i].samples[0];
 	}
-	else if (waveExtension == "aiff") {
-		float *sample;
-		AudioFile<float> audioFile;
-		if (audioFile.load(path.c_str()))  {
-			sample = (float*)calloc(audioFile.getNumSamplesPerChannel(),sizeof(float));
-			for (int i=0; i < audioFile.getNumSamplesPerChannel(); i++) {
-				if (audioFile.isMono()) {
-					sample[i] = audioFile.samples[0][i];
-				}
-				else {
-					sample[i] = 0.5f*(audioFile.samples[0][i]+audioFile.samples[1][i]);
-				}
-			}
-			table.loadSample(audioFile.getNumSamplesPerChannel(), frameLen, interpolate, sample);
-			free(sample);
-			table.calcFFT();
-		}
-	}
+	table.loadSample(sc, frameLen, interpolate, sample);
+	table.calcFFT();
 }
 
 void tLoadISample(wtTable &table, float *iRec, size_t sc, size_t frameLen, bool interpolate) {
@@ -81,55 +54,26 @@ void tLoadIFrame(wtTable &table, float *iRec, float index, size_t frameLen, bool
 }
 
 void tLoadFrame(wtTable &table, std::string path, float index, bool interpolate) {
-	std::string waveExtension = rack::string::filenameBase(path);
-	if (waveExtension == "wav") {
-		unsigned int c;
-	  unsigned int sr;
-	  drwav_uint64 sc;
-		float *pSampleData;
-		float *sample;
-	  pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
-	  if (pSampleData != NULL)  {
-			sc = sc/c;
-			sample = (float*)calloc(sc,sizeof(float));
-			for (unsigned int i=0; i < sc; i++) {
-				if (c == 1) sample[i] = pSampleData[i];
-				else sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
-			}
-			drwav_free(pSampleData);
-			size_t i = index*(table.nFrames-1);
-			if (i<table.nFrames) {
-				table.frames[i].loadSample(sc, interpolate, sample);
-			}
-			else if (table.nFrames==0) {
-				table.addFrame(0);
-				table.frames[0].loadSample(sc, interpolate, sample);
-			}
-			free(sample);
-			table.calcFFT();
-		}
+	int c;
+	int sr;
+	int sc;
+	std::string waveFileName;
+	std::string waveExtension;
+	float spmRate = appGet()->engine->getSampleRate();
+	std::vector<dsp::Frame<1>> wav = waves::getMonoWav(path, spmRate, waveFileName, waveExtension, c, sr, sc);
+	float *sample=NULL;
+	for (int i=0;i<sc;i++) {
+		*(sample+i)=wav[i].samples[0];
 	}
-	else if (waveExtension == "aiff") {
-		float *sample;
-			AudioFile<float> audioFile;
-			if (audioFile.load(path.c_str()))  {
-				sample = (float*)calloc(audioFile.getNumSamplesPerChannel(),sizeof(float));
-				for (int i=0; i < audioFile.getNumSamplesPerChannel(); i++) {
-					if (audioFile.isMono()) sample[i] = audioFile.samples[0][i];
-					else sample[i] = 0.5f*(audioFile.samples[0][i]+audioFile.samples[1][i]);
-				}
-				size_t i = index*(table.nFrames-1);
-				if (i<table.nFrames) {
-					table.frames[i].loadSample(audioFile.getNumSamplesPerChannel(), interpolate, sample);
-				}
-				else if (table.nFrames==0) {
-					table.addFrame(0);
-					table.frames[0].loadSample(audioFile.getNumSamplesPerChannel(), interpolate, sample);
-				}
-				free(sample);
-				table.calcFFT();
-			}
+	size_t i = index*(table.nFrames-1);
+	if (i<table.nFrames) {
+		table.frames[i].loadSample(sc, interpolate, sample);
 	}
+	else if (table.nFrames==0) {
+		table.addFrame(0);
+		table.frames[0].loadSample(sc, interpolate, sample);
+	}
+	table.calcFFT();
 }
 
 void tLoadPNG(wtTable &table, std::string path) {
@@ -465,47 +409,56 @@ struct LIMONADE : Module {
 };
 
 inline void LIMONADE::updateWaveTable() {
+	appGet()->engine->yieldWorkers();
 	tUpdateWaveTable(table, params[INDEX_PARAM].getValue());
 }
 
 inline void LIMONADE::fftSample() {
+	appGet()->engine->yieldWorkers();
 	tFFTSample(table, params[INDEX_PARAM].getValue());
 }
 
 inline void LIMONADE::ifftSample() {
+	appGet()->engine->yieldWorkers();
 	tIFFTSample(table, params[INDEX_PARAM].getValue());
 }
 
 inline void LIMONADE::morphWavetable() {
 	morphType = 0;
+	appGet()->engine->yieldWorkers();
 	tMorphWaveTable(table);
 }
 
 inline void LIMONADE::morphSpectrum() {
 	morphType = 1;
+	appGet()->engine->yieldWorkers();
 	tMorphSpectrum(table);
 }
 
 inline void LIMONADE::morphSpectrumConstantPhase() {
 	morphType = 2;
+	appGet()->engine->yieldWorkers();
 	tMorphSpectrumConstantPhase(table);
 }
 
 inline void LIMONADE::removeMorphing() {
 	morphType = -1;
+	appGet()->engine->yieldWorkers();
 	tDeleteMorphing(table);
 }
 
 void LIMONADE::addFrame() {
-	thread t = thread(tAddFrame, std::ref(table), params[INDEX_PARAM].getValue());
-	t.detach();
+	appGet()->engine->yieldWorkers();
+	tAddFrame(table, params[INDEX_PARAM].getValue());
 }
 
 void LIMONADE::removeFrame() {
+	appGet()->engine->yieldWorkers();
 	tRemoveFrame(table, params[INDEX_PARAM].getValue());
 }
 
 void LIMONADE::resetWaveTable() {
+	appGet()->engine->yieldWorkers();
 	tResetWaveTable(table);
 }
 
@@ -513,9 +466,8 @@ void LIMONADE::loadSample() {
 	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
 	if (path) {
 		lastPath=path;
+		appGet()->engine->yieldWorkers();
 		tLoadSample(table, path, frameSize, true);
-		// thread t = thread(tLoadSample, std::ref(table), path, frameSize, true);
-		// t.detach();
 		free(path);
 		morphType = -1;
 	}
@@ -525,6 +477,7 @@ void LIMONADE::loadFrame() {
 	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
 	if (path) {
 		lastPath=path;
+		appGet()->engine->yieldWorkers();
 		tLoadFrame(table, path, params[INDEX_PARAM].getValue(), true);
 		free(path);
 	}
@@ -534,41 +487,50 @@ void LIMONADE::loadPNG() {
 	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
 	if (path) {
 		lastPath=path;
+		appGet()->engine->yieldWorkers();
 		tLoadPNG(table, path);
 		free(path);
 	}
 }
 
 void LIMONADE::windowWt() {
+	appGet()->engine->yieldWorkers();
 	tWindowWt(table);
 }
 
 void LIMONADE::smoothWt() {
+	appGet()->engine->yieldWorkers();
 	tSmoothWt(table);
 }
 
 void LIMONADE::windowFrame() {
+	appGet()->engine->yieldWorkers();
 	tWindowFrame(table, params[INDEX_PARAM].getValue());
 }
 
 void LIMONADE::smoothFrame() {
+	appGet()->engine->yieldWorkers();
 	tSmoothFrame(table, params[INDEX_PARAM].getValue());
 }
 
 void LIMONADE::removeDCOffset() {
+	appGet()->engine->yieldWorkers();
 	tRemoveDCOffset(table);
 }
 
 
 void LIMONADE::normalizeFrame() {
+	appGet()->engine->yieldWorkers();
 	tNormalizeFrame(table, params[INDEX_PARAM].getValue());
 }
 
 void LIMONADE::normalizeWt() {
+	appGet()->engine->yieldWorkers();
 	tNormalizeWt(table);
 }
 
 void LIMONADE::normalizeAllFrames() {
+	appGet()->engine->yieldWorkers();
 	tNormalizeAllFrames(table);
 }
 

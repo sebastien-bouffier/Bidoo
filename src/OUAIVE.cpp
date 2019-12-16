@@ -2,15 +2,13 @@
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
 #include "osdialog.h"
-#define DR_WAV_IMPLEMENTATION
-#include "dep/dr_wav/dr_wav.h"
 #include <vector>
 #include "cmath"
 #include <iomanip>
 #include <sstream>
 #include "window.hpp"
 #include <mutex>
-#include "dep/AudioFile/AudioFile.h"
+#include "dep/waves.hpp"
 
 using namespace std;
 
@@ -43,12 +41,11 @@ struct OUAIVE : Module {
 	};
 
 	bool play = false;
-	unsigned int channels;
-  unsigned int sampleRate;
-  drwav_uint64 totalSampleCount;
-	AudioFile<float> audioFile;
+	int channels;
+  int sampleRate;
+  int totalSampleCount=0;
 	float samplePos = 0.0f;
-	vector<vector<float>> playBuffer;
+	vector<dsp::Frame<2>> playBuffer;
 	std::string lastPath;
 	std::string waveFileName;
 	std::string waveExtension;
@@ -64,7 +61,7 @@ struct OUAIVE : Module {
 	dsp::SchmittTrigger readModeTrigger;
 	dsp::SchmittTrigger posResetTrigger;
 	std::mutex mylock;
-
+	bool first = true;
 
 	OUAIVE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -75,9 +72,7 @@ struct OUAIVE : Module {
 		configParam(SPEED_PARAM, -0.05, 10, 1.0);
 		configParam(CVSPEED_PARAM, -1.0f, 1.0f, 0.0f);
 
-		playBuffer.resize(2);
-		playBuffer[0].resize(0);
-		playBuffer[1].resize(0);
+		playBuffer.resize(0);
 	}
 
 	void process(const ProcessArgs &args) override;
@@ -100,7 +95,7 @@ struct OUAIVE : Module {
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		if (lastPathJ) {
 			lastPath = json_string_value(lastPathJ);
-			loadSample(lastPath);
+			if (!lastPath.empty()) loadSample(lastPath);
 		}
 		json_t *trigModeJ = json_object_get(rootJ, "trigMode");
 		if (trigModeJ) {
@@ -111,54 +106,18 @@ struct OUAIVE : Module {
 			readMode = json_integer_value(readModeJ);
 		}
 	}
+
+	void onSampleRateChange() override {
+		if (!lastPath.empty()) loadSample(lastPath);
+	}
 };
 
 void OUAIVE::loadSample(std::string path) {
 	lastPath = path;
-	waveFileName = rack::string::filename(lastPath);
-	waveExtension = rack::string::filenameExtension(rack::string::filename(lastPath));
-	if (waveExtension == "wav") {
-		loading = true;
-		unsigned int c;
-		unsigned int sr;
-		drwav_uint64 sc;
-		float* pSampleData;
-		pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
-		if (pSampleData != NULL)  {
-			channels = c;
-			sampleRate = sr;
-			playBuffer[0].clear();
-			playBuffer[1].clear();
-			for (unsigned int i=0; i < sc; i = i + c) {
-				playBuffer[0].push_back(pSampleData[i]);
-				if (channels == 2)
-					playBuffer[1].push_back((float)pSampleData[i+1]);
-				else
-					playBuffer[1].push_back((float)pSampleData[i]);
-			}
-			totalSampleCount = playBuffer[0].size();
-			drwav_free(pSampleData);
-		}
-		loading = false;
-	}
-	else if (waveExtension == "aiff") {
-		loading = true;
-		if (audioFile.load (path.c_str()))  {
-			channels = audioFile.getNumChannels();
-			sampleRate = audioFile.getSampleRate();
-			totalSampleCount = audioFile.getNumSamplesPerChannel();
-			playBuffer[0].clear();
-			playBuffer[1].clear();
-			for (unsigned int i=0; i < totalSampleCount; i++) {
-				playBuffer[0].push_back(audioFile.samples[0][i]);
-				if (channels == 2)
-					playBuffer[1].push_back(audioFile.samples[1][i]);
-				else
-					playBuffer[1].push_back(audioFile.samples[0][i]);
-			}
-		}
-		loading = false;
-	}
+	loading = true;
+	appGet()->engine->yieldWorkers();
+	playBuffer = waves::getStereoWav(path, appGet()->engine->getSampleRate(), waveFileName, waveExtension, channels, sampleRate, totalSampleCount);
+	loading = false;
 }
 
 void OUAIVE::process(const ProcessArgs &args) {
@@ -179,16 +138,16 @@ void OUAIVE::process(const ProcessArgs &args) {
 		if ((trigMode == 0) && (playTrigger.process(inputs[GATE_INPUT].getVoltage()))) {
 			play = true;
 			if (inputs[POS_INPUT].isConnected())
-				samplePos = clamp((int)(inputs[POS_INPUT].getVoltage() * totalSampleCount * 0.1f), 0 , totalSampleCount - 1);
+				samplePos = clamp(inputs[POS_INPUT].getVoltage() * (totalSampleCount-1.0f) * 0.1f, 0.0f , totalSampleCount - 1.0f);
 			else {
 				if (readMode != 1)
-					samplePos = 0;
+					samplePos = 0.0f;
 				else
-					samplePos = totalSampleCount - 1;
+					samplePos = totalSampleCount - 1.0f;
 			}
 		}	else if (trigMode == 1) {
 			play = (inputs[GATE_INPUT].getVoltage() > 0);
-			samplePos = clamp((int)(inputs[POS_INPUT].getVoltage() * totalSampleCount * 0.1f), 0 , totalSampleCount - 1);
+			samplePos = clamp(inputs[POS_INPUT].getVoltage() * (totalSampleCount-1.0f) * 0.1f, 0.0f , totalSampleCount - 1.0f);
 		} else if ((trigMode == 2) && (playTrigger.process(inputs[GATE_INPUT].getVoltage()))) {
 			play = true;
 			if (inputs[POS_INPUT].isConnected())
@@ -196,29 +155,39 @@ void OUAIVE::process(const ProcessArgs &args) {
 			 else
 				sliceIndex = (sliceIndex+1)%nbSlices;
 			if (readMode != 1)
-				samplePos = clamp(sliceIndex*sliceLength, 0, totalSampleCount);
+				samplePos = clamp(sliceIndex*sliceLength, 0, totalSampleCount-1);
 			else
-				samplePos = clamp((sliceIndex + 1) * sliceLength - 1, 0 , totalSampleCount);
+				samplePos = clamp((sliceIndex + 1) * sliceLength - 1, 0 , totalSampleCount-1);
 		}
 
 		if (posResetTrigger.process(inputs[POS_RESET_INPUT].getVoltage())) {
 			sliceIndex = 0;
-			samplePos = 0;
+			samplePos = 0.0f;
 		}
 
 		if ((!loading) && (play) && (samplePos>=0) && (samplePos < totalSampleCount)) {
 			if (channels == 1) {
-				outputs[OUTL_OUTPUT].setVoltage(5.0f * playBuffer[0][floor(samplePos)]);
-				outputs[OUTR_OUTPUT].setVoltage(5.0f * playBuffer[0][floor(samplePos)]);
+				int xi = samplePos;
+				float xf = samplePos - xi;
+				float crossfaded = crossfade(playBuffer[xi].samples[0], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0], xf);
+				outputs[OUTL_OUTPUT].setVoltage(5.0f * crossfaded);
+				outputs[OUTR_OUTPUT].setVoltage(5.0f * crossfaded);
 			}
 			else if (channels == 2) {
 				if (outputs[OUTL_OUTPUT].isConnected() && outputs[OUTR_OUTPUT].isConnected()) {
-					outputs[OUTL_OUTPUT].setVoltage(5.0f * playBuffer[0][floor(samplePos)]);
-					outputs[OUTR_OUTPUT].setVoltage(5.0f * playBuffer[1][floor(samplePos)]);
+					int xi = samplePos;
+					float xf = samplePos - xi;
+					float crossfaded = crossfade(playBuffer[xi].samples[0], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0], xf);
+					outputs[OUTL_OUTPUT].setVoltage(5.0f * crossfaded);
+					crossfaded = crossfade(playBuffer[xi].samples[1], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[1], xf);
+					outputs[OUTR_OUTPUT].setVoltage(5.0f * crossfaded);
 				}
 				else {
-					outputs[OUTL_OUTPUT].setVoltage(5.0f * (playBuffer[0][floor(samplePos)] + playBuffer[1][floor(samplePos)]));
-					outputs[OUTR_OUTPUT].setVoltage(5.0f * (playBuffer[0][floor(samplePos)] + playBuffer[1][floor(samplePos)]));
+					int xi = samplePos;
+					float xf = samplePos - xi;
+					float crossfaded = crossfade(0.5f*(playBuffer[xi].samples[0]+playBuffer[xi].samples[1]), 0.5f*(playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0]+playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[1]), xf);
+					outputs[OUTL_OUTPUT].setVoltage(5.0f * crossfaded);
+					outputs[OUTR_OUTPUT].setVoltage(5.0f * crossfaded);
 				}
 			}
 
@@ -233,7 +202,7 @@ void OUAIVE::process(const ProcessArgs &args) {
 				else if ((readMode == 1) && (samplePos <=0))
 						play = false;
 				else if ((readMode == 2) && (samplePos >= totalSampleCount))
-					samplePos = clamp((int)(inputs[POS_INPUT].getVoltage() * totalSampleCount * 0.1f), 0 , totalSampleCount -1);
+					samplePos = clamp(inputs[POS_INPUT].getVoltage() * (totalSampleCount-1.0f) * 0.1f , 0.0f ,totalSampleCount - 1.0f);
 			}
 			else if (trigMode == 2)
 			{
@@ -294,10 +263,14 @@ struct OUAIVEDisplay : OpaqueWidget {
   }
 
 	void draw(const DrawArgs &args) override {
-    if (module) {
+    if (module && (module->playBuffer.size()>0)) {
       module->mylock.lock();
-  		std::vector<float> vL(module->playBuffer[0]);
-  		std::vector<float> vR(module->playBuffer[1]);
+  		std::vector<float> vL;
+  		std::vector<float> vR;
+			for (int i=0;i<module->totalSampleCount;i++) {
+				vL.push_back(module->playBuffer[i].samples[0]);
+				vR.push_back(module->playBuffer[i].samples[1]);
+			}
   		module->mylock.unlock();
   		size_t nbSample = vL.size();
 
@@ -341,7 +314,7 @@ struct OUAIVEDisplay : OpaqueWidget {
   		nvgTextBox(args.vg, 90, -15, 40, speed.c_str(), NULL);
 
   		//Draw play line
-  		if ((module->play) && (!module->loading)) {
+  		if ((module->play) && (!module->loading) && (nbSample>0)) {
   			nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
   			{
   				nvgBeginPath(args.vg);
@@ -380,7 +353,7 @@ struct OUAIVEDisplay : OpaqueWidget {
   		}
   		nvgStroke(args.vg);
 
-  		if ((!module->loading) && (vL.size()>0)) {
+  		if ((!module->loading) && (nbSample>0)) {
   			//Draw waveform
   			nvgStrokeColor(args.vg, PINK_BIDOO);
   			nvgSave(args.vg);

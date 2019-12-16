@@ -1,11 +1,9 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/digital.hpp"
-#include "dep/dr_wav/dr_wav.h"
-#include "dep/AudioFile/AudioFile.h"
 #include <iomanip>
 #include "osdialog.h"
-#include "dsp/resampler.hpp"
+#include "dep/waves.hpp"
 
 using namespace std;
 
@@ -41,19 +39,20 @@ struct channel {
 	bool loop=false;
 	float speed=1.0f;
 	float head=0.0f;
-	int gate=0;
+	int gate=1;
 	int filterType=0;
-	float q;
-	float freq;
+	float q=0.1f;
+	float freq=1.0f;
 	MultiFilter filter;
 	std::string lastPath;
 	std::string waveFileName;
 	std::string waveExtension;
-	unsigned int sampleChannels;
-	unsigned int sampleRate;
-	drwav_uint64 totalSampleCount;
-	vector<float> playBuffer;
+	int sampleChannels;
+	int sampleRate;
+	int totalSampleCount;
+	vector<dsp::Frame<1>> playBuffer;
 	bool active=false;
+	int kill=-1;
 
 	void randomize() {
 		q=random::uniform();
@@ -64,17 +63,19 @@ struct channel {
 		start=random::uniform();
 		len=random::uniform();
 		speed=random::uniform();
+		kill=random::uniform()*16.0f-1.0f;
 	}
 
 	void reset() {
 		q=0.1f;
 		freq=1.0;
 		filterType=0;
-		gate=0;
+		gate=1;
 		loop=false;
 		start=0.0f;
 		len=1.0f;
 		speed=1.0f;
+		kill=-1.0f;
 	}
 };
 
@@ -89,6 +90,7 @@ struct OAI : Module {
 		FREQ_PARAM,
 		FILTERTYPE_PARAM,
 		CHANNEL_PARAM,
+		KILL_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -101,6 +103,7 @@ struct OAI : Module {
 		Q_INPUT,
 		FREQ_INPUT,
 		FILTERTYPE_INPUT,
+		KILL_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -116,21 +119,20 @@ struct OAI : Module {
 	int currentChannel=0;
 	dsp::SchmittTrigger triggers[16];
 	bool loading=false;
-	AudioFile<float> audioFile;
 	bool play = false;
-
 
 	OAI() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(START_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(LEN_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(LEN_PARAM, 0.0f, 1.0f, 1.0f);
 		configParam(LOOP_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(GATE_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(GATE_PARAM, 0.0f, 1.0f, 1.0f);
 		configParam(SPEED_PARAM, 0.0f, 10.0f, 1.0f);
 		configParam(FILTERTYPE_PARAM, 0.0f, 3.0f, 0.0f);
 		configParam(Q_PARAM, 0.1f, 1.0f, 0.1f);
 		configParam(FREQ_PARAM, 0.0f, 1.0f, 1.0f);
 		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f);
+		configParam(KILL_PARAM, -1.0f, 15.0f, -1.0f);
 
 		for (int i=0; i<16; i++) {
 			channels[i].playBuffer.resize(0);
@@ -139,7 +141,7 @@ struct OAI : Module {
 
 	void process(const ProcessArgs &args) override;
 
-	void loadSample(std::string path);
+	void loadSample(std::string path, int channel);
 	void saveSample();
 
 	void onRandomize() override {
@@ -151,6 +153,7 @@ struct OAI : Module {
 		params[FILTERTYPE_PARAM].setValue((int)(random::uniform()*3.0f));
 		params[Q_PARAM].setValue(random::uniform());
 		params[FREQ_PARAM].setValue(random::uniform());
+		params[KILL_PARAM].setValue(random::uniform()*16-1);
 		for (size_t i = 0; i<16 ; i++) {
 			channels[i].randomize();
 		}
@@ -161,10 +164,11 @@ struct OAI : Module {
 		params[LEN_PARAM].setValue(1.0f);
 		params[SPEED_PARAM].setValue(1.0f);
 		params[LOOP_PARAM].setValue(0.0f);
-		params[GATE_PARAM].setValue(0.0f);
+		params[GATE_PARAM].setValue(1.0f);
 		params[FILTERTYPE_PARAM].setValue(0.0f);
 		params[Q_PARAM].setValue(0.1f);
 		params[FREQ_PARAM].setValue(1.0f);
+		params[KILL_PARAM].setValue(-1.0f);
 		for (size_t i = 0; i<16 ; i++) {
 			channels[i].reset();
 		}
@@ -172,6 +176,7 @@ struct OAI : Module {
 
 	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
+		json_object_set_new(rootJ, "currentChannel", json_integer(currentChannel));
 		for (size_t i = 0; i<16 ; i++) {
 			json_t *channelJ = json_object();
 			json_object_set_new(channelJ, "lastPath", json_string(channels[i].lastPath.c_str()));
@@ -190,131 +195,94 @@ struct OAI : Module {
 			json_object_set_new(channelJ, "filterType", json_integer(channels[i].filterType));
 			json_object_set_new(channelJ, "q", json_real(channels[i].q));
 			json_object_set_new(channelJ, "freq", json_real(channels[i].freq));
+			json_object_set_new(channelJ, "kill", json_integer(channels[i].kill));
 			json_object_set_new(rootJ, ("channel"+ to_string(i)).c_str(), channelJ);
 		}
 		return rootJ;
 	}
 
 	void dataFromJson(json_t *rootJ) override {
-			for (size_t i = 0; i<16 ; i++) {
-				json_t *channelJ = json_object_get(rootJ, ("channel" + to_string(i)).c_str());
-				if (channelJ){
-					json_t *lastPathJ= json_object_get(channelJ, "lastPath");
-					if (lastPathJ) {
-						channels[i].lastPath = json_string_value(lastPathJ);
-						currentChannel = i;
-						loadSample(channels[i].lastPath);
-					}
-					json_t *waveExtensionJ= json_object_get(channelJ, "waveExtension");
-					if (waveExtensionJ)
-						channels[i].waveExtension = json_string_value(waveExtensionJ);
-					json_t *waveFileNameJ= json_object_get(channelJ, "waveFileName");
-					if (waveFileNameJ)
-						channels[i].waveFileName = json_string_value(waveFileNameJ);
-					json_t *sampleChannelsJ= json_object_get(channelJ, "sampleChannels");
-					if (sampleChannelsJ)
-						channels[i].sampleChannels = json_integer_value(sampleChannelsJ);
-					json_t *sampleRateJ= json_object_get(channelJ, "sampleRate");
-					if (sampleRateJ)
-						channels[i].sampleRate = json_integer_value(sampleRateJ);
-					json_t *totalSampleCountJ= json_object_get(channelJ, "totalSampleCount");
-					if (totalSampleCountJ)
-						channels[i].totalSampleCount = json_integer_value(totalSampleCountJ);
-					json_t *startJ= json_object_get(channelJ, "start");
-					if (startJ)
-						channels[i].start = json_number_value(startJ);
-					json_t *lenJ= json_object_get(channelJ, "len");
-					if (lenJ)
-						channels[i].len = json_number_value(lenJ);
-					json_t *speedJ= json_object_get(channelJ, "speed");
-					if (speedJ)
-						channels[i].speed = json_number_value(speedJ);
-					json_t *loopJ= json_object_get(channelJ, "loop");
-					if (loopJ)
-						channels[i].loop = json_boolean_value(loopJ);
-					json_t *gateJ= json_object_get(channelJ, "gate");
-					if (gateJ)
-						channels[i].gate = json_integer_value(gateJ);
-					json_t *filterTypeJ= json_object_get(channelJ, "filterType");
-					if (filterTypeJ)
-						channels[i].filterType = json_integer_value(filterTypeJ);
-					json_t *qJ= json_object_get(channelJ, "q");
-					if (qJ)
-						channels[i].q = json_number_value(qJ);
-					json_t *freqJ= json_object_get(channelJ, "freq");
-					if (freqJ)
-						channels[i].freq = json_number_value(freqJ);
+		json_t *currentChannelJ = json_object_get(rootJ, "currentChannel");
+		if (currentChannelJ) {
+			currentChannel = json_integer_value(currentChannelJ);
+		}
+		for (size_t i = 0; i<16 ; i++) {
+			json_t *channelJ = json_object_get(rootJ, ("channel" + to_string(i)).c_str());
+			if (channelJ){
+				json_t *lastPathJ= json_object_get(channelJ, "lastPath");
+				if (lastPathJ) {
+					channels[i].lastPath = json_string_value(lastPathJ);
+					if (!channels[i].lastPath.empty()) loadSample(channels[i].lastPath, i);
+				}
+				json_t *waveExtensionJ= json_object_get(channelJ, "waveExtension");
+				if (waveExtensionJ)
+					channels[i].waveExtension = json_string_value(waveExtensionJ);
+				json_t *waveFileNameJ= json_object_get(channelJ, "waveFileName");
+				if (waveFileNameJ)
+					channels[i].waveFileName = json_string_value(waveFileNameJ);
+				json_t *sampleChannelsJ= json_object_get(channelJ, "sampleChannels");
+				if (sampleChannelsJ)
+					channels[i].sampleChannels = json_integer_value(sampleChannelsJ);
+				json_t *sampleRateJ= json_object_get(channelJ, "sampleRate");
+				if (sampleRateJ)
+					channels[i].sampleRate = json_integer_value(sampleRateJ);
+				json_t *totalSampleCountJ= json_object_get(channelJ, "totalSampleCount");
+				if (totalSampleCountJ)
+					channels[i].totalSampleCount = json_integer_value(totalSampleCountJ);
+				json_t *startJ= json_object_get(channelJ, "start");
+				if (startJ)
+					channels[i].start = json_number_value(startJ);
+				json_t *lenJ= json_object_get(channelJ, "len");
+				if (lenJ)
+					channels[i].len = json_number_value(lenJ);
+				json_t *speedJ= json_object_get(channelJ, "speed");
+				if (speedJ)
+					channels[i].speed = json_number_value(speedJ);
+				json_t *loopJ= json_object_get(channelJ, "loop");
+				if (loopJ)
+					channels[i].loop = json_boolean_value(loopJ);
+				json_t *gateJ= json_object_get(channelJ, "gate");
+				if (gateJ)
+					channels[i].gate = json_integer_value(gateJ);
+				json_t *filterTypeJ= json_object_get(channelJ, "filterType");
+				if (filterTypeJ)
+					channels[i].filterType = json_integer_value(filterTypeJ);
+				json_t *qJ= json_object_get(channelJ, "q");
+				if (qJ)
+					channels[i].q = json_number_value(qJ);
+				json_t *freqJ= json_object_get(channelJ, "freq");
+				if (freqJ)
+					channels[i].freq = json_number_value(freqJ);
+				json_t *killJ= json_object_get(channelJ, "kill");
+				if (killJ)
+					channels[i].kill = json_integer_value(killJ);
 			}
 		}
-		currentChannel=0;
+		params[START_PARAM].setValue(channels[currentChannel].start);
+		params[LEN_PARAM].setValue(channels[currentChannel].len);
+		params[SPEED_PARAM].setValue(channels[currentChannel].speed);
+		params[LOOP_PARAM].setValue(channels[currentChannel].loop ? 1.0f : 0.0f);
+		params[GATE_PARAM].setValue(channels[currentChannel].gate);
+		params[FILTERTYPE_PARAM].setValue(channels[currentChannel].filterType);
+		params[Q_PARAM].setValue(channels[currentChannel].q);
+		params[FREQ_PARAM].setValue(channels[currentChannel].freq);
+		params[KILL_PARAM].setValue(channels[currentChannel].kill);
+	}
+
+	void onSampleRateChange() override {
+		for (size_t i = 0; i<16 ; i++) {
+			if (!channels[i].lastPath.empty()) loadSample(channels[i].lastPath, i);
+		}
 	}
 };
 
-void OAI::loadSample(std::string path) {
-	channels[currentChannel].lastPath = path;
-	channels[currentChannel].waveFileName = rack::string::filename(path);
-	channels[currentChannel].waveExtension = rack::string::filenameExtension(rack::string::filename(path));
-	if (channels[currentChannel].waveExtension == "wav") {
-		loading = true;
-		unsigned int c;
-		unsigned int sr;
-		drwav_uint64 sc;
-		float* pSampleData;
-		pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
-		if (pSampleData != NULL)  {
-			channels[currentChannel].sampleChannels = c;
-			channels[currentChannel].sampleRate = sr;
-			channels[currentChannel].playBuffer.clear();
-			for (unsigned int i=0; i < sc; i = i + c) {
-				if (channels[currentChannel].sampleChannels == 2) {
-					channels[currentChannel].playBuffer.push_back((pSampleData[i] + pSampleData[i+1])/2.0f);
-				}
-				else {
-					channels[currentChannel].playBuffer.push_back(pSampleData[i]);
-				}
-			}
-			channels[currentChannel].totalSampleCount = channels[currentChannel].playBuffer.size();
-			drwav_free(pSampleData);
-		}
-		loading = false;
-	}
-	else if (channels[currentChannel].waveExtension == "aiff") {
-		loading = true;
-		if (audioFile.load (path.c_str()))  {
-			channels[currentChannel].sampleChannels = audioFile.getNumChannels();
-			channels[currentChannel].sampleRate = audioFile.getSampleRate();
-			channels[currentChannel].totalSampleCount = audioFile.getNumSamplesPerChannel();
-			channels[currentChannel].playBuffer.clear();
-			for (unsigned int i=0; i < channels[currentChannel].totalSampleCount; i++) {
-				if (channels[currentChannel].sampleChannels == 2) {
-					channels[currentChannel].playBuffer.push_back((audioFile.samples[0][i] + audioFile.samples[1][i])/2.0f);
-				}
-				else {
-					channels[currentChannel].playBuffer.push_back(audioFile.samples[0][i]);
-				}
-			}
-		}
-		loading = false;
-	}
-}
-
-void OAI::saveSample() {
-	drwav_data_format format;
-	format.container = drwav_container_riff;
-	format.format = DR_WAVE_FORMAT_PCM;
-	format.channels = 2;
-	format.sampleRate = channels[currentChannel].sampleRate;
-	format.bitsPerSample = 32;
-	int *pSamples = (int*)calloc(2*channels[currentChannel].totalSampleCount,sizeof(int));
-	memset(pSamples, 0, 2*channels[currentChannel].totalSampleCount*sizeof(int));
-	for (unsigned int i = 0; i < channels[currentChannel].totalSampleCount; i++) {
-		*(pSamples+2*i)= floor(channels[currentChannel].playBuffer[i]*2147483647);
-		*(pSamples+2*i+1)= floor(channels[currentChannel].playBuffer[i]*2147483647);
-	}
-	drwav* pWav = drwav_open_file_write(channels[currentChannel].lastPath.c_str(), &format);
-	drwav_write(pWav, 2*channels[currentChannel].totalSampleCount, pSamples);
-	drwav_close(pWav);
-	free(pSamples);
+void OAI::loadSample(std::string path, int channel) {
+	channels[channel].lastPath = path;
+	float spmRate = appGet()->engine->getSampleRate();
+	loading = true;
+	appGet()->engine->yieldWorkers();
+	channels[channel].playBuffer = waves::getMonoWav(path, spmRate, channels[channel].waveFileName, channels[channel].waveExtension, channels[channel].sampleChannels, channels[channel].sampleRate, channels[channel].totalSampleCount);
+	loading = false;
 }
 
 void OAI::process(const ProcessArgs &args) {
@@ -339,6 +307,7 @@ void OAI::process(const ProcessArgs &args) {
 		params[FILTERTYPE_PARAM].setValue(channels[currentChannel].filterType);
 		params[Q_PARAM].setValue(channels[currentChannel].q);
 		params[FREQ_PARAM].setValue(channels[currentChannel].freq);
+		params[KILL_PARAM].setValue(channels[currentChannel].kill);
 	}
 
 	channels[currentChannel].start = params[START_PARAM].getValue();
@@ -349,7 +318,7 @@ void OAI::process(const ProcessArgs &args) {
 	channels[currentChannel].filterType = params[FILTERTYPE_PARAM].getValue();
 	channels[currentChannel].freq = params[FREQ_PARAM].getValue();
 	channels[currentChannel].q = params[Q_PARAM].getValue();
-
+	channels[currentChannel].kill = params[KILL_PARAM].getValue();
 
 	int c = std::max(inputs[TRIG_INPUT].getChannels(), 1);
 
@@ -361,7 +330,7 @@ void OAI::process(const ProcessArgs &args) {
 			float len = clamp(channels[i].len + (inputs[LEN_INPUT].isConnected() ? rescale(inputs[LEN_INPUT].getVoltage(i),0.0f,10.0f,0.0f,1.0f) : 0.0f), 0.0f, 1.0f);
 			float speed = clamp(channels[i].speed + (inputs[SPEED_INPUT].isConnected() ? rescale(inputs[SPEED_INPUT].getVoltage(i),0.0f,10.0f,0.0f,1.0f) : 0.0f), 0.0f, 10.0f);
 			bool loop = channels[i].loop && (clamp(inputs[LOOP_INPUT].isConnected() ? inputs[LOOP_INPUT].getVoltage(i) : 1.0f, 0.0f, 1.0f) != 0.0f);
-			int gate = inputs[GATE_INPUT].isConnected() ? rescale(inputs[SPEED_INPUT].getVoltage(i),0.0f,10.0f,0.0f,1.0f) : channels[i].gate;
+			int gate = inputs[GATE_INPUT].isConnected() ? rescale(inputs[GATE_INPUT].getVoltage(i),0.0f,10.0f,0.0f,1.0f) : channels[i].gate;
 			int filterType = inputs[FILTERTYPE_INPUT].isConnected() ? rescale(inputs[FILTERTYPE_INPUT].getVoltage(i),0.0f,10.0f,0.0f,3.0f) : channels[i].filterType;
 			float q = 10.0f *clamp(channels[i].q + (inputs[Q_INPUT].isConnected() ? rescale(inputs[Q_INPUT].getVoltage(i),0.0f,10.0f,0.1f,1.0f) : 0.0f), 0.1f, 1.0f);
 			float freq = std::pow(2.0f, rescale(clamp(channels[i].freq + (inputs[FREQ_INPUT].isConnected() ? rescale(inputs[FREQ_INPUT].getVoltage(i),0.0f,10.0f,0.0f,1.0f) : 0.0f), 0.0f, 1.0f), 0.0f, 1.0f, 4.5f, 14.0f));
@@ -374,10 +343,18 @@ void OAI::process(const ProcessArgs &args) {
 				channels[i].active = false;
 			}
 
+			for (int j=0;j<16;j++) {
+				int kill = inputs[KILL_INPUT].isConnected() ? rescale(inputs[KILL_INPUT].getVoltage(j),0.0f,10.0f,-1.0f,15.0f) : channels[j].kill;
+				if ((j!=i) && (kill==i) && channels[j].active) {
+					channels[i].active = false;
+					break;
+				}
+			}
+
 			if (channels[i].active) {
 				int xi = channels[i].head;
 				float xf = channels[i].head - xi;
-				float crossfaded = crossfade(channels[i].playBuffer[xi], channels[i].playBuffer[xi + 1], xf);
+				float crossfaded = crossfade(channels[i].playBuffer[xi].samples[0], channels[i].playBuffer[xi + 1].samples[0], xf);
 				channels[i].filter.setParams(freq, q, args.sampleRate);
 				channels[i].filter.calcOutput(crossfaded);
 				if (filterType == 0.0f) {
@@ -424,16 +401,17 @@ struct OAIWidget : ModuleWidget {
 
 		addParam(createParam<BidooBlueSnapKnob>(Vec(45.0f,35.0f), module, OAI::CHANNEL_PARAM));
 
-		addParam(createParam<BidooBlueKnob>(Vec(7.0f,100.0f), module, OAI::START_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(45.0f,100.0f), module, OAI::LEN_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(83.0f,100.0f), module, OAI::SPEED_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(7.0f,85.0f), module, OAI::START_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(45.0f,85.0f), module, OAI::LEN_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(83.0f,85.0f), module, OAI::SPEED_PARAM));
 
-		addParam(createParam<BidooBlueSnapKnob>(Vec(7.0f,150.0f), module, OAI::FILTERTYPE_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(45.0f,150.0f), module, OAI::FREQ_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(83.0f,150.0f), module, OAI::Q_PARAM));
+		addParam(createParam<BidooBlueSnapKnob>(Vec(7.0f,135.0f), module, OAI::FILTERTYPE_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(45.0f,135.0f), module, OAI::FREQ_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(83.0f,135.0f), module, OAI::Q_PARAM));
 
-		addParam(createParam<CKSS>(Vec(38.0f,191.5f), module, OAI::LOOP_PARAM));
-		addParam(createParam<CKSS>(Vec(97.0f,191.5f), module, OAI::GATE_PARAM));
+		addParam(createParam<CKSS>(Vec(14.5f,190.f), module, OAI::LOOP_PARAM));
+		addParam(createParam<CKSS>(Vec(53.0f,190.f), module, OAI::GATE_PARAM));
+		addParam(createParam<BidooBlueSnapKnob>(Vec(83.0f,185.0f), module, OAI::KILL_PARAM));
 
 		addInput(createInput<PJ301MPort>(Vec(4.0f, 236.0f), module, OAI::START_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(33.0f, 236.0f), module, OAI::LEN_INPUT));
@@ -446,7 +424,8 @@ struct OAIWidget : ModuleWidget {
 		addInput(createInput<PJ301MPort>(Vec(91.5f, 283.0f), module, OAI::GATE_INPUT));
 
 		addInput(createInput<PJ301MPort>(Vec(7.0f, 330.0f), module, OAI::TRIG_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(88.0f, 330.0f), module, OAI::POLY_OUTPUT));
+		addInput(createInput<PJ301MPort>(Vec(47.5f, 330.0f), module, OAI::KILL_INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(88.5f, 330.0f), module, OAI::POLY_OUTPUT));
 	}
 
 	struct OAIItem : MenuItem {
@@ -457,7 +436,7 @@ struct OAIWidget : ModuleWidget {
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
 				module->play = false;
-  			module->loadSample(path);
+  			module->loadSample(path, module->currentChannel);
   			free(path);
   		}
   	}

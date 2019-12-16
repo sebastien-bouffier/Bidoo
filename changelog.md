@@ -1,3 +1,9 @@
+### v1.1.6 (16/12/2019)
+- All samplers i.e. OUAIve, cANARd, póUPrè, maGma and oAï now resample their samples accordingly to engine sample rate.
+- ziNC inputs and controls are renamed (MOD vs. CARR)
+- póUPrè, maGma and oAï parameters initialization fixed
+- oAï KILL param added to stop another channel when trigged (CH/OH management for example)
+
 ### v1.1.5 (08/12/2019)
 - zOù MAï shift + left click on track on/off button solo and select the track
 - zOù MAï shift + left click on trig enable/disable the trig without using the mini keyboard

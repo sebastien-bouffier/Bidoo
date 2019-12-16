@@ -1,11 +1,9 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/digital.hpp"
-#include "dep/dr_wav/dr_wav.h"
-#include "dep/AudioFile/AudioFile.h"
 #include <iomanip>
 #include "osdialog.h"
-#include "dsp/resampler.hpp"
+#include "dep/waves.hpp"
 
 using namespace std;
 
@@ -41,10 +39,10 @@ struct channel {
 	bool loop=false;
 	float speed=1.0f;
 	float head=0.0f;
-	int gate=0;
+	int gate=1;
 	int filterType=0;
-	float q;
-	float freq;
+	float q=0.1f;
+	float freq=1.0f;
 	MultiFilter filter;
 
 	void randomize() {
@@ -60,9 +58,9 @@ struct channel {
 
 	void reset() {
 		q=0.1f;
-		freq=1.0;
+		freq=1.0f;
 		filterType=0;
-		gate=0;
+		gate=1;
 		loop=false;
 		start=0.0f;
 		len=1.0f;
@@ -109,11 +107,10 @@ struct MAGMA : Module {
 	dsp::SchmittTrigger triggers[16];
 	bool active[16]={false};
 	bool loading=false;
-	unsigned int sampleChannels;
-	unsigned int sampleRate;
-	drwav_uint64 totalSampleCount;
-	AudioFile<float> audioFile;
-	vector<float> playBuffer;
+	int sampleChannels;
+	int sampleRate;
+	int totalSampleCount;
+	vector<dsp::Frame<1>> playBuffer;
 	bool play = false;
 	std::string lastPath;
 	std::string waveFileName;
@@ -124,7 +121,7 @@ struct MAGMA : Module {
 		configParam(START_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(LEN_PARAM, 0.0f, 1.0f, 1.0f);
 		configParam(LOOP_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(GATE_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(GATE_PARAM, 0.0f, 1.0f, 1.0f);
 		configParam(SPEED_PARAM, 0.0f, 10.0f, 1.0f);
 		configParam(FILTERTYPE_PARAM, 0.0f, 3.0f, 0.0f);
 		configParam(Q_PARAM, 0.1f, 1.0f, 0.1f);
@@ -170,6 +167,7 @@ struct MAGMA : Module {
 	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
 		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
+		json_object_set_new(rootJ, "currentChannel", json_integer(currentChannel));
 		for (size_t i = 0; i<16 ; i++) {
 			json_t *channelJ = json_object();
 			json_object_set_new(channelJ, "start", json_real(channels[i].start));
@@ -186,110 +184,69 @@ struct MAGMA : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
-			json_t *lastPathJ = json_object_get(rootJ, "lastPath");
-			if (lastPathJ) {
-				lastPath = json_string_value(lastPathJ);
-				waveFileName = rack::string::filename(lastPath);
-				waveExtension = rack::string::filenameBase(lastPath);
-				loadSample(lastPath);
-				for (size_t i = 0; i<16 ; i++) {
-					json_t *channelJ = json_object_get(rootJ, ("channel" + to_string(i)).c_str());
-					if (channelJ){
-						json_t *startJ= json_object_get(channelJ, "start");
-						if (startJ)
-							channels[i].start = json_number_value(startJ);
-						json_t *lenJ= json_object_get(channelJ, "len");
-						if (lenJ)
-							channels[i].len = json_number_value(lenJ);
-						json_t *speedJ= json_object_get(channelJ, "speed");
-						if (speedJ)
-							channels[i].speed = json_number_value(speedJ);
-						json_t *loopJ= json_object_get(channelJ, "loop");
-						if (loopJ)
-							channels[i].loop = json_boolean_value(loopJ);
-						json_t *gateJ= json_object_get(channelJ, "gate");
-						if (gateJ)
-							channels[i].gate = json_integer_value(gateJ);
-						json_t *filterTypeJ= json_object_get(channelJ, "filterType");
-						if (filterTypeJ)
-							channels[i].filterType = json_integer_value(filterTypeJ);
-						json_t *qJ= json_object_get(channelJ, "q");
-						if (qJ)
-							channels[i].q = json_number_value(qJ);
-						json_t *freqJ= json_object_get(channelJ, "freq");
-						if (freqJ)
-							channels[i].freq = json_number_value(freqJ);
+		json_t *currentChannelJ = json_object_get(rootJ, "currentChannel");
+		if (currentChannelJ) {
+			currentChannel = json_integer_value(currentChannelJ);
+		}
+		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
+		if (lastPathJ) {
+			lastPath = json_string_value(lastPathJ);
+			waveFileName = rack::string::filename(lastPath);
+			waveExtension = rack::string::filenameBase(lastPath);
+			if (!lastPath.empty()) loadSample(lastPath);
+			for (size_t i = 0; i<16 ; i++) {
+				json_t *channelJ = json_object_get(rootJ, ("channel" + to_string(i)).c_str());
+				if (channelJ){
+					json_t *startJ= json_object_get(channelJ, "start");
+					if (startJ)
+						channels[i].start = json_number_value(startJ);
+					json_t *lenJ= json_object_get(channelJ, "len");
+					if (lenJ)
+						channels[i].len = json_number_value(lenJ);
+					json_t *speedJ= json_object_get(channelJ, "speed");
+					if (speedJ)
+						channels[i].speed = json_number_value(speedJ);
+					json_t *loopJ= json_object_get(channelJ, "loop");
+					if (loopJ)
+						channels[i].loop = json_boolean_value(loopJ);
+					json_t *gateJ= json_object_get(channelJ, "gate");
+					if (gateJ)
+						channels[i].gate = json_integer_value(gateJ);
+					json_t *filterTypeJ= json_object_get(channelJ, "filterType");
+					if (filterTypeJ)
+						channels[i].filterType = json_integer_value(filterTypeJ);
+					json_t *qJ= json_object_get(channelJ, "q");
+					if (qJ)
+						channels[i].q = json_number_value(qJ);
+					json_t *freqJ= json_object_get(channelJ, "freq");
+					if (freqJ)
+						channels[i].freq = json_number_value(freqJ);
 				}
 			}
 		}
+		currentChannel=0;
+		params[START_PARAM].setValue(channels[currentChannel].start);
+		params[LEN_PARAM].setValue(channels[currentChannel].len);
+		params[SPEED_PARAM].setValue(channels[currentChannel].speed);
+		params[LOOP_PARAM].setValue(channels[currentChannel].loop ? 1.0f : 0.0f);
+		params[GATE_PARAM].setValue(channels[currentChannel].gate);
+		params[FILTERTYPE_PARAM].setValue(channels[currentChannel].filterType);
+		params[Q_PARAM].setValue(channels[currentChannel].q);
+		params[FREQ_PARAM].setValue(channels[currentChannel].freq);
+	}
+
+	void onSampleRateChange() override {
+		if (!lastPath.empty()) loadSample(lastPath);
 	}
 };
 
 void MAGMA::loadSample(std::string path) {
-	waveFileName = rack::string::filename(path);
-	waveExtension = rack::string::filenameExtension(rack::string::filename(path));
 	lastPath = path;
-	if (waveExtension == "wav") {
-		loading = true;
-		unsigned int c;
-		unsigned int sr;
-		drwav_uint64 sc;
-		float* pSampleData;
-		pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
-		if (pSampleData != NULL)  {
-			sampleChannels = c;
-			sampleRate = sr;
-			playBuffer.clear();
-			for (unsigned int i=0; i < sc; i = i + c) {
-				if (sampleChannels == 2) {
-					playBuffer.push_back((pSampleData[i] + pSampleData[i+1])/2.0f);
-				}
-				else {
-					playBuffer.push_back(pSampleData[i]);
-				}
-			}
-			totalSampleCount = playBuffer.size();
-			drwav_free(pSampleData);
-		}
-		loading = false;
-	}
-	else if (waveExtension == "aiff") {
-		loading = true;
-		if (audioFile.load (path.c_str()))  {
-			sampleChannels = audioFile.getNumChannels();
-			sampleRate = audioFile.getSampleRate();
-			totalSampleCount = audioFile.getNumSamplesPerChannel();
-			playBuffer.clear();
-			for (unsigned int i=0; i < totalSampleCount; i++) {
-				if (sampleChannels == 2) {
-					playBuffer.push_back((audioFile.samples[0][i] + audioFile.samples[1][i])/2.0f);
-				}
-				else {
-					playBuffer.push_back(audioFile.samples[0][i]);
-				}
-			}
-		}
-		loading = false;
-	}
-}
-
-void MAGMA::saveSample() {
-	drwav_data_format format;
-	format.container = drwav_container_riff;
-	format.format = DR_WAVE_FORMAT_PCM;
-	format.channels = 2;
-	format.sampleRate = sampleRate;
-	format.bitsPerSample = 32;
-	int *pSamples = (int*)calloc(2*totalSampleCount,sizeof(int));
-	memset(pSamples, 0, 2*totalSampleCount*sizeof(int));
-	for (unsigned int i = 0; i < totalSampleCount; i++) {
-		*(pSamples+2*i)= floor(playBuffer[i]*2147483647);
-		*(pSamples+2*i+1)= floor(playBuffer[i]*2147483647);
-	}
-	drwav* pWav = drwav_open_file_write(lastPath.c_str(), &format);
-	drwav_write(pWav, 2*totalSampleCount, pSamples);
-	drwav_close(pWav);
-	free(pSamples);
+	float spmRate = appGet()->engine->getSampleRate();
+	loading = true;
+	appGet()->engine->yieldWorkers();
+	playBuffer = waves::getMonoWav(path, spmRate, waveFileName, waveExtension, sampleChannels, sampleRate, totalSampleCount);
+	loading = false;
 }
 
 void MAGMA::process(const ProcessArgs &args) {
@@ -351,16 +308,16 @@ void MAGMA::process(const ProcessArgs &args) {
 		if (active[i]) {
 			int xi = channels[i].head;
 			float xf = channels[i].head - xi;
-			float crossfaded = crossfade(playBuffer[xi], playBuffer[xi + 1], xf);
+			float crossfaded = crossfade(playBuffer[xi].samples[0], playBuffer[xi + 1].samples[0], xf);
 			channels[i].filter.setParams(freq, q, args.sampleRate);
 			channels[i].filter.calcOutput(crossfaded);
-			if (channels[i].filterType == 0.0f) {
+			if (filterType == 0.0f) {
 				outputs[POLY_OUTPUT].setVoltage(5.0f * crossfaded,i);
 			}
-			else if (channels[i].filterType == 1.0f) {
+			else if (filterType == 1.0f) {
 				outputs[POLY_OUTPUT].setVoltage(5.0f * channels[i].filter.lp,i);
 			}
-			else if (channels[i].filterType == 2.0f) {
+			else if (filterType == 2.0f) {
 				outputs[POLY_OUTPUT].setVoltage(5.0f * channels[i].filter.bp,i);
 			}
 			else {
