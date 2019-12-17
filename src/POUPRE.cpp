@@ -24,7 +24,8 @@ struct POUPRE : Module {
 		LOOP_PARAM,
 		SPEED_PARAM,
 		GATE_PARAM,
-		NUM_PARAMS
+		PRESET_PARAM,
+		NUM_PARAMS = PRESET_PARAM+4
 	};
 	enum InputIds {
 		TRIG_INPUT,
@@ -41,7 +42,8 @@ struct POUPRE : Module {
 	};
 	enum LightIds {
 		SAMPLE_LIGHT,
-		NUM_LIGHTS = SAMPLE_LIGHT+3
+		PRESET_LIGHT = SAMPLE_LIGHT+3,
+		NUM_LIGHTS = PRESET_LIGHT+4
 	};
 
 	channel channels[16];
@@ -57,6 +59,7 @@ struct POUPRE : Module {
 	std::string lastPath;
 	std::string waveFileName;
 	std::string waveExtension;
+	dsp::SchmittTrigger presetTriggers[4];
 
 	POUPRE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -66,6 +69,10 @@ struct POUPRE : Module {
 		configParam(LOOP_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(GATE_PARAM, 0.0f, 1.0f, 1.0f);
 		configParam(SPEED_PARAM, 0.0f, 10.0f, 1.0f);
+		configParam(PRESET_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(PRESET_PARAM+1, 0.0f, 1.0f, 0.0f);
+		configParam(PRESET_PARAM+2, 0.0f, 1.0f, 0.0f);
+		configParam(PRESET_PARAM+3, 0.0f, 1.0f, 0.0f);
 
 		playBuffer.resize(0);
 	}
@@ -156,6 +163,61 @@ void POUPRE::process(const ProcessArgs &args) {
 		lights[SAMPLE_LIGHT+2].setBrightness(0.0f);
 	}
 
+	lights[PRESET_LIGHT].setBrightness(lights[PRESET_LIGHT].getBrightness() -  lights[PRESET_LIGHT].getBrightness() * 0.0001f);
+	lights[PRESET_LIGHT+1].setBrightness(lights[PRESET_LIGHT+1].getBrightness() -  lights[PRESET_LIGHT+1].getBrightness() * 0.0001f);
+	lights[PRESET_LIGHT+2].setBrightness(lights[PRESET_LIGHT+2].getBrightness() -  lights[PRESET_LIGHT+2].getBrightness() * 0.0001f);
+	lights[PRESET_LIGHT+3].setBrightness(lights[PRESET_LIGHT+3].getBrightness() -  lights[PRESET_LIGHT+3].getBrightness() * 0.0001f);
+
+	for (int i=0;i<4;i++) {
+		if (presetTriggers[i].process(params[PRESET_PARAM+i].getValue())) {
+			if (i==0) {
+				for (int j=0;j<8;j++) {
+					channels[j].start = j*0.125f;
+					channels[j].len = 0.125f;
+					channels[j].speed = 1.0f;
+					channels[j].loop = false;
+					channels[j].gate = 1;
+				}
+				lights[PRESET_LIGHT].setBrightness(1.0f);
+			}
+			else if (i==1) {
+				for (int j=0;j<16;j++) {
+					channels[j].start = j*0.0625f;
+					channels[j].len = 0.0625f;
+					channels[j].speed = 1.0f;
+					channels[j].loop = false;
+					channels[j].gate = 1;
+				}
+				lights[PRESET_LIGHT+1].setBrightness(1.0f);
+			}
+			else if (i==2) {
+				for (int j=0;j<16;j++) {
+					channels[j].start = j*0.03125f;
+					channels[j].len = 0.03125f;
+					channels[j].speed = 1.0f;
+					channels[j].loop = false;
+					channels[j].gate = 1;
+				}
+				lights[PRESET_LIGHT+2].setBrightness(1.0f);
+			}
+			else {
+				for (int j=0;j<16;j++) {
+					channels[j].start = j*0.015625f;
+					channels[j].len = 0.015625f;
+					channels[j].speed = 1.0f;
+					channels[j].loop = false;
+					channels[j].gate = 1;
+				}
+				lights[PRESET_LIGHT+3].setBrightness(1.0f);
+			}
+			params[START_PARAM].setValue(channels[currentChannel].start);
+			params[LEN_PARAM].setValue(channels[currentChannel].len);
+			params[SPEED_PARAM].setValue(channels[currentChannel].speed);
+			params[LOOP_PARAM].setValue(channels[currentChannel].loop ? 1.0f : 0.0f);
+			params[GATE_PARAM].setValue(channels[currentChannel].gate);
+		}
+	}
+
 	if (currentChannel != (int)params[CHANNEL_PARAM].getValue()) {
 		currentChannel = params[CHANNEL_PARAM].getValue();
 		params[START_PARAM].setValue(channels[currentChannel].start);
@@ -230,6 +292,15 @@ struct POUPREWidget : ModuleWidget {
 		addInput(createInput<PJ301MPort>(Vec(7.0f, 189.0f), module, POUPRE::START_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(7.0f, 236.0f), module, POUPRE::LEN_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(7.0f, 283.0f), module, POUPRE::SPEED_INPUT));
+
+		addParam(createParam<MiniLEDButton>(Vec(66.0f, 20.0f), module, POUPRE::PRESET_PARAM));
+		addParam(createParam<MiniLEDButton>(Vec(66.0f, 30.0f), module, POUPRE::PRESET_PARAM+1));
+		addParam(createParam<MiniLEDButton>(Vec(66.0f, 62.0f), module, POUPRE::PRESET_PARAM+2));
+		addParam(createParam<MiniLEDButton>(Vec(66.0f, 72.0f), module, POUPRE::PRESET_PARAM+3));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(66.0f, 20.0f), module, POUPRE::PRESET_LIGHT));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(66.0f, 30.0f), module, POUPRE::PRESET_LIGHT+1));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(66.0f, 62.0f), module, POUPRE::PRESET_LIGHT+2));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(66.0f, 72.0f), module, POUPRE::PRESET_LIGHT+3));
 
 		addInput(createInput<PJ301MPort>(Vec(7.0f, 330.0f), module, POUPRE::TRIG_INPUT));
 		addOutput(createOutput<PJ301MPort>(Vec(43.5f, 330.0f), module, POUPRE::POLY_OUTPUT));

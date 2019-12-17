@@ -1,3 +1,7 @@
+### v1.1.8 (17/12/2019)
+- maGma a channel can kill another one like oAï sampler
+- maGma & póUPrè have 4 presets to slice their sample in 8, 16, 32 and 64 slices automatically
+
 ### v1.1.7 (17/12/2019)
 - ACNe hold SHIFT pressed to move faders by pairs
 - LoURdE skin reworked
