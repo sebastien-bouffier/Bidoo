@@ -63,6 +63,7 @@ struct ACNE : Module {
 	float rampedValue = 0.0;
 	dsp::SchmittTrigger linksTriggers[8];
 	bool links[8] = {0,0,0,0,0,0,0,0};
+	bool shifted = false;
 
 	ACNE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -206,19 +207,23 @@ void ACNE::process(const ProcessArgs &args) {
 		}
 	}
 
+	if ((eFader>-1) && shifted) {
+		int index = eFader%ACNE_NB_TRACKS;
+		int outOffset = (eFader/ACNE_NB_TRACKS)%2==0?1:-1;
+		int inOffset = links[index/2]?(index%2==0?1:-1):0;
+		int relative=eFader+ACNE_NB_TRACKS*outOffset+inOffset;
+		params[FADERS_PARAMS+relative].setValue(params[FADERS_PARAMS+eFader].getValue());
+	}
+
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
 		for (int j = 0; j < ACNE_NB_TRACKS; j++) {
 			snapshots[currentSnapshot][i][j] = params[FADERS_PARAMS+i*ACNE_NB_TRACKS+j].getValue();
 		}
-	}
 
-	for (int i = 0; i < ACNE_NB_OUTS; i++) {
 		if (outMutesTriggers[i].process(params[OUT_MUTE_PARAMS + i].getValue())) {
 			outMutes[i] = !outMutes[i];
 		}
-	}
 
-	for (int i = 0; i < 8; i++) {
 		if (linksTriggers[i].process(params[TRACKLINK_PARAMS + i].getValue()))
 			links[i] = !links[i];
 
@@ -332,7 +337,16 @@ struct AcneBidooColoredTrimpot : BidooColoredTrimpot {
 	void onDragEnd(const event::DragEnd& e) override {
 		ACNE* acne = dynamic_cast<ACNE*>(paramQuantity->module);
 		acne->eFader=-1;
+		acne->shifted=false;
 		BidooColoredTrimpot::onDragEnd(e);
+	}
+
+	void onButton(const event::Button &e) override {
+		ACNE* acne = dynamic_cast<ACNE*>(paramQuantity->module);
+		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
+					acne->shifted=true;
+		}
+		BidooColoredTrimpot::onButton(e);
 	}
 };
 

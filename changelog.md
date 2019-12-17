@@ -1,3 +1,7 @@
+### v1.1.7 (17/12/2019)
+- ACNe hold SHIFT pressed to move faders by pairs
+- LoURdE skin reworked
+
 ### v1.1.6 (16/12/2019)
 - All samplers i.e. OUAIve, cANARd, póUPrè, maGma and oAï now resample their samples accordingly to engine sample rate.
 - ziNC inputs and controls are renamed (MOD vs. CARR)

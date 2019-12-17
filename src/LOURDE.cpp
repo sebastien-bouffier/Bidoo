@@ -77,25 +77,25 @@ struct LOURDEWidget : ModuleWidget {
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/LOURDE.svg")));
 
 
-  	addInput(createInput<PJ301MPort>(Vec(25.5,85), module, LOURDE::IN1));
-    addInput(createInput<PJ301MPort>(Vec(25.5,155), module, LOURDE::IN2));
-    addInput(createInput<PJ301MPort>(Vec(25.5,225), module, LOURDE::IN3));
+  	addInput(createInput<PJ301MPort>(Vec(25.5,77), module, LOURDE::IN1));
+    addInput(createInput<PJ301MPort>(Vec(25.5,157), module, LOURDE::IN2));
+    addInput(createInput<PJ301MPort>(Vec(25.5,237), module, LOURDE::IN3));
 
-    addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 57.0f), module, LOURDE::INWEIGHT1));
-    addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 127.0f), module, LOURDE::INWEIGHT2));
+    addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 37.0f), module, LOURDE::INWEIGHT1));
+    addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 117.0f), module, LOURDE::INWEIGHT2));
     addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 197.0f), module, LOURDE::INWEIGHT3));
 
-    addParam(createParam<BidooBlueKnob>(Vec(22.5,50), module, LOURDE::WEIGHT1));
-    addParam(createParam<BidooBlueKnob>(Vec(22.5,120), module, LOURDE::WEIGHT2));
+    addParam(createParam<BidooBlueKnob>(Vec(22.5,30), module, LOURDE::WEIGHT1));
+    addParam(createParam<BidooBlueKnob>(Vec(22.5,110), module, LOURDE::WEIGHT2));
     addParam(createParam<BidooBlueKnob>(Vec(22.5,190), module, LOURDE::WEIGHT3));
 
 		LabelDisplayWidget *displayW1 = new LabelDisplayWidget();
-		displayW1->box.pos = Vec(15,65);
+		displayW1->box.pos = Vec(15,45);
 		displayW1->value = module ? &module->params[LOURDE::WEIGHT1] : NULL;
 		addChild(displayW1);
 
 		LabelDisplayWidget *displayW2 = new LabelDisplayWidget();
-		displayW2->box.pos = Vec(15,135);
+		displayW2->box.pos = Vec(15,125);
 		displayW2->value = module ? &module->params[LOURDE::WEIGHT2] : NULL;
 		addChild(displayW2);
 
@@ -104,14 +104,14 @@ struct LOURDEWidget : ModuleWidget {
 		displayW3->value = module ? &module->params[LOURDE::WEIGHT3] : NULL;
 		addChild(displayW3);
 
-    addParam(createParam<BidooBlueKnob>(Vec(22.5,270), module, LOURDE::OUTFLOOR));
+    addParam(createParam<BidooBlueKnob>(Vec(22.5,282), module, LOURDE::OUTFLOOR));
 
 		LabelDisplayWidget *displayOF = new LabelDisplayWidget();
-		displayOF->box.pos = Vec(15,285);
+		displayOF->box.pos = Vec(15,296);
 		displayOF->value = module ? &module->params[LOURDE::OUTFLOOR] : NULL;
 		addChild(displayOF);
 
-    addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 277.0f), module, LOURDE::INFLOOR));
+    addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 289.0f), module, LOURDE::INFLOOR));
 
   	addOutput(createOutput<PJ301MPort>(Vec(25.5,330), module, LOURDE::OUT));
   }
