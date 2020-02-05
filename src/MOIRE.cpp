@@ -90,9 +90,9 @@ struct MOIRE : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
-		// scenes
 		json_t *scenesJ = json_object_get(rootJ, "scenes");
-		if (scenesJ) {
+		json_t *typesJ = json_object_get(rootJ, "types");
+		if (scenesJ && typesJ) {
 			for (int i = 0; i < 16; i++) {
 				json_t *sceneJ = json_array_get(scenesJ, i);
 				if (sceneJ) {
@@ -103,13 +103,6 @@ struct MOIRE : Module {
 						}
 					}
 				}
-			}
-		}
-
-		//controlTypes
-		json_t *typesJ = json_object_get(rootJ, "types");
-		if (typesJ) {
-			for (int i = 0; i < 16; i++) {
 				json_t *typeJ = json_array_get(typesJ, i);
 				if (typeJ) {
 					controlsTypes[i] = json_integer_value(typeJ);
@@ -120,8 +113,8 @@ struct MOIRE : Module {
 };
 
 void MOIRE::process(const ProcessArgs &args) {
-	targetScene = clamp(floor(inputs[TARGETSCENE_INPUT].getVoltage() * 1.6f) + params[TARGETSCENE_PARAM].getValue() , 0.0f, 15.0f);
-	currentScene = clamp(floor(inputs[CURRENTSCENE_INPUT].getVoltage() * 1.6f) + params[CURRENTSCENE_PARAM].getValue() , 0.0f, 15.0f);
+	targetScene = clamp(floor(inputs[TARGETSCENE_INPUT].getVoltage() * 1.5f) + params[TARGETSCENE_PARAM].getValue() , 0.0f, 15.0f);
+	currentScene = clamp(floor(inputs[CURRENTSCENE_INPUT].getVoltage() * 1.5f) + params[CURRENTSCENE_PARAM].getValue() , 0.0f, 15.0f);
 
 	for (int i = 0; i < 16; i++) {
 		if (typeTriggers[i].process(params[TYPE_PARAMS + i].getValue())) {
@@ -137,7 +130,7 @@ void MOIRE::process(const ProcessArgs &args) {
 			if (controlsTypes[i] == 0) {
 				currentValues[i] = rescale(coeff,0.0f,10.0f,scenes[currentScene][i],scenes[targetScene][i]);
 			} else {
-				if (coeff >= 9.98f) {
+				if (coeff == 10.f) {
 					currentValues[i] = scenes[targetScene][i];
 				}
 				else {
@@ -253,13 +246,13 @@ MOIREWidget::MOIREWidget(MOIRE *module) {
 
 	addParam(createParam<MOIRECKD6>(Vec(portX0[5], portY0[0]+18), module, MOIRE::SAVE_PARAM));
 
-  addParam(createParam<BidooBlueTrimpot>(Vec(portX0[0], portY0[1]+16), module, MOIRE::TARGETSCENE_PARAM));
+  addParam(createParam<BidooBlueSnapTrimpot>(Vec(portX0[0], portY0[1]+16), module, MOIRE::TARGETSCENE_PARAM));
 	MOIREDisplay *displayTarget = new MOIREDisplay();
 	displayTarget->box.pos = Vec(50,portY0[2]-21);
 	displayTarget->box.size = Vec(20, 20);
 	displayTarget->value = module ? &module->targetScene : NULL;
 	addChild(displayTarget);
-	addParam(createParam<BidooBlueTrimpot>(Vec(portX0[0], portY0[6]-5), module, MOIRE::CURRENTSCENE_PARAM));
+	addParam(createParam<BidooBlueSnapTrimpot>(Vec(portX0[0], portY0[6]-5), module, MOIRE::CURRENTSCENE_PARAM));
 	MOIREDisplay *displayCurrent = new MOIREDisplay();
 	displayCurrent->box.pos = Vec(50,portY0[5]+19);
 	displayCurrent->box.size = Vec(20, 20);

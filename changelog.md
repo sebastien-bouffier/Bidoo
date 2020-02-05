@@ -1,3 +1,12 @@
+### v1.1.10 (05/02/2020)
+- MOiRE scene selection fixed
+- ACnE autosave mode selection
+- µ migration fixed
+- liMonADe crash fix 
+
+### v1.1.9 (18/12/2019)
+- cANARd can save samples again
+
 ### v1.1.8 (17/12/2019)
 - maGma a channel can kill another one like oAï sampler
 - maGma & póUPrè have 4 presets to slice their sample in 8, 16, 32 and 64 slices automatically

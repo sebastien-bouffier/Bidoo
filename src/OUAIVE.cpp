@@ -77,7 +77,7 @@ struct OUAIVE : Module {
 
 	void process(const ProcessArgs &args) override;
 
-	void loadSample(std::string path);
+	void loadSample();
 
 	// persistence
 
@@ -95,7 +95,7 @@ struct OUAIVE : Module {
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		if (lastPathJ) {
 			lastPath = json_string_value(lastPathJ);
-			if (!lastPath.empty()) loadSample(lastPath);
+			if (!lastPath.empty()) loadSample();
 		}
 		json_t *trigModeJ = json_object_get(rootJ, "trigMode");
 		if (trigModeJ) {
@@ -108,19 +108,22 @@ struct OUAIVE : Module {
 	}
 
 	void onSampleRateChange() override {
-		if (!lastPath.empty()) loadSample(lastPath);
+		if (!lastPath.empty()) loadSample();
 	}
 };
 
-void OUAIVE::loadSample(std::string path) {
-	lastPath = path;
-	loading = true;
+void OUAIVE::loadSample() {
 	appGet()->engine->yieldWorkers();
-	playBuffer = waves::getStereoWav(path, appGet()->engine->getSampleRate(), waveFileName, waveExtension, channels, sampleRate, totalSampleCount);
+	mylock.lock();
+	playBuffer = waves::getStereoWav(lastPath, appGet()->engine->getSampleRate(), waveFileName, waveExtension, channels, sampleRate, totalSampleCount);
+	mylock.unlock();
 	loading = false;
 }
 
 void OUAIVE::process(const ProcessArgs &args) {
+	if (loading) {
+		loadSample();
+	}
 	if (trigModeTrigger.process(params[TRIG_MODE_PARAM].getValue())) {
 		trigMode = (((int)trigMode + 1) % 3);
 	}
@@ -132,97 +135,95 @@ void OUAIVE::process(const ProcessArgs &args) {
 	nbSlices = clamp(roundl(params[NB_SLICES_PARAM].getValue() + params[CVSLICES_PARAM].getValue() * inputs[NB_SLICES_INPUT].getVoltage()), 1, 128);
 	speed = clamp(params[SPEED_PARAM].getValue() + params[CVSPEED_PARAM].getValue() * inputs[SPEED_INPUT].getVoltage(), 0.2f, 10.0f);
 
-	if (!loading) {
-		sliceLength = clamp(totalSampleCount / nbSlices, 1, totalSampleCount);
+	sliceLength = clamp(totalSampleCount / nbSlices, 1, totalSampleCount);
 
-		if ((trigMode == 0) && (playTrigger.process(inputs[GATE_INPUT].getVoltage()))) {
-			play = true;
-			if (inputs[POS_INPUT].isConnected())
-				samplePos = clamp(inputs[POS_INPUT].getVoltage() * (totalSampleCount-1.0f) * 0.1f, 0.0f , totalSampleCount - 1.0f);
-			else {
-				if (readMode != 1)
-					samplePos = 0.0f;
-				else
-					samplePos = totalSampleCount - 1.0f;
-			}
-		}	else if (trigMode == 1) {
-			play = (inputs[GATE_INPUT].getVoltage() > 0);
+	if ((trigMode == 0) && (playTrigger.process(inputs[GATE_INPUT].getVoltage()))) {
+		play = true;
+		if (inputs[POS_INPUT].isConnected())
 			samplePos = clamp(inputs[POS_INPUT].getVoltage() * (totalSampleCount-1.0f) * 0.1f, 0.0f , totalSampleCount - 1.0f);
-		} else if ((trigMode == 2) && (playTrigger.process(inputs[GATE_INPUT].getVoltage()))) {
-			play = true;
-			if (inputs[POS_INPUT].isConnected())
-				sliceIndex = clamp((int)(inputs[POS_INPUT].getVoltage() * nbSlices * 0.1f), 0, nbSlices);
-			 else
-				sliceIndex = (sliceIndex+1)%nbSlices;
+		else {
 			if (readMode != 1)
-				samplePos = clamp(sliceIndex*sliceLength, 0, totalSampleCount-1);
+				samplePos = 0.0f;
 			else
-				samplePos = clamp((sliceIndex + 1) * sliceLength - 1, 0 , totalSampleCount-1);
+				samplePos = totalSampleCount - 1.0f;
 		}
+	}	else if (trigMode == 1) {
+		play = (inputs[GATE_INPUT].getVoltage() > 0);
+		samplePos = clamp(inputs[POS_INPUT].getVoltage() * (totalSampleCount-1.0f) * 0.1f, 0.0f , totalSampleCount - 1.0f);
+	} else if ((trigMode == 2) && (playTrigger.process(inputs[GATE_INPUT].getVoltage()))) {
+		play = true;
+		if (inputs[POS_INPUT].isConnected())
+			sliceIndex = clamp((int)(inputs[POS_INPUT].getVoltage() * nbSlices * 0.1f), 0, nbSlices);
+		 else
+			sliceIndex = (sliceIndex+1)%nbSlices;
+		if (readMode != 1)
+			samplePos = clamp(sliceIndex*sliceLength, 0, totalSampleCount-1);
+		else
+			samplePos = clamp((sliceIndex + 1) * sliceLength - 1, 0 , totalSampleCount-1);
+	}
 
-		if (posResetTrigger.process(inputs[POS_RESET_INPUT].getVoltage())) {
-			sliceIndex = 0;
-			samplePos = 0.0f;
+	if (posResetTrigger.process(inputs[POS_RESET_INPUT].getVoltage())) {
+		sliceIndex = 0;
+		samplePos = 0.0f;
+	}
+
+	if (play && (samplePos>=0) && (samplePos < totalSampleCount)) {
+		if (channels == 1) {
+			int xi = samplePos;
+			float xf = samplePos - xi;
+			float crossfaded = crossfade(playBuffer[xi].samples[0], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0], xf);
+			outputs[OUTL_OUTPUT].setVoltage(5.0f * crossfaded);
+			outputs[OUTR_OUTPUT].setVoltage(5.0f * crossfaded);
 		}
-
-		if ((!loading) && (play) && (samplePos>=0) && (samplePos < totalSampleCount)) {
-			if (channels == 1) {
+		else if (channels == 2) {
+			if (outputs[OUTL_OUTPUT].isConnected() && outputs[OUTR_OUTPUT].isConnected()) {
 				int xi = samplePos;
 				float xf = samplePos - xi;
 				float crossfaded = crossfade(playBuffer[xi].samples[0], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0], xf);
 				outputs[OUTL_OUTPUT].setVoltage(5.0f * crossfaded);
+				crossfaded = crossfade(playBuffer[xi].samples[1], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[1], xf);
 				outputs[OUTR_OUTPUT].setVoltage(5.0f * crossfaded);
 			}
-			else if (channels == 2) {
-				if (outputs[OUTL_OUTPUT].isConnected() && outputs[OUTR_OUTPUT].isConnected()) {
-					int xi = samplePos;
-					float xf = samplePos - xi;
-					float crossfaded = crossfade(playBuffer[xi].samples[0], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0], xf);
-					outputs[OUTL_OUTPUT].setVoltage(5.0f * crossfaded);
-					crossfaded = crossfade(playBuffer[xi].samples[1], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[1], xf);
-					outputs[OUTR_OUTPUT].setVoltage(5.0f * crossfaded);
-				}
-				else {
-					int xi = samplePos;
-					float xf = samplePos - xi;
-					float crossfaded = crossfade(0.5f*(playBuffer[xi].samples[0]+playBuffer[xi].samples[1]), 0.5f*(playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0]+playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[1]), xf);
-					outputs[OUTL_OUTPUT].setVoltage(5.0f * crossfaded);
-					outputs[OUTR_OUTPUT].setVoltage(5.0f * crossfaded);
-				}
-			}
-
-			if (trigMode == 0) {
-				if (readMode != 1)
-					samplePos = samplePos + speed;
-				else
-					samplePos = samplePos - speed;
-				//manage eof readMode
-				if ((readMode == 0) && (samplePos >= totalSampleCount))
-						play = false;
-				else if ((readMode == 1) && (samplePos <=0))
-						play = false;
-				else if ((readMode == 2) && (samplePos >= totalSampleCount))
-					samplePos = clamp(inputs[POS_INPUT].getVoltage() * (totalSampleCount-1.0f) * 0.1f , 0.0f ,totalSampleCount - 1.0f);
-			}
-			else if (trigMode == 2)
-			{
-				if (readMode != 1)
-					samplePos = samplePos + speed;
-				else
-					samplePos = samplePos - speed;
-
-				//manage eof readMode
-				if ((readMode == 0) && ((samplePos >= (sliceIndex+1) * sliceLength) || (samplePos >= totalSampleCount)))
-						play = false;
-				if ((readMode == 1) && ((samplePos <= (sliceIndex) * sliceLength) || (samplePos <= 0)))
-						play = false;
-				if ((readMode == 2) && ((samplePos >= (sliceIndex+1) * sliceLength) || (samplePos >= totalSampleCount)))
-					samplePos = clamp(sliceIndex*sliceLength, 0 , totalSampleCount);
+			else {
+				int xi = samplePos;
+				float xf = samplePos - xi;
+				float crossfaded = crossfade(0.5f*(playBuffer[xi].samples[0]+playBuffer[xi].samples[1]), 0.5f*(playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0]+playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[1]), xf);
+				outputs[OUTL_OUTPUT].setVoltage(5.0f * crossfaded);
+				outputs[OUTR_OUTPUT].setVoltage(5.0f * crossfaded);
 			}
 		}
-		else if (samplePos == totalSampleCount)
-			play = false;
+
+		if (trigMode == 0) {
+			if (readMode != 1)
+				samplePos = samplePos + speed;
+			else
+				samplePos = samplePos - speed;
+			//manage eof readMode
+			if ((readMode == 0) && (samplePos >= totalSampleCount))
+					play = false;
+			else if ((readMode == 1) && (samplePos <=0))
+					play = false;
+			else if ((readMode == 2) && (samplePos >= totalSampleCount))
+				samplePos = clamp(inputs[POS_INPUT].getVoltage() * (totalSampleCount-1.0f) * 0.1f , 0.0f ,totalSampleCount - 1.0f);
+		}
+		else if (trigMode == 2)
+		{
+			if (readMode != 1)
+				samplePos = samplePos + speed;
+			else
+				samplePos = samplePos - speed;
+
+			//manage eof readMode
+			if ((readMode == 0) && ((samplePos >= (sliceIndex+1) * sliceLength) || (samplePos >= totalSampleCount)))
+					play = false;
+			if ((readMode == 1) && ((samplePos <= (sliceIndex) * sliceLength) || (samplePos <= 0)))
+					play = false;
+			if ((readMode == 2) && ((samplePos >= (sliceIndex+1) * sliceLength) || (samplePos >= totalSampleCount)))
+				samplePos = clamp(sliceIndex*sliceLength, 0 , totalSampleCount);
+		}
 	}
+	else if (samplePos == totalSampleCount)
+		play = false;
 }
 
 struct OUAIVEDisplay : OpaqueWidget {
@@ -314,7 +315,7 @@ struct OUAIVEDisplay : OpaqueWidget {
   		nvgTextBox(args.vg, 90, -15, 40, speed.c_str(), NULL);
 
   		//Draw play line
-  		if ((module->play) && (!module->loading) && (nbSample>0)) {
+  		if ((module->play) && (nbSample>0)) {
   			nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
   			{
   				nvgBeginPath(args.vg);
@@ -473,11 +474,10 @@ struct OUAIVEWidget : ModuleWidget {
   		std::string dir = module->lastPath.empty() ? asset::user("") : rack::string::directory(module->lastPath);
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
-  			module->play = false;
-  			module->loadSample(path);
   			module->samplePos = 0;
   			module->lastPath = path;
   			module->sliceIndex = -1;
+				module->loading=true;
   			free(path);
   		}
   	}

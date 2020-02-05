@@ -4,9 +4,9 @@
 #include <iomanip>
 #include "osdialog.h"
 #include "dep/waves.hpp"
+#include <mutex>
 
 using namespace std;
-
 
 #define pi 3.14159265359
 
@@ -120,6 +120,7 @@ struct OAI : Module {
 	dsp::SchmittTrigger triggers[16];
 	bool loading=false;
 	bool play = false;
+	std::mutex mylock;
 
 	OAI() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -141,7 +142,7 @@ struct OAI : Module {
 
 	void process(const ProcessArgs &args) override;
 
-	void loadSample(std::string path, int channel);
+	void loadSample();
 	void saveSample();
 
 	void onRandomize() override {
@@ -202,17 +203,14 @@ struct OAI : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
-		json_t *currentChannelJ = json_object_get(rootJ, "currentChannel");
-		if (currentChannelJ) {
-			currentChannel = json_integer_value(currentChannelJ);
-		}
 		for (size_t i = 0; i<16 ; i++) {
 			json_t *channelJ = json_object_get(rootJ, ("channel" + to_string(i)).c_str());
 			if (channelJ){
 				json_t *lastPathJ= json_object_get(channelJ, "lastPath");
 				if (lastPathJ) {
 					channels[i].lastPath = json_string_value(lastPathJ);
-					if (!channels[i].lastPath.empty()) loadSample(channels[i].lastPath, i);
+					currentChannel = i;
+					if (!channels[i].lastPath.empty()) loadSample();
 				}
 				json_t *waveExtensionJ= json_object_get(channelJ, "waveExtension");
 				if (waveExtensionJ)
@@ -258,6 +256,10 @@ struct OAI : Module {
 					channels[i].kill = json_integer_value(killJ);
 			}
 		}
+		json_t *currentChannelJ = json_object_get(rootJ, "currentChannel");
+		if (currentChannelJ) {
+			currentChannel = json_integer_value(currentChannelJ);
+		}
 		params[START_PARAM].setValue(channels[currentChannel].start);
 		params[LEN_PARAM].setValue(channels[currentChannel].len);
 		params[SPEED_PARAM].setValue(channels[currentChannel].speed);
@@ -270,22 +272,28 @@ struct OAI : Module {
 	}
 
 	void onSampleRateChange() override {
+		int tmpChannel=currentChannel;
 		for (size_t i = 0; i<16 ; i++) {
-			if (!channels[i].lastPath.empty()) loadSample(channels[i].lastPath, i);
+			currentChannel = i;
+			if (!channels[i].lastPath.empty()) loadSample();
 		}
+		currentChannel=tmpChannel;
 	}
 };
 
-void OAI::loadSample(std::string path, int channel) {
-	channels[channel].lastPath = path;
-	float spmRate = appGet()->engine->getSampleRate();
-	loading = true;
+void OAI::loadSample() {
 	appGet()->engine->yieldWorkers();
-	channels[channel].playBuffer = waves::getMonoWav(path, spmRate, channels[channel].waveFileName, channels[channel].waveExtension, channels[channel].sampleChannels, channels[channel].sampleRate, channels[channel].totalSampleCount);
+	channels[currentChannel].playBuffer = waves::getMonoWav(channels[currentChannel].lastPath, appGet()->engine->getSampleRate(), channels[currentChannel].waveFileName, channels[currentChannel].waveExtension,
+	 channels[currentChannel].sampleChannels, channels[currentChannel].sampleRate, channels[currentChannel].totalSampleCount);
 	loading = false;
 }
 
 void OAI::process(const ProcessArgs &args) {
+	mylock.lock();
+	if (loading) {
+		loadSample();
+	}
+	mylock.unlock();
 	if (channels[currentChannel].playBuffer.size()==0) {
 		lights[SAMPLE_LIGHT].setBrightness(1.0f);
 		lights[SAMPLE_LIGHT+1].setBrightness(0.0f);
@@ -431,12 +439,13 @@ struct OAIWidget : ModuleWidget {
 	struct OAIItem : MenuItem {
   	OAI *module;
   	void onAction(const event::Action &e) override {
-
   		std::string dir = module->channels[module->currentChannel].lastPath.empty() ? asset::user("") : rack::string::directory(module->channels[module->currentChannel].lastPath);
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
-				module->play = false;
-  			module->loadSample(path, module->currentChannel);
+				module->mylock.lock();
+				module->channels[module->currentChannel].lastPath = path;
+  			module->loading=true;
+				module->mylock.unlock();
   			free(path);
   		}
   	}
@@ -445,7 +454,6 @@ struct OAIWidget : ModuleWidget {
   void appendContextMenu(ui::Menu *menu) override {
 		OAI *module = dynamic_cast<OAI*>(this->module);
 		assert(module);
-
 		menu->addChild(construct<MenuLabel>());
 		menu->addChild(construct<OAIItem>(&MenuItem::text, "Load sample", &OAIItem::module, module));
 	}

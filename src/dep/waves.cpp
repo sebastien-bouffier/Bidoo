@@ -134,4 +134,25 @@ namespace waves {
     return result;
   }
 
+  void saveWave(std::vector<rack::dsp::Frame<2>> &sample, int sampleRate, std::string path) {
+    drwav_data_format format;
+    format.container = drwav_container_riff;
+    format.format = DR_WAVE_FORMAT_PCM;
+    format.channels = 2;
+    format.sampleRate = sampleRate;
+    format.bitsPerSample = 32;
+
+    int *pSamples = (int*)calloc(2*sample.size(),sizeof(int));
+    memset(pSamples, 0, 2*sample.size()*sizeof(int));
+    for (unsigned int i = 0; i < sample.size(); i++) {
+    	*(pSamples+2*i)= floor(sample[i].samples[0]*2147483647);
+    	*(pSamples+2*i+1)= floor(sample[i].samples[1]*2147483647);
+    }
+
+    drwav* pWav = drwav_open_file_write(path.c_str(), &format);
+    drwav_write(pWav, 2*sample.size(), pSamples);
+    drwav_close(pWav);
+    free(pSamples);
+  }
+
 }

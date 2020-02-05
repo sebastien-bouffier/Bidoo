@@ -21,7 +21,9 @@ struct ACNE : Module {
 		IN_SOLO_PARAMS = IN_MUTE_PARAMS + ACNE_NB_TRACKS,
 		SNAPSHOT_PARAMS = IN_SOLO_PARAMS + ACNE_NB_TRACKS,
 		FADERS_PARAMS = SNAPSHOT_PARAMS + ACNE_NB_SNAPSHOTS,
-		NUM_PARAMS = FADERS_PARAMS + (ACNE_NB_TRACKS * ACNE_NB_OUTS)
+		AUTOSAVE_PARAM = FADERS_PARAMS + (ACNE_NB_TRACKS * ACNE_NB_OUTS),
+		SAVE_PARAM,
+		NUM_PARAMS
 	};
 	enum InputIds {
 		SNAPSHOT_INPUT,
@@ -39,13 +41,16 @@ struct ACNE : Module {
 		IN_MUTE_LIGHTS = OUT_MUTE_LIGHTS + ACNE_NB_OUTS,
 		IN_SOLO_LIGHTS = IN_MUTE_LIGHTS + ACNE_NB_TRACKS,
 		SNAPSHOT_LIGHTS = IN_SOLO_LIGHTS + ACNE_NB_TRACKS,
-		NUM_LIGHTS = SNAPSHOT_LIGHTS + ACNE_NB_SNAPSHOTS
+		AUTOSAVE_LIGHT = SNAPSHOT_LIGHTS + ACNE_NB_SNAPSHOTS,
+		SAVE_LIGHT,
+		NUM_LIGHTS
 	};
 
 	int currentSnapshot = 0;
 	int previousSnapshot = 0;
 	int copySnapshot = 0;
 	bool copyState = false;
+	bool autosave = true;
 	float snapshots[ACNE_NB_SNAPSHOTS][ACNE_NB_OUTS][ACNE_NB_TRACKS] = {{{0.0f}}};
 	bool  outMutes[ACNE_NB_OUTS] = {0};
 	bool  inMutes[ACNE_NB_TRACKS] = {0};
@@ -57,6 +62,8 @@ struct ACNE : Module {
 	dsp::SchmittTrigger muteTrigger;
 	dsp::SchmittTrigger soloTrigger;
 	dsp::SchmittTrigger copyPasteTrigger;
+	dsp::SchmittTrigger autoSaveTrigger;
+	dsp::SchmittTrigger saveTrigger;
 	int rampSteps = 0;
 	int rampSize = 1;
 	int eFader = -1;
@@ -73,6 +80,8 @@ struct ACNE : Module {
 		configParam(SEND_MUTE_PARAM, 0.f, 1.f, 0.f, "Sends mute");
 		configParam(MUTE_PARAM, 0.f, 1.f, 0.f, "Mute");
 		configParam(SOLO_PARAM, 0.f, 1.f, 0.f, "Solo");
+		configParam(AUTOSAVE_PARAM, 0.f, 1.f, 1.f, "Auto save");
+		configParam(SAVE_PARAM, 0.f, 1.f, 0.f, "Save");
 
 		for (int i = 0; i < ACNE_NB_OUTS; i++) {
 			configParam(OUT_MUTE_PARAMS + i, 0.f, 1.f, 0.f, "Mute output " + std::to_string(i));
@@ -99,6 +108,7 @@ struct ACNE : Module {
 
 	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
+		json_object_set_new(rootJ, "autosave", json_boolean(autosave));
 		json_t *snapShotsJ = json_array();
 		for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
 			json_t *snapshotJ = json_array();
@@ -122,6 +132,8 @@ struct ACNE : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		json_t *autosaveJ = json_object_get(rootJ, "autosave");
+		if (autosaveJ) autosave = json_is_true(autosaveJ);
 		json_t *snapShotsJ = json_object_get(rootJ, "snapshots");
 		if (snapShotsJ) {
 			for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
@@ -172,6 +184,10 @@ struct ACNE : Module {
 void ACNE::process(const ProcessArgs &args) {
 	rampSize = static_cast<int>(args.sampleRate*params[RAMP_PARAM].value);
 
+	if (autoSaveTrigger.process(params[AUTOSAVE_PARAM].getValue())) {
+		autosave = !autosave;
+	}
+
 	if (copyPasteTrigger.process(params[COPY_PARAM].getValue())) {
 		if (!copyState) {
 			copySnapshot = currentSnapshot;
@@ -215,9 +231,19 @@ void ACNE::process(const ProcessArgs &args) {
 		params[FADERS_PARAMS+relative].setValue(params[FADERS_PARAMS+eFader].getValue());
 	}
 
+	bool save = saveTrigger.process(params[SAVE_PARAM].getValue());
+
+	lights[SAVE_LIGHT].setBrightness(lights[SAVE_LIGHT].getBrightness()-0.0001f*lights[SAVE_LIGHT].getBrightness());
+	if (save == true) {
+
+		lights[SAVE_LIGHT].setBrightness(1.0f);
+	}
+
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
-		for (int j = 0; j < ACNE_NB_TRACKS; j++) {
-			snapshots[currentSnapshot][i][j] = params[FADERS_PARAMS+i*ACNE_NB_TRACKS+j].getValue();
+		if (autosave || save) {
+			for (int j = 0; j < ACNE_NB_TRACKS; j++) {
+				snapshots[currentSnapshot][i][j] = params[FADERS_PARAMS+i*ACNE_NB_TRACKS+j].getValue();
+			}
 		}
 
 		if (outMutesTriggers[i].process(params[OUT_MUTE_PARAMS + i].getValue())) {
@@ -319,6 +345,8 @@ void ACNE::process(const ProcessArgs &args) {
 	for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
 		lights[SNAPSHOT_LIGHTS + i].setBrightness(i == currentSnapshot ? 1 : 0);
 	}
+
+	lights[AUTOSAVE_LIGHT].setBrightness(autosave == true ? 1 : 0);
 }
 
 struct ACNEWidget : ModuleWidget {
@@ -405,6 +433,12 @@ ACNEWidget::ACNEWidget(ACNE *module) {
 			addParam(trim);
 		}
 	}
+
+	addParam(createParam<LEDButton>(Vec(32.0f, 3.0f), module, ACNE::AUTOSAVE_PARAM));
+	addChild(createLight<SmallLight<BlueLight>>(Vec(38.0f, 9.0f), module, ACNE::AUTOSAVE_LIGHT));
+
+	addParam(createParam<LEDButton>(Vec(460.0f, 3.0f), module, ACNE::SAVE_PARAM));
+	addChild(createLight<SmallLight<BlueLight>>(Vec(466.0f, 9.0f), module, ACNE::SAVE_LIGHT));
 }
 
 Model *modelACNE = createModel<ACNE, ACNEWidget>("ACnE");

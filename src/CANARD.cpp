@@ -57,7 +57,7 @@ struct CANARD : Module {
 	bool record = false;
 	bool save = false;
 	int channels = 2;
-  int sampleRate = 0;
+	int sampleRate = 0;
   int totalSampleCount = 0;
 	vector<dsp::Frame<2>> playBuffer, recordBuffer;
 	float samplePos = 0.0f, sampleStart = 0.0f, loopLength = 0.0f, fadeLenght = 0.0f, fadeCoeff = 1.0f, speedFactor = 1.0f;
@@ -109,7 +109,7 @@ struct CANARD : Module {
 
 	void calcLoop();
 	void initPos();
-	void loadSample(std::string path);
+	void loadSample();
 	void saveSample();
 
 	json_t *dataToJson() override {
@@ -132,7 +132,7 @@ struct CANARD : Module {
 			lastPath = json_string_value(lastPathJ);
 			waveFileName = rack::string::filename(lastPath);
 			waveExtension = rack::string::filenameBase(lastPath);
-			if (!lastPath.empty()) loadSample(lastPath);
+			if (!lastPath.empty()) loadSample();
 			if (totalSampleCount>0) {
 				json_t *slicesJ = json_object_get(rootJ, "slices");
 				if (slicesJ) {
@@ -148,38 +148,24 @@ struct CANARD : Module {
 	}
 
 	void onSampleRateChange() override {
-		if (!lastPath.empty()) loadSample(lastPath);
+		if (!lastPath.empty()) loadSample();
 	}
 };
 
-void CANARD::loadSample(std::string path) {
-	lastPath = path;
-	float spmRate = appGet()->engine->getSampleRate();
-	loading = true;
+void CANARD::loadSample() {
 	appGet()->engine->yieldWorkers();
-	playBuffer = waves::getStereoWav(path, spmRate, waveFileName, waveExtension, channels, sampleRate, totalSampleCount);
+	mylock.lock();
+	playBuffer = waves::getStereoWav(lastPath, appGet()->engine->getSampleRate(), waveFileName, waveExtension, channels, sampleRate, totalSampleCount);
+	mylock.unlock();
 	loading = false;
 }
 
 void CANARD::saveSample() {
-	// drwav_data_format format;
-	// format.container = drwav_container_riff;
-	// format.format = DR_WAVE_FORMAT_PCM;
-	// format.channels = 2;
-	// format.sampleRate = sampleRate;
-	// format.bitsPerSample = 32;
-	//
-	// int *pSamples = (int*)calloc(2*totalSampleCount,sizeof(int));
-	// memset(pSamples, 0, 2*totalSampleCount*sizeof(int));
-	// for (unsigned int i = 0; i < totalSampleCount; i++) {
-	// 	*(pSamples+2*i)= floor(playBuffer[0][i]*2147483647);
-	// 	*(pSamples+2*i+1)= floor(playBuffer[1][i]*2147483647);
-	// }
-	//
-	// drwav* pWav = drwav_open_file_write(lastPath.c_str(), &format);
-	// drwav_write(pWav, 2*totalSampleCount, pSamples);
-	// drwav_close(pWav);
-	// free(pSamples);
+	appGet()->engine->yieldWorkers();
+	mylock.lock();
+	waves::saveWave(playBuffer, appGet()->engine->getSampleRate(), lastPath);
+	mylock.unlock();
+	save = false;
 }
 
 void CANARD::calcLoop() {
@@ -220,127 +206,168 @@ void CANARD::initPos() {
 }
 
 void CANARD::process(const ProcessArgs &args) {
-	sampleRate = args.sampleRate;
+	if (loading) {
+		loadSample();
+	}
+
 	if (save) {
 		saveSample();
-		save = false;
 	}
-	if (!loading) {
-		if (clearTrigger.process(inputs[CLEAR_INPUT].getVoltage() + params[CLEAR_PARAM].getValue()))
-		{
-			mylock.lock();
-			playBuffer.clear();
-			totalSampleCount = 0;
-			slices.clear();
-			mylock.unlock();
-			lastPath = "";
-			waveFileName = "";
-			waveExtension = "";
-		}
 
-		if ((selected>=0) && (deleteFlag)) {
-			int nbSample=0;
-			if ((size_t)selected<(slices.size()-1)) {
-				nbSample = slices[selected + 1] - slices[selected] - 1;
-				mylock.lock();
-				playBuffer.erase(playBuffer.begin() + slices[selected], playBuffer.begin() + slices[selected + 1]-1);
-				mylock.unlock();
-			}
-			else {
-				nbSample = totalSampleCount - slices[selected];
-				mylock.lock();
-				playBuffer.erase(playBuffer.begin() + slices[selected], playBuffer.end());
-				mylock.unlock();
-			}
-			slices.erase(slices.begin()+selected);
-			totalSampleCount = playBuffer.size();
-			for (size_t i = selected; i < slices.size(); i++)
-			{
-				slices[i] = slices[i]-nbSample;
-			}
-			selected = -1;
-			deleteFlag = false;
+	if (clearTrigger.process(inputs[CLEAR_INPUT].getVoltage() + params[CLEAR_PARAM].getValue()))
+	{
+		mylock.lock();
+		playBuffer.clear();
+		totalSampleCount = 0;
+		slices.clear();
+		mylock.unlock();
+		lastPath = "";
+		waveFileName = "";
+		waveExtension = "";
+	}
+
+	if ((selected>=0) && (deleteFlag)) {
+		int nbSample=0;
+		if ((size_t)selected<(slices.size()-1)) {
+			nbSample = slices[selected + 1] - slices[selected] - 1;
+			mylock.lock();
+			playBuffer.erase(playBuffer.begin() + slices[selected], playBuffer.begin() + slices[selected + 1]-1);
+			mylock.unlock();
+		}
+		else {
+			nbSample = totalSampleCount - slices[selected];
+			mylock.lock();
+			playBuffer.erase(playBuffer.begin() + slices[selected], playBuffer.end());
+			mylock.unlock();
+		}
+		slices.erase(slices.begin()+selected);
+		totalSampleCount = playBuffer.size();
+		for (size_t i = selected; i < slices.size(); i++)
+		{
+			slices[i] = slices[i]-nbSample;
+		}
+		selected = -1;
+		deleteFlag = false;
+		calcLoop();
+	}
+
+	if ((addSliceMarker>=0) && (addSliceMarkerFlag)) {
+		if (std::find(slices.begin(), slices.end(), addSliceMarker) != slices.end()) {
+			addSliceMarker = -1;
+			addSliceMarkerFlag = false;
+		}
+		else {
+			auto it = std::upper_bound(slices.begin(), slices.end(), addSliceMarker);
+			mylock.lock();
+			slices.insert(it, addSliceMarker);
+			mylock.unlock();
+			addSliceMarker = -1;
+			addSliceMarkerFlag = false;
 			calcLoop();
 		}
+	}
 
-		if ((addSliceMarker>=0) && (addSliceMarkerFlag)) {
-			if (std::find(slices.begin(), slices.end(), addSliceMarker) != slices.end()) {
-				addSliceMarker = -1;
-				addSliceMarkerFlag = false;
+	if ((deleteSliceMarker>=0) && (deleteSliceMarkerFlag)) {
+		if (std::find(slices.begin(), slices.end(), deleteSliceMarker) != slices.end()) {
+			mylock.lock();
+			slices.erase(std::find(slices.begin(), slices.end(), deleteSliceMarker));
+			mylock.unlock();
+			deleteSliceMarker = -1;
+			deleteSliceMarkerFlag = false;
+			calcLoop();
+		}
+	}
+
+	if (recordTrigger.process(inputs[RECORD_INPUT].getVoltage() + params[RECORD_PARAM].getValue()))
+	{
+		if(record) {
+			if (floor(params[MODE_PARAM].getValue()) == 0) {
+				mylock.lock();
+				slices.clear();
+				slices.push_back(0);
+				playBuffer.resize(0);
+				for (int i = 0; i < (int)recordBuffer.size(); i++) {
+					dsp::Frame<2> frame = recordBuffer[i];
+					playBuffer.push_back(frame);
+				}
+				totalSampleCount = playBuffer.size();
+				mylock.unlock();
+				lastPath = "";
+				waveFileName = "";
+				waveExtension = "";
 			}
 			else {
-				auto it = std::upper_bound(slices.begin(), slices.end(), addSliceMarker);
 				mylock.lock();
-				slices.insert(it, addSliceMarker);
+				slices.push_back(totalSampleCount > 0 ? (totalSampleCount-1) : 0);
+				playBuffer.insert(playBuffer.end(), recordBuffer.begin(), recordBuffer.end());
+				totalSampleCount = playBuffer.size();
 				mylock.unlock();
-				addSliceMarker = -1;
-				addSliceMarkerFlag = false;
-				calcLoop();
 			}
-		}
-
-		if ((deleteSliceMarker>=0) && (deleteSliceMarkerFlag)) {
-			if (std::find(slices.begin(), slices.end(), deleteSliceMarker) != slices.end()) {
-				mylock.lock();
-				slices.erase(std::find(slices.begin(), slices.end(), deleteSliceMarker));
-				mylock.unlock();
-				deleteSliceMarker = -1;
-				deleteSliceMarkerFlag = false;
-				calcLoop();
-			}
-		}
-
-		if (recordTrigger.process(inputs[RECORD_INPUT].getVoltage() + params[RECORD_PARAM].getValue()))
-		{
-			if(record) {
-				if (floor(params[MODE_PARAM].getValue()) == 0) {
-					mylock.lock();
-					slices.clear();
-					slices.push_back(0);
-					playBuffer.resize(0);
-					for (int i = 0; i < (int)recordBuffer.size(); i++) {
-						dsp::Frame<2> frame = recordBuffer[i];
-						playBuffer.push_back(frame);
-					}
-					totalSampleCount = playBuffer.size();
-					mylock.unlock();
-					lastPath = "";
-					waveFileName = "";
-					waveExtension = "";
-				}
-				else {
-					mylock.lock();
-					slices.push_back(totalSampleCount > 0 ? (totalSampleCount-1) : 0);
-					playBuffer.insert(playBuffer.end(), recordBuffer.begin(), recordBuffer.end());
-					totalSampleCount = playBuffer.size();
-					mylock.unlock();
-				}
-				mylock.lock();
-				recordBuffer.resize(0);
-				mylock.unlock();
-				lights[REC_LIGHT].setBrightness(0.0f);
-			}
-			record = !record;
-		}
-
-		if (record) {
-			lights[REC_LIGHT].setBrightness(10.0f);
 			mylock.lock();
-			dsp::Frame<2> frame;
-			frame.samples[0] = inputs[INL_INPUT].getVoltage()/10.0f;
-			frame.samples[1] = inputs[INR_INPUT].getVoltage()/10.0f;
-			recordBuffer.push_back(frame);
+			recordBuffer.resize(0);
 			mylock.unlock();
+			lights[REC_LIGHT].setBrightness(0.0f);
 		}
+		record = !record;
+	}
 
-		int trigMode = inputs[TRIG_INPUT].isConnected() ? 1 : (inputs[GATE_INPUT].isConnected() ? 2 : 0);
-		int readMode = round(clamp(inputs[READ_MODE_INPUT].getVoltage() + params[READ_MODE_PARAM].getValue(),0.0f,2.0f));
-		speed = inputs[SPEED_INPUT].getVoltage() + params[SPEED_PARAM].getValue();
-		calcLoop();
+	if (record) {
+		lights[REC_LIGHT].setBrightness(10.0f);
+		mylock.lock();
+		dsp::Frame<2> frame;
+		frame.samples[0] = inputs[INL_INPUT].getVoltage()/10.0f;
+		frame.samples[1] = inputs[INR_INPUT].getVoltage()/10.0f;
+		recordBuffer.push_back(frame);
+		mylock.unlock();
+	}
 
-		if (trigMode == 1) {
-			if (trigTrigger.process(inputs[TRIG_INPUT].getVoltage()) && (prevTrigState == 0.0f))
-			{
+	int trigMode = inputs[TRIG_INPUT].isConnected() ? 1 : (inputs[GATE_INPUT].isConnected() ? 2 : 0);
+	int readMode = round(clamp(inputs[READ_MODE_INPUT].getVoltage() + params[READ_MODE_PARAM].getValue(),0.0f,2.0f));
+	speed = inputs[SPEED_INPUT].getVoltage() + params[SPEED_PARAM].getValue();
+	calcLoop();
+
+	if (trigMode == 1) {
+		if (trigTrigger.process(inputs[TRIG_INPUT].getVoltage()) && (prevTrigState == 0.0f))
+		{
+			initPos();
+			play = true;
+		}
+		else {
+			if ((readMode == 0) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
+				play = false;
+				if (newStop) {
+					eocPulse.trigger(10 / args.sampleRate);
+					newStop = false;
+				}
+			}
+			else if ((readMode == 0) && (speed<0) && (samplePos == sampleStart)) {
+				play = false;
+				if (newStop) {
+					eocPulse.trigger(10 / args.sampleRate);
+					newStop = false;
+				}
+			}
+			else if ((readMode == 1) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
+				initPos();
+			}
+			else if ((readMode == 1) && (speed<0) && (samplePos == sampleStart)) {
+				initPos();
+			}
+			else if ((readMode == 2) && ((samplePos == (sampleStart)) || (samplePos == (sampleStart+loopLength)))) {
+				speedFactor = -1 * speedFactor;
+				samplePos = samplePos + speedFactor * speed;
+			}
+			else {
+				samplePos = samplePos + speedFactor * speed;
+			}
+		}
+		samplePos = clamp(samplePos,sampleStart,sampleStart+loopLength);
+	}
+	else if (trigMode == 2)
+	{
+		if (inputs[GATE_INPUT].getVoltage()>0)
+		{
+			if (prevGateState == 0.0f) {
 				initPos();
 				play = true;
 			}
@@ -375,83 +402,40 @@ void CANARD::process(const ProcessArgs &args) {
 			}
 			samplePos = clamp(samplePos,sampleStart,sampleStart+loopLength);
 		}
-		else if (trigMode == 2)
-		{
-			if (inputs[GATE_INPUT].getVoltage()>0)
-			{
-				if (prevGateState == 0.0f) {
-					initPos();
-					play = true;
-				}
-				else {
-					if ((readMode == 0) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
-						play = false;
-						if (newStop) {
-							eocPulse.trigger(10 / args.sampleRate);
-							newStop = false;
-						}
-					}
-					else if ((readMode == 0) && (speed<0) && (samplePos == sampleStart)) {
-						play = false;
-						if (newStop) {
-							eocPulse.trigger(10 / args.sampleRate);
-							newStop = false;
-						}
-					}
-					else if ((readMode == 1) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
-						initPos();
-					}
-					else if ((readMode == 1) && (speed<0) && (samplePos == sampleStart)) {
-						initPos();
-					}
-					else if ((readMode == 2) && ((samplePos == (sampleStart)) || (samplePos == (sampleStart+loopLength)))) {
-						speedFactor = -1 * speedFactor;
-						samplePos = samplePos + speedFactor * speed;
-					}
-					else {
-						samplePos = samplePos + speedFactor * speed;
-					}
-				}
-				samplePos = clamp(samplePos,sampleStart,sampleStart+loopLength);
-			}
-			else {
-				play = false;
-			}
+		else {
+			play = false;
 		}
-		prevGateState = inputs[GATE_INPUT].getVoltage();
-		prevTrigState = inputs[TRIG_INPUT].getVoltage();
+	}
+	prevGateState = inputs[GATE_INPUT].getVoltage();
+	prevTrigState = inputs[TRIG_INPUT].getVoltage();
 
-		if (play) {
-			newStop = true;
-			if (samplePos<totalSampleCount) {
-				if (fadeLenght>1000) {
-					if ((samplePos-sampleStart)<fadeLenght)
-						fadeCoeff = rescale(samplePos-sampleStart,0.0f,fadeLenght,0.0f,1.0f);
-					else if ((sampleStart+loopLength-samplePos)<fadeLenght)
-						fadeCoeff = rescale(sampleStart+loopLength-samplePos,fadeLenght,0.0f,1.0f,0.0f);
-					else
-						fadeCoeff = 1.0f;
-				}
+	if (play) {
+		newStop = true;
+		if (samplePos<totalSampleCount) {
+			if (fadeLenght>1000) {
+				if ((samplePos-sampleStart)<fadeLenght)
+					fadeCoeff = rescale(samplePos-sampleStart,0.0f,fadeLenght,0.0f,1.0f);
+				else if ((sampleStart+loopLength-samplePos)<fadeLenght)
+					fadeCoeff = rescale(sampleStart+loopLength-samplePos,fadeLenght,0.0f,1.0f,0.0f);
 				else
 					fadeCoeff = 1.0f;
-
-				int xi = samplePos;
-				float xf = samplePos - xi;
-				float crossfaded = crossfade(playBuffer[xi].samples[0], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0], xf);
-				outputs[OUTL_OUTPUT].setVoltage(crossfaded*fadeCoeff*5.0f);
-				crossfaded = crossfade(playBuffer[xi].samples[1], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[1], xf);
-				outputs[OUTR_OUTPUT].setVoltage(crossfaded*fadeCoeff*5.0f);
 			}
-		}
-		else {
-			outputs[OUTL_OUTPUT].setVoltage(0.0f);
-			outputs[OUTR_OUTPUT].setVoltage(0.0f);
+			else
+				fadeCoeff = 1.0f;
+
+			int xi = samplePos;
+			float xf = samplePos - xi;
+			float crossfaded = crossfade(playBuffer[xi].samples[0], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0], xf);
+			outputs[OUTL_OUTPUT].setVoltage(crossfaded*fadeCoeff*5.0f);
+			crossfaded = crossfade(playBuffer[xi].samples[1], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[1], xf);
+			outputs[OUTR_OUTPUT].setVoltage(crossfaded*fadeCoeff*5.0f);
 		}
 	}
 	else {
 		outputs[OUTL_OUTPUT].setVoltage(0.0f);
 		outputs[OUTR_OUTPUT].setVoltage(0.0f);
 	}
+
 	outputs[EOC_OUTPUT].setVoltage(eocPulse.process(1 / args.sampleRate) ? 10.0f : 0.0f);
 }
 
@@ -799,7 +783,8 @@ struct CANARDWidget : ModuleWidget {
 			std::string dir = module->lastPath.empty() ? asset::user("") : rack::string::directory(module->lastPath);
 			char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
 			if (path) {
-				module->loadSample(path);
+				module->lastPath = path;
+				module->loading=true;
 				free(path);
 			}
 		}
@@ -813,8 +798,6 @@ struct CANARDWidget : ModuleWidget {
 			char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), fileName.c_str(), NULL);
 			if (path) {
 				module->lastPath = path;
-				module->waveFileName = rack::string::filenameBase(path);
-				module->waveExtension = rack::string::filenameExtension(path);
 				if (!module->save) module->save = true;
 				free(path);
 			}

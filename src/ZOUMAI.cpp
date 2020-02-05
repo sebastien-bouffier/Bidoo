@@ -1536,10 +1536,10 @@ struct BidooProbBlueKnob : BidooBlueSnapKnob {
 };
 
 struct ZoumaiLEDBezel : LEDBezel {
-	ZOUMAI *module;
+	ZOUMAI *module = NULL;
 	int index=0;
 	void onButton(const event::Button &e) override {
-		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
+		if (module && e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
 					module->cP()->tracks[index].isSolo = !module->cP()->tracks[index].isSolo;
 					module->currentTrack = index;
 		}
@@ -1548,10 +1548,10 @@ struct ZoumaiLEDBezel : LEDBezel {
 };
 
 struct ZoumaiTrigLEDBezel : LEDBezel {
-	ZOUMAI *module;
+	ZOUMAI *module = NULL;
 	int index=0;
 	void onButton(const event::Button &e) override {
-		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
+		if (module && e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
 					module->cT()->trigs[index+module->trigPage*16].isActive = !module->cT()->trigs[index+module->trigPage*16].isActive;
 		}
 		LEDBezel::onButton(e);
@@ -1677,7 +1677,7 @@ struct ZOUMAIWidget : ModuleWidget {
 			addInput(createInput<TinyPJ301MPort>(Vec(70.0f, 67.0f + i*28.0f), module, ZOUMAI::TRACKACTIVE_INPUTS + i));
 			addParam(createParam<ZoumaiLEDBezel>(Vec(90.0f , 64.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_PARAMS + i));
 			ZoumaiLEDBezel *p = createParam<ZoumaiLEDBezel>(Vec(90.0f , 64.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_PARAMS + i);
-			p->module=module;
+			p->module = module != NULL ? module : NULL;
 			p->index=i;
 			addParam(p);
 			addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(92.0f, 66.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_LIGHTS + i*3));
@@ -1693,7 +1693,7 @@ struct ZOUMAIWidget : ModuleWidget {
 
 		for (int i=0;i<16;i++){
 			ZoumaiTrigLEDBezel *p = createParam<ZoumaiTrigLEDBezel>(Vec(12.0f+ 28.0f*i, 330.0f), module, ZOUMAI::STEPS_PARAMS + i);
-			p->module=module;
+			p->module = module != NULL ? module : NULL;
 			p->index=i;
 			addParam(p);
 			addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(14.0f+ 28.0f*i, 332.0f), module, ZOUMAI::STEPS_LIGHTS + i*3));

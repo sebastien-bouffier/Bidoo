@@ -4,6 +4,7 @@
 #include <iomanip>
 #include "osdialog.h"
 #include "dep/waves.hpp"
+#include <mutex>
 
 using namespace std;
 
@@ -60,6 +61,7 @@ struct POUPRE : Module {
 	std::string waveFileName;
 	std::string waveExtension;
 	dsp::SchmittTrigger presetTriggers[4];
+	std::mutex mylock;
 
 	POUPRE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -79,7 +81,7 @@ struct POUPRE : Module {
 
 	void process(const ProcessArgs &args) override;
 
-	void loadSample(std::string path);
+	void loadSample();
 	void saveSample();
 
 	json_t *dataToJson() override {
@@ -108,7 +110,7 @@ struct POUPRE : Module {
 			lastPath = json_string_value(lastPathJ);
 			waveFileName = rack::string::filename(lastPath);
 			waveExtension = rack::string::filenameBase(lastPath);
-			if (!lastPath.empty()) loadSample(lastPath);
+			if (!lastPath.empty()) loadSample();
 			for (size_t i = 0; i<16 ; i++) {
 				json_t *channelJ = json_object_get(rootJ, ("channel" + to_string(i)).c_str());
 				if (channelJ){
@@ -138,20 +140,22 @@ struct POUPRE : Module {
 	}
 
 	void onSampleRateChange() override {
-		if (!lastPath.empty()) loadSample(lastPath);
+		if (!lastPath.empty()) loadSample();
 	}
 };
 
-void POUPRE::loadSample(std::string path) {
-	lastPath = path;
-	float spmRate = appGet()->engine->getSampleRate();
-	loading = true;
+void POUPRE::loadSample() {
 	appGet()->engine->yieldWorkers();
-	playBuffer = waves::getMonoWav(path, spmRate, waveFileName, waveExtension, sampleChannels, sampleRate, totalSampleCount);
+	playBuffer = waves::getMonoWav(lastPath, appGet()->engine->getSampleRate(), waveFileName, waveExtension, sampleChannels, sampleRate, totalSampleCount);
 	loading = false;
 }
 
 void POUPRE::process(const ProcessArgs &args) {
+	mylock.lock();
+	if (loading) {
+		loadSample();
+	}
+	mylock.unlock();
 	if (playBuffer.size()==0) {
 		lights[SAMPLE_LIGHT].setBrightness(1.0f);
 		lights[SAMPLE_LIGHT+1].setBrightness(0.0f);
@@ -309,13 +313,13 @@ struct POUPREWidget : ModuleWidget {
 	struct POUPREItem : MenuItem {
   	POUPRE *module;
   	void onAction(const event::Action &e) override {
-
   		std::string dir = module->lastPath.empty() ? asset::user("") : rack::string::directory(module->lastPath);
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
-				module->play = false;
-  			module->loadSample(path);
-  			module->lastPath = path;
+				module->mylock.lock();
+				module->lastPath = path;
+				module->loading = true;
+				module->mylock.unlock();
   			free(path);
   		}
   	}
@@ -324,7 +328,6 @@ struct POUPREWidget : ModuleWidget {
   void appendContextMenu(ui::Menu *menu) override {
 		POUPRE *module = dynamic_cast<POUPRE*>(this->module);
 		assert(module);
-
 		menu->addChild(construct<MenuLabel>());
 		menu->addChild(construct<POUPREItem>(&MenuItem::text, "Load sample", &POUPREItem::module, module));
 	}
