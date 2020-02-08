@@ -1,8 +1,11 @@
+### v1.1.11 (08/02/2020)
+- zOù MAï shift + left click fix for Mac OS X
+
 ### v1.1.10 (05/02/2020)
 - MOiRE scene selection fixed
 - ACnE autosave mode selection
 - µ migration fixed
-- liMonADe crash fix 
+- liMonADe crash fix
 
 ### v1.1.9 (18/12/2019)
 - cANARd can save samples again
