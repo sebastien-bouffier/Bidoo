@@ -716,14 +716,6 @@ struct ZOUMAI : Module {
 	int copyPatternId = -1;
 	int copyTrigId = -1;
 
-	Pattern* cP() {
-		return &patterns[currentPattern];
-	}
-
-	Track* cT() {
-		return &cP()->tracks[currentTrack];
-	}
-
 	ZOUMAI() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(FILL_PARAM, 0.0f, 1.0f, 0.0f);
@@ -778,6 +770,15 @@ struct ZOUMAI : Module {
 			configParam(TRACKSELECT_PARAMS + i, 0.0f, 1.0f, 0.0f);
   	}
 	}
+
+	Pattern* cP();
+	Track* cT();
+	void updateTrackToParams();
+	void updateTrigToParams();
+	void updateTrigVO();
+	void performTools();
+	void updateParamsToTrack();
+	void updateParamsToTrig();
 
 	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
@@ -933,221 +934,229 @@ struct ZOUMAI : Module {
 	}
 
 	void process(const ProcessArgs &args) override;
+};
 
-	void updateTrackToParams() {
-		params[TRACKLENGTH_PARAM].setValue(cT()->length);
-		params[TRACKSPEED_PARAM].setValue(cT()->speed*2.0f);
-		params[TRACKREADMODE_PARAM].setValue(cT()->readMode);
-	}
+Pattern* ZOUMAI::cP() {
+	return &patterns[currentPattern];
+}
 
-	void updateTrigToParams() {
-		params[TRIGLENGTH_PARAM].setValue(cT()->trigs[currentTrig].length);
-		params[TRIGSLIDE_PARAM].setValue(cT()->trigs[currentTrig].slide);
-		params[TRIGTYPE_PARAM].setValue(cT()->trigs[currentTrig].trigType);
-		params[TRIGTRIM_PARAM].setValue(cT()->trigs[currentTrig].trim);
-		params[TRIGPULSECOUNT_PARAM].setValue(cT()->trigs[currentTrig].pulseCount);
-		params[TRIGPULSEDISTANCE_PARAM].setValue(cT()->trigs[currentTrig].pulseDistance);
-		params[TRIGCV1_PARAM].setValue(cT()->trigs[currentTrig].CV1);
-		params[TRIGCV2_PARAM].setValue(cT()->trigs[currentTrig].CV2);
-		params[TRIGPROBA_PARAM].setValue(cT()->trigs[currentTrig].proba);
-		params[TRIGPROBACOUNT_PARAM].setValue(cT()->trigs[currentTrig].count);
-		params[TRIGPROBACOUNTRESET_PARAM].setValue(cT()->trigs[currentTrig].countReset);
-	}
+Track* ZOUMAI::cT() {
+	return &cP()->tracks[currentTrack];
+}
 
-	void updateTrigVO() {
-		for (int i=0;i<7;i++) {
-			if (octaveTriggers[i].process(params[OCTAVE_PARAMS+i].getValue())) {
-				cT()->trigs[currentTrig].octave = i-3;
-			}
-			lights[OCTAVE_LIGHT+i].setBrightness(i-3==cT()->trigs[currentTrig].octave?1.0f:0.f);
+void ZOUMAI::updateTrackToParams() {
+	params[TRACKLENGTH_PARAM].setValue(cT()->length);
+	params[TRACKSPEED_PARAM].setValue(cT()->speed*2.0f);
+	params[TRACKREADMODE_PARAM].setValue(cT()->readMode);
+}
+
+void ZOUMAI::updateTrigToParams() {
+	params[TRIGLENGTH_PARAM].setValue(cT()->trigs[currentTrig].length);
+	params[TRIGSLIDE_PARAM].setValue(cT()->trigs[currentTrig].slide);
+	params[TRIGTYPE_PARAM].setValue(cT()->trigs[currentTrig].trigType);
+	params[TRIGTRIM_PARAM].setValue(cT()->trigs[currentTrig].trim);
+	params[TRIGPULSECOUNT_PARAM].setValue(cT()->trigs[currentTrig].pulseCount);
+	params[TRIGPULSEDISTANCE_PARAM].setValue(cT()->trigs[currentTrig].pulseDistance);
+	params[TRIGCV1_PARAM].setValue(cT()->trigs[currentTrig].CV1);
+	params[TRIGCV2_PARAM].setValue(cT()->trigs[currentTrig].CV2);
+	params[TRIGPROBA_PARAM].setValue(cT()->trigs[currentTrig].proba);
+	params[TRIGPROBACOUNT_PARAM].setValue(cT()->trigs[currentTrig].count);
+	params[TRIGPROBACOUNTRESET_PARAM].setValue(cT()->trigs[currentTrig].countReset);
+}
+
+void ZOUMAI::updateTrigVO() {
+	for (int i=0;i<7;i++) {
+		if (octaveTriggers[i].process(params[OCTAVE_PARAMS+i].getValue())) {
+			cT()->trigs[currentTrig].octave = i-3;
 		}
+		lights[OCTAVE_LIGHT+i].setBrightness(i-3==cT()->trigs[currentTrig].octave?1.0f:0.f);
+	}
 
-		for (int i=0;i<12;i++) {
-			if (noteTriggers[i].process(params[NOTE_PARAMS+i].getValue())) {
-				if (cT()->trigs[currentTrig].semitones == i) {
-					cT()->trigs[currentTrig].isActive = !cT()->trigs[currentTrig].isActive;
-				}
-				else {
-					cT()->trigs[currentTrig].semitones = i;
-					cT()->trigs[currentTrig].isActive = true;
-				}
-			}
-			if ((i!=1)&&(i!=3)&&(i!=6)&&(i!=8)&&(i!=10)) {
-				lights[NOTES_LIGHT+i*3].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?0.0f:0.0f):1.0f);
-				lights[NOTES_LIGHT+(i*3)+1].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?1.0f:0.5f):1.0f);
-				lights[NOTES_LIGHT+(i*3)+2].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?0.0f:0.0f):1.0f);
+	for (int i=0;i<12;i++) {
+		if (noteTriggers[i].process(params[NOTE_PARAMS+i].getValue())) {
+			if (cT()->trigs[currentTrig].semitones == i) {
+				cT()->trigs[currentTrig].isActive = !cT()->trigs[currentTrig].isActive;
 			}
 			else {
-				lights[NOTES_LIGHT+i*3].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?0.0f:0.0f):0.0f);
-				lights[NOTES_LIGHT+(i*3)+1].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?1.0f:0.5f):0.0f);
-				lights[NOTES_LIGHT+(i*3)+2].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?0.0f:0.0f):0.0f);
+				cT()->trigs[currentTrig].semitones = i;
+				cT()->trigs[currentTrig].isActive = true;
 			}
 		}
-	}
-
-	void updateParamsToTrack() {
-		cT()->length = params[TRACKLENGTH_PARAM].getValue();
-		cT()->speed = params[TRACKSPEED_PARAM].getValue()*0.5f;
-		cT()->readMode = params[TRACKREADMODE_PARAM].getValue();
-	}
-
-	void updateParamsToTrig() {
-		cT()->trigs[currentTrig].length = params[TRIGLENGTH_PARAM].getValue();
-		cT()->trigs[currentTrig].slide = params[TRIGSLIDE_PARAM].getValue();
-		cT()->trigs[currentTrig].trigType = params[TRIGTYPE_PARAM].getValue();
-		cT()->trigs[currentTrig].trim = params[TRIGTRIM_PARAM].getValue();
-		cT()->trigs[currentTrig].pulseCount = params[TRIGPULSECOUNT_PARAM].getValue();
-		cT()->trigs[currentTrig].pulseDistance = params[TRIGPULSEDISTANCE_PARAM].getValue();
-		cT()->trigs[currentTrig].CV1 = params[TRIGCV1_PARAM].getValue();
-		cT()->trigs[currentTrig].CV2 = params[TRIGCV2_PARAM].getValue();
-		cT()->trigs[currentTrig].proba = params[TRIGPROBA_PARAM].getValue();
-		cT()->trigs[currentTrig].count = params[TRIGPROBACOUNT_PARAM].getValue();
-		cT()->trigs[currentTrig].countReset = params[TRIGPROBACOUNTRESET_PARAM].getValue();
-	}
-
-	void performTools() {
-		lights[LEFTTRACK_LIGHT].setBrightness(lights[LEFTTRACK_LIGHT].getBrightness()-0.0001f*lights[LEFTTRACK_LIGHT].getBrightness());
-		lights[RIGHTTRACK_LIGHT].setBrightness(lights[RIGHTTRACK_LIGHT].getBrightness()-0.0001f*lights[RIGHTTRACK_LIGHT].getBrightness());
-		lights[DOWNTRACK_LIGHT].setBrightness(lights[DOWNTRACK_LIGHT].getBrightness()-0.0001f*lights[DOWNTRACK_LIGHT].getBrightness());
-		lights[UPTRACK_LIGHT].setBrightness(lights[UPTRACK_LIGHT].getBrightness()-0.0001f*lights[UPTRACK_LIGHT].getBrightness());
-		lights[FRNDTRACK_LIGHT].setBrightness(lights[FRNDTRACK_LIGHT].getBrightness()-0.0001f*lights[FRNDTRACK_LIGHT].getBrightness());
-		lights[FRNDPATTERN_LIGHT].setBrightness(lights[FRNDPATTERN_LIGHT].getBrightness()-0.0001f*lights[FRNDPATTERN_LIGHT].getBrightness());
-		lights[FRNDTRIG_LIGHT].setBrightness(lights[FRNDTRIG_LIGHT].getBrightness()-0.0001f*lights[FRNDTRIG_LIGHT].getBrightness());
-		lights[RNDTRACK_LIGHT].setBrightness(lights[RNDTRACK_LIGHT].getBrightness()-0.0001f*lights[RNDTRACK_LIGHT].getBrightness());
-		lights[RNDPATTERN_LIGHT].setBrightness(lights[RNDPATTERN_LIGHT].getBrightness()-0.0001f*lights[RNDPATTERN_LIGHT].getBrightness());
-		lights[RNDTRIG_LIGHT].setBrightness(lights[RNDTRIG_LIGHT].getBrightness()-0.0001f*lights[RNDTRIG_LIGHT].getBrightness());
-		lights[CLEARTRACK_LIGHT].setBrightness(lights[CLEARTRACK_LIGHT].getBrightness()-0.0001f*lights[CLEARTRACK_LIGHT].getBrightness());
-		lights[CLEARPATTERN_LIGHT].setBrightness(lights[CLEARPATTERN_LIGHT].getBrightness()-0.0001f*lights[CLEARPATTERN_LIGHT].getBrightness());
-		lights[CLEARTRIG_LIGHT].setBrightness(lights[CLEARTRIG_LIGHT].getBrightness()-0.0001f*lights[CLEARTRIG_LIGHT].getBrightness());
-		lights[COPYTRACK_LIGHT].setBrightness(lights[COPYTRACK_LIGHT].getBrightness()-0.0001f*lights[COPYTRACK_LIGHT].getBrightness());
-		lights[COPYPATTERN_LIGHT].setBrightness(lights[COPYPATTERN_LIGHT].getBrightness()-0.0001f*lights[COPYPATTERN_LIGHT].getBrightness());
-		lights[COPYTRIG_LIGHT].setBrightness(lights[COPYTRIG_LIGHT].getBrightness()-0.0001f*lights[COPYTRIG_LIGHT].getBrightness());
-		lights[PASTETRACK_LIGHT].setBrightness(lights[PASTETRACK_LIGHT].getBrightness()-0.0001f*lights[PASTETRACK_LIGHT].getBrightness());
-		lights[PASTEPATTERN_LIGHT].setBrightness(lights[PASTEPATTERN_LIGHT].getBrightness()-0.0001f*lights[PASTEPATTERN_LIGHT].getBrightness());
-		lights[PASTETRIG_LIGHT].setBrightness(lights[PASTETRIG_LIGHT].getBrightness()-0.0001f*lights[PASTETRIG_LIGHT].getBrightness());
-
-		if (copyPatternTrigger.process(params[COPYPATTERN_PARAM].getValue())) {
-				copyPatternId = currentPattern;
-				lights[COPYPATTERN_LIGHT].setBrightness(1.0f);
+		if ((i!=1)&&(i!=3)&&(i!=6)&&(i!=8)&&(i!=10)) {
+			lights[NOTES_LIGHT+i*3].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?0.0f:0.0f):1.0f);
+			lights[NOTES_LIGHT+(i*3)+1].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?1.0f:0.5f):1.0f);
+			lights[NOTES_LIGHT+(i*3)+2].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?0.0f:0.0f):1.0f);
 		}
+		else {
+			lights[NOTES_LIGHT+i*3].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?0.0f:0.0f):0.0f);
+			lights[NOTES_LIGHT+(i*3)+1].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?1.0f:0.5f):0.0f);
+			lights[NOTES_LIGHT+(i*3)+2].setBrightness(cT()->trigs[currentTrig].semitones == i?(cT()->trigs[currentTrig].isActive?0.0f:0.0f):0.0f);
+		}
+	}
+}
 
-		if (pastePatternTrigger.process(params[PASTEPATTERN_PARAM].getValue())) {
-			cP()->copy(&patterns[copyPatternId]);
-			lights[PASTEPATTERN_LIGHT].setBrightness(1.0f);
+void ZOUMAI::updateParamsToTrack() {
+	cT()->length = params[TRACKLENGTH_PARAM].getValue();
+	cT()->speed = params[TRACKSPEED_PARAM].getValue()*0.5f;
+	cT()->readMode = params[TRACKREADMODE_PARAM].getValue();
+}
+
+void ZOUMAI::updateParamsToTrig() {
+	cT()->trigs[currentTrig].length = params[TRIGLENGTH_PARAM].getValue();
+	cT()->trigs[currentTrig].slide = params[TRIGSLIDE_PARAM].getValue();
+	cT()->trigs[currentTrig].trigType = params[TRIGTYPE_PARAM].getValue();
+	cT()->trigs[currentTrig].trim = params[TRIGTRIM_PARAM].getValue();
+	cT()->trigs[currentTrig].pulseCount = params[TRIGPULSECOUNT_PARAM].getValue();
+	cT()->trigs[currentTrig].pulseDistance = params[TRIGPULSEDISTANCE_PARAM].getValue();
+	cT()->trigs[currentTrig].CV1 = params[TRIGCV1_PARAM].getValue();
+	cT()->trigs[currentTrig].CV2 = params[TRIGCV2_PARAM].getValue();
+	cT()->trigs[currentTrig].proba = params[TRIGPROBA_PARAM].getValue();
+	cT()->trigs[currentTrig].count = params[TRIGPROBACOUNT_PARAM].getValue();
+	cT()->trigs[currentTrig].countReset = params[TRIGPROBACOUNTRESET_PARAM].getValue();
+}
+
+void ZOUMAI::performTools() {
+	lights[LEFTTRACK_LIGHT].setBrightness(lights[LEFTTRACK_LIGHT].getBrightness()-0.0001f*lights[LEFTTRACK_LIGHT].getBrightness());
+	lights[RIGHTTRACK_LIGHT].setBrightness(lights[RIGHTTRACK_LIGHT].getBrightness()-0.0001f*lights[RIGHTTRACK_LIGHT].getBrightness());
+	lights[DOWNTRACK_LIGHT].setBrightness(lights[DOWNTRACK_LIGHT].getBrightness()-0.0001f*lights[DOWNTRACK_LIGHT].getBrightness());
+	lights[UPTRACK_LIGHT].setBrightness(lights[UPTRACK_LIGHT].getBrightness()-0.0001f*lights[UPTRACK_LIGHT].getBrightness());
+	lights[FRNDTRACK_LIGHT].setBrightness(lights[FRNDTRACK_LIGHT].getBrightness()-0.0001f*lights[FRNDTRACK_LIGHT].getBrightness());
+	lights[FRNDPATTERN_LIGHT].setBrightness(lights[FRNDPATTERN_LIGHT].getBrightness()-0.0001f*lights[FRNDPATTERN_LIGHT].getBrightness());
+	lights[FRNDTRIG_LIGHT].setBrightness(lights[FRNDTRIG_LIGHT].getBrightness()-0.0001f*lights[FRNDTRIG_LIGHT].getBrightness());
+	lights[RNDTRACK_LIGHT].setBrightness(lights[RNDTRACK_LIGHT].getBrightness()-0.0001f*lights[RNDTRACK_LIGHT].getBrightness());
+	lights[RNDPATTERN_LIGHT].setBrightness(lights[RNDPATTERN_LIGHT].getBrightness()-0.0001f*lights[RNDPATTERN_LIGHT].getBrightness());
+	lights[RNDTRIG_LIGHT].setBrightness(lights[RNDTRIG_LIGHT].getBrightness()-0.0001f*lights[RNDTRIG_LIGHT].getBrightness());
+	lights[CLEARTRACK_LIGHT].setBrightness(lights[CLEARTRACK_LIGHT].getBrightness()-0.0001f*lights[CLEARTRACK_LIGHT].getBrightness());
+	lights[CLEARPATTERN_LIGHT].setBrightness(lights[CLEARPATTERN_LIGHT].getBrightness()-0.0001f*lights[CLEARPATTERN_LIGHT].getBrightness());
+	lights[CLEARTRIG_LIGHT].setBrightness(lights[CLEARTRIG_LIGHT].getBrightness()-0.0001f*lights[CLEARTRIG_LIGHT].getBrightness());
+	lights[COPYTRACK_LIGHT].setBrightness(lights[COPYTRACK_LIGHT].getBrightness()-0.0001f*lights[COPYTRACK_LIGHT].getBrightness());
+	lights[COPYPATTERN_LIGHT].setBrightness(lights[COPYPATTERN_LIGHT].getBrightness()-0.0001f*lights[COPYPATTERN_LIGHT].getBrightness());
+	lights[COPYTRIG_LIGHT].setBrightness(lights[COPYTRIG_LIGHT].getBrightness()-0.0001f*lights[COPYTRIG_LIGHT].getBrightness());
+	lights[PASTETRACK_LIGHT].setBrightness(lights[PASTETRACK_LIGHT].getBrightness()-0.0001f*lights[PASTETRACK_LIGHT].getBrightness());
+	lights[PASTEPATTERN_LIGHT].setBrightness(lights[PASTEPATTERN_LIGHT].getBrightness()-0.0001f*lights[PASTEPATTERN_LIGHT].getBrightness());
+	lights[PASTETRIG_LIGHT].setBrightness(lights[PASTETRIG_LIGHT].getBrightness()-0.0001f*lights[PASTETRIG_LIGHT].getBrightness());
+
+	if (copyPatternTrigger.process(params[COPYPATTERN_PARAM].getValue())) {
+			copyPatternId = currentPattern;
+			lights[COPYPATTERN_LIGHT].setBrightness(1.0f);
+	}
+
+	if (pastePatternTrigger.process(params[PASTEPATTERN_PARAM].getValue())) {
+		cP()->copy(&patterns[copyPatternId]);
+		lights[PASTEPATTERN_LIGHT].setBrightness(1.0f);
+		updateTrackToParams();
+		updateTrigToParams();
+	}
+
+	if (copyTrackTrigger.process(params[COPYTRACK_PARAM].getValue())) {
+			copyTrackId = currentTrack;
+			lights[COPYTRACK_LIGHT].setBrightness(1.0f);
+	}
+
+	if (pasteTrackTrigger.process(params[PASTETRACK_PARAM].getValue())) {
+		cT()->copy(&cP()->tracks[copyTrackId]);
+		lights[PASTETRACK_LIGHT].setBrightness(1.0f);
+		updateTrackToParams();
+		updateTrigToParams();
+	}
+
+	if (copyTrigTrigger.process(params[COPYTRIG_PARAM].getValue())) {
+			copyTrigId = currentTrig;
+			lights[COPYTRIG_LIGHT].setBrightness(1.0f);
+	}
+
+	if (pasteTrigTrigger.process(params[PASTETRIG_PARAM].getValue())) {
+		cT()->trigs[currentTrig].copy(&cT()->trigs[copyTrigId]);
+		lights[PASTETRIG_LIGHT].setBrightness(1.0f);
+		updateTrackToParams();
+		updateTrigToParams();
+	}
+
+	if (clearPatternTrigger.process(params[CLEARPATTERN_PARAM].getValue())) {
+			cP()->clear();
+			lights[CLEARPATTERN_LIGHT].setBrightness(1.0f);
 			updateTrackToParams();
 			updateTrigToParams();
-		}
-
-		if (copyTrackTrigger.process(params[COPYTRACK_PARAM].getValue())) {
-				copyTrackId = currentTrack;
-				lights[COPYTRACK_LIGHT].setBrightness(1.0f);
-		}
-
-		if (pasteTrackTrigger.process(params[PASTETRACK_PARAM].getValue())) {
-			cT()->copy(&cP()->tracks[copyTrackId]);
-			lights[PASTETRACK_LIGHT].setBrightness(1.0f);
-			updateTrackToParams();
-			updateTrigToParams();
-		}
-
-		if (copyTrigTrigger.process(params[COPYTRIG_PARAM].getValue())) {
-				copyTrigId = currentTrig;
-				lights[COPYTRIG_LIGHT].setBrightness(1.0f);
-		}
-
-		if (pasteTrigTrigger.process(params[PASTETRIG_PARAM].getValue())) {
-			cT()->trigs[currentTrig].copy(&cT()->trigs[copyTrigId]);
-			lights[PASTETRIG_LIGHT].setBrightness(1.0f);
-			updateTrackToParams();
-			updateTrigToParams();
-		}
-
-		if (clearPatternTrigger.process(params[CLEARPATTERN_PARAM].getValue())) {
-				cP()->clear();
-				lights[CLEARPATTERN_LIGHT].setBrightness(1.0f);
-				updateTrackToParams();
-				updateTrigToParams();
-		}
-
-		if (clearTrackTrigger.process(params[CLEARTRACK_PARAM].getValue())) {
-				cT()->clear();
-				lights[CLEARTRACK_LIGHT].setBrightness(1.0f);
-				updateTrackToParams();
-				updateTrigToParams();
-		}
-
-		if (clearTrigTrigger.process(params[CLEARTRIG_PARAM].getValue())) {
-				cT()->trigs[currentTrig].reset();
-				lights[CLEARTRIG_LIGHT].setBrightness(1.0f);
-				updateTrigToParams();
-		}
-
-		if (rndPatternTrigger.process(params[RNDPATTERN_PARAM].getValue())) {
-				cP()->randomize();
-				lights[RNDPATTERN_LIGHT].setBrightness(1.0f);
-				updateTrackToParams();
-				updateTrigToParams();
-		}
-
-		if (rndTrackTrigger.process(params[RNDTRACK_PARAM].getValue())) {
-				cT()->randomize();
-				lights[RNDTRACK_LIGHT].setBrightness(1.0f);
-				updateTrackToParams();
-				updateTrigToParams();
-		}
-
-		if (rndTrigTrigger.process(params[RNDTRIG_PARAM].getValue())) {
-				cT()->trigs[currentTrig].randomize();
-				lights[RNDTRIG_LIGHT].setBrightness(1.0f);
-				updateTrigToParams();
-		}
-
-		if (fRndPatternTrigger.process(params[FRNDPATTERN_PARAM].getValue())) {
-				cP()->fullRandomize();
-				lights[FRNDPATTERN_LIGHT].setBrightness(1.0f);
-				updateTrackToParams();
-				updateTrigToParams();
-		}
-
-		if (fRndTrackTrigger.process(params[FRNDTRACK_PARAM].getValue())) {
-				cT()->fullRandomize();
-				lights[FRNDTRACK_LIGHT].setBrightness(1.0f);
-				updateTrackToParams();
-				updateTrigToParams();
-		}
-
-		if (fRndTrigTrigger.process(params[FRNDTRIG_PARAM].getValue())) {
-				cT()->trigs[currentTrig].fullRandomize();
-				lights[FRNDTRIG_LIGHT].setBrightness(1.0f);
-				updateTrackToParams();
-				updateTrigToParams();
-		}
-
-		if (upTrackTrigger.process(params[UPTRACK_PARAM].getValue())) {
-				cT()->up();
-				lights[UPTRACK_LIGHT].setBrightness(1.0f);
-				updateTrigToParams();
-		}
-
-		if (downTrackTrigger.process(params[DOWNTRACK_PARAM].getValue())) {
-				cT()->down();
-				lights[DOWNTRACK_LIGHT].setBrightness(1.0f);
-				updateTrigToParams();
-		}
-
-		if (rightTrackTrigger.process(params[RIGHTTRACK_PARAM].getValue())) {
-				cT()->right();
-				lights[RIGHTTRACK_LIGHT].setBrightness(1.0f);
-				updateTrigToParams();
-		}
-
-		if (leftTrackTrigger.process(params[LEFTTRACK_PARAM].getValue())) {
-				cT()->left();
-				lights[LEFTTRACK_LIGHT].setBrightness(1.0f);
-				updateTrigToParams();
-		}
 	}
-};
+
+	if (clearTrackTrigger.process(params[CLEARTRACK_PARAM].getValue())) {
+			cT()->clear();
+			lights[CLEARTRACK_LIGHT].setBrightness(1.0f);
+			updateTrackToParams();
+			updateTrigToParams();
+	}
+
+	if (clearTrigTrigger.process(params[CLEARTRIG_PARAM].getValue())) {
+			cT()->trigs[currentTrig].reset();
+			lights[CLEARTRIG_LIGHT].setBrightness(1.0f);
+			updateTrigToParams();
+	}
+
+	if (rndPatternTrigger.process(params[RNDPATTERN_PARAM].getValue())) {
+			cP()->randomize();
+			lights[RNDPATTERN_LIGHT].setBrightness(1.0f);
+			updateTrackToParams();
+			updateTrigToParams();
+	}
+
+	if (rndTrackTrigger.process(params[RNDTRACK_PARAM].getValue())) {
+			cT()->randomize();
+			lights[RNDTRACK_LIGHT].setBrightness(1.0f);
+			updateTrackToParams();
+			updateTrigToParams();
+	}
+
+	if (rndTrigTrigger.process(params[RNDTRIG_PARAM].getValue())) {
+			cT()->trigs[currentTrig].randomize();
+			lights[RNDTRIG_LIGHT].setBrightness(1.0f);
+			updateTrigToParams();
+	}
+
+	if (fRndPatternTrigger.process(params[FRNDPATTERN_PARAM].getValue())) {
+			cP()->fullRandomize();
+			lights[FRNDPATTERN_LIGHT].setBrightness(1.0f);
+			updateTrackToParams();
+			updateTrigToParams();
+	}
+
+	if (fRndTrackTrigger.process(params[FRNDTRACK_PARAM].getValue())) {
+			cT()->fullRandomize();
+			lights[FRNDTRACK_LIGHT].setBrightness(1.0f);
+			updateTrackToParams();
+			updateTrigToParams();
+	}
+
+	if (fRndTrigTrigger.process(params[FRNDTRIG_PARAM].getValue())) {
+			cT()->trigs[currentTrig].fullRandomize();
+			lights[FRNDTRIG_LIGHT].setBrightness(1.0f);
+			updateTrackToParams();
+			updateTrigToParams();
+	}
+
+	if (upTrackTrigger.process(params[UPTRACK_PARAM].getValue())) {
+			cT()->up();
+			lights[UPTRACK_LIGHT].setBrightness(1.0f);
+			updateTrigToParams();
+	}
+
+	if (downTrackTrigger.process(params[DOWNTRACK_PARAM].getValue())) {
+			cT()->down();
+			lights[DOWNTRACK_LIGHT].setBrightness(1.0f);
+			updateTrigToParams();
+	}
+
+	if (rightTrackTrigger.process(params[RIGHTTRACK_PARAM].getValue())) {
+			cT()->right();
+			lights[RIGHTTRACK_LIGHT].setBrightness(1.0f);
+			updateTrigToParams();
+	}
+
+	if (leftTrackTrigger.process(params[LEFTTRACK_PARAM].getValue())) {
+			cT()->left();
+			lights[LEFTTRACK_LIGHT].setBrightness(1.0f);
+			updateTrigToParams();
+	}
+}
 
 void ZOUMAI::process(const ProcessArgs &args) {
 	currentPattern = (int)clamp((inputs[PATTERN_INPUT].isConnected() ? rescale(clamp(inputs[PATTERN_INPUT].getVoltage(), 0.0f, 10.0f),0.0f,10.0f,0.0f,7.0f) : 0) + (int)params[PATTERN_PARAM].getValue(), 0.0f, 7.0f);
@@ -1542,6 +1551,8 @@ struct ZoumaiLEDBezel : LEDBezel {
 			ZOUMAI* zou = dynamic_cast<ZOUMAI*>(this->paramQuantity->module);
 			zou->cP()->tracks[index].isSolo = !zou->cP()->tracks[index].isSolo;
 			zou->currentTrack = index;
+			zou->updateTrackToParams();
+			zou->updateTrigToParams();
 		}
 		LEDBezel::onButton(e);
 	}
