@@ -289,19 +289,6 @@ struct BidooSlidePotShort : app::SvgSlider {
   }
 };
 
-struct BidooLongSlider : app::SvgSlider {
-	BidooLongSlider() {
-		maxHandlePos = Vec(0.0f, 0.0f);
-		minHandlePos = Vec(0.0f, 84.0f);
-		background->svg = APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/bidooLongSlider.svg"));
-		background->wrap();
-		background->box.pos = Vec(0.0f, 0.0f);
-		box.size = background->box.size;
-		handle->svg = APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/bidooLongSliderHandle.svg"));
-		handle->wrap();
-	}
-};
-
 struct CKSS8 : app::SvgSwitch {
 	CKSS8() {
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/CKSS8_0.svg")));
