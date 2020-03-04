@@ -195,7 +195,7 @@ struct TIARE : Module {
 	struct tpMode : ParamQuantity {
 		std::string getDisplayValueString() override {
 			if (getValue() > 0.f)
-				return "Analogue Unavailble";
+				return "Analogue";
 			else
 				return "Digital";
 		}
