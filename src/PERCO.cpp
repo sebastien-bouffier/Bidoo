@@ -66,9 +66,18 @@ struct PERCO : Module {
 	}
 
 	void process(const ProcessArgs &args) override {
-		float cfreq = std::pow(2.0f, rescale(clamp(params[CUTOFF_PARAM].getValue() + params[CMOD_PARAM].getValue() * inputs[CUTOFF_INPUT].getVoltage() * 0.2f, 0.0f, 1.0f), 0.0f, 1.0f, 4.5f, 14.0f));
+		
+		float freqCvParam = params[CMOD_PARAM].getValue();
+		freqCvParam = dsp::quadraticBipolar(freqCvParam);
+		float freqParam = params[CUTOFF_PARAM].getValue();
+		freqParam = freqParam * 10.f - 5.f;
+
+		float pitch = freqParam + inputs[CUTOFF_INPUT].getVoltage() * freqCvParam;
+		float cutoff = dsp::FREQ_C4 * std::pow(2.f, pitch);
+		cutoff = clamp(cutoff, 1.f, 8000.f);
+
 		float q = 10.0f * clamp(params[Q_PARAM].getValue() + inputs[Q_INPUT].getVoltage() * 0.2f, 0.1f, 1.0f);
-		filter.setParams(cfreq, q, args.sampleRate);
+		filter.setParams(cutoff, q, args.sampleRate);
 		float in = inputs[IN].getVoltage() * 0.2f;
 		filter.calcOutput(in);
 		outputs[OUT_LP].setVoltage(filter.lp * 5.0f);

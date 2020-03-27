@@ -1,3 +1,7 @@
+### v1.1.14 (27/03/2020)
+- zOù MAï clock stability issue fixed
+- pErCO cutoff issue at low sample rate
+
 ### v1.1.11 (08/02/2020)
 - zOù MAï shift + left click fix for Mac OS X
 
