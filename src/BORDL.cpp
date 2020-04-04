@@ -900,7 +900,7 @@ void BORDL::process(const ProcessArgs &args) {
 	if (nextStep) {
 		// Advance step
 		candidateForPreviousPitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity + (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f),
-		 clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f,11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
+			clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f,11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
 
 		prevIndex = index;
 		auto nextT = patterns[playedPattern].GetNextStep(reStart);
@@ -994,14 +994,12 @@ struct BORDLDisplay : TransparentWidget {
 
 	void drawMessage(NVGcontext *vg, Vec pos, std::string note, std::string playMode, std::string selectedPattern, std::string playedPattern, std::string steps, std::string scale) {
 		nvgFontSize(vg, 18.0f);
-		// nvgFontFaceId(vg, font->handle);
-		// nvgTextLetterSpacing(vg, -2.0f);
 		nvgFillColor(vg, YELLOW_BIDOO);
-		nvgText(vg, pos.x + 4.0f, pos.y + 8.0f, playMode.c_str(), NULL);
+		nvgText(vg, pos.x + 3.0f, pos.y + 8.0f, playMode.c_str(), NULL);
 		nvgFontSize(vg, 14.0f);
 		nvgText(vg, pos.x + 118.0f, pos.y + 7.0f, selectedPattern.c_str(), NULL);
 
-		nvgText(vg, pos.x + 27.0f, pos.y + 7.0f, steps.c_str(), NULL);
+		nvgText(vg, pos.x + 30.0f, pos.y + 7.0f, steps.c_str(), NULL);
 		nvgText(vg, pos.x + 3.0f, pos.y + 21.0f, note.c_str(), NULL);
 		nvgText(vg, pos.x + 25.0f, pos.y + 21.0f, scale.c_str(), NULL);
 
@@ -1215,8 +1213,6 @@ struct BORDLPitchDisplay : TransparentWidget {
 			nvgFillColor(args.vg, YELLOW_BIDOO);
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 			nvgFontSize(args.vg, 16.0f);
-			// nvgFontFaceId(args.vg, font->handle);
-			// nvgTextLetterSpacing(args.vg, -2.0f);
 			nvgText(args.vg, pos.x, pos.y-9.0f, displayNote(module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].getValue() * clamp(module->patterns[module->playedPattern].sensitivity + (module->inputs[BORDL::SENSITIVITY_INPUT].isConnected() ? rescale(module->inputs[BORDL::SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) ,
 				clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f),
 				module->patterns[module->selectedPattern].scale)).c_str(), NULL);

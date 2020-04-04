@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <sstream>
 
+
 using namespace std;
 
 struct trig {
@@ -238,6 +239,7 @@ struct track {
 	bool isActive = true;
 	int length = 16;
 	int readMode = 0;
+	int prevReadMode = 0;
 	float trackHead = 0.0f;
 	float trackHeadMem = 0.0f;
 	float speed = 1.0f;
@@ -345,7 +347,7 @@ inline float track::getVO() {
 		float fullLength = memTrig->getFullLength();
 		if (fullLength > 0.0f) {
 			float subPhase = memTrig->getRelativeTrackPosition(trackHead);
-			return memTrig->getVO() - (1.0f - powf(subPhase/fullLength, memTrig->slide/11.0f)) * (memTrig->getVO() - prevTrig->getVO());
+			return memTrig->getVO() - (1.0f - powf(subPhase/fullLength, memTrig->slide)) * (memTrig->getVO() - prevTrig->getVO());
 		}
 		else {
 			return memTrig->getVO();
@@ -844,8 +846,8 @@ struct ZOUMAI : Module {
   	}
 
   	for (int i=0;i<8;i++){
-      configParam(TRACKSONOFF_PARAMS + i, 0.0f, 1.0f, 0.0f);
-			configParam(TRACKSELECT_PARAMS + i, 0.0f, 1.0f, 0.0f);
+      configParam(TRACKSONOFF_PARAMS + i, 0.0f, 10.0f, 0.0f);
+			configParam(TRACKSELECT_PARAMS + i, 0.0f, 10.0f, 0.0f);
   	}
 	}
 
@@ -1226,9 +1228,15 @@ void ZOUMAI::process(const ProcessArgs &args) {
 	}
 	lights[FILL_LIGHT].setBrightness(fill ? 1.0f : 0.0f);
 
-
 	bool solo = patterns[currentPattern].isSoloed();
+
 	for (int i = 0; i<8; i++) {
+
+		if (patterns[currentPattern].tracks[i].prevReadMode != patterns[currentPattern].tracks[i].readMode) {
+			std::cout << to_string(i) + " - " + to_string(patterns[currentPattern].tracks[i].prevReadMode) + " to " + to_string(patterns[currentPattern].tracks[i].readMode) << '\n';
+			patterns[currentPattern].tracks[i].prevReadMode = patterns[currentPattern].tracks[i].readMode;
+		}
+
 		if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage())) {
 			patterns[currentPattern].tracks[i].reset(fill,i==0?false:patterns[currentPattern].tracks[i-1].pre);
 		}
@@ -1365,10 +1373,6 @@ void ZOUMAI::process(const ProcessArgs &args) {
 	for (int i = 0; i<8; i++) {
 		if ((patterns[currentPattern].isSoloed() && patterns[currentPattern].tracks[i].isSolo) || (!patterns[currentPattern].isSoloed() && patterns[currentPattern].tracks[i].isActive)) {
 			float gate = patterns[currentPattern].tracks[i].getGate();
-			// std::cout << "current " + std::to_string(patterns[currentPattern].tracks[i].currentTrig->index) << '\n';
-			// std::cout << "mem " + std::to_string(patterns[currentPattern].tracks[i].memTrig->index) << '\n';
-			// std::cout << "trackHead " + std::to_string(patterns[currentPattern].tracks[i].trackHead) << '\n';
-			// std::cout << "gate " + std::to_string(gate) << '\n';
 			if (gate>0.0f) {
 				if (patterns[currentPattern].tracks[i].getMemTrig().trigType == 0)
 					outputs[GATE_OUTPUTS + i].setVoltage(gate);
@@ -1674,15 +1678,15 @@ struct ZOUMAIWidget : ModuleWidget {
 
 		static const float portX0[5] = {374.0f, 389.0f, 404.0f, 419.0f, 434.0f};
 
-		addParam(createParam<MiniLEDButton>(Vec(portX0[1], 317.0f), module, ZOUMAI::TRIGPAGE_PARAM));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[2], 317.0f), module, ZOUMAI::TRIGPAGE_PARAM+1));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[3], 317.0f), module, ZOUMAI::TRIGPAGE_PARAM+2));
-		addParam(createParam<MiniLEDButton>(Vec(portX0[4], 317.0f), module, ZOUMAI::TRIGPAGE_PARAM+3));
+		addParam(createParam<LEDButton>(Vec(380-6, 317.0f-6), module, ZOUMAI::TRIGPAGE_PARAM));
+		addParam(createParam<LEDButton>(Vec(380+19-6, 317.0f-6), module, ZOUMAI::TRIGPAGE_PARAM+1));
+		addParam(createParam<LEDButton>(Vec(380+2*19-6, 317.0f-6), module, ZOUMAI::TRIGPAGE_PARAM+2));
+		addParam(createParam<LEDButton>(Vec(380+3*19-6, 317.0f-6), module, ZOUMAI::TRIGPAGE_PARAM+3));
 
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(portX0[1], 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS));
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(portX0[2], 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+3));
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(portX0[3], 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+6));
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(portX0[4], 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+9));
+		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(380, 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS));
+		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(380+19, 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+3));
+		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(380+2*19, 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+6));
+		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(380+3*19, 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+9));
 
 		static const float portYFunctions[4] = {244.0f, 256.0f, 268.0f, 280.0f};
 
@@ -1731,7 +1735,6 @@ struct ZOUMAIWidget : ModuleWidget {
 		for (int i=0;i<8;i++){
 			addInput(createInput<TinyPJ301MPort>(Vec(50.0f, 67.0f + i*28.0f), module, ZOUMAI::TRACKRESET_INPUTS + i));
 			addInput(createInput<TinyPJ301MPort>(Vec(70.0f, 67.0f + i*28.0f), module, ZOUMAI::TRACKACTIVE_INPUTS + i));
-			//addParam(createParam<LEDBezel>(Vec(90.0f , 64.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_PARAMS + i));
 
 			ZoumaiLEDBezel *p = createParam<ZoumaiLEDBezel>(Vec(90.0f , 64.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_PARAMS + i);
 			p->index=i;
@@ -1739,7 +1742,7 @@ struct ZOUMAIWidget : ModuleWidget {
 
 			addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(92.0f, 66.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_LIGHTS + i*3));
 
-			addParam(createParam<MiniLEDButton>(Vec(120.0f , 72.0f + i*28.0f), module, ZOUMAI::TRACKSELECT_PARAMS + i));
+			addParam(createParam<LEDButton>(Vec(120.0f - 6, 72.0f - 6 + i*28.0f), module, ZOUMAI::TRACKSELECT_PARAMS + i));
 			addChild(createLight<SmallLight<BlueLight>>(Vec(120.0f, 72.0f + i*28.0f), module, ZOUMAI::TRACKSELECT_LIGHTS + i));
 
 			addOutput(createOutput<TinyPJ301MPort>(Vec(375.0f, 65.0f + i * 20.0f), module, ZOUMAI::GATE_OUTPUTS + i));
@@ -1748,9 +1751,7 @@ struct ZOUMAIWidget : ModuleWidget {
 			addOutput(createOutput<TinyPJ301MPort>(Vec(435.0f, 65.0f + i * 20.0f),  module, ZOUMAI::CV2_OUTPUTS + i));
 		}
 
-		for (int i=0;i<16;i++){
-			//addParam(createParam<LEDBezel>(Vec(12.0f+ 28.0f*i, 330.0f), module, ZOUMAI::STEPS_PARAMS + i));
-
+		for (int i=0;i<16;i++) {
 			ZoumaiTrigLEDBezel *p = createParam<ZoumaiTrigLEDBezel>(Vec(12.0f+ 28.0f*i, 330.0f), module, ZOUMAI::STEPS_PARAMS + i);
 			p->index=i;
 			addParam(p);
@@ -1762,8 +1763,8 @@ struct ZOUMAIWidget : ModuleWidget {
 		float yKeyboardAnchor = 255.0f;
 
 		for (int i=0;i<7;i++) {
-			addParam(createParam<MiniLEDButton>(Vec(xKeyboardAnchor + 55.0f + i * 13.0f, yKeyboardAnchor+5.0f), module, ZOUMAI::OCTAVE_PARAMS+i));
-			addChild(createLight<SmallLight<BlueLight>>(Vec(xKeyboardAnchor + 55.0f  + i * 13.0f, yKeyboardAnchor+5.0f), module, ZOUMAI::OCTAVE_LIGHT+i));
+			addParam(createParam<LEDButton>(Vec(xKeyboardAnchor + 35.0f + i * 19.0f, yKeyboardAnchor - 1.0f), module, ZOUMAI::OCTAVE_PARAMS+i));
+			addChild(createLight<SmallLight<BlueLight>>(Vec(xKeyboardAnchor + 41.0f  + i * 19.0f, yKeyboardAnchor+5.0f), module, ZOUMAI::OCTAVE_LIGHT+i));
 		}
 
 		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS));

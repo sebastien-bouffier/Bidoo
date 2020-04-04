@@ -51,6 +51,7 @@ extern Model *modelMINIBAR;
 extern Model *modelZINC;
 extern Model *modelDUKE;
 extern Model *modelMOIRE;
+extern Model *modelHUITRE;
 extern Model *modelCANARD;
 extern Model *modelLOURDE;
 extern Model *modelHCTIP;

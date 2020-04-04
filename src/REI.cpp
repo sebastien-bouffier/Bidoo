@@ -51,25 +51,6 @@ struct REI : Module {
 	int delay = 0;
 	bool first = true;
 
-	// ///Tooltip
-	// struct tpFreeze : ParamQuantity {
-	// 	std::string getDisplayValueString() override {
-	// 		if (getValue() == 10.f)
-	// 			return "Cycled";
-	// 		else
-	// 			return "Cycle";
-	// 	}
-	// };
-	// struct tpOnOff : ParamQuantity {
-	// 	std::string getDisplayValueString() override {
-	// 		if (getValue() < 1.f)
-	// 			return "On";
-	// 		else
-	// 			return "Off";
-	// 	}
-	// };
-	// ///Tooltip
-
 	REI() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(SIZE_PARAM, 0.f, 1.f, .5f, "Room Size", "m", 0.f, 100.f);

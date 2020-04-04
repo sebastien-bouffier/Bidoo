@@ -901,11 +901,11 @@ struct DTROYDisplay : TransparentWidget {
 		// nvgFontFaceId(vg, font->handle);
 		// nvgTextLetterSpacing(vg, -2.0f);
 		nvgFillColor(vg, YELLOW_BIDOO);
-		nvgText(vg, pos.x + 4.0f, pos.y + 8.0f, playMode.c_str(), NULL);
+		nvgText(vg, pos.x + 3.0f, pos.y + 8.0f, playMode.c_str(), NULL);
 		nvgFontSize(vg, 14.0f);
 		nvgText(vg, pos.x + 118.0f, pos.y + 7.0f, selectedPattern.c_str(), NULL);
 
-		nvgText(vg, pos.x + 27.0f, pos.y + 7.0f, steps.c_str(), NULL);
+		nvgText(vg, pos.x + 30.0f, pos.y + 7.0f, steps.c_str(), NULL);
 		nvgText(vg, pos.x + 3.0f, pos.y + 21.0f, note.c_str(), NULL);
 		nvgText(vg, pos.x + 25.0f, pos.y + 21.0f, scale.c_str(), NULL);
 

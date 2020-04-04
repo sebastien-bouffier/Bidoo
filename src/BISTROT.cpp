@@ -98,4 +98,4 @@ struct BISTROTWidget : ModuleWidget {
 	}
 };
 
-Model *modelBISTROT = createModel<BISTROT, BISTROTWidget>("BISTROT");
+Model *modelBISTROT = createModel<BISTROT, BISTROTWidget>("BIsTrot");

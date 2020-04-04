@@ -47,6 +47,7 @@ struct TOCANTE : Module {
 	int stepsPerEighth = 1;
 	int stepsPerQuarter = 1;
 	int stepsPerTriplet = 1;
+	int count = 0;
 	dsp::PulseGenerator gatePulse;
 	dsp::PulseGenerator gatePulse_triplets;
 	dsp::PulseGenerator gatePulse_Measure;
@@ -84,17 +85,6 @@ struct TOCANTE : Module {
 };
 
 void TOCANTE::process(const ProcessArgs &args) {
-	if (runningTrigger.process(params[RUN_PARAM].getValue())) {
-		running = !running;
-		if(running){
-			currentStep = 0;
-		}
-	}
-
-	if (resetTrigger.process(params[RESET_PARAM].getValue())){
-		currentStep = 0;
-	}
-
 	ref = clamp(powf(2.0f,params[REF_PARAM].getValue()+(int)rescale(clamp(inputs[REF_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,3.0f)),2.0f,16.0f);
 	beats = clamp(params[BEATS_PARAM].getValue()+rescale(clamp(inputs[BEATS_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,32.0f),1.0f,32.0f);
 	bpm = clamp(round(params[BPM_PARAM].getValue()+rescale(clamp(inputs[BPM_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,350.0f)) + round(100*(params[BPMFINE_PARAM].getValue()+rescale(clamp(inputs[BPMFINE_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,0.99f))) * 0.01f, 1.0f, 350.0f);
@@ -104,6 +94,19 @@ void TOCANTE::process(const ProcessArgs &args) {
 	stepsPerTriplet = floor(stepsPerQuarter / 3);
 	stepsPerBeat = stepsPerSixteenth * 16 / ref;
 	stepsPerMeasure = beats*stepsPerBeat;
+
+	if (runningTrigger.process(params[RUN_PARAM].getValue())) {
+		running = !running;
+		if(running){
+			currentStep = 0;
+			count = beats;
+		}
+	}
+
+	if (resetTrigger.process(params[RESET_PARAM].getValue())){
+		currentStep = 0;
+		count = beats;
+	}
 
 	if ((stepsPerSixteenth>0) && ((currentStep % stepsPerSixteenth) == 0)) {
 		gatePulse.trigger(1e-3f);
@@ -121,6 +124,13 @@ void TOCANTE::process(const ProcessArgs &args) {
 	pulseTriplets = gatePulse_triplets.process(args.sampleTime);
 	pulseMeasure = gatePulse_Measure.process(args.sampleTime);
 
+	if (currentStep % stepsPerBeat == 0) {
+		count--;
+	}
+
+	if (pulseMeasure) {
+		count = beats;
+	}
 
 	outputs[OUT_MEASURE].setVoltage(pulseMeasure ? 10.0f : 0.0f);
 	outputs[OUT_BEAT].setVoltage((pulseEven && (currentStep % stepsPerBeat == 0)) ? 10.0f : 0.0f);
@@ -147,14 +157,31 @@ struct TOCANTEDisplay : TransparentWidget {
 			char tBPM[128],tBeats[128];
 			snprintf(tBPM, sizeof(tBPM), "%1.2f BPM", module->bpm);
 			snprintf(tBeats, sizeof(tBeats), "%1i/%1i", module->beats, module->ref);
-			//nvgSave(args.vg);
 			nvgFontSize(args.vg, 16.0f);
-			// nvgFontFaceId(args.vg, font->handle);
-			// nvgTextLetterSpacing(args.vg, -2.0f);
 			nvgFillColor(args.vg, YELLOW_BIDOO);
 			nvgText(args.vg, 0.0f, 0.0f, tBPM, NULL);
 			nvgText(args.vg, 0.0f, 15.0f, tBeats, NULL);
-			//nvgRestore(args.vg);
+		}
+	}
+};
+
+struct TOCANTEMeasureDisplay : TransparentWidget {
+	TOCANTE *module;
+	std::shared_ptr<Font> font;
+
+	TOCANTEMeasureDisplay() {
+		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+	}
+
+	void draw(const DrawArgs &args) override {
+		if (module != NULL) {
+			char tSteps[128];
+			snprintf(tSteps, sizeof(tSteps), "%1i", module->count);
+
+			nvgFontSize(args.vg, 16.0f);
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgTextAlign(args.vg, NVG_ALIGN_RIGHT);
+			nvgText(args.vg, 0.0f, 0.0f, tSteps, NULL);
 		}
 	}
 };
@@ -166,9 +193,15 @@ struct TOCANTEWidget : ModuleWidget {
 
 		TOCANTEDisplay *display = new TOCANTEDisplay();
 		display->module = module;
-		display->box.pos = Vec(16.0f, 55.0f);
+		display->box.pos = Vec(11.0f, 53.0f);
 		display->box.size = Vec(50.0f, 85.0f);
 		addChild(display);
+
+		TOCANTEMeasureDisplay *mDisplay = new TOCANTEMeasureDisplay();
+		mDisplay->module = module;
+		mDisplay->box.pos = Vec(92.0f, 68.0f);
+		mDisplay->box.size = Vec(25.0f, 25.0f);
+		addChild(mDisplay);
 
 		addParam(createParam<LEDButton>(Vec(78, 185), module, TOCANTE::RUN_PARAM));
 		addChild(createLight<SmallLight<BlueLight>>(Vec(84, 190), module, TOCANTE::RUNNING_LIGHT));

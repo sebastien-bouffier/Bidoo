@@ -1,3 +1,7 @@
+### v1.1.15 (04/04/2020)
+- zOù MAï mini led buttons redesigned
+- 8re (HUITre in french means oyster) is a pattern management tool for zOù MAï ... but not only
+
 ### v1.1.14 (27/03/2020)
 - zOù MAï clock stability issue fixed
 - pErCO cutoff issue at low sample rate
