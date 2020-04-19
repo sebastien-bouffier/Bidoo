@@ -9,10 +9,10 @@
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    id="svg49872"
    version="1.1"
-   viewBox="0 0 10 10"
-   height="10mm"
-   width="10mm"
-   sodipodi:docname="RedKnobBidoo.svg"
+   viewBox="0 0 8.0000003 8.0000001"
+   height="8mm"
+   width="8mm"
+   sodipodi:docname="BlackKnobBidoo.svg"
    inkscape:version="0.92.3 (2405546, 2018-03-11)">
   <sodipodi:namedview
      pagecolor="#ffffff"
@@ -25,11 +25,11 @@
      inkscape:pageshadow="2"
      inkscape:window-width="3840"
      inkscape:window-height="2066"
-     id="namedview19"
+     id="namedview20"
      showgrid="false"
-     inkscape:zoom="17.66117"
-     inkscape:cx="5.237025"
-     inkscape:cy="21.105133"
+     inkscape:zoom="39.437466"
+     inkscape:cx="8.2142948"
+     inkscape:cy="17.637643"
      inkscape:window-x="-11"
      inkscape:window-y="-11"
      inkscape:window-maximized="1"
@@ -86,18 +86,24 @@
     </rdf:RDF>
   </metadata>
   <path
-     style="opacity:1;fill:#cd1f00;fill-opacity:1;fill-rule:evenodd;stroke:#6b6b6b;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-     d="M 5.0251066,0.25006817 A 4.7500461,4.7499513 44.90651 0 1 9.749933,5.0250365 4.7500461,4.7499513 44.90651 0 1 4.9752226,9.7499332 4.7500461,4.7499513 44.90651 0 1 0.25006494,4.9752923 4.7500461,4.7499513 44.90651 0 1 5.0244483,0.25006473"
-     id="paath31010907"
+     id="bidooKnob"
+     d="M 7.7499955,3.994306 A 3.7499999,3.7499999 0 0 1 4.0058249,7.7499954 3.7499999,3.7499999 0 0 1 0.25000486,4.005956 3.7499999,3.7499999 0 0 1 3.9939131,0.25000505 3.7499999,3.7499999 0 0 1 7.7499947,3.9937821"
+     style="opacity:1;fill:#2a5775;fill-opacity:1;fill-rule:evenodd;stroke:#6b6b6b;stroke-width:0.49999994;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+     inkscape:connector-curvature="0">
+    <title
+       id="title826">bidooKnob</title>
+  </path>
+  <path
+     id="rect829"
+     d="m 4,0.6239308 h -10e-8 V 4.0000001 H 4 Z"
+     style="opacity:1;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:0.49999997;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
      inkscape:connector-curvature="0" />
   <path
-     style="fill:none;fill-rule:evenodd;stroke:#fcfcfc;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="M 4.9999999,0.71909162 V 5 5"
-     id="path832"
-     inkscape:connector-curvature="0" />
-  <path
-     style="opacity:1;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:0.49999997;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-     d="M 5.0224638,0.75006133 A 4.2500409,4.2499561 44.863638 0 1 9.2499397,5.0224008 4.2500409,4.2499561 44.863638 0 1 4.9778307,9.2499399 4.2500409,4.2499561 44.863638 0 1 0.75005843,4.9778929 4.2500409,4.2499561 44.863638 0 1 5.0218748,0.75005823"
-     id="paath31010907-7"
-     inkscape:connector-curvature="0" />
+     id="bidooKnob-3"
+     d="M 7.2499961,3.9950653 A 3.2499997,3.2499999 0 0 1 4.0050479,7.2499959 3.2499997,3.2499999 0 0 1 0.75000422,4.0051619 3.2499997,3.2499999 0 0 1 3.9947246,0.75000441 3.2499997,3.2499999 0 0 1 7.2499951,3.9946111"
+     style="opacity:1;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+     inkscape:connector-curvature="0">
+    <title
+       id="title826-0">bidooKnob</title>
+  </path>
 </svg>

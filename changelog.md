@@ -1,3 +1,10 @@
+### v1.1.16 (19/04/2020)
+- liMonADe frame loading issue fixed
+- 8re CV calibration issue fixed
+- 8re gate type param added (full vs. pulse)
+- NEW dIKT@T authoritarian quantizer
+- all buttons skins redesigned
+
 ### v1.1.15 (04/04/2020)
 - zOù MAï mini led buttons redesigned
 - 8re (HUITre in french means oyster) is a pattern management tool for zOù MAï ... but not only

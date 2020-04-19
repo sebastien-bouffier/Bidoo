@@ -1251,7 +1251,7 @@ struct BORDLWidget : ModuleWidget {
 
 		static const float portX0[4] = {20.0f, 58.0f, 96.0f, 135.0f};
 
-		addParam(createParam<RoundBlackKnob>(Vec(portX0[0]-2.0f, 36.0f), module, BORDL::CLOCK_PARAM));
+		addParam(createParam<BidooRoundBlackKnob>(Vec(portX0[0]-2.0f, 36.0f), module, BORDL::CLOCK_PARAM));
 		addParam(createParam<LEDButton>(Vec(61.0f, 40.0f), module, BORDL::RUN_PARAM));
 		addChild(createLight<SmallLight<GreenLight>>(Vec(67.0f, 46.0f), module, BORDL::RUNNING_LIGHT));
 		addParam(createParam<LEDButton>(Vec(99.0f, 40.0f), module, BORDL::RESET_PARAM));
@@ -1284,7 +1284,7 @@ struct BORDLWidget : ModuleWidget {
 		countModeParam = createParam<BlueCKD6>(Vec(portX0[1]-1.0f, 196.0f), module, BORDL::COUNT_MODE_PARAM);
 		addParam(countModeParam);
 		addInput(createInput<PJ301MPort>(Vec(portX0[2], 198.0f),  module, BORDL::PATTERN_INPUT));
-		patternParam = createParam<RoundBlackSnapKnob>(Vec(portX0[3],196.0f), module, BORDL::PATTERN_PARAM);
+		patternParam = createParam<BidooRoundBlackSnapKnob>(Vec(portX0[3],196.0f), module, BORDL::PATTERN_PARAM);
 		addParam(patternParam);
 
 		static const float portX1[8] = {200.0f, 241.0f, 282.0f, 323.0f, 364.0f, 405.0f, 446.0f, 487.0f};

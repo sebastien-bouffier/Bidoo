@@ -10,6 +10,19 @@ using namespace std;
 
 namespace rack {
 
+
+struct BidooRoundBlackSnapKnob : RoundBlackSnapKnob {
+	BidooRoundBlackSnapKnob() {
+		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlackKnobBidoo.svg")));
+	}
+};
+
+struct BidooRoundBlackKnob : RoundBlackKnob {
+	BidooRoundBlackKnob() {
+		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlackKnobBidoo.svg")));
+	}
+};
+
 struct BidooBlueKnob : RoundKnob {
 	BidooBlueKnob() {
 		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueKnobBidoo.svg")));
@@ -171,7 +184,7 @@ struct DownBtn : app::SvgSwitch {
 
 struct BidooColoredKnob : RoundKnob {
 	BidooColoredKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlackKnobBidoo.svg")));
+		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ColoredKnobBidoo.svg")));
 	}
 
 	void step() override {

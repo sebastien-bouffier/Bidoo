@@ -12,7 +12,8 @@ struct HUITRE : Module {
 		PATTERN_PARAM = TRIG_PARAM + 8,
 		CV1_PARAM = PATTERN_PARAM + 8,
 		CV2_PARAM = CV1_PARAM + 8,
-		NUM_PARAMS = CV2_PARAM + 8
+		MODE_PARAM = CV2_PARAM + 8,
+		NUM_PARAMS
 	};
 	enum InputIds {
 		MEASURE_INPUT,
@@ -39,9 +40,10 @@ struct HUITRE : Module {
 
 	HUITRE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configParam(MODE_PARAM, 0.0f, 1.0f, 0.0f);
 		for (int i = 0; i < 8; i++) {
 			configParam(TRIG_PARAM+i, 0.0f, 10.0f, 0.0f);
-			configParam(PATTERN_PARAM+i, 0.0f, 10.0f, i*1.25f);
+			configParam(PATTERN_PARAM+i, 0.0f, 10.0f,0.01f+ i*10.0f/7.0f);
 			configParam(CV1_PARAM+i, 0.0f, 10.0f, 0.0f);
 			configParam(CV2_PARAM+i, 0.0f, 10.0f, 0.0f);
 		}
@@ -66,11 +68,29 @@ void HUITRE::process(const ProcessArgs &args) {
 		if (patTriggers[i].process(params[TRIG_PARAM+i].getValue())) {
 			nextPattern = i;
 		}
+	}
 
+	if ((syncTrigger.process(inputs[MEASURE_INPUT].getVoltage())) && (currentPattern != nextPattern)) {
+		currentPattern = nextPattern;
+		gatePulse.trigger(1e-3f);
+	}
+	pulse = gatePulse.process(args.sampleTime);
+
+	for (int i = 0; i < 8; i++) {
 		if (i==currentPattern) {
 			lights[PATTERN_LIGHT+(i*3)].setBrightness(0.0f);
 			lights[PATTERN_LIGHT+(i*3)+1].setBrightness(1.0f);
 			lights[PATTERN_LIGHT+(i*3)+2].setBrightness(0.0f);
+
+			if (params[MODE_PARAM].getValue()==0.0f) {
+				outputs[PATTERNTRIG_OUTPUT+currentPattern].setVoltage(10.0f);
+			}
+			else if (pulse) {
+				outputs[PATTERNTRIG_OUTPUT+currentPattern].setVoltage(10.0f);
+			}
+			else {
+				outputs[PATTERNTRIG_OUTPUT+i].setVoltage(0.0f);
+			}
 		}
 		else if (i==nextPattern) {
 			lights[PATTERN_LIGHT+(i*3)].setBrightness(1.0f);
@@ -81,25 +101,13 @@ void HUITRE::process(const ProcessArgs &args) {
 			lights[PATTERN_LIGHT+(i*3)].setBrightness(0.0f);
 			lights[PATTERN_LIGHT+(i*3)+1].setBrightness(0.0f);
 			lights[PATTERN_LIGHT+(i*3)+2].setBrightness(0.0f);
+			outputs[PATTERNTRIG_OUTPUT+i].setVoltage(0.0f);
 		}
-
-		outputs[PATTERNTRIG_OUTPUT+i].setVoltage(0.0f);
 	}
 
-	if ((syncTrigger.process(inputs[MEASURE_INPUT].getVoltage())) && (currentPattern != nextPattern)) {
-		currentPattern = nextPattern;
-		gatePulse.trigger(1e-3f);
-	}
-
-	pulse = gatePulse.process(args.sampleTime);
-
-	if (pulse) {
-		outputs[PATTERNTRIG_OUTPUT+currentPattern].setVoltage(10.0f);
-	}
-
-	outputs[PATTERN_OUTPUT].setVoltage(1.25f*params[PATTERN_PARAM+currentPattern].getValue());
-	outputs[CV1_OUTPUT].setVoltage(1.25f*params[CV1_PARAM+currentPattern].getValue());
-	outputs[CV2_OUTPUT].setVoltage(1.25f*params[CV2_PARAM+currentPattern].getValue());
+	outputs[PATTERN_OUTPUT].setVoltage(params[PATTERN_PARAM+currentPattern].getValue());
+	outputs[CV1_OUTPUT].setVoltage(params[CV1_PARAM+currentPattern].getValue());
+	outputs[CV2_OUTPUT].setVoltage(params[CV2_PARAM+currentPattern].getValue());
 }
 
 struct HUITREWidget : ModuleWidget {
@@ -121,6 +129,8 @@ HUITREWidget::HUITREWidget(HUITRE *module) {
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
 	addChild(createWidget<ScrewSilver>(Vec(15, 365)));
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+
+	addParam(createParam<CKSS>(Vec(15.0f, 22.5f), module, HUITRE::MODE_PARAM));
 
 	addInput(createInput<PJ301MPort>(Vec(7, 330), module, HUITRE::MEASURE_INPUT));
 	addOutput(createOutput<PJ301MPort>(Vec(44.0f, 330), module, HUITRE::PATTERN_OUTPUT));

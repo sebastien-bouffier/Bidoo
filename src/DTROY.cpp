@@ -1011,7 +1011,7 @@ DTROYWidget::DTROYWidget(DTROY *module) {
 		addChild(display);
 	}
 
-	addParam(createParam<RoundBlackKnob>(Vec(17.0f, 36.0f), module, DTROY::CLOCK_PARAM));
+	addParam(createParam<BidooRoundBlackKnob>(Vec(17.0f, 36.0f), module, DTROY::CLOCK_PARAM));
 	addParam(createParam<LEDButton>(Vec(61.0f, 40.0f), module, DTROY::RUN_PARAM));
 	addChild(createLight<SmallLight<GreenLight>>(Vec(67.0f, 46.0f), module, DTROY::RUNNING_LIGHT));
 	addParam(createParam<LEDButton>(Vec(99.0f, 40.0f), module, DTROY::RESET_PARAM));
@@ -1044,7 +1044,7 @@ DTROYWidget::DTROYWidget(DTROY *module) {
 	countModeParam = createParam<BlueCKD6>(Vec(portX0[1]-1.0f, 196.0f), module, DTROY::COUNT_MODE_PARAM);
 	addParam(countModeParam);
 	addInput(createInput<PJ301MPort>(Vec(portX0[2], 198.0f), module, DTROY::PATTERN_INPUT));
-	patternParam = createParam<RoundBlackSnapKnob>(Vec(portX0[3]-1,196.0f), module, DTROY::PATTERN_PARAM);
+	patternParam = createParam<BidooRoundBlackSnapKnob>(Vec(portX0[3]-1,196.0f), module, DTROY::PATTERN_PARAM);
 	addParam(patternParam);
 
 	static const float portX1[8] = {200.0f, 238.0f, 276.0f, 315.0f, 353.0f, 392.0f, 430.0f, 469.0f};

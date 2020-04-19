@@ -62,4 +62,5 @@ extern Model *modelMU;
 extern Model *modelSIGMA;
 extern Model *modelRABBIT;
 extern Model *modelBISTROT;
+extern Model *modelDIKTAT;
 extern Model *modelVOID;

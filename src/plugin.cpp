@@ -8,6 +8,7 @@ void init(rack::Plugin *p) {
 
 	p->addModel(modelTOCANTE);
 	p->addModel(modelLATE);
+	p->addModel(modelDIKTAT);
 	p->addModel(modelDTROY);
 	p->addModel(modelBORDL);
 	p->addModel(modelZOUMAI);

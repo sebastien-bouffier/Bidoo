@@ -5,11 +5,35 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    id="svg15246"
    version="1.1"
-   viewBox="0 0 6.2990242 6.3003887"
-   height="6.3003879mm"
-   width="6.2990241mm">
+   viewBox="0 0 6.3000003 6.300001"
+   height="6.3000002mm"
+   width="6.3000002mm"
+   sodipodi:docname="TrimpotBidoo.svg"
+   inkscape:version="0.92.3 (2405546, 2018-03-11)">
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="3840"
+     inkscape:window-height="2066"
+     id="namedview86"
+     showgrid="false"
+     inkscape:zoom="9.9107655"
+     inkscape:cx="-3.5845406"
+     inkscape:cy="11.906245"
+     inkscape:window-x="-11"
+     inkscape:window-y="-11"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg15246" />
   <defs
      id="defs15240">
     <clipPath
@@ -25,7 +49,8 @@
        id="clip90">
       <path
          id="path4861"
-         d="m 0.898438,0.128906 h 16.25 v 17.882813 h -16.25 z m 0,0" />
+         d="m 0.898438,0.128906 h 16.25 v 17.882813 h -16.25 z m 0,0"
+         inkscape:connector-curvature="0" />
     </clipPath>
     <mask
        id="mask44">
@@ -68,7 +93,8 @@
        id="clipPath17825">
       <path
          id="path17823"
-         d="m 0.898438,0.128906 h 16.25 v 17.882813 h -16.25 z m 0,0" />
+         d="m 0.898438,0.128906 h 16.25 v 17.882813 h -16.25 z m 0,0"
+         inkscape:connector-curvature="0" />
     </clipPath>
     <clipPath
        id="clip87">
@@ -83,7 +109,8 @@
        id="clip88">
       <path
          id="path4845"
-         d="m 0.683594,0.921875 h 22.679687 v 24.9375 H 0.683594 Z m 0,0" />
+         d="m 0.683594,0.921875 h 22.679687 v 24.9375 H 0.683594 Z m 0,0"
+         inkscape:connector-curvature="0" />
     </clipPath>
     <mask
        id="mask43">
@@ -126,7 +153,8 @@
        id="clipPath17844">
       <path
          id="path17842"
-         d="m 0.683594,0.921875 h 22.679687 v 24.9375 H 0.683594 Z m 0,0" />
+         d="m 0.683594,0.921875 h 22.679687 v 24.9375 H 0.683594 Z m 0,0"
+         inkscape:connector-curvature="0" />
     </clipPath>
     <clipPath
        id="clip95">
@@ -141,7 +169,8 @@
        id="clip96">
       <path
          id="path4909"
-         d="M 0.140625,0.140625 H 17.199219 V 17.199219 H 0.140625 Z m 0,0" />
+         d="M 0.140625,0.140625 H 17.199219 V 17.199219 H 0.140625 Z m 0,0"
+         inkscape:connector-curvature="0" />
     </clipPath>
     <mask
        id="mask47">
@@ -184,7 +213,8 @@
        id="clipPath18545">
       <path
          id="path18543"
-         d="M 0.140625,0.140625 H 17.199219 V 17.199219 H 0.140625 Z m 0,0" />
+         d="M 0.140625,0.140625 H 17.199219 V 17.199219 H 0.140625 Z m 0,0"
+         inkscape:connector-curvature="0" />
     </clipPath>
     <clipPath
        id="clip93">
@@ -199,7 +229,8 @@
        id="clip94">
       <path
          id="path4893"
-         d="M 0.0390625,0.0390625 H 21.300781 V 23.421875 H 0.0390625 Z m 0,0" />
+         d="M 0.0390625,0.0390625 H 21.300781 V 23.421875 H 0.0390625 Z m 0,0"
+         inkscape:connector-curvature="0" />
     </clipPath>
     <mask
        id="mask46">
@@ -242,7 +273,8 @@
        id="clipPath18564">
       <path
          id="path18562"
-         d="M 0.0390625,0.0390625 H 21.300781 V 23.421875 H 0.0390625 Z m 0,0" />
+         d="M 0.0390625,0.0390625 H 21.300781 V 23.421875 H 0.0390625 Z m 0,0"
+         inkscape:connector-curvature="0" />
     </clipPath>
     <clipPath
        id="clip91">
@@ -257,7 +289,8 @@
        id="clip92">
       <path
          id="path4877"
-         d="M 0.507812,0.5 H 28.855469 V 31.679688 H 0.507812 Z m 0,0" />
+         d="M 0.507812,0.5 H 28.855469 V 31.679688 H 0.507812 Z m 0,0"
+         inkscape:connector-curvature="0" />
     </clipPath>
     <mask
        id="mask45">
@@ -300,7 +333,8 @@
        id="clipPath18583">
       <path
          id="path18581"
-         d="M 0.507812,0.5 H 28.855469 V 31.679688 H 0.507812 Z m 0,0" />
+         d="M 0.507812,0.5 H 28.855469 V 31.679688 H 0.507812 Z m 0,0"
+         inkscape:connector-curvature="0" />
     </clipPath>
     <clipPath
        id="clip202">
@@ -315,7 +349,8 @@
        id="clip203">
       <path
          id="path5792"
-         d="M 0.855469,0.140625 H 17.914062 V 17.199219 H 0.855469 Z m 0,0" />
+         d="M 0.855469,0.140625 H 17.914062 V 17.199219 H 0.855469 Z m 0,0"
+         inkscape:connector-curvature="0" />
     </clipPath>
     <mask
        id="mask104">
@@ -358,7 +393,8 @@
        id="clipPath18769">
       <path
          id="path18767"
-         d="M 0.855469,0.140625 H 17.914062 V 17.199219 H 0.855469 Z m 0,0" />
+         d="M 0.855469,0.140625 H 17.914062 V 17.199219 H 0.855469 Z m 0,0"
+         inkscape:connector-curvature="0" />
     </clipPath>
   </defs>
   <metadata
@@ -373,16 +409,19 @@
       </cc:Work>
     </rdf:RDF>
   </metadata>
-  <g
-     transform="translate(-46.318588,-97.647662)"
-     id="layer1">
-    <path
-       style="fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.35277775"
-       d="m 46.318588,100.79786 c 0,1.74046 1.409735,3.15019 3.1502,3.15019 1.739088,0 3.148824,-1.40973 3.148824,-3.15019 0,-1.739087 -1.409736,-3.150198 -3.148824,-3.150198 -1.740465,0 -3.1502,1.411111 -3.1502,3.150198"
-       id="bidooTrimPot" />
-    <path
-       style="fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.35277775"
-       d="m 49.672764,97.658686 c -0.06752,-0.0055 -0.135079,-0.01101 -0.203976,-0.01101 -0.0689,0 -0.137795,0.0055 -0.205317,0.01101 v 3.139174 h 0.409293 z m 0,0"
-       id="path7221" />
-  </g>
+  <path
+     inkscape:connector-curvature="0"
+     id="bidooTrimPot"
+     d="m 0.25000014,3.1500041 c 0,1.6022297 1.29805256,2.8999966 2.90063376,2.8999966 1.6013134,0 2.8993668,-1.2977669 2.8993668,-2.8999966 0,-1.6009658 -1.2980534,-2.90000397 -2.8993668,-2.90000397 -1.6025812,0 -2.90063376,1.29903817 -2.90063376,2.90000397"
+     style="fill:#2a5775;fill-opacity:1;fill-rule:nonzero;stroke:#6b6b6b;stroke-width:0.50000006;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+  <path
+     inkscape:connector-curvature="0"
+     id="path7221"
+     d="m 3.1500004,0.70304351 c 0,-0.004462 0,-0.008933 0,-0.008933 0,0 0,0.004462 0,0.008933 v 2.54695689 0 z m 0,0"
+     style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#ffffff;stroke-width:0.50000006;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+  <path
+     inkscape:connector-curvature="0"
+     id="bidooTrimPot-3"
+     d="m 0.75000016,3.1500035 c 0,1.3259832 1.07425044,2.3999971 2.40052464,2.3999971 1.3252251,0 2.3994759,-1.0740139 2.3994759,-2.3999971 0,-1.3249373 -1.0742508,-2.40000329 -2.3994759,-2.40000329 -1.3262742,0 -2.40052464,1.07506599 -2.40052464,2.40000329"
+     style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#ffffff;stroke-width:0.50000006;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
 </svg>

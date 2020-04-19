@@ -5,11 +5,35 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    id="svg15246"
    version="1.1"
    viewBox="0 0 6.5000001 6.5000009"
    height="6.5mm"
-   width="6.5mm">
+   width="6.5mm"
+   sodipodi:docname="BlueTrimpotBidoo.svg"
+   inkscape:version="0.92.3 (2405546, 2018-03-11)">
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="3840"
+     inkscape:window-height="2066"
+     id="namedview86"
+     showgrid="false"
+     inkscape:zoom="4.8032051"
+     inkscape:cx="-136.76997"
+     inkscape:cy="-28.466315"
+     inkscape:window-x="-11"
+     inkscape:window-y="-11"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg15246" />
   <defs
      id="defs15240">
     <clipPath
@@ -369,20 +393,23 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
-  <g
-     transform="translate(-46.318588,-97.44805)"
-     id="layer1">
-    <path
-       style="fill:#2a5775;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:0.53289545;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="m 46.585036,100.69807 c 0,1.64836 1.33545,2.98353 2.984202,2.98353 1.647451,0 2.982902,-1.33517 2.982902,-2.98353 0,-1.647109 -1.335451,-2.98357 -2.982902,-2.98357 -1.648752,0 -2.984202,1.336461 -2.984202,2.98357"
-       id="path7219" />
-    <path
-       id="path897"
-       d="m 49.556773,97.993456 0.02363,2.492214"
-       style="fill:none;fill-rule:evenodd;stroke:#fdfdfd;stroke-width:0.60000002;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
-  </g>
+  <path
+     inkscape:connector-curvature="0"
+     id="path7219"
+     d="m 0.26644801,3.23357 c 0,1.6574486 1.34281229,2.9999803 3.00065389,2.9999803 1.6565334,0 2.9993468,-1.3425317 2.9993468,-2.9999803 0,-1.6561906 -1.3428134,-3.00002049 -2.9993468,-3.00002049 -1.6578416,0 -3.00065389,1.34382989 -3.00065389,3.00002049"
+     style="fill:#2a5775;fill-opacity:1;fill-rule:nonzero;stroke:#6b6b6b;stroke-width:0.50000004;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+  <path
+     inkscape:connector-curvature="0"
+     style="fill:none;fill-rule:evenodd;stroke:#fdfdfd;stroke-width:0.50000006;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     d="m 3.2381853,0.67986988 2.25e-5,2.57012772"
+     id="path897" />
+  <path
+     inkscape:connector-curvature="0"
+     id="path7219-5"
+     d="m 0.75000006,3.250017 c 0,1.3812072 1.11901014,2.4999835 2.50054474,2.4999835 1.3804445,0 2.4994557,-1.1187763 2.4994557,-2.4999835 0,-1.3801587 -1.1190112,-2.50001691 -2.4994557,-2.50001691 -1.3815346,0 -2.50054474,1.11985821 -2.50054474,2.50001691"
+     style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#ffffff;stroke-width:0.50000006;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
 </svg>

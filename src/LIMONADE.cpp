@@ -81,7 +81,7 @@ void tLoadIFrame(wtTable &table, float *iRec, float index, size_t frameLen, bool
 }
 
 void tLoadFrame(wtTable &table, std::string path, float index, bool interpolate) {
-	std::string waveExtension = rack::string::filenameBase(path);
+	std::string waveExtension = rack::string::filenameExtension(rack::string::filename(path));
 	if (waveExtension == "wav") {
 		unsigned int c;
 	  unsigned int sr;
