@@ -1,3 +1,7 @@
+### v1.1.18 (20/04/2020)
+- zOù MAï paste bug fixed
+- zOù MAï track reset issue fixed
+
 ### v1.1.17 (20/04/2020)
 - dIKT@T quantization fix
 - dIKT@T note input display

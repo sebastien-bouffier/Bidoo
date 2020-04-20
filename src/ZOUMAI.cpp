@@ -1099,7 +1099,7 @@ struct ZOUMAI : Module {
 				lights[COPYPATTERN_LIGHT].setBrightness(1.0f);
 		}
 
-		if (pastePatternTrigger.process(params[PASTEPATTERN_PARAM].getValue())) {
+		if (pastePatternTrigger.process(params[PASTEPATTERN_PARAM].getValue()) && (copyPatternId>=0)) {
 			patterns[currentPattern].copy(&patterns[copyPatternId]);
 			lights[PASTEPATTERN_LIGHT].setBrightness(1.0f);
 			updateTrackToParams();
@@ -1111,7 +1111,7 @@ struct ZOUMAI : Module {
 				lights[COPYTRACK_LIGHT].setBrightness(1.0f);
 		}
 
-		if (pasteTrackTrigger.process(params[PASTETRACK_PARAM].getValue())) {
+		if (pasteTrackTrigger.process(params[PASTETRACK_PARAM].getValue()) && (copyTrackId>=0)) {
 			patterns[currentPattern].tracks[currentTrack].copy(&patterns[currentPattern].tracks[copyTrackId]);
 			lights[PASTETRACK_LIGHT].setBrightness(1.0f);
 			updateTrackToParams();
@@ -1123,7 +1123,7 @@ struct ZOUMAI : Module {
 				lights[COPYTRIG_LIGHT].setBrightness(1.0f);
 		}
 
-		if (pasteTrigTrigger.process(params[PASTETRIG_PARAM].getValue())) {
+		if (pasteTrigTrigger.process(params[PASTETRIG_PARAM].getValue()) && (copyTrigId>=0)) {
 			patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].copy(&patterns[currentPattern].tracks[currentTrack].trigs[copyTrigId]);
 			lights[PASTETRIG_LIGHT].setBrightness(1.0f);
 			updateTrackToParams();
@@ -1231,14 +1231,8 @@ void ZOUMAI::process(const ProcessArgs &args) {
 	bool solo = patterns[currentPattern].isSoloed();
 
 	for (int i = 0; i<8; i++) {
-
 		if (patterns[currentPattern].tracks[i].prevReadMode != patterns[currentPattern].tracks[i].readMode) {
-			std::cout << to_string(i) + " - " + to_string(patterns[currentPattern].tracks[i].prevReadMode) + " to " + to_string(patterns[currentPattern].tracks[i].readMode) << '\n';
 			patterns[currentPattern].tracks[i].prevReadMode = patterns[currentPattern].tracks[i].readMode;
-		}
-
-		if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage())) {
-			patterns[currentPattern].tracks[i].reset(fill,i==0?false:patterns[currentPattern].tracks[i-1].pre);
 		}
 
 		if (trackActiveTriggers[i].process(inputs[TRACKACTIVE_INPUTS+i].getVoltage() + params[TRACKSONOFF_PARAMS+i].getValue())) {
@@ -1349,7 +1343,7 @@ void ZOUMAI::process(const ProcessArgs &args) {
 	performTools();
 
 	if (inputs[EXTCLOCK_INPUT].isConnected()) {
-		if (clockTrigger.process(inputs[EXTCLOCK_INPUT].getVoltage())) {
+		if (clockTrigger.process(rescale(inputs[EXTCLOCK_INPUT].getVoltage(), 0.1f, 2.f, 0.f, 1.f))) {
 			lastTickCount = currentTickCount;
 			currentTickCount = 0.0f;
 			phase = 0.0f;
@@ -1361,7 +1355,13 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			patterns[currentPattern].moveNext(false, phase, fill);
 		}
 
-		if (resetTrigger.process(inputs[RESET_INPUT].getVoltage())) {
+		for (int i=0; i<8;i++) {
+			if (trackResetTriggers[i].process(rescale(inputs[TRACKRESET_INPUTS+i].getVoltage(), 0.1f, 2.f, 0.f, 1.f))) {
+				patterns[currentPattern].tracks[i].reset(fill,i==0?false:patterns[currentPattern].tracks[i-1].pre);
+			}
+		}
+
+		if (resetTrigger.process(rescale(inputs[RESET_INPUT].getVoltage(), 0.1f, 2.f, 0.f, 1.f))) {
 			phase = 0.0f;
 			currentTickCount = 0.0f;
 			for (int i = 0; i<8; i++) {
