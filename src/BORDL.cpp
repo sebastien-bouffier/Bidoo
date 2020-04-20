@@ -650,7 +650,13 @@ struct BORDL : Module {
 		}
 		float closestVal = 0.0f;
 		float closestDist = 1.0f;
-		int octaveInVolts = voltsIn >= 0.0f ? int(voltsIn) : (int(voltsIn)-1);
+		int octaveInVolts = 0;
+		if ((voltsIn >= 0.0f) || (voltsIn == (int)voltsIn)) {
+			octaveInVolts = int(voltsIn);
+		}
+		else {
+			octaveInVolts = int(voltsIn)-1;
+		}
 		for (int i = 0; i < notesInScale; i++) {
 			float scaleNoteInVolts = octaveInVolts + curScaleArr[i] / 12.0f;
 			float distAway = fabs(voltsIn - scaleNoteInVolts);

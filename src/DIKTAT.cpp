@@ -38,6 +38,7 @@ struct DIKTAT : Module {
 	int offset2=0;
 	int offset3=0;
 	int offset4=0;
+	float inputNote = 0.0f;
 	float note1 = 0.0f;
 	float note2 = 0.0f;
 	float note3 = 0.0f;
@@ -143,6 +144,8 @@ void DIKTAT::process(const ProcessArgs &args) {
 		scale = rescale(clamp(inputs[SCALE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,20.0f);
 	}
 
+	inputNote = inputs[NOTE_INPUT].getVoltage();
+
 	switch(scale){
 		case IONIAN:											curScaleArr = SCALE_IONIAN; break;
 		case DORIAN:											curScaleArr = SCALE_DORIAN; break;
@@ -169,10 +172,19 @@ void DIKTAT::process(const ProcessArgs &args) {
 
 	float closestVal = 0.0f;
 	float closestDist = 1.0f;
-	octaveInVolts = inputs[NOTE_INPUT].getVoltage() >= 0.0f ? int(inputs[NOTE_INPUT].getVoltage()) : (int(inputs[NOTE_INPUT].getVoltage())-1);
+
+	if (( inputNote>= 0.0f) || (inputNote == (int)inputNote)) {
+		octaveInVolts = int(inputNote);
+	}
+	else {
+		octaveInVolts = int(inputNote)-1;
+	}
+
+	octaveInVolts = clamp(octaveInVolts-1,-4,6);
+
 	index1 = 0;
-	for (int i = 0; i < 7; i++) {
-		float scaleNoteInVolts = octaveInVolts + curScaleArr[i] / 12.0f;
+	for (int i = 0; i < 21; i++) {
+		float scaleNoteInVolts = octaveInVolts + int(i/7) + (rootNote / 12.0f) + curScaleArr[i%7] / 12.0f;
 		float distAway = fabs(inputs[NOTE_INPUT].getVoltage() - scaleNoteInVolts);
 		if(distAway < closestDist) {
 			index1 = i;
@@ -189,10 +201,10 @@ void DIKTAT::process(const ProcessArgs &args) {
 	offset3=(index1+4)/7;
 	offset4=(index1+6)/7;
 
-	note1 = clamp(closestVal + (rootNote / 12.0f),-4.0f,6.0f);
-	note2 = clamp(curScaleArr[index2] / 12.0f + octaveInVolts + (rootNote / 12.0f) + offset2,-4.0f,6.0f);
-	note3 = clamp(curScaleArr[index3] / 12.0f + octaveInVolts + (rootNote / 12.0f) + offset3,-4.0f,6.0f);
-	note4 = clamp(curScaleArr[index4] / 12.0f + octaveInVolts + (rootNote / 12.0f) + offset4,-4.0f,6.0f);
+	note1 = clamp(closestVal ,-4.0f,6.0f);
+	note2 = clamp(curScaleArr[index2] / 12.0f + octaveInVolts + offset2 + (rootNote / 12.0f),-4.0f,6.0f);
+	note3 = clamp(curScaleArr[index3] / 12.0f + octaveInVolts + offset3 + (rootNote / 12.0f),-4.0f,6.0f);
+	note4 = clamp(curScaleArr[index4] / 12.0f + octaveInVolts + offset4 + (rootNote / 12.0f),-4.0f,6.0f);
 
 	outputs[NOTE1_OUTPUT].setVoltage(note1);
 	outputs[NOTE2_OUTPUT].setVoltage(note2);
@@ -397,7 +409,13 @@ struct DiktatDisplay : OpaqueWidget {
 	}
 
 	std::string displayNote(float value) {
-		int octave = sgn(value) == 1.0f ? value : (value-1);
+		int octave = 0;
+		if ((value >= 0.0f) || (value == (int)value)) {
+			octave = int(value);
+		}
+		else {
+			octave = int(value)-1;
+		}
 		int note = (value-octave)*1000;
 		switch(note){
 			case 0:  return "C" + to_string(octave+4);
@@ -423,6 +441,7 @@ struct DiktatDisplay : OpaqueWidget {
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
   		nvgFontSize(args.vg, 10.0f);
   		nvgFillColor(args.vg, nvgRGB(255, 255, 255));
+			nvgText(args.vg, 5, 257, displayNote(module->inputNote).c_str(), NULL);
   		nvgText(args.vg, 5, 303, displayNote(module->note1).c_str(), NULL);
 			nvgText(args.vg, 42, 303, displayNote(module->note2).c_str(), NULL);
 			nvgText(args.vg, 79, 303, displayNote(module->note3).c_str(), NULL);

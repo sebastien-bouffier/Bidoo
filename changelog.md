@@ -1,3 +1,7 @@
+### v1.1.17 (20/04/2020)
+- dIKT@T quantization fix
+- dIKT@T note input display
+
 ### v1.1.16 (19/04/2020)
 - liMonADe frame loading issue fixed
 - 8re CV calibration issue fixed
