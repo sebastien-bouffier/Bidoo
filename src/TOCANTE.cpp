@@ -204,7 +204,7 @@ struct TOCANTEWidget : ModuleWidget {
 		addChild(mDisplay);
 
 		addParam(createParam<LEDButton>(Vec(78, 185), module, TOCANTE::RUN_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(84, 190), module, TOCANTE::RUNNING_LIGHT));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(84, 191), module, TOCANTE::RUNNING_LIGHT));
 		addParam(createParam<BlueCKD6>(Vec(39, 180), module, TOCANTE::RESET_PARAM));
 
 		addParam(createParam<BidooBlueKnob>(Vec(3.0f,90.0f), module, TOCANTE::BPM_PARAM));
