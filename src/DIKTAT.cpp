@@ -10,6 +10,7 @@ using namespace std;
 
 struct DIKTAT : Module {
 	enum ParamIds {
+		CHANNEL_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -29,44 +30,25 @@ struct DIKTAT : Module {
 		NUM_LIGHTS
 	};
 
-	int rootNote = 0;
-	int scale = 0;
-	int index1=0;
-	int index2=0;
-	int index3=0;
-	int index4=0;
-	int offset2=0;
-	int offset3=0;
-	int offset4=0;
-	float inputNote = 0.0f;
-	float note1 = 0.0f;
-	float note2 = 0.0f;
-	float note3 = 0.0f;
-	float note4 = 0.0f;
-	int octaveInVolts = 0;
-	int *curScaleArr = SCALE_IONIAN;
-
-	int SCALE_IONIAN											[7] = {0,	2, 4,	5, 7, 9, 11};
-	int SCALE_DORIAN											[7] = {0,	2, 3,	5, 7,	9, 10};
-	int SCALE_PHRYGIAN										[7] = {0,	1, 3,	5, 7,	8, 10};
-	int SCALE_LYDIAN											[7] = {0,	2, 4,	6, 7,	9, 11};
-	int SCALE_MIXOLYDIAN									[7] = {0,	2, 4,	5, 7,	9, 10};
-	int SCALE_AEOLIAN											[7] = {0,	2, 3,	5, 7,	8, 10};
-	int SCALE_LOCRIAN											[7] = {0,	1, 3,	5, 6,	8, 10};
-	int SCALE_IONIAN_MIN									[7] = {0,	2, 3,	5, 7,	9, 11};
-	int SCALE_DORIAN_FLAT_9								[7] = {0,	1, 3,	5, 7,	9, 10};
-	int SCALE_LYDIAN_AUG									[7] = {0,	2, 4,	6, 8,	9, 11};
-	int SCALE_LYDIAN_DOM									[7] = {0,	2, 4,	6, 7,	9, 10};
-	int SCALE_MIXOLYDIAN_FLAT_6						[7] = {0,	2, 4,	5, 7,	8, 10};
-	int SCALE_AEOLIAN_DIM									[7] = {0,	2, 3,	5, 6,	8, 10};
-	int SCALE_SUPER_LOCRIAN								[7] = {0,	1, 3,	4, 6,	8, 10};
-	int SCALE_AEOLIAN_NATURAL_7						[7] = {0,	2, 3,	5, 7,	8, 11};
-	int SCALE_LOCRIAN_NATURAL_6						[7] = {0,	1, 3,	5, 6,	9, 10};
-	int SCALE_IONIAN_AUG									[7] = {0,	2, 4,	5, 8,	9, 11};
-	int SCALE_DORIAN_SHARP_4							[7] = {0,	2, 3,	6, 7,	9, 10};
-	int SCALE_PHRYGIAN_DOM								[7] = {0,	1, 4,	5, 7,	8, 10};
-	int SCALE_LYDIAN_SHARP_9							[7] = {0,	3, 4,	6, 7,	9, 11};
-	int SCALE_SUPER_LOCRIAN_DOUBLE_FLAT_7	[7] = {0,	1, 3,	4, 6,	8, 9};
+	int currentChannel = 0;
+	int rootNote[16] = {0};
+	int scale[16] = {0};
+	int index1[16] = {0};
+	int index2[16] = {0};
+	int index3[16] = {0};
+	int index4[16] = {0};
+	int offset2[16] = {0};
+	int offset3[16] = {0};
+	int offset4[16] = {0};
+	float inputNote[16] = {0.0f};
+	float note1[16] = {0.0f};
+	float note2[16] = {0.0f};
+	float note3[16] = {0.0f};
+	float note4[16] = {0.0f};
+	int octaveInVolts[16] = {0};
+	int scales[21][7] = {{0,	2, 4,	5, 7, 9, 11},{0,	2, 3,	5, 7,	9, 10},{0,	1, 3,	5, 7,	8, 10},{0,	2, 4,	6, 7,	9, 11},{0,	2, 4,	5, 7,	9, 10},{0,	2, 3,	5, 7,	8, 10},{0,	1, 3,	5, 6,	8, 10},{0,	2, 3,	5, 7,	9, 11},{0,	1, 3,	5, 7,	9, 10},
+	{0,	2, 4,	6, 8,	9, 11},{0,	2, 4,	6, 7,	9, 10},{0,	2, 4,	5, 7,	8, 10},{0,	2, 3,	5, 6,	8, 10},{0,	1, 3,	4, 6,	8, 10},{0,	2, 3,	5, 7,	8, 11},{0,	1, 3,	5, 6,	9, 10},{0,	2, 4,	5, 8,	9, 11},{0,	2, 3,	6, 7,	9, 10},{0,	1, 4,	5, 7,	8, 10},
+	{0,	3, 4,	6, 7,	9, 11},{0,	1, 3,	4, 6,	8, 9}};
 
 
 	enum Notes {
@@ -112,6 +94,7 @@ struct DIKTAT : Module {
 
 	DIKTAT() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f);
   }
 
   void process(const ProcessArgs &args) override;
@@ -119,97 +102,96 @@ struct DIKTAT : Module {
 
 	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
-		json_object_set_new(rootJ, "rootNote", json_integer(rootNote));
-		json_object_set_new(rootJ, "scale", json_integer(scale));
+		json_object_set_new(rootJ, "currentChannel", json_integer(currentChannel));
+		for (size_t i = 0; i<16 ; i++) {
+			json_t *channelJ = json_object();
+			json_object_set_new(channelJ, "rootNote", json_integer(rootNote[i]));
+			json_object_set_new(channelJ, "scale", json_integer(scale[i]));
+			json_object_set_new(rootJ, ("channel"+ to_string(i)).c_str(), channelJ);
+		}
 		return rootJ;
 	}
 
 	void dataFromJson(json_t *rootJ) override {
-		json_t *rootNoteJ = json_object_get(rootJ, "rootNote");
-		if (rootNoteJ)
-			rootNote = json_integer_value(rootNoteJ);
+		for (size_t i = 0; i<16 ; i++) {
+			json_t *channelJ = json_object_get(rootJ, ("channel" + to_string(i)).c_str());
+			if (channelJ){
+				json_t *rootNoteJ = json_object_get(channelJ, "rootNote");
+				if (rootNoteJ)
+					rootNote[i] = json_integer_value(rootNoteJ);
 
-		json_t *scaleJ = json_object_get(rootJ, "scale");
-		if (scaleJ)
-			scale = json_integer_value(scaleJ);
+				json_t *scaleJ = json_object_get(channelJ, "scale");
+				if (scaleJ)
+					scale[i] = json_integer_value(scaleJ);
+			}
+		}
+		json_t *currentChannelJ = json_object_get(rootJ, "currentChannel");
+		if (currentChannelJ) {
+			currentChannel = json_integer_value(currentChannelJ);
+		}
 	}
 };
 
 void DIKTAT::process(const ProcessArgs &args) {
-	if (inputs[ROOT_NOTE_INPUT].isConnected()) {
-		rootNote = rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f);
-	}
+	currentChannel = params[CHANNEL_PARAM].getValue();
+	int c = std::max(inputs[NOTE_INPUT].getChannels(), 1);
+	outputs[NOTE1_OUTPUT].setChannels(c);
+	outputs[NOTE2_OUTPUT].setChannels(c);
+	outputs[NOTE3_OUTPUT].setChannels(c);
+	outputs[NOTE4_OUTPUT].setChannels(c);
 
-	if (inputs[SCALE_INPUT].isConnected()) {
-		scale = rescale(clamp(inputs[SCALE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,20.0f);
-	}
-
-	inputNote = inputs[NOTE_INPUT].getVoltage();
-
-	switch(scale){
-		case IONIAN:											curScaleArr = SCALE_IONIAN; break;
-		case DORIAN:											curScaleArr = SCALE_DORIAN; break;
-		case PHRYGIAN:										curScaleArr = SCALE_PHRYGIAN; break;
-		case LYDIAN:											curScaleArr = SCALE_LYDIAN; break;
-		case MIXOLYDIAN:									curScaleArr = SCALE_MIXOLYDIAN; break;
-		case AEOLIAN:											curScaleArr = SCALE_AEOLIAN; break;
-		case LOCRIAN:											curScaleArr = SCALE_LOCRIAN; break;
-		case IONIAN_MIN:									curScaleArr = SCALE_IONIAN_MIN; break;
-		case DORIAN_FLAT_9:								curScaleArr = SCALE_DORIAN_FLAT_9; break;
-		case LYDIAN_AUG:									curScaleArr = SCALE_LYDIAN_AUG; break;
-		case LYDIAN_DOM:									curScaleArr = SCALE_LYDIAN_DOM; break;
-		case MIXOLYDIAN_FLAT_6:						curScaleArr = SCALE_MIXOLYDIAN_FLAT_6; break;
-		case AEOLIAN_DIM:									curScaleArr = SCALE_AEOLIAN_DIM; break;
-		case SUPER_LOCRIAN:								curScaleArr = SCALE_SUPER_LOCRIAN; break;
-		case AEOLIAN_NATURAL_7:						curScaleArr = SCALE_AEOLIAN_NATURAL_7; break;
-		case LOCRIAN_NATURAL_6:						curScaleArr = SCALE_LOCRIAN_NATURAL_6; break;
-		case IONIAN_AUG:									curScaleArr = SCALE_IONIAN_AUG; break;
-		case DORIAN_SHARP_4:							curScaleArr = SCALE_DORIAN_SHARP_4; break;
-		case PHRYGIAN_DOM:								curScaleArr = SCALE_PHRYGIAN_DOM; break;
-		case LYDIAN_SHARP_9:							curScaleArr = SCALE_LYDIAN_SHARP_9; break;
-		case SUPER_LOCRIAN_DOUBLE_FLAT_7:	curScaleArr = SCALE_SUPER_LOCRIAN_DOUBLE_FLAT_7; break;
-	}
-
-	float closestVal = 0.0f;
-	float closestDist = 1.0f;
-
-	if (( inputNote>= 0.0f) || (inputNote == (int)inputNote)) {
-		octaveInVolts = int(inputNote);
-	}
-	else {
-		octaveInVolts = int(inputNote)-1;
-	}
-
-	octaveInVolts = clamp(octaveInVolts-1,-4,6);
-
-	index1 = 0;
-	for (int i = 0; i < 21; i++) {
-		float scaleNoteInVolts = octaveInVolts + int(i/7) + (rootNote / 12.0f) + curScaleArr[i%7] / 12.0f;
-		float distAway = fabs(inputs[NOTE_INPUT].getVoltage() - scaleNoteInVolts);
-		if(distAway < closestDist) {
-			index1 = i;
-			closestVal = scaleNoteInVolts;
-			closestDist = distAway;
+	for (int i=0;i<c;i++) {
+		if (inputs[ROOT_NOTE_INPUT].isConnected()) {
+			rootNote[i] = rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(i), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f);
 		}
+
+		if (inputs[SCALE_INPUT].isConnected()) {
+			scale[i] = rescale(clamp(inputs[SCALE_INPUT].getVoltage(i), 0.0f,10.0f),0.0f,10.0f,0.0f,20.0f);
+		}
+
+		inputNote[i] = inputs[NOTE_INPUT].getVoltage(i);
+
+		float closestVal = 0.0f;
+		float closestDist = 1.0f;
+
+		if (( inputNote[i]>= 0.0f) || (inputNote[i] == (int)inputNote[i])) {
+			octaveInVolts[i] = int(inputNote[i]);
+		}
+		else {
+			octaveInVolts[i] = int(inputNote[i])-1;
+		}
+
+		octaveInVolts[i] = clamp(octaveInVolts[i]-1,-4,6);
+
+		index1[i] = 0;
+		for (int j = 0; j < 21; j++) {
+			float scaleNoteInVolts = octaveInVolts[i] + int(j/7) + (rootNote[i] / 12.0f) + scales[scale[i]][j%7] / 12.0f;
+			float distAway = fabs(inputNote[i] - scaleNoteInVolts);
+			if(distAway < closestDist) {
+				index1[i] = j;
+				closestVal = scaleNoteInVolts;
+				closestDist = distAway;
+			}
+		}
+
+		index2[i] = (index1[i]+2)%7;
+		index3[i] = (index1[i]+4)%7;
+		index4[i] = (index1[i]+6)%7;
+
+		offset2[i]=(index1[i]+2)/7;
+		offset3[i]=(index1[i]+4)/7;
+		offset4[i]=(index1[i]+6)/7;
+
+		note1[i] = clamp(closestVal ,-4.0f,6.0f);
+		note2[i] = clamp(scales[scale[i]][index2[i]] / 12.0f + octaveInVolts[i] + offset2[i] + (rootNote[i] / 12.0f),-4.0f,6.0f);
+		note3[i] = clamp(scales[scale[i]][index3[i]] / 12.0f + octaveInVolts[i] + offset3[i] + (rootNote[i] / 12.0f),-4.0f,6.0f);
+		note4[i] = clamp(scales[scale[i]][index4[i]] / 12.0f + octaveInVolts[i] + offset4[i] + (rootNote[i] / 12.0f),-4.0f,6.0f);
+
+		outputs[NOTE1_OUTPUT].setVoltage(note1[i],i);
+		outputs[NOTE2_OUTPUT].setVoltage(note2[i],i);
+		outputs[NOTE3_OUTPUT].setVoltage(note3[i],i);
+		outputs[NOTE4_OUTPUT].setVoltage(note4[i],i);
 	}
-
-	index2 = (index1+2)%7;
-	index3 = (index1+4)%7;
-	index4 = (index1+6)%7;
-
-	offset2=(index1+2)/7;
-	offset3=(index1+4)/7;
-	offset4=(index1+6)/7;
-
-	note1 = clamp(closestVal ,-4.0f,6.0f);
-	note2 = clamp(curScaleArr[index2] / 12.0f + octaveInVolts + offset2 + (rootNote / 12.0f),-4.0f,6.0f);
-	note3 = clamp(curScaleArr[index3] / 12.0f + octaveInVolts + offset3 + (rootNote / 12.0f),-4.0f,6.0f);
-	note4 = clamp(curScaleArr[index4] / 12.0f + octaveInVolts + offset4 + (rootNote / 12.0f),-4.0f,6.0f);
-
-	outputs[NOTE1_OUTPUT].setVoltage(note1);
-	outputs[NOTE2_OUTPUT].setVoltage(note2);
-	outputs[NOTE3_OUTPUT].setVoltage(note3);
-	outputs[NOTE4_OUTPUT].setVoltage(note4);
 }
 
 struct DIKTATWidget : ModuleWidget {
@@ -224,13 +206,13 @@ struct RootNoteButton : OpaqueWidget {
 
 	bool isInScale() {
 		for (int i=0; i<7; i++) {
-			if ((module->curScaleArr[i]+module->rootNote)%12 == rootNote) return true;
+			if ((module->scales[module->scale[module->currentChannel]][i]+module->rootNote[module->currentChannel])%12 == rootNote) return true;
 		}
 		return false;
 	}
 
 	void draw(const DrawArgs &args) override {
-		if (module && module->rootNote == rootNote) {
+		if (module && module->rootNote[module->currentChannel] == rootNote) {
 			nvgBeginPath(args.vg);
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 			nvgRoundedRect(args.vg, 0, 0, box.size.x-mm2px(0.5f), box.size.y-mm2px(0.5f), 0);
@@ -267,7 +249,7 @@ struct RootNoteButton : OpaqueWidget {
 
 	void onButton(const event::Button &e) override {
 		if (e.button == GLFW_MOUSE_BUTTON_RIGHT && e.action == GLFW_PRESS) {
-			module->rootNote = 0;
+			module->rootNote[module->currentChannel] = 0;
 			e.consume(this);
 			return;
 		}
@@ -278,7 +260,7 @@ struct RootNoteButton : OpaqueWidget {
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT) {
 			RootNoteButton *w = dynamic_cast<RootNoteButton*>(e.origin);
 			if (w) {
-				module->rootNote = rootNote;
+				module->rootNote[module->currentChannel] = rootNote;
 			}
 		}
 	}
@@ -291,7 +273,7 @@ struct ScaleButton : OpaqueWidget {
 	shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 
 	void draw(const DrawArgs &args) override {
-		if (module && module->scale == scale) {
+		if (module && module->scale[module->currentChannel] == scale) {
   		nvgBeginPath(args.vg);
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
   		nvgRoundedRect(args.vg, 0, 0, box.size.x-mm2px(0.5f), box.size.y-mm2px(0.5f), 0);
@@ -317,7 +299,7 @@ struct ScaleButton : OpaqueWidget {
 
 	void onButton(const event::Button &e) override {
 		if (e.button == GLFW_MOUSE_BUTTON_RIGHT && e.action == GLFW_PRESS) {
-			module->scale = 0;
+			module->scale[module->currentChannel] = 0;
 			e.consume(this);
 			return;
 		}
@@ -328,7 +310,7 @@ struct ScaleButton : OpaqueWidget {
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT) {
 			ScaleButton *w = dynamic_cast<ScaleButton*>(e.origin);
 			if (w) {
-				module->scale = scale;
+				module->scale[module->currentChannel] = scale;
 			}
 		}
 	}
@@ -354,7 +336,7 @@ struct DiktatDisplay : OpaqueWidget {
 
 		for (int i = 0; i < rootNotes; i++) {
 			RootNoteButton *rootNoteButton = new RootNoteButton();
-			rootNoteButton->box.pos = Vec(0, height / rootNotes * i);
+			rootNoteButton->box.pos = Vec(30, height / rootNotes * i);
 			rootNoteButton->box.size = Vec(20, height / rootNotes);
 			rootNoteButton->module = module;
 			rootNoteButton->rootNote = i;
@@ -377,8 +359,8 @@ struct DiktatDisplay : OpaqueWidget {
 
 		for (int i = 0; i < scales; i++) {
 			ScaleButton *scaleButton = new ScaleButton();
-			scaleButton->box.pos = Vec(40, height / scales * i);
-			scaleButton->box.size = Vec(80, height / scales);
+			scaleButton->box.pos = Vec(55, height / scales * i);
+			scaleButton->box.size = Vec(75, height / scales);
 			scaleButton->module = module;
 			scaleButton->scale = i;
 			switch(i){
@@ -441,11 +423,12 @@ struct DiktatDisplay : OpaqueWidget {
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
   		nvgFontSize(args.vg, 10.0f);
   		nvgFillColor(args.vg, nvgRGB(255, 255, 255));
-			nvgText(args.vg, 5, 257, displayNote(module->inputNote).c_str(), NULL);
-  		nvgText(args.vg, 5, 303, displayNote(module->note1).c_str(), NULL);
-			nvgText(args.vg, 42, 303, displayNote(module->note2).c_str(), NULL);
-			nvgText(args.vg, 79, 303, displayNote(module->note3).c_str(), NULL);
-			nvgText(args.vg, 116, 303, displayNote(module->note4).c_str(), NULL);
+			nvgText(args.vg, 7.5f, 20, to_string(module->currentChannel+1).c_str(), NULL);
+			nvgText(args.vg, 5, 257, displayNote(module->inputNote[module->currentChannel]).c_str(), NULL);
+  		nvgText(args.vg, 5, 303, displayNote(module->note1[module->currentChannel]).c_str(), NULL);
+			nvgText(args.vg, 42, 303, displayNote(module->note2[module->currentChannel]).c_str(), NULL);
+			nvgText(args.vg, 79, 303, displayNote(module->note3[module->currentChannel]).c_str(), NULL);
+			nvgText(args.vg, 116, 303, displayNote(module->note4[module->currentChannel]).c_str(), NULL);
 		}
 
 		Widget::draw(args);
@@ -465,6 +448,8 @@ DIKTATWidget::DIKTATWidget(DIKTAT *module) {
 	diktatDisplay->box.pos = mm2px(Vec(5, 7));
 	diktatDisplay->setModule(module);
 	addChild(diktatDisplay);
+
+	addParam(createParam<BidooBlueSnapKnob>(Vec(7.5f,55.0f), module, DIKTAT::CHANNEL_PARAM));
 
 	addInput(createInput<PJ301MPort>(Vec(7, 283), module, DIKTAT::NOTE_INPUT));
 	addInput(createInput<PJ301MPort>(Vec(62.75f, 283), module, DIKTAT::ROOT_NOTE_INPUT));

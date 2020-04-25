@@ -1424,6 +1424,8 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			outputs[VO_OUTPUTS + i].setVoltage(patterns[currentPattern].tracks[i].getVO());
 			outputs[CV1_OUTPUTS + i].setVoltage(patterns[currentPattern].tracks[i].getCV1());
 			outputs[CV2_OUTPUTS + i].setVoltage(patterns[currentPattern].tracks[i].getCV2());
+
+			if (patterns[currentPattern].tracks[i].getCurrentTrig().index>7) std::cout << "missed" << '\n';
 		}
 	}
 }
