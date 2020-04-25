@@ -91,12 +91,12 @@ inline void trig::reset() {
 
 inline void trig::randomize() {
 	isActive = random::uniform()>0.5f;
-	slide = random::uniform()*10.0f;
-	trim = (random::uniform()*0.9f) * (random::uniform()>0.5f ? -1 : 1);
-	length = random::uniform()*0.9f;
-	pulseCount = (int)(random::uniform()*10);
-	pulseDistance = random::uniform()*0.9f;
-	octave = random::uniform()*4.0f - 4.0f;
+	slide = 0.0f;
+	trim = 0.0f;
+	length = random::uniform()*2.0f;
+	pulseCount = 1;
+	pulseDistance = 1;
+	octave = random::uniform()*2.0f - 2.0f;
 	semitones = random::uniform()*11.0f;
 	CV1 = random::uniform()*10.0f;
 	CV2 = random::uniform()*10.0f;
@@ -107,13 +107,12 @@ inline void trig::randomize() {
 
 inline void trig::fullRandomize() {
 	isActive = random::uniform()>0.5f;
-	slide = random::uniform()*10.0f;
-	trigType = (int)(random::uniform()*2);
-	trim = (random::uniform()*0.9f) * (random::uniform()>0.5f ? -1 : 1);
-	length = random::uniform()*0.9f;
-	pulseCount = (int)(random::uniform()*10);
+	slide = random::uniform();
+	trim = (random::uniform()*0.3f) * (random::uniform()>0.5f ? -1 : 1);
+	length = random::uniform()*2.0f;
+	pulseCount = (int)(random::uniform()*6);
 	pulseDistance = random::uniform()*0.9f;
-	octave = random::uniform()*5.0f - 5.0f;
+	octave = random::uniform()*3.0f - 3.0f;
 	semitones = random::uniform()*11.0f;
 	CV1 = random::uniform()*10.0f;
 	CV2 = random::uniform()*10.0f;
@@ -305,7 +304,7 @@ inline void track::clear() {
 	isActive = true;
 	length = 16;
 	readMode = 0;
-	speed = 1.0f;
+	speed = 1;
 	pre = false;
 	for (int i = 0; i < 64; i++) {
 		trigs[i].reset();
@@ -322,7 +321,7 @@ inline void track::fullRandomize() {
 	isActive = random::uniform()>0.5f;
 	length = (int)(random::uniform()*64.0f);
 	readMode = (int)(random::uniform()*4.0f);
-	speed = 0.5f + (int)(random::uniform()*3.0f) + (random::uniform()>0.5f ? 0.5f : 0.0f);
+	speed = (int)(random::uniform()*4.0f);
 	for (int i = 0; i < 64; i++) {
 		trigs[i].fullRandomize();
 	}
@@ -1424,8 +1423,6 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			outputs[VO_OUTPUTS + i].setVoltage(patterns[currentPattern].tracks[i].getVO());
 			outputs[CV1_OUTPUTS + i].setVoltage(patterns[currentPattern].tracks[i].getCV1());
 			outputs[CV2_OUTPUTS + i].setVoltage(patterns[currentPattern].tracks[i].getCV2());
-
-			if (patterns[currentPattern].tracks[i].getCurrentTrig().index>7) std::cout << "missed" << '\n';
 		}
 	}
 }

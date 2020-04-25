@@ -1,3 +1,8 @@
+### v1.1.20 (25/04/2020)
+- dIKT@T is now polyphonic
+- zOù MAï trig prob count issue fixed
+- zOù MAï track randomization speed issue fixed
+
 ### v1.1.19 (25/04/2020)
 - zOù MAï sync/reset/speed issues fixed
 - zOù MAï PROB and SPEED are MIDI-MAP compliant

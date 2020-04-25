@@ -413,7 +413,7 @@ struct DiktatDisplay : OpaqueWidget {
 			case 833: return "A#" + to_string(octave+4);
 			case 916: return "B" + to_string(octave+4);
 			case 1000: return "C" + to_string(octave+5);
-			default: return to_string(octave+4);
+			default: return "OOS";
 		}
 	}
 
