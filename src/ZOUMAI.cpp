@@ -19,10 +19,11 @@ struct trig {
 	}
 
 	bool isActive = false;
+	bool initialized = false;
 	float slide = 0.0f;
 	bool isSleeping = false;
 	int trigType = 0;
-	float index = 0.0f;
+	int index = 0;
 	float trim = 0.0f;
 	float length = 0.9f;
 	int pulseCount = 1;
@@ -40,10 +41,12 @@ struct trig {
 	float getTrimedIndex();
 	float getRelativeTrackPosition(const float trackPosition);
 	float getFullLength();
+	bool isRead(const float trackPosition);
 	float getVO();
 	float getCV1();
 	float getCV2();
 	void init(const bool fill, const bool pre, const bool nei);
+	void leave();
 	void reset();
 	void randomize();
 	void fullRandomize();
@@ -126,52 +129,59 @@ inline bool trig::hasProbability() {
 }
 
 inline void trig::init(const bool fill, const bool pre, const bool nei) {
-	switch (proba) {
-		case 0:  // dice
-			if (count<100) {
-				isSleeping = (random::uniform()*100)>=count;
-			}
-			else
+	if (!initialized) {
+		initialized = true;
+		switch (proba) {
+			case 0:  // dice
+				if (count<100) {
+					isSleeping = (random::uniform()*100)>=count;
+				}
+				else
+					isSleeping = false;
+				break;
+			case 1:  // COUNT
+				isSleeping = (inCount > count);
+				inCount = (inCount >= countReset) ? 1 : (inCount + 1);
+				break;
+			case 2:  // FILL
+				isSleeping = !fill;
+				break;
+			case 3:  // !FILL
+				isSleeping = fill;
+				break;
+			case 4:  // PRE
+				isSleeping = !pre;
+				break;
+			case 5:  // !PRE
+				isSleeping = pre;
+				break;
+			case 6:  // NEI
+				isSleeping = !nei;
+				break;
+			case 7:  // !NEI
+				isSleeping = nei;
+				break;
+			default:
 				isSleeping = false;
-			break;
-		case 1:  // COUNT
-			isSleeping = (inCount > count);
-			inCount = (inCount >= countReset) ? 1 : (inCount + 1);
-			break;
-		case 2:  // FILL
-			isSleeping = !fill;
-			break;
-		case 3:  // !FILL
-			isSleeping = fill;
-			break;
-		case 4:  // PRE
-			isSleeping = !pre;
-			break;
-		case 5:  // !PRE
-			isSleeping = pre;
-			break;
-		case 6:  // NEI
-			isSleeping = !nei;
-			break;
-		case 7:  // !NEI
-			isSleeping = nei;
-			break;
-		default:
-			isSleeping = false;
-			break;
+				break;
+		}
 	}
+}
+
+inline void trig::leave() {
+	initialized = false;
 }
 
 inline float trig::getGateValue(const float trackPosition) {
 	if (isActive && !isSleeping) {
-		float rTTP = getRelativeTrackPosition(trackPosition);
-		if (rTTP >= 0) {
-			if (rTTP<length) {
+		float rTP = getRelativeTrackPosition(trackPosition);
+		if (rTP >= 0) {
+			if (rTP<length) {
 				return 10.0f;
 			}
 			else {
-				int cPulses = (pulseDistance == 0) ? 0 : (int)(rTTP/(float)pulseDistance);
-				return ((cPulses<pulseCount) && (rTTP>=(cPulses*pulseDistance)) && (rTTP<=((cPulses*pulseDistance)+length))) ? 10.0f : 0.0f;
+				int cPulses = (pulseDistance == 0) ? 0 : (int)(rTP/(float)pulseDistance);
+				return ((cPulses<pulseCount) && (rTP>=(cPulses*pulseDistance)) && (rTP<=((cPulses*pulseDistance)+length))) ? 10.0f : 0.0f;
 			}
 		}
 		else
@@ -187,6 +197,10 @@ inline float trig::getRelativeTrackPosition(const float trackPosition) {
 
 inline float trig::getFullLength() {
 	return pulseCount == 1 ? length : ((pulseCount*pulseDistance) + length);
+}
+
+inline bool trig::isRead(const float trackPosition) {
+	return ((trackPosition>=getTrimedIndex()) && (trackPosition<=(getTrimedIndex()+getFullLength())));
 }
 
 inline float trig::getTrimedIndex() {
@@ -239,12 +253,11 @@ struct track {
 	int length = 16;
 	int readMode = 0;
 	float trackHead = 0.0f;
-	float memTrackHead = 0.0f;
 	int speed = 1;
 	trig *prevTrig = trigs;
-	trig *memTrig = trigs;
+	trig *playedTrig = trigs;
 	trig *currentTrig = trigs;
-	int nextTrigIndex = 0;
+	trig *nextTrig = trigs;
 	bool fwd = true;
 	bool pre = false;
 	bool isSolo = false;
@@ -263,23 +276,24 @@ struct track {
 		else {
 			currentTrig = trigs;
 		}
-		nextTrigIndex = getNextTrigIndex();
+
+		playedTrig = currentTrig;
+		setNextTrig();
 	}
 
-	trig getCurrentTrig();
-	trig getMemTrig();
 	float getGate();
 	float getVO();
 	float getCV1();
 	float getCV2();
 	void reset(const bool fill, const bool pNei);
+	void setCurrentTrig(const bool fill, const bool pNei, const bool force=false);
+	void setNextTrig();
 	void moveNext(const bool step, const bool fill, const bool pNei);
 	void moveNextForward(const bool step, const bool fill, const bool pNei);
 	void moveNextBackward(const bool step, const bool fill, const bool pNei);
 	void moveNextPendulum(const bool step, const bool fill, const bool pNei);
 	void moveNextRandom(const bool step, const bool fill, const bool pNei);
 	void moveNextBrownian(const bool step, const bool fill, const bool pNei);
-	int getNextTrigIndex();
 	void clear();
 	void randomize();
 	void fullRandomize();
@@ -327,110 +341,111 @@ inline void track::fullRandomize() {
 	}
 }
 
-inline trig track::getCurrentTrig() {
-	return *currentTrig;
-}
-
-inline trig track::getMemTrig() {
-	return *memTrig;
-}
-
 inline float track::getGate() {
-	return memTrig->getGateValue(trackHead);
+	return playedTrig->getGateValue(trackHead);
 }
 
 inline float track::getVO() {
-	if (memTrig->slide == 0.0f) {
-		return memTrig->getVO();
+	if (playedTrig->slide == 0.0f) {
+		return playedTrig->getVO();
 	}
 	else
 	{
-		float fullLength = memTrig->getFullLength();
+		float fullLength = playedTrig->getFullLength();
 		if (fullLength > 0.0f) {
-			float subPhase = memTrig->getRelativeTrackPosition(trackHead);
-			return memTrig->getVO() - (1.0f - powf(subPhase/fullLength, memTrig->slide)) * (memTrig->getVO() - prevTrig->getVO());
+			float subPhase = playedTrig->getRelativeTrackPosition(trackHead);
+			return playedTrig->getVO() - (1.0f - powf(subPhase/fullLength, playedTrig->slide)) * (playedTrig->getVO() - prevTrig->getVO());
 		}
 		else {
-			return memTrig->getVO();
+			return playedTrig->getVO();
 		}
 	}
 }
 
 inline float track::getCV1() {
-	return memTrig->getCV1();
+	return playedTrig->getCV1();
 }
 
 inline float track::getCV2() {
-	return memTrig->getCV2();
+	return playedTrig->getCV2();
 }
 
 inline void track::reset(const bool fill, const bool pNei) {
-	lastTickCount = currentTickCount;
-	currentTickCount = 0.0f;
-	phase = 0.0f;
 	pre = false;
+	fwd = true;
+
 	if (readMode == 1)
 	{
-		currentTrig = trigs+length-1;
-		memTrackHead = length;
+		fwd = false;
 		trackHead = length;
 	}
 	else
 	{
-		fwd = true;
-		currentTrig = trigs;
-		memTrackHead = 0.0f;
 		trackHead = 0.0f;
 	}
 
-	currentTrig->init(fill,pre,pNei);
-	if (currentTrig->isActive && !currentTrig->isSleeping) {
-		prevTrig = memTrig;
-		memTrig = currentTrig;
-	}
-	nextTrigIndex = getNextTrigIndex();
+	setCurrentTrig(fill,pNei);
 }
 
-inline int track::getNextTrigIndex() {
+inline void track::setNextTrig() {
 	switch (readMode) {
 		case 0:
-				return currentTrig->index == (length-1) ? 0 : (currentTrig->index+1);
+				nextTrig = (currentTrig->index == (length-1)) ? trigs : (currentTrig+1); break;
 		case 1:
-				return currentTrig->index == 0 ? (length-1) : (currentTrig->index-1);
+				nextTrig =  (currentTrig->index == 0) ? (trigs+length-1) : (currentTrig-1); break;
 		case 2: {
 			if (currentTrig->index == 0) {
-				return length>1?1:0;
+				nextTrig = length>1 ? trigs + 1: trigs;
 			}
 			else if (currentTrig->index == (length-1)) {
-				return length>1?length-2:0;
+				nextTrig = length>1 ? (trigs+length-2) : trigs;
 			}
 			else {
-				return clamp((int)currentTrig->index+(fwd?1:-1),0,length-1);
+				nextTrig =  trigs + clamp((int)currentTrig->index+(fwd?1:-1),0,length-1);
 			}
+		  break;
 		}
-		case 3: return (int)(random::uniform()*(length-1));
+		case 3: nextTrig = trigs + (int)(random::uniform()*(length-1)); break;
 		case 4:
 		{
 			float dice = random::uniform();
 			if (dice>=0.5f)
-				return (currentTrig->index+1) > (length-1) ? 0 : (currentTrig->index+1);
+				nextTrig = trigs + ((currentTrig->index+1) > (length-1) ? 0 : (currentTrig->index+1));
 			else if (dice<=0.25f)
-				return currentTrig->index == 0 ? (length-1) : (currentTrig->index-1);
+				nextTrig = trigs + (currentTrig->index == 0 ? (length-1) : (currentTrig->index-1));
 			else
-				return currentTrig->index;
+				nextTrig = currentTrig;
+			break;
 		}
-		default : return 0;
+		default : nextTrig = currentTrig;
+	}
+}
+
+inline void track::setCurrentTrig(const bool fill, const bool pNei, const bool force) {
+	if (((int)trackHead != currentTrig->index) || force) {
+		pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
+		currentTrig->leave();
+		currentTrig=trigs+(int)trackHead;
+		currentTrig->init(fill,pre,pNei);
+		pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
+		setNextTrig();
+		nextTrig->init(fill,pre,pNei);
+	}
+
+	if (currentTrig->isRead(trackHead) && (currentTrig != playedTrig) && currentTrig->isActive && !currentTrig->isSleeping) {
+		prevTrig = playedTrig;
+		playedTrig = currentTrig;
+	}
+	else if (nextTrig->isRead(trackHead) && (nextTrig != playedTrig) && nextTrig->isActive && !nextTrig->isSleeping) {
+		prevTrig = playedTrig;
+		playedTrig = nextTrig;
 	}
 }
 
 inline void track::moveNextForward(const bool step, const bool fill, const bool pNei) {
+	fwd = true;
 	if (step) {
-		memTrackHead += speed;
-		if (memTrackHead>=length) {
-			reset(fill,pNei);
-			return;
-		}
-		trackHead = memTrackHead;
+		trackHead = round(trackHead);
 		lastTickCount = currentTickCount;
 		currentTickCount = 0.0f;
 		phase = 0.0f;
@@ -438,29 +453,21 @@ inline void track::moveNextForward(const bool step, const bool fill, const bool 
 	else {
 		currentTickCount++;
 		phase = currentTickCount/lastTickCount;
-		trackHead = memTrackHead + phase*speed;
+		trackHead += speed/lastTickCount;
 	}
 
-	if ((trigs[nextTrigIndex].getRelativeTrackPosition(trackHead) >= 0) && (nextTrigIndex>currentTrig->index)) {
-		pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
-		trigs[nextTrigIndex].init(fill,pre,pNei);
-		currentTrig = trigs + nextTrigIndex;
-		if (currentTrig->isActive && !currentTrig->isSleeping) {
-			prevTrig = memTrig;
-			memTrig = currentTrig;
-		}
-		nextTrigIndex = getNextTrigIndex();
+	if (trackHead>=length) {
+		reset(fill, pNei);
+		return;
 	}
+
+	setCurrentTrig(fill,pNei);
 }
 
 inline void track::moveNextBackward(const bool step, const bool fill, const bool pNei) {
+	fwd = false;
 	if (step) {
-		memTrackHead -= speed;
-		if (memTrackHead<=0) {
-			reset(fill,pNei);
-			return;
-		}
-		trackHead = memTrackHead;
+		trackHead = round(trackHead);
 		lastTickCount = currentTickCount;
 		currentTickCount = 0.0f;
 		phase = 0.0f;
@@ -468,150 +475,86 @@ inline void track::moveNextBackward(const bool step, const bool fill, const bool
 	else {
 		currentTickCount++;
 		phase = currentTickCount/lastTickCount;
-		trackHead = memTrackHead - phase*speed;
+		trackHead -= speed/lastTickCount;
 	}
 
-	if ((currentTrig->getRelativeTrackPosition(trackHead) < 0) && (nextTrigIndex<currentTrig->index)) {
-		pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
-		trigs[nextTrigIndex].init(fill,pre,pNei);
-		currentTrig = trigs + nextTrigIndex;
-		if (currentTrig->isActive && !currentTrig->isSleeping) {
-			prevTrig = memTrig;
-			memTrig = currentTrig;
-		}
-		nextTrigIndex = getNextTrigIndex();
+	if (trackHead<=0) {
+		reset(fill, pNei);
+		return;
 	}
+
+	setCurrentTrig(fill,pNei);
 }
 
 inline void track::moveNextPendulum(const bool step, const bool fill, const bool pNei) {
-	if (fwd) {
-		if (step) {
-			memTrackHead += speed;
-			if (memTrackHead>=length) {
-				fwd=!fwd;
-				pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
-				trigs[nextTrigIndex].init(fill,pre,pNei);
-				currentTrig = trigs + nextTrigIndex;
-				if (currentTrig->isActive && !currentTrig->isSleeping) {
-					prevTrig = memTrig;
-					memTrig = currentTrig;
-				}
-				nextTrigIndex = getNextTrigIndex();
-				memTrackHead = length>1?length-1.0f:length;
-				trackHead = memTrackHead;
-				lastTickCount = currentTickCount;
-				currentTickCount = 0.0f;
-				phase = 0.0f;
-				return;
-			}
-			trackHead = memTrackHead;
-			lastTickCount = currentTickCount;
-			currentTickCount = 0.0f;
-			phase = 0.0f;
-		}
-		else {
-			currentTickCount++;
-			phase = currentTickCount/lastTickCount;
-			trackHead = memTrackHead + phase*speed;
-		}
-
-		if ((trigs[nextTrigIndex].getRelativeTrackPosition(trackHead) >= 0) && (nextTrigIndex>currentTrig->index)) {
-			pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
-			trigs[nextTrigIndex].init(fill,pre,pNei);
-			currentTrig = trigs + nextTrigIndex;
-			if (currentTrig->isActive && !currentTrig->isSleeping) {
-				prevTrig = memTrig;
-				memTrig = currentTrig;
-			}
-			nextTrigIndex = getNextTrigIndex();
-		}
+	if (step) {
+		trackHead = round(trackHead);
+		lastTickCount = currentTickCount;
+		currentTickCount = 0.0f;
+		phase = 0.0f;
 	}
 	else {
-		if (step) {
-			memTrackHead -= speed;
-			if (memTrackHead<=0) {
-				fwd=!fwd;
-				pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
-				trigs[nextTrigIndex].init(fill,pre,pNei);
-				currentTrig = trigs + nextTrigIndex;
-				if (currentTrig->isActive && !currentTrig->isSleeping) {
-					prevTrig = memTrig;
-					memTrig = currentTrig;
-				}
-				nextTrigIndex = getNextTrigIndex();
-				memTrackHead = length>1?1.0f:0.0f;
-				trackHead = memTrackHead;
-				lastTickCount = currentTickCount;
-				currentTickCount = 0.0f;
-				phase = 0.0f;
-				return;
-			}
-			trackHead = memTrackHead;
-			lastTickCount = currentTickCount;
-			currentTickCount = 0.0f;
-			phase = 0.0f;
-		}
-		else {
-			currentTickCount++;
-			phase = currentTickCount/lastTickCount;
-			trackHead = memTrackHead - phase*speed;
-		}
-
-		if ((currentTrig->getRelativeTrackPosition(trackHead) < 0) && (nextTrigIndex<currentTrig->index)) {
-			pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
-			trigs[nextTrigIndex].init(fill,pre,pNei);
-			currentTrig = trigs + nextTrigIndex;
-			if (currentTrig->isActive && !currentTrig->isSleeping) {
-				prevTrig = memTrig;
-				memTrig = currentTrig;
-			}
-			nextTrigIndex = getNextTrigIndex();
-		}
+		currentTickCount++;
+		phase = currentTickCount/lastTickCount;
+		trackHead = trackHead + (fwd?1:-1) * speed/lastTickCount;
 	}
+
+	if (trackHead>=length) {
+		fwd = false;
+		trackHead = max(1,length-1);
+	}
+	else if (trackHead<=0) {
+		fwd = true;
+		trackHead = length>1?1:0;
+	}
+
+	setCurrentTrig(fill,pNei);
 }
 
 inline void track::moveNextRandom(const bool step, const bool fill, const bool pNei) {
-	currentTickCount++;
-	phase = currentTickCount/lastTickCount;
-	trackHead = memTrackHead + phase*speed;
-
+	fwd = true;
 	if (step) {
-		pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
-		trigs[nextTrigIndex].init(fill,pre,pNei);
-		currentTrig = trigs + nextTrigIndex;
-		memTrackHead = currentTrig->index;
-		trackHead = memTrackHead;
+		trackHead = round(trackHead);
 		lastTickCount = currentTickCount;
 		currentTickCount = 0.0f;
 		phase = 0.0f;
-		if (currentTrig->isActive && !currentTrig->isSleeping) {
-			prevTrig = memTrig;
-			memTrig = currentTrig;
-		}
-		nextTrigIndex = getNextTrigIndex();
 	}
+	else {
+		currentTickCount++;
+		phase = currentTickCount/lastTickCount;
+		trackHead += speed/lastTickCount;
+	}
+
+	if (trackHead>=currentTrig->index+1) {
+		trackHead=nextTrig->index;
+		setCurrentTrig(fill,pNei, true);
+		return;
+	}
+
+	setCurrentTrig(fill,pNei);
 }
 
 inline void track::moveNextBrownian(const bool step, const bool fill, const bool pNei) {
-	currentTickCount++;
-	phase = currentTickCount/lastTickCount;
-	trackHead = memTrackHead + phase*speed;
-
+	fwd = true;
 	if (step) {
-		pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
-		trigs[nextTrigIndex].init(fill,pre,pNei);
-		currentTrig = trigs + nextTrigIndex;
-		memTrackHead = currentTrig->index;
-		trackHead = memTrackHead;
+		trackHead = round(trackHead);
 		lastTickCount = currentTickCount;
 		currentTickCount = 0.0f;
 		phase = 0.0f;
-	  if (currentTrig->isActive && !currentTrig->isSleeping) {
-			prevTrig = memTrig;
-			memTrig = currentTrig;
-		}
-		nextTrigIndex = getNextTrigIndex();
 	}
+	else {
+		currentTickCount++;
+		phase = currentTickCount/lastTickCount;
+		trackHead += speed/lastTickCount;
+	}
+
+	if (trackHead>=currentTrig->index+1) {
+		trackHead=nextTrig->index;
+		setCurrentTrig(fill,pNei, true);
+		return;
+	}
+
+	setCurrentTrig(fill,pNei);
 }
 
 void track::moveNext(const bool step, const bool fill, const bool pNei) {
@@ -1306,7 +1249,7 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			lights[TRIGPAGE_LIGHTS+(i*3)+1].setBrightness(0.0f);
 			lights[TRIGPAGE_LIGHTS+(i*3)+2].setBrightness(1.0f);
 		}
-		else if ((patterns[currentPattern].tracks[currentTrack].getCurrentTrig().index >= (i*16)) && (patterns[currentPattern].tracks[currentTrack].getCurrentTrig().index<(16*(i+1)-1))) {
+		else if ((patterns[currentPattern].tracks[currentTrack].currentTrig->index >= (i*16)) && (patterns[currentPattern].tracks[currentTrack].currentTrig->index<(16*(i+1)-1))) {
 			lights[TRIGPAGE_LIGHTS+(i*3)].setBrightness(1.0f*(1-patterns[currentPattern].tracks[currentTrack].phase));
 			lights[TRIGPAGE_LIGHTS+(i*3)+1].setBrightness(0.5f*(1-patterns[currentPattern].tracks[currentTrack].phase));
 			lights[TRIGPAGE_LIGHTS+(i*3)+2].setBrightness(0.0f*(1-patterns[currentPattern].tracks[currentTrack].phase));
@@ -1325,7 +1268,7 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		}
 
 		int shiftedIndex = i + (trigPage*16);
-		if (patterns[currentPattern].tracks[currentTrack].getCurrentTrig().index == shiftedIndex) {
+		if (patterns[currentPattern].tracks[currentTrack].currentTrig->index == shiftedIndex) {
 			lights[STEPS_LIGHTS+(i*3)].setBrightness(1.0f);
 			lights[STEPS_LIGHTS+(i*3)+1].setBrightness(0.5f);
 			lights[STEPS_LIGHTS+(i*3)+2].setBrightness(0.0f);
@@ -1392,24 +1335,25 @@ void ZOUMAI::process(const ProcessArgs &args) {
 				lights[TRACKSONOFF_LIGHTS+(i*3)+2].setBrightness(0.0f);
 			}
 
-			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage()) || (!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset)) {
-				patterns[currentPattern].tracks[i].reset(fill,i==0?false:patterns[currentPattern].tracks[i-1].pre);
-			}
-			else if (clockTrigged) {
+			if (clockTrigged) {
 				patterns[currentPattern].tracks[i].moveNext(true, fill,i==0?false:patterns[currentPattern].tracks[i-1].pre);
 			}
 			else {
 				patterns[currentPattern].tracks[i].moveNext(false, fill,i==0?false:patterns[currentPattern].tracks[i-1].pre);
 			}
 
+			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage()) || (!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset)) {
+				patterns[currentPattern].tracks[i].reset(fill,i==0?false:patterns[currentPattern].tracks[i-1].pre);
+			}
+
 			if ((patterns[currentPattern].isSoloed() && patterns[currentPattern].tracks[i].isSolo) || (!patterns[currentPattern].isSoloed() && patterns[currentPattern].tracks[i].isActive)) {
 				float gate = patterns[currentPattern].tracks[i].getGate();
 				if (gate>0.0f) {
-					if (patterns[currentPattern].tracks[i].getMemTrig().trigType == 0)
+					if (patterns[currentPattern].tracks[i].playedTrig->trigType == 0)
 						outputs[GATE_OUTPUTS + i].setVoltage(gate);
-					else if (patterns[currentPattern].tracks[i].getMemTrig().trigType == 1)
+					else if (patterns[currentPattern].tracks[i].playedTrig->trigType == 1)
 						outputs[GATE_OUTPUTS + i].setVoltage(inputs[G1_INPUT].getVoltage());
-					else if (patterns[currentPattern].tracks[i].getMemTrig().trigType == 2)
+					else if (patterns[currentPattern].tracks[i].playedTrig->trigType == 2)
 						outputs[GATE_OUTPUTS + i].setVoltage(inputs[G2_INPUT].getVoltage());
 					else
 						outputs[GATE_OUTPUTS + i].setVoltage(0.0f);

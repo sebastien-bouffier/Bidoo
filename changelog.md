@@ -7,7 +7,6 @@
 - zOù MAï sync/reset/speed issues fixed
 - zOù MAï PROB and SPEED are MIDI-MAP compliant
 
-
 ### v1.1.18 (20/04/2020)
 - zOù MAï paste bug fixed
 - zOù MAï track reset issue fixed

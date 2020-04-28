@@ -11,6 +11,7 @@ using namespace std;
 struct DIKTAT : Module {
 	enum ParamIds {
 		CHANNEL_PARAM,
+		GLOBAL_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -31,6 +32,7 @@ struct DIKTAT : Module {
 	};
 
 	int currentChannel = 0;
+	bool globalMode = true;
 	int rootNote[16] = {0};
 	int scale[16] = {0};
 	int index1[16] = {0};
@@ -95,6 +97,7 @@ struct DIKTAT : Module {
 	DIKTAT() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f);
+		configParam(GLOBAL_PARAM, 0.0f, 1.0f, 1.0f);
   }
 
   void process(const ProcessArgs &args) override;
@@ -103,6 +106,7 @@ struct DIKTAT : Module {
 	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
 		json_object_set_new(rootJ, "currentChannel", json_integer(currentChannel));
+		json_object_set_new(rootJ, "globalMode", json_boolean(globalMode));
 		for (size_t i = 0; i<16 ; i++) {
 			json_t *channelJ = json_object();
 			json_object_set_new(channelJ, "rootNote", json_integer(rootNote[i]));
@@ -129,11 +133,16 @@ struct DIKTAT : Module {
 		if (currentChannelJ) {
 			currentChannel = json_integer_value(currentChannelJ);
 		}
+		json_t *globalModeJ = json_object_get(rootJ, "globalMode");
+		if (globalModeJ) {
+			globalMode = json_boolean_value(globalModeJ);
+		}
 	}
 };
 
 void DIKTAT::process(const ProcessArgs &args) {
 	currentChannel = params[CHANNEL_PARAM].getValue();
+	globalMode = params[GLOBAL_PARAM].getValue();
 	int c = std::max(inputs[NOTE_INPUT].getChannels(), 1);
 	outputs[NOTE1_OUTPUT].setChannels(c);
 	outputs[NOTE2_OUTPUT].setChannels(c);
@@ -142,17 +151,17 @@ void DIKTAT::process(const ProcessArgs &args) {
 
 	for (int i=0;i<c;i++) {
 		if (inputs[ROOT_NOTE_INPUT].isConnected()) {
-			rootNote[i] = rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(i), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f);
+			rootNote[i] = rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(globalMode? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f);
 		}
 
 		if (inputs[SCALE_INPUT].isConnected()) {
-			scale[i] = rescale(clamp(inputs[SCALE_INPUT].getVoltage(i), 0.0f,10.0f),0.0f,10.0f,0.0f,20.0f);
+			scale[i] = rescale(clamp(inputs[SCALE_INPUT].getVoltage(globalMode? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,20.0f);
 		}
 
 		inputNote[i] = inputs[NOTE_INPUT].getVoltage(i);
 
 		float closestVal = 0.0f;
-		float closestDist = 1.0f;
+		float closestDist = 2.0f;
 
 		if (( inputNote[i]>= 0.0f) || (inputNote[i] == (int)inputNote[i])) {
 			octaveInVolts[i] = int(inputNote[i]);
@@ -165,13 +174,14 @@ void DIKTAT::process(const ProcessArgs &args) {
 
 		index1[i] = 0;
 		for (int j = 0; j < 21; j++) {
-			float scaleNoteInVolts = octaveInVolts[i] + int(j/7) + (rootNote[i] / 12.0f) + scales[scale[i]][j%7] / 12.0f;
+			float scaleNoteInVolts = octaveInVolts[i] + int(j/7) + (rootNote[globalMode? 0 : i] / 12.0f) + scales[scale[globalMode? 0 : i]][j%7] / 12.0f;
 			float distAway = fabs(inputNote[i] - scaleNoteInVolts);
 			if(distAway < closestDist) {
 				index1[i] = j;
 				closestVal = scaleNoteInVolts;
 				closestDist = distAway;
 			}
+			else { break; }
 		}
 
 		index2[i] = (index1[i]+2)%7;
@@ -183,9 +193,9 @@ void DIKTAT::process(const ProcessArgs &args) {
 		offset4[i]=(index1[i]+6)/7;
 
 		note1[i] = clamp(closestVal ,-4.0f,6.0f);
-		note2[i] = clamp(scales[scale[i]][index2[i]] / 12.0f + octaveInVolts[i] + offset2[i] + (rootNote[i] / 12.0f),-4.0f,6.0f);
-		note3[i] = clamp(scales[scale[i]][index3[i]] / 12.0f + octaveInVolts[i] + offset3[i] + (rootNote[i] / 12.0f),-4.0f,6.0f);
-		note4[i] = clamp(scales[scale[i]][index4[i]] / 12.0f + octaveInVolts[i] + offset4[i] + (rootNote[i] / 12.0f),-4.0f,6.0f);
+		note2[i] = clamp(scales[scale[globalMode? 0 : i]][index2[i]] / 12.0f + octaveInVolts[i] + offset2[i] + (rootNote[globalMode? 0 : i] / 12.0f),-4.0f,6.0f);
+		note3[i] = clamp(scales[scale[globalMode? 0 : i]][index3[i]] / 12.0f + octaveInVolts[i] + offset3[i] + (rootNote[globalMode? 0 : i] / 12.0f),-4.0f,6.0f);
+		note4[i] = clamp(scales[scale[globalMode? 0 : i]][index4[i]] / 12.0f + octaveInVolts[i] + offset4[i] + (rootNote[globalMode? 0 : i] / 12.0f),-4.0f,6.0f);
 
 		outputs[NOTE1_OUTPUT].setVoltage(note1[i],i);
 		outputs[NOTE2_OUTPUT].setVoltage(note2[i],i);
@@ -450,6 +460,7 @@ DIKTATWidget::DIKTATWidget(DIKTAT *module) {
 	addChild(diktatDisplay);
 
 	addParam(createParam<BidooBlueSnapKnob>(Vec(7.5f,55.0f), module, DIKTAT::CHANNEL_PARAM));
+	addParam(createParam<CKSS>(Vec(15.5f, 115.0f), module, DIKTAT::GLOBAL_PARAM));
 
 	addInput(createInput<PJ301MPort>(Vec(7, 283), module, DIKTAT::NOTE_INPUT));
 	addInput(createInput<PJ301MPort>(Vec(62.75f, 283), module, DIKTAT::ROOT_NOTE_INPUT));
