@@ -22,20 +22,20 @@ struct trig {
 	bool initialized = false;
 	float slide = 0.0f;
 	bool isSleeping = false;
-	int trigType = 0;
-	int index = 0;
+	size_t  trigType = 0;
+	size_t  index = 0;
 	float trim = 0.0f;
 	float length = 0.9f;
-	int pulseCount = 1;
+	size_t  pulseCount = 1;
 	float pulseDistance = 0.1f;
 	int octave = 0;
-	int semitones = 0;
+	size_t  semitones = 0;
 	float CV1 = 0.0f;
 	float CV2 = 0.0f;
-	int proba = 0;
-	int count = 100;
-	int countReset = 1;
-	int inCount = 0;
+	size_t  proba = 0;
+	size_t  count = 100;
+	size_t  countReset = 1;
+	size_t  inCount = 0;
 
 	float getGateValue(const float trackPosition);
 	float getTrimedIndex();
@@ -180,7 +180,7 @@ inline float trig::getGateValue(const float trackPosition) {
 				return 10.0f;
 			}
 			else {
-				int cPulses = (pulseDistance == 0) ? 0 : (int)(rTP/(float)pulseDistance);
+				size_t cPulses = (pulseDistance == 0) ? 0 : (int)(rTP/(float)pulseDistance);
 				return ((cPulses<pulseCount) && (rTP>=(cPulses*pulseDistance)) && (rTP<=((cPulses*pulseDistance)+length))) ? 10.0f : 0.0f;
 			}
 		}
@@ -250,10 +250,10 @@ inline void trig::down() {
 struct track {
 	trig trigs[64];
 	bool isActive = true;
-	int length = 16;
-	int readMode = 0;
+	size_t  length = 16;
+	size_t  readMode = 0;
 	float trackHead = 0.0f;
-	int speed = 1;
+	size_t  speed = 1;
 	trig *prevTrig = trigs;
 	trig *playedTrig = trigs;
 	trig *currentTrig = trigs;
@@ -263,7 +263,6 @@ struct track {
 	bool isSolo = false;
 	float currentTickCount = 0.0f;
 	float lastTickCount = 22500.0f;
-	float phase = 0.0f;
 
 	track() {
 		for(int i=0;i<64;i++) {
@@ -294,6 +293,7 @@ struct track {
 	void moveNextPendulum(const bool step, const bool fill, const bool pNei);
 	void moveNextRandom(const bool step, const bool fill, const bool pNei);
 	void moveNextBrownian(const bool step, const bool fill, const bool pNei);
+	void sync(const float cCount, const float lCount);
 	void clear();
 	void randomize();
 	void fullRandomize();
@@ -303,6 +303,11 @@ struct track {
 	void left();
 	void right();
 };
+
+inline void track::sync(const float cCount, const float lCount) {
+	lastTickCount = lCount;
+	currentTickCount = cCount;
+}
 
 inline void track::copy(const track *t) {
 	isActive = t->isActive;
@@ -422,7 +427,7 @@ inline void track::setNextTrig() {
 }
 
 inline void track::setCurrentTrig(const bool fill, const bool pNei, const bool force) {
-	if (((int)trackHead != currentTrig->index) || force) {
+	if (((size_t )trackHead != currentTrig->index) || force) {
 		pre = (currentTrig->isActive && currentTrig->hasProbability()) ? !currentTrig->isSleeping : pre;
 		currentTrig->leave();
 		currentTrig=trigs+(int)trackHead;
@@ -448,11 +453,9 @@ inline void track::moveNextForward(const bool step, const bool fill, const bool 
 		trackHead = round(trackHead);
 		lastTickCount = currentTickCount;
 		currentTickCount = 0.0f;
-		phase = 0.0f;
 	}
 	else {
 		currentTickCount++;
-		phase = currentTickCount/lastTickCount;
 		trackHead += speed/lastTickCount;
 	}
 
@@ -470,11 +473,9 @@ inline void track::moveNextBackward(const bool step, const bool fill, const bool
 		trackHead = round(trackHead);
 		lastTickCount = currentTickCount;
 		currentTickCount = 0.0f;
-		phase = 0.0f;
 	}
 	else {
 		currentTickCount++;
-		phase = currentTickCount/lastTickCount;
 		trackHead -= speed/lastTickCount;
 	}
 
@@ -491,17 +492,15 @@ inline void track::moveNextPendulum(const bool step, const bool fill, const bool
 		trackHead = round(trackHead);
 		lastTickCount = currentTickCount;
 		currentTickCount = 0.0f;
-		phase = 0.0f;
 	}
 	else {
 		currentTickCount++;
-		phase = currentTickCount/lastTickCount;
 		trackHead = trackHead + (fwd?1:-1) * speed/lastTickCount;
 	}
 
 	if (trackHead>=length) {
 		fwd = false;
-		trackHead = max(1,length-1);
+		trackHead = (length == 1) ? 1 : (length-1);
 	}
 	else if (trackHead<=0) {
 		fwd = true;
@@ -517,11 +516,9 @@ inline void track::moveNextRandom(const bool step, const bool fill, const bool p
 		trackHead = round(trackHead);
 		lastTickCount = currentTickCount;
 		currentTickCount = 0.0f;
-		phase = 0.0f;
 	}
 	else {
 		currentTickCount++;
-		phase = currentTickCount/lastTickCount;
 		trackHead += speed/lastTickCount;
 	}
 
@@ -540,11 +537,9 @@ inline void track::moveNextBrownian(const bool step, const bool fill, const bool
 		trackHead = round(trackHead);
 		lastTickCount = currentTickCount;
 		currentTickCount = 0.0f;
-		phase = 0.0f;
 	}
 	else {
 		currentTickCount++;
-		phase = currentTickCount/lastTickCount;
 		trackHead += speed/lastTickCount;
 	}
 
@@ -581,11 +576,11 @@ inline void track::down() {
 
 inline void track::left() {
 	trig temp = trigs[0];
-	for (int i = 0; i < length-1; i++){
+	for (size_t i = 0; i < length-1; i++){
 	  trigs[i] = trigs[i + 1];
 	}
 	trigs[length-1] = temp;
-	for (int i = 0; i < length; i++) {
+	for (size_t i = 0; i < length; i++) {
 		trigs[i].index=i;
 	}
 }
@@ -596,7 +591,7 @@ inline void track::right() {
 	  trigs[i] = trigs[i - 1];
 	}
 	trigs[0] = temp;
-	for (int i = 0; i < length; i++) {
+	for (size_t i = 0; i < length; i++) {
 		trigs[i].index=i;
 	}
 }
@@ -616,35 +611,34 @@ struct pattern {
 };
 
 inline bool pattern::isSoloed() {
-	for (int i = 0; i < 8; i++) {
+	for (size_t i = 0; i < 8; i++) {
 		if (tracks[i].isSolo) {
 			return true;
-			break;
 		}
 	}
 	return false;
 }
 
 inline void pattern::copy(const pattern *p) {
-	for (int i = 0; i < 8; i++) {
+	for (size_t i = 0; i < 8; i++) {
 		tracks[i].copy(p->tracks + i);
 	}
 }
 
 inline void pattern::clear() {
-	for (int i = 0; i < 8; i++) {
+	for (size_t i = 0; i < 8; i++) {
 		tracks[i].clear();
 	}
 }
 
 inline void pattern::randomize() {
-	for (int i = 0; i < 8; i++) {
+	for (size_t i = 0; i < 8; i++) {
 		tracks[i].randomize();
 	}
 }
 
 inline void pattern::fullRandomize() {
-	for (int i = 0; i < 8; i++) {
+	for (size_t i = 0; i < 8; i++) {
 		tracks[i].fullRandomize();
 	}
 }
@@ -776,13 +770,12 @@ struct ZOUMAI : Module {
 	dsp::SchmittTrigger downTrackTrigger;
 
 	pattern patterns[8];
-	int currentPattern = 0;
-	int previousPattern = -1;
-	int currentTrack = 0;
-	int currentTrig = 0;
-	int selector = 1;
-	int trigPage = 0;
-	int pageIndex = 0;
+	size_t currentPattern = 0;
+	size_t previousPattern = -1;
+	size_t currentTrack = 0;
+	size_t currentTrig = 0;
+	size_t trigPage = 0;
+	size_t pageIndex = 0;
 	bool fill = false;
 	int copyTrackId = -1;
 	int copyPatternId = -1;
@@ -849,16 +842,16 @@ struct ZOUMAI : Module {
 		json_object_set_new(rootJ, "currentTrack", json_integer(currentTrack));
 		json_object_set_new(rootJ, "currentTrig", json_integer(currentTrig));
 		json_object_set_new(rootJ, "trigPage", json_integer(trigPage));
-		for (int i = 0; i<8; i++) {
+		for (size_t i = 0; i<8; i++) {
 			json_t *patternJ = json_object();
-			for (int j = 0; j < 8; j++) {
+			for (size_t j = 0; j < 8; j++) {
 				json_t *trackJ = json_object();
 				json_object_set_new(trackJ, "isActive", json_boolean(patterns[i].tracks[j].isActive));
 				json_object_set_new(trackJ, "length", json_integer(patterns[i].tracks[j].length));
 				json_object_set_new(trackJ, "speed", json_real(patterns[i].tracks[j].speed));
 				json_object_set_new(trackJ, "readMode", json_integer(patterns[i].tracks[j].readMode));
 				json_object_set_new(trackJ, "trackHead", json_integer(patterns[i].tracks[j].trackHead));
-				for (int k = 0; k < patterns[i].tracks[j].length; k++) {
+				for (size_t k = 0; k < patterns[i].tracks[j].length; k++) {
 					json_t *trigJ = json_object();
 					json_object_set_new(trigJ, "isActive", json_boolean(patterns[i].tracks[j].trigs[k].isActive));
 					json_object_set_new(trigJ, "slide", json_real(patterns[i].tracks[j].trigs[k].slide));
@@ -901,10 +894,10 @@ struct ZOUMAI : Module {
 		if (trigPageJ)
 			trigPage = json_integer_value(trigPageJ);
 
-		for (int i=0; i<8;i++) {
+		for (size_t i=0; i<8;i++) {
 			json_t *patternJ = json_object_get(rootJ, ("pattern" + to_string(i)).c_str());
 			if (patternJ){
-				for(int j=0; j<8;j++) {
+				for(size_t j=0; j<8;j++) {
 					json_t *trackJ = json_object_get(patternJ, ("track" + to_string(j)).c_str());
 					if (trackJ){
 						json_t *isActiveJ = json_object_get(trackJ, "isActive");
@@ -923,7 +916,7 @@ struct ZOUMAI : Module {
 						if (trackHeadJ)
 							patterns[i].tracks[j].trackHead = json_integer_value(trackHeadJ);
 					}
-					for(int k=0;k<patterns[i].tracks[j].length;k++) {
+					for(size_t k=0;k<patterns[i].tracks[j].length;k++) {
 						json_t *trigJ = json_object_get(trackJ, ("trig" + to_string(k)).c_str());
 						if (trigJ) {
 							json_t *isActiveJ = json_object_get(trigJ, "isActive");
@@ -1022,7 +1015,7 @@ struct ZOUMAI : Module {
 			lights[OCTAVE_LIGHT+i].setBrightness(i-3==patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].octave?1.0f:0.f);
 		}
 
-		for (int i=0;i<12;i++) {
+		for (size_t i=0;i<12;i++) {
 			if (noteTriggers[i].process(params[NOTE_PARAMS+i].getValue())) {
 				if (patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].semitones == i) {
 					patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].isActive = !patterns[currentPattern].tracks[currentTrack].trigs[currentTrig].isActive;
@@ -1223,12 +1216,13 @@ void ZOUMAI::process(const ProcessArgs &args) {
 	bool solo = patterns[currentPattern].isSoloed();
 
 	if (currentPattern != previousPattern) {
+		for (size_t i = 0; i<8; i++) {
+			patterns[currentPattern].tracks[i].sync(patterns[previousPattern].tracks[i].currentTickCount, patterns[previousPattern].tracks[i].lastTickCount);
+			patterns[currentPattern].tracks[i].reset(fill, i==0?false:patterns[currentPattern].tracks[i-1].pre);
+		}
 		previousPattern = currentPattern;
 		updateTrackToParams();
 		updateTrigToParams();
-		for (int i = 0; i<8; i++) {
-			patterns[currentPattern].tracks[i].reset(fill, i==0?false:patterns[currentPattern].tracks[i-1].pre);
-		}
 	}
 	else {
 		updateTrigVO();
@@ -1238,10 +1232,13 @@ void ZOUMAI::process(const ProcessArgs &args) {
 
 	performTools();
 
-	for (int i = 0; i<4; i++) {
+	for (size_t i = 0; i<4; i++) {
 		if (trigPageTriggers[i].process(params[TRIGPAGE_PARAM + i].getValue())) {
 			trigPage = i;
-			currentTrig = i*16+currentTrig%16;
+			if (currentTrig>48) currentTrig = currentTrig - 48;
+			if (currentTrig>32) currentTrig = currentTrig - 32;
+			if (currentTrig>16) currentTrig = currentTrig - 16;
+			currentTrig = i*16+currentTrig;
 			updateTrigToParams();
 		}
 		if (trigPage == i) {
@@ -1250,9 +1247,9 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			lights[TRIGPAGE_LIGHTS+(i*3)+2].setBrightness(1.0f);
 		}
 		else if ((patterns[currentPattern].tracks[currentTrack].currentTrig->index >= (i*16)) && (patterns[currentPattern].tracks[currentTrack].currentTrig->index<(16*(i+1)-1))) {
-			lights[TRIGPAGE_LIGHTS+(i*3)].setBrightness(1.0f*(1-patterns[currentPattern].tracks[currentTrack].phase));
-			lights[TRIGPAGE_LIGHTS+(i*3)+1].setBrightness(0.5f*(1-patterns[currentPattern].tracks[currentTrack].phase));
-			lights[TRIGPAGE_LIGHTS+(i*3)+2].setBrightness(0.0f*(1-patterns[currentPattern].tracks[currentTrack].phase));
+			lights[TRIGPAGE_LIGHTS+(i*3)].setBrightness(1.0f);
+			lights[TRIGPAGE_LIGHTS+(i*3)+1].setBrightness(0.5f);
+			lights[TRIGPAGE_LIGHTS+(i*3)+2].setBrightness(0.0f);
 		}
 		else {
 			lights[TRIGPAGE_LIGHTS+(i*3)].setBrightness(0.0f);
@@ -1261,13 +1258,14 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		}
 	}
 
-	for (int i = 0; i<16; i++) {
+	size_t pageOffset = trigPage*16;
+	for (size_t i = 0; i<16; i++) {
 		if (stepsTriggers[i].process(params[STEPS_PARAMS+i].getValue())) {
-			currentTrig = i + (trigPage * 16);
+			currentTrig = i + pageOffset;
 			updateTrigToParams();
 		}
 
-		int shiftedIndex = i + (trigPage*16);
+		size_t shiftedIndex = i + pageOffset;
 		if (patterns[currentPattern].tracks[currentTrack].currentTrig->index == shiftedIndex) {
 			lights[STEPS_LIGHTS+(i*3)].setBrightness(1.0f);
 			lights[STEPS_LIGHTS+(i*3)+1].setBrightness(0.5f);
@@ -1302,7 +1300,7 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		bool globalReset = resetTrigger.process(inputs[RESET_INPUT].getVoltage());
 		bool clockTrigged = clockTrigger.process(inputs[EXTCLOCK_INPUT].getVoltage());
 
-		for (int i=0; i<8;i++) {
+		for (size_t i=0; i<8;i++) {
 
 			if (trackActiveTriggers[i].process(inputs[TRACKACTIVE_INPUTS+i].getVoltage() + params[TRACKSONOFF_PARAMS+i].getValue())) {
 				patterns[currentPattern].tracks[i].isActive = !patterns[currentPattern].tracks[i].isActive;
@@ -1725,7 +1723,7 @@ struct ZOUMAIWidget : ModuleWidget {
 		addParam(createParam<MiniLEDButton>(Vec(portX0[3], portYFunctions[3]), module, ZOUMAI::DOWNTRACK_PARAM));
 		addChild(createLight<SmallLight<BlueLight>>(Vec(portX0[3], portYFunctions[3]), module, ZOUMAI::DOWNTRACK_LIGHT));
 
-		for (int i=0;i<8;i++){
+		for (size_t i=0;i<8;i++){
 			addInput(createInput<TinyPJ301MPort>(Vec(50.0f, 67.0f + i*28.0f), module, ZOUMAI::TRACKRESET_INPUTS + i));
 			addInput(createInput<TinyPJ301MPort>(Vec(70.0f, 67.0f + i*28.0f), module, ZOUMAI::TRACKACTIVE_INPUTS + i));
 
@@ -1744,7 +1742,7 @@ struct ZOUMAIWidget : ModuleWidget {
 			addOutput(createOutput<TinyPJ301MPort>(Vec(435.0f, 65.0f + i * 20.0f),  module, ZOUMAI::CV2_OUTPUTS + i));
 		}
 
-		for (int i=0;i<16;i++) {
+		for (size_t i=0;i<16;i++) {
 			ZoumaiTrigLEDBezel *p = createParam<ZoumaiTrigLEDBezel>(Vec(12.0f+ 28.0f*i, 330.0f), module, ZOUMAI::STEPS_PARAMS + i);
 			p->index=i;
 			addParam(p);
@@ -1755,7 +1753,7 @@ struct ZOUMAIWidget : ModuleWidget {
 		float xKeyboardAnchor = 140.0f;
 		float yKeyboardAnchor = 255.0f;
 
-		for (int i=0;i<7;i++) {
+		for (size_t i=0;i<7;i++) {
 			addParam(createParam<LEDButton>(Vec(xKeyboardAnchor + 35.0f + i * 19.0f, yKeyboardAnchor - 1.0f), module, ZOUMAI::OCTAVE_PARAMS+i));
 			addChild(createLight<SmallLight<BlueLight>>(Vec(xKeyboardAnchor + 41.0f  + i * 19.0f, yKeyboardAnchor+5.0f), module, ZOUMAI::OCTAVE_LIGHT+i));
 		}
