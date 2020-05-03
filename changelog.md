@@ -1,3 +1,6 @@
+### v1.1.21 (03/05/2020)
+- zOù MAï fix and optimization
+
 ### v1.1.20 (25/04/2020)
 - dIKT@T is now polyphonic
 - zOù MAï trig prob count issue fixed
