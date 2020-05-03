@@ -40,8 +40,16 @@ struct TrigAttibutes {
 		probAttributes = intiProbAttributes;
 	}
 
-	inline void randomize() {}
-	inline void fullRandomize() {}
+	inline void randomize() {
+		setTrigActive(random::uniform()>0.5f);
+		setTrigOctave(random::uniform()*2.0f + 2.0f);
+		setTrigSemiTones(random::uniform()*11.0f);
+	}
+
+	inline void fullRandomize() {
+		randomize();
+		setTrigPulseCount(random::uniform()*10.0f);
+	}
 
 	inline bool getTrigActive() {return (mainAttributes & TRIG_ACTIVE) != 0;}
 	inline bool getTrigInitialized() {return (mainAttributes & TRIG_INITIALIZED) != 0;}
@@ -174,8 +182,15 @@ struct TrackAttibutes {
 		refAttributes = intiRefAttributes;
 	}
 
-	inline void randomize() {}
-	inline void fullRandomize() {}
+	inline void randomize() {
+		setTrackLength(1+random::uniform()*63);
+		setTrackReadMode(random::uniform()*4);
+	}
+
+	inline void fullRandomize() {
+		randomize();
+		setTrackSpeed(1+random::uniform()*3);
+	}
 
 	inline bool getTrackActive() {return (mainAttributes & TRACK_ACTIVE) != 0;}
 	inline bool getTrackForward() {return (mainAttributes & TRACK_FORWARD) != 0;}
@@ -653,6 +668,11 @@ struct ZOUMAI : Module {
 
 	void fullRandomizeTrig(const int track, const int trig) {
 		nTrigsAttibutes[currentPattern][track][trig].fullRandomize();
+		trigSlide[currentPattern][track][trig]=random::uniform();
+		trigLength[currentPattern][track][trig]=random::uniform()*2.0f;
+		trigPulseDistance[currentPattern][track][trig]=random::uniform()*2.0f;
+		trigCV1[currentPattern][track][trig]=random::uniform()*10.0f;
+		trigCV1[currentPattern][track][trig]=random::uniform()*10.0f;
 	}
 
 	void fullRandomizeTrack(const int track) {
@@ -1028,14 +1048,16 @@ struct ZOUMAI : Module {
 		if (((int)trackHead[currentPattern][track] != cI) || force) {
 			nTracksAttibutes[currentPattern][track].setTrackPre((nTrigsAttibutes[currentPattern][track][cI].getTrigActive() && nTrigsAttibutes[currentPattern][track][cI].hasProbability()) ? !nTrigsAttibutes[currentPattern][track][cI].getTrigSleeping() : nTracksAttibutes[currentPattern][track].getTrackPre());
 			nTrigsAttibutes[currentPattern][track][cI].setTrigInitialized(false);
-			nTracksAttibutes[currentPattern][track].setTrackCurrentTrig(clamp((int)trackHead[currentPattern][track],0,nTracksAttibutes[currentPattern][track].getTrackLength()-1));
-			nTrigsAttibutes[currentPattern][track][cI].init(fill,nTracksAttibutes[currentPattern][track].getTrackPre(),pNei);
-			nTracksAttibutes[currentPattern][track].setTrackPre((nTrigsAttibutes[currentPattern][track][cI].getTrigActive() && nTrigsAttibutes[currentPattern][track][cI].hasProbability()) ? !nTrigsAttibutes[currentPattern][track][cI].getTrigSleeping() : nTracksAttibutes[currentPattern][track].getTrackPre());
+			nTracksAttibutes[currentPattern][track].setTrackCurrentTrig((int)trackHead[currentPattern][track]);
+			nTrigsAttibutes[currentPattern][track][nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()].init(fill,nTracksAttibutes[currentPattern][track].getTrackPre(),pNei);
+			nTracksAttibutes[currentPattern][track].setTrackPre((nTrigsAttibutes[currentPattern][track][nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()].getTrigActive()
+			&& nTrigsAttibutes[currentPattern][track][nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()].hasProbability()) ? !nTrigsAttibutes[currentPattern][track][nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()].getTrigSleeping() : nTracksAttibutes[currentPattern][track].getTrackPre());
 			trackSetNextTrig(track);
 			nTrigsAttibutes[currentPattern][track][nTracksAttibutes[currentPattern][track].getTrackNextTrig()].init(fill,nTracksAttibutes[currentPattern][track].getTrackPre(),pNei);
 		}
 
-		if (trigGetIsRead(track, nTracksAttibutes[currentPattern][track].getTrackCurrentTrig(), trackHead[currentPattern][track]) && (cI != nTracksAttibutes[currentPattern][track].getTrackPlayedTrig()) && nTrigsAttibutes[currentPattern][track][cI].getTrigActive() && !nTrigsAttibutes[currentPattern][track][cI].getTrigSleeping()) {
+		if (trigGetIsRead(track, nTracksAttibutes[currentPattern][track].getTrackCurrentTrig(), trackHead[currentPattern][track]) && (nTracksAttibutes[currentPattern][track].getTrackCurrentTrig() != nTracksAttibutes[currentPattern][track].getTrackPlayedTrig())
+		&& nTrigsAttibutes[currentPattern][track][nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()].getTrigActive() && !nTrigsAttibutes[currentPattern][track][nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()].getTrigSleeping()) {
 			nTracksAttibutes[currentPattern][track].setTrackPrevTrig(nTracksAttibutes[currentPattern][track].getTrackPlayedTrig());
 			nTracksAttibutes[currentPattern][track].setTrackPlayedTrig(nTracksAttibutes[currentPattern][track].getTrackCurrentTrig());
 		}
@@ -1168,11 +1190,11 @@ struct ZOUMAI : Module {
 		}
 		else {
 			trackCurrentTickCount[currentPattern][track]++;
-			trackHead[currentPattern][track] += nTracksAttibutes[currentPattern][track].getTrackSpeed()/trackCurrentTickCount[currentPattern][track];
+			trackHead[currentPattern][track] += nTracksAttibutes[currentPattern][track].getTrackSpeed()/trackLastTickCount[currentPattern][track];
 		}
 
 		if (trackHead[currentPattern][track] >= nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()+1) {
-			trackHead[currentPattern][track] = nTrigsAttibutes[currentPattern][track][nTracksAttibutes[currentPattern][track].getTrackNextTrig()].getTrigIndex();
+			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackNextTrig();
 			trackSetCurrentTrig(track, fill, pNei, true);
 			return;
 		}
@@ -1189,11 +1211,11 @@ struct ZOUMAI : Module {
 		}
 		else {
 			trackCurrentTickCount[currentPattern][track]++;
-			trackHead[currentPattern][track] += nTracksAttibutes[currentPattern][track].getTrackSpeed()/trackCurrentTickCount[currentPattern][track];
+			trackHead[currentPattern][track] += nTracksAttibutes[currentPattern][track].getTrackSpeed()/trackLastTickCount[currentPattern][track];
 		}
 
 		if (trackHead[currentPattern][track] >= nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()+1) {
-			trackHead[currentPattern][track] = nTrigsAttibutes[currentPattern][track][nTracksAttibutes[currentPattern][track].getTrackNextTrig()].getTrigIndex();
+			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackNextTrig();
 			trackSetCurrentTrig(track, fill, pNei, true);
 			return;
 		}
