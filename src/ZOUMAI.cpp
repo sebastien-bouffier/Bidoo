@@ -1074,14 +1074,15 @@ struct ZOUMAI : Module {
 		if (nTracksAttibutes[currentPattern][track].getTrackReadMode() == 1)
 		{
 			nTracksAttibutes[currentPattern][track].setTrackForward(false);
+			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackLength()-1;
+			trackSetCurrentTrig(track, fill, pNei,true);
 			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackLength();
 		}
 		else
 		{
 			trackHead[currentPattern][track] = 0.0f;
+			trackSetCurrentTrig(track, fill, pNei);
 		}
-
-		trackSetCurrentTrig(track, fill, pNei);
 	}
 
 	void trackSetNextTrig(const int track) {
