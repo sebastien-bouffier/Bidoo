@@ -367,15 +367,15 @@ struct ZOUMAI : Module {
 
 	TrigAttibutes nTrigsAttibutes[8][8][64];
 	TrackAttibutes nTracksAttibutes[8][8];
-	float trigSlide[8][8][64] = {0.0f};
-	float trigTrim[8][8][64] = {0.0f};
-	float trigLength[8][8][64] = {0.9f};
-	float trigPulseDistance[8][8][64] = {0.5f};
-	float trigCV1[8][8][64] = {0.0f};
-	float trigCV2[8][8][64] = {0.0f};
-	float trackHead[8][8] = {0.0f};
-	float trackCurrentTickCount[8][8] = {0.0f};
-	float trackLastTickCount[8][8] = {22500.0f};
+	float trigSlide[8][8][64] = {{{0.0f}}};
+	float trigTrim[8][8][64] = {{{0.0f}}};
+	float trigLength[8][8][64] = {{{0.0f}}};
+	float trigPulseDistance[8][8][64] = {{{0.5f}}};
+	float trigCV1[8][8][64] = {{{0.0f}}};
+	float trigCV2[8][8][64] = {{{0.0f}}};
+	float trackHead[8][8] = {{0.0f}};
+	float trackCurrentTickCount[8][8] = {{0.0f}};
+	float trackLastTickCount[8][8] = {{22500.0f}};
 
 	ZOUMAI() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
