@@ -16,10 +16,6 @@ const NVGcolor ORANGE_BIDOO = nvgRGBA(228, 87, 46, 255);
 const NVGcolor PINK_BIDOO = nvgRGBA(164, 3, 111, 255);
 const NVGcolor GREEN_BIDOO = nvgRGBA(2, 195, 154, 255);
 
-// extern Plugin *plugin;
-//
-// extern Model *modelMyModule;
-
 extern Plugin *pluginInstance;
 
 extern Model *modelDTROY;

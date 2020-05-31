@@ -51,7 +51,7 @@ struct ZINC : Module {
 		configParam(GMOD_PARAM, 1.f, 10.f, 1.f, "Modifier", "%", 0.f, 10.f);
 		configParam(GCARR_PARAM, 1.f, 10.f, 1.f, "Carrier", "%", 0.f, 10.f);
 		configParam(G_PARAM, 1.f, 10.f, 1.f, "Output Gain", "%", 0.f, 10.f);
-		//configParam(G_PARAM, 1.f, 10.f, 1.f, "Output Gain", "dB", -10, 40);
+		configParam(Q_PARAM, 1.f, 10.f, 5.f, "Q", "dB", 0.f, 10.f);
 
 		//obj Biquad
 		for (int i = 0; i < 2 * BANDS; i++) { //inside process causes memory leak
@@ -67,6 +67,7 @@ struct ZINC : Module {
 		float decay = params[DECAY_PARAM].getValue();
 		float slewAttack = slewMax * powf(slewMin / slewMax, attack);
 		float slewDecay = slewMax * powf(slewMin / slewMax, decay);
+		float q = params[Q_PARAM].getValue();
 		float out = 0.0f;
 
 		for (int i = 0; i < BANDS; i++) {
@@ -83,6 +84,7 @@ struct ZINC : Module {
 			}
 			peaks[i] = peak;
 			mem[i] = coeff;
+			cFilter[i + BANDS]->setQ(q);
 			out += cFilter[i + BANDS]->process(cFilter[i]->process(inC*params[GCARR_PARAM].getValue())) * coeff * params[BG_PARAM + i].getValue();
 		}
 		outputs[OUT].setVoltage(out * 5.0f * params[G_PARAM].getValue());
@@ -142,8 +144,9 @@ struct ZINCWidget : ModuleWidget {
 			addParam(controls[i]);
 		}
 
-		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1] + 4, 230), module, ZINC::ATTACK_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[2] + 4, 230), module, ZINC::DECAY_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[0] + 25, 230), module, ZINC::ATTACK_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1] + 25, 230), module, ZINC::DECAY_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[2] + 25, 230), module, ZINC::Q_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[0] + 20, 268), module, ZINC::GMOD_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[1] + 20, 268), module, ZINC::GCARR_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[2] + 20, 268), module, ZINC::G_PARAM));

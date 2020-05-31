@@ -364,6 +364,10 @@ struct ZOUMAI : Module {
 	int copyTrackId = -1;
 	int copyPatternId = -1;
 	int copyTrigId = -1;
+	bool run = false;
+	int clockMaxDelay = 0;
+	int clockMaxCount = 0;
+	int gear = 0;
 
 	TrigAttibutes nTrigsAttibutes[8][8][64];
 	TrackAttibutes nTracksAttibutes[8][8];
@@ -436,6 +440,7 @@ struct ZOUMAI : Module {
 			}
   	}
 
+		clockMaxDelay = appGet()->engine->getSampleRate();
 		onReset();
 	}
 
@@ -1234,6 +1239,10 @@ struct ZOUMAI : Module {
 		}
 	}
 
+	void onSampleRateChange() override {
+		clockMaxDelay = appGet()->engine->getSampleRate();
+	}
+
 };
 
 void ZOUMAI::process(const ProcessArgs &args) {
@@ -1334,6 +1343,35 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		bool globalReset = resetTrigger.process(inputs[RESET_INPUT].getVoltage());
 		bool clockTrigged = clockTrigger.process(inputs[EXTCLOCK_INPUT].getVoltage());
 
+		clockMaxCount++;
+
+		if (clockTrigged) {
+			if (gear == 0) {
+				clockMaxCount=1;
+				gear++;
+				run=false;
+			}
+			else if (gear == 1) {
+				trackLastTickCount[currentTrack][0] = clockMaxCount;
+				trackLastTickCount[currentTrack][1] = clockMaxCount;
+				trackLastTickCount[currentTrack][2] = clockMaxCount;
+				trackLastTickCount[currentTrack][3] = clockMaxCount;
+				trackLastTickCount[currentTrack][4] = clockMaxCount;
+				trackLastTickCount[currentTrack][5] = clockMaxCount;
+				trackLastTickCount[currentTrack][6] = clockMaxCount;
+				trackLastTickCount[currentTrack][7] = clockMaxCount;
+				gear++;
+				run=true;
+			}
+			else {
+				clockMaxCount=1;
+			}
+		}
+		else if (clockMaxCount>clockMaxDelay) {
+			run=false;
+			gear=0;
+		}
+
 		for (int i=0; i<8;i++) {
 
 			if (trackActiveTriggers[i].process(inputs[TRACKACTIVE_INPUTS+i].getVoltage() + params[TRACKSONOFF_PARAMS+i].getValue())) {
@@ -1367,10 +1405,10 @@ void ZOUMAI::process(const ProcessArgs &args) {
 				lights[TRACKSONOFF_LIGHTS+(i*3)+2].setBrightness(0.0f);
 			}
 
-			if (clockTrigged) {
+			if (clockTrigged && run) {
 				trackMoveNext(i, true, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
 			}
-			else {
+			else if (run) {
 				trackMoveNext(i, false, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
 			}
 

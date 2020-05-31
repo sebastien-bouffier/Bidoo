@@ -64,9 +64,14 @@ void * threadDecodeTask(threadDecodeData data)
   int outSize;
   while (data.dc->load()) {
     short pcm[MINIMP3_MAX_SAMPLES_PER_FRAME];
-    if (data.dataToDecodeRingBuffer->size() > 64000) {
+    if (data.dataToDecodeRingBuffer->size() >= 65536) {
       int samples = mp3dec_decode_frame(&data.mp3d, (const uint8_t*)data.dataToDecodeRingBuffer->startData(), data.dataToDecodeRingBuffer->size(), pcm, &info);
-      if ((info.frame_bytes > 0) && (samples > 0)) {
+
+      if (info.frame_bytes > 0) {
+        data.dataToDecodeRingBuffer->startIncr(info.frame_bytes);
+      }
+
+      if (samples > 0) {
         if (info.channels == 1) {
           for(int i = 0; i < samples; i++) {
             if (!data.dc->load()) break;
@@ -85,7 +90,7 @@ void * threadDecodeTask(threadDecodeData data)
             tmpBuffer->push(newFrame);
           }
         }
-        data.dataToDecodeRingBuffer->startIncr(info.frame_bytes);
+
         conv.setRates(info.hz, data.sr);
         conv.setQuality(10);
         inSize = tmpBuffer->size();
@@ -110,21 +115,25 @@ void * threadReadTask(threadReadData data)
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 
-  std::string zeUrl;
-  data.secUrl == "" ? zeUrl = data.url : zeUrl = data.secUrl;
+  std::string url;
+  data.secUrl == "" ? url = data.url : url = data.secUrl;
+
   if ((rack::string::filenameExtension(data.url) == "pls") || (rack::string::filenameExtension(data.url) == "m3u")) {
-    istringstream iss(zeUrl);
+    istringstream iss(url);
     for (std::string line; std::getline(iss, line); )
     {
       std::size_t found=line.find("http");
       if (found!=std::string::npos) {
-        zeUrl = line.substr(found);
+        url = line.substr(found);
+        url.erase(std::remove_if(url.begin(), url.end(), [](unsigned char x){return std::isspace(x);}), url.end());
         break;
       }
     }
   }
 
-  curl_easy_setopt(curl, CURLOPT_URL, zeUrl.c_str());
+  std::cout << url << '\n';
+
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
   curl_easy_perform(curl);
@@ -247,7 +256,6 @@ void ANTN::onSampleRateChange() {
 
 void ANTN::process(const ProcessArgs &args) {
 	if (trigTrigger.process(params[TRIG_PARAM].value)) {
-
     tDc.store(false);
     while(!tdFree) {
     }

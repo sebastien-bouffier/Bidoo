@@ -1,3 +1,7 @@
+### v1.1.22 (31/05/2020)
+- zOù MAï stops when clock is not active
+- antN fix for some m3u
+
 ### v1.1.21 (03/05/2020)
 - zOù MAï fix and optimization
 

@@ -111,6 +111,7 @@ struct CANARD : Module {
 	void initPos();
 	void loadSample();
 	void saveSample();
+	void calcTransients();
 
 	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
@@ -152,11 +153,45 @@ struct CANARD : Module {
 	}
 };
 
+void CANARD::calcTransients() {
+	slices.clear();
+	slices.push_back(0);
+	int i = 0;
+	int size = 256;
+	vector<dsp::Frame<2>>::const_iterator first;
+	vector<dsp::Frame<2>>::const_iterator last;
+	float prevNrgy = 0.0f;
+	while (i+size<totalSampleCount) {
+		first = playBuffer.begin() + i;
+		last = playBuffer.begin() + i + size;
+		vector<dsp::Frame<2>> newVec(first, last);
+		float nrgy = 0.0f;
+		float zcRate = 0.0f;
+		unsigned int zcIdx = 0;
+		bool first = true;
+		for (int k = 0; k < size; k++) {
+			nrgy += 100*newVec[k].samples[0]*newVec[k].samples[0]/size;
+			if (newVec[k].samples[0]==0.0f) {
+				zcRate += 1;
+				if (first) {
+					zcIdx = k;
+					first = false;
+				}
+			}
+		}
+		if ((nrgy > params[CANARD::THRESHOLD_PARAM].getValue()) && (nrgy > 10*prevNrgy))
+			slices.push_back(i+zcIdx);
+		i+=size;
+		prevNrgy = nrgy;
+	}
+}
+
 void CANARD::loadSample() {
 	appGet()->engine->yieldWorkers();
 	mylock.lock();
 	playBuffer = waves::getStereoWav(lastPath, appGet()->engine->getSampleRate(), waveFileName, waveExtension, channels, sampleRate, totalSampleCount);
 	mylock.unlock();
+	slices.clear();
 	loading = false;
 }
 
@@ -367,7 +402,11 @@ void CANARD::process(const ProcessArgs &args) {
 	{
 		if (inputs[GATE_INPUT].getVoltage()>0)
 		{
-			if (prevGateState == 0.0f) {
+			if (inputs[SLICE_INPUT].isConnected()) {
+				play = true;
+				samplePos= sampleStart + rescale(clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,1.0f) * loopLength;
+			}
+			else if (prevGateState == 0.0f) {
 				initPos();
 				play = true;
 			}
@@ -438,6 +477,17 @@ void CANARD::process(const ProcessArgs &args) {
 
 	outputs[EOC_OUTPUT].setVoltage(eocPulse.process(1 / args.sampleRate) ? 10.0f : 0.0f);
 }
+
+struct BidooTransientsBlueTrimpot : BidooBlueTrimpot {
+	CANARD *module;
+
+	void onButton(const event::Button &e) override {
+		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
+			module->calcTransients();
+		}
+		BidooBlueTrimpot::onButton(e);
+	}
+};
 
 struct CANARDDisplay : OpaqueWidget {
 	CANARD *module;
@@ -565,7 +615,7 @@ struct CANARDDisplay : OpaqueWidget {
 				nvgFill(args.vg);
 
 				//draw selected
-				if ((module->selected >= 0) && ((size_t)module->selected < s.size())) {
+				if ((module->selected >= 0) && ((size_t)module->selected < s.size()) && (floor(module->params[CANARD::MODE_PARAM].getValue()) == 1)) {
 					nvgStrokeColor(args.vg, RED_BIDOO);
 					{
 						nvgScissor(args.vg, 0, 0, width, 2*height+10);
@@ -690,7 +740,7 @@ struct CANARDWidget : ModuleWidget {
 
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[2]-7, 170), module, CANARD::SAMPLE_START_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX0[3]-7, 170), module, CANARD::LOOP_LENGTH_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[4]-7, 170), module, CANARD::READ_MODE_PARAM));
+		addParam(createParam<BidooBlueSnapKnob>(Vec(portX0[4]-6, 170), module, CANARD::READ_MODE_PARAM));
 
 		addInput(createInput<PJ301MPort>(Vec(portX0[0]-4.5f, 202), module, CANARD::RECORD_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(portX0[1]-4.5f, 202), module, CANARD::TRIG_INPUT));
@@ -709,9 +759,12 @@ struct CANARDWidget : ModuleWidget {
 		addInput(createInput<PJ301MPort>(Vec(portX0[1]-4.5f, 277), module, CANARD::FADE_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(portX0[2]-4.5f, 277), module, CANARD::SLICE_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(portX0[3]-5.0f, 277), module, CANARD::CLEAR_INPUT));
-		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[4]-1, 280), module, CANARD::THRESHOLD_PARAM));
 
-		addParam(createParam<CKSS>(Vec(90, 325), module, CANARD::MODE_PARAM));
+		BidooTransientsBlueTrimpot *trim = createParam<BidooTransientsBlueTrimpot>(Vec(portX0[4]-1, 280), module, CANARD::THRESHOLD_PARAM);
+		trim->module=module;
+		addParam(trim);
+
+		addParam(createParam<CKSS>(Vec(89, 325), module, CANARD::MODE_PARAM));
 
 		addInput(createInput<TinyPJ301MPort>(Vec(8, 340), module, CANARD::INL_INPUT));
 		addInput(createInput<TinyPJ301MPort>(Vec(8+22, 340), module, CANARD::INR_INPUT));
@@ -744,36 +797,7 @@ struct CANARDWidget : ModuleWidget {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
 			appGet()->engine->yieldWorkers();
-			module->slices.clear();
-			module->slices.push_back(0);
-			int i = 0;
-			int size = 256;
-			vector<dsp::Frame<2>>::const_iterator first;
-			vector<dsp::Frame<2>>::const_iterator last;
-			float prevNrgy = 0.0f;
-			while (i+size<module->totalSampleCount) {
-				first = module->playBuffer.begin() + i;
-				last = module->playBuffer.begin() + i + size;
-				vector<dsp::Frame<2>> newVec(first, last);
-				float nrgy = 0.0f;
-				float zcRate = 0.0f;
-				unsigned int zcIdx = 0;
-				bool first = true;
-				for (int k = 0; k < size; k++) {
-					nrgy += 100*newVec[k].samples[0]*newVec[k].samples[0]/size;
-					if (newVec[k].samples[0]==0.0f) {
-						zcRate += 1;
-						if (first) {
-							zcIdx = k;
-							first = false;
-						}
-					}
-				}
-				if ((nrgy > module->params[CANARD::THRESHOLD_PARAM].getValue()) && (nrgy > 10*prevNrgy))
-					module->slices.push_back(i+zcIdx);
-				i+=size;
-				prevNrgy = nrgy;
-			}
+			module->calcTransients();
 		}
 	};
 
