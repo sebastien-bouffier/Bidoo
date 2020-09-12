@@ -39,8 +39,18 @@ struct BAR : Module {
 	dsp::DoubleRingBuffer<float,512> rms_L_Buffer, rms_R_Buffer;
 	float runningVU_L_Sum = 1e-6f, runningRMS_L_Sum = 1e-6f, rms_L = -96.3f, vu_L = -96.3f, peakL = -96.3f;
 	float runningVU_R_Sum = 1e-6f, runningRMS_R_Sum = 1e-6f, rms_R = -96.3f, vu_R = -96.3f, peakR = -96.3f;
+
 	float in_L_dBFS = 1e-6f;
 	float in_R_dBFS = 1e-6f;
+
+	dsp::DoubleRingBuffer<float,16384> SC_vu_L_Buffer, SC_vu_R_Buffer;
+	dsp::DoubleRingBuffer<float,512> SC_rms_L_Buffer, SC_rms_R_Buffer;
+	float SC_runningVU_L_Sum = 1e-6f, SC_runningRMS_L_Sum = 1e-6f, SC_rms_L = -96.3f, SC_vu_L = -96.3f, SC_peakL = -96.3f;
+	float SC_runningVU_R_Sum = 1e-6f, SC_runningRMS_R_Sum = 1e-6f, SC_rms_R = -96.3f, SC_vu_R = -96.3f, SC_peakR = -96.3f;
+
+	float SC_in_L_dBFS = 1e-6f;
+	float SC_in_R_dBFS = 1e-6f;
+
 	float dist = 0.0f, gain = 1.0f, gaindB = 1.0f, ratio = 1.0f, threshold = 1.0f, knee = 0.0f;
 	float attackTime = 0.0f, releaseTime = 0.0f, makeup = 1.0f, previousPostGain = 1.0f, mix = 1.0f;
 	int indexVU = 0, indexRMS = 0, lookAheadWriteIndex=0;
@@ -78,6 +88,10 @@ void BAR::process(const ProcessArgs &args) {
 		runningVU_R_Sum -= *vu_R_Buffer.startData();
 		vu_L_Buffer.startIncr(1);
 		vu_R_Buffer.startIncr(1);
+		SC_runningVU_L_Sum -= *SC_vu_L_Buffer.startData();
+		SC_runningVU_R_Sum -= *SC_vu_R_Buffer.startData();
+		SC_vu_L_Buffer.startIncr(1);
+		SC_vu_R_Buffer.startIncr(1);
 		indexVU--;
 	}
 
@@ -86,6 +100,10 @@ void BAR::process(const ProcessArgs &args) {
 		runningRMS_R_Sum -= *rms_R_Buffer.startData();
 		rms_L_Buffer.startIncr(1);
 		rms_R_Buffer.startIncr(1);
+		SC_runningRMS_L_Sum -= *SC_rms_L_Buffer.startData();
+		SC_runningRMS_R_Sum -= *SC_rms_R_Buffer.startData();
+		SC_rms_L_Buffer.startIncr(1);
+		SC_rms_R_Buffer.startIncr(1);
 		indexRMS--;
 	}
 
@@ -95,30 +113,44 @@ void BAR::process(const ProcessArgs &args) {
 	buffL[lookAheadWriteIndex]=inputs[IN_L_INPUT].getVoltage();
 	buffR[lookAheadWriteIndex]=inputs[IN_R_INPUT].getVoltage();
 
-	if (!inputs[SC_L_INPUT].isConnected() && inputs[IN_L_INPUT].isConnected())
+	if (inputs[IN_L_INPUT].isConnected())
 		in_L_dBFS = max(20.0f*log10((abs(inputs[IN_L_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
-	else if (inputs[SC_L_INPUT].isConnected())
-		in_L_dBFS = max(20.0f*log10((abs(inputs[SC_L_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
 	else
 		in_L_dBFS = -96.3f;
 
-	if (!inputs[SC_R_INPUT].isConnected() && inputs[IN_R_INPUT].isConnected())
+	if (inputs[SC_L_INPUT].isConnected())
+		SC_in_L_dBFS = max(20.0f*log10((abs(inputs[SC_L_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
+	else
+		SC_in_L_dBFS = -96.3f;
+
+	if (inputs[IN_R_INPUT].isConnected())
 		in_R_dBFS = max(20.0f*log10((abs(inputs[IN_R_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
-	else if (inputs[SC_R_INPUT].isConnected())
-		in_R_dBFS = max(20.0f*log10((abs(inputs[SC_R_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
 	else
 		in_R_dBFS = -96.3f;
+
+	if (inputs[SC_R_INPUT].isConnected())
+		SC_in_R_dBFS = max(20.0f*log10((abs(inputs[SC_R_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
+	else
+		SC_in_R_dBFS = -96.3f;
 
 	float data_L = in_L_dBFS*in_L_dBFS;
 	float data_R = in_R_dBFS*in_R_dBFS;
 
+	float SC_data_L = SC_in_L_dBFS*SC_in_L_dBFS;
+	float SC_data_R = SC_in_R_dBFS*SC_in_R_dBFS;
+
 	if (!vu_L_Buffer.full()) {
 		vu_L_Buffer.push(data_L);
 		vu_R_Buffer.push(data_R);
+		SC_vu_L_Buffer.push(SC_data_L);
+		SC_vu_R_Buffer.push(SC_data_R);
 	}
+
 	if (!rms_L_Buffer.full()) {
 		rms_L_Buffer.push(data_L);
 		rms_R_Buffer.push(data_R);
+		SC_rms_L_Buffer.push(SC_data_L);
+		SC_rms_R_Buffer.push(SC_data_R);
 	}
 
 	runningVU_L_Sum += data_L;
@@ -129,6 +161,16 @@ void BAR::process(const ProcessArgs &args) {
 	vu_L = clamp(-1 * sqrtf(runningVU_L_Sum/16384), -96.3f,0.0f);
 	rms_R = clamp(-1 * sqrtf(runningRMS_R_Sum/512), -96.3f,0.0f);
 	vu_R = clamp(-1 * sqrtf(runningVU_R_Sum/16384), -96.3f,0.0f);
+
+	SC_runningVU_L_Sum += SC_data_L;
+	SC_runningRMS_L_Sum += SC_data_L;
+	SC_runningVU_R_Sum += SC_data_R;
+	SC_runningRMS_R_Sum += SC_data_R;
+	SC_rms_L = clamp(-1 * sqrtf(SC_runningRMS_L_Sum/512), -96.3f,0.0f);
+	SC_vu_L = clamp(-1 * sqrtf(SC_runningVU_L_Sum/16384), -96.3f,0.0f);
+	SC_rms_R = clamp(-1 * sqrtf(SC_runningRMS_R_Sum/512), -96.3f,0.0f);
+	SC_vu_R = clamp(-1 * sqrtf(SC_runningVU_R_Sum/16384), -96.3f,0.0f);
+
 	threshold = params[THRESHOLD_PARAM].getValue();
 	attackTime = params[ATTACK_PARAM].getValue();
 	releaseTime = params[RELEASE_PARAM].getValue();
@@ -146,8 +188,18 @@ void BAR::process(const ProcessArgs &args) {
 	else
 		peakR -= 50.0f / args.sampleRate;
 
+	if (SC_in_L_dBFS>SC_peakL)
+		SC_peakL=SC_in_L_dBFS;
+	else
+		SC_peakL -= 50.0f / args.sampleRate;
+
+	if (SC_in_R_dBFS>SC_peakR)
+		SC_peakR=SC_in_R_dBFS;
+	else
+		SC_peakR -= 50.0f / args.sampleRate;
+
 	float slope = 1.0f/ratio-1.0f;
-	float maxIn = max(in_L_dBFS,in_R_dBFS);
+	float maxIn = (inputs[SC_L_INPUT].isConnected() || inputs[SC_R_INPUT].isConnected()) ? max(SC_in_L_dBFS,SC_in_R_dBFS) : max(in_L_dBFS,in_R_dBFS);
 	float dist = maxIn-threshold;
 	float gcurve = 0.0f;
 
@@ -194,58 +246,147 @@ void BAR::process(const ProcessArgs &args) {
 struct BARDisplay : TransparentWidget {
 	BAR *module;
 	std::shared_ptr<Font> font;
+	float height = 150.0f;
+	float width = 15.0f;
+	float spacer = 3.0f;
+	float width2 = width/2;
+	float spacer2 = spacer/2;
+	float widthSpacer =  width + spacer;
+
 	BARDisplay() {
 		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 	}
 
 void draw(NVGcontext *vg) override {
-	float height = 150.0f;
-	float width = 15.0f;
-	float spacer = 3.0f;
+
 	float vuL = rescale(module->vu_L,-97.0f,0.0f,0.0f,height);
 	float rmsL = rescale(module->rms_L,-97.0f,0.0f,0.0f,height);
 	float vuR = rescale(module->vu_R,-97.0f,0.0f,0.0f,height);
 	float rmsR = rescale(module->rms_R,-97.0f,0.0f,0.0f,height);
+
+	float SC_vuL = rescale(module->SC_vu_L,-97.0f,0.0f,0.0f,height);
+	float SC_rmsL = rescale(module->SC_rms_L,-97.0f,0.0f,0.0f,height);
+	float SC_vuR = rescale(module->SC_vu_R,-97.0f,0.0f,0.0f,height);
+	float SC_rmsR = rescale(module->SC_rms_R,-97.0f,0.0f,0.0f,height);
+
 	float threshold = rescale(module->threshold,0.0f,-97.0f,0.0f,height);
 	float gain = rescale(1-(module->gaindB-module->makeup),-97.0f,0.0f,97.0f,0.0f);
 	float makeup = rescale(module->makeup,0.0f,60.0f,0.0f,60.0f);
+
 	float peakL = clamp(rescale(module->peakL,0.0f,-97.0f,0.0f,height),0.f,height);
 	float peakR = clamp(rescale(module->peakR,0.0f,-97.0f,0.0f,height),0.f,height);
 	float inL = rescale(module->in_L_dBFS,-97.0f,0.0f,0.0f,height);
 	float inR = rescale(module->in_R_dBFS,-97.0f,0.0f,0.0f,height);
 
-	nvgSave(vg);
-	nvgStrokeWidth(vg, 0.0f);
+	float SC_peakL = clamp(rescale(module->SC_peakL,0.0f,-97.0f,0.0f,height),0.f,height);
+	float SC_peakR = clamp(rescale(module->SC_peakR,0.0f,-97.0f,0.0f,height),0.f,height);
+	float SC_inL = rescale(module->SC_in_L_dBFS,-97.0f,0.0f,0.0f,height);
+	float SC_inR = rescale(module->SC_in_R_dBFS,-97.0f,0.0f,0.0f,height);
 
-	nvgFillColor(vg, BLUE_BIDOO);
-	nvgBeginPath(vg);
-	nvgRoundedRect(vg,0.0f,height-vuL,width,vuL,0.0f);
-	nvgRoundedRect(vg,3.0f*(width+spacer),height-vuR,width,vuR,0.0f);
-	nvgFill(vg);
-	nvgClosePath(vg);
+	bool sc = module->inputs[BAR::SC_L_INPUT].isConnected() || module->inputs[BAR::SC_R_INPUT].isConnected();
 
-	nvgFillColor(vg, RED_BIDOO);
-	nvgBeginPath(vg);
-	nvgRoundedRect(vg,width+spacer,peakL,width,2.0f,0.0f);
-	nvgRoundedRect(vg,2.0f*(width+spacer),peakR,width,2.0f,0.0f);
-	nvgFill(vg);
-	nvgClosePath(vg);
+	if (sc) {
+		nvgSave(vg);
+		nvgStrokeWidth(vg, 0.0f);
 
-	nvgFillColor(vg, ORANGE_BIDOO);
-	nvgBeginPath(vg);
-	if (inL>rmsL+3.0f)
-		nvgRoundedRect(vg,width+spacer,max(height-inL+1.0f,0.f),width,inL-rmsL-2.0f,0.0f);
-	if (inR>rmsR+3.0f)
-		nvgRoundedRect(vg,2.0f*(width+spacer),max(height-inR+1.0f,0.f),width,inR-rmsR-2.0f,0.0f);
-	nvgFill(vg);
-	nvgClosePath(vg);
+		nvgFillColor(vg, BLUE_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,0.0f,height-vuL,width2,vuL,0.0f);
+		nvgRoundedRect(vg,3.0f*widthSpacer+width2,height-vuR,width2,vuR,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
 
-	nvgFillColor(vg, LIGHTBLUE_BIDOO);
-	nvgBeginPath(vg);
-	nvgRoundedRect(vg,width+spacer,height-rmsL,width,rmsL,0.0f);
-	nvgRoundedRect(vg,2.0f*(width+spacer),height-rmsR,width,rmsR,0.0f);
-	nvgFill(vg);
-	nvgClosePath(vg);
+		nvgFillColor(vg, RED_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,width+spacer2-width2,peakL,width/2,2.0f,0.0f);
+		nvgRoundedRect(vg,3.0f*widthSpacer-spacer2,peakR,width2,2.0f,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, ORANGE_BIDOO);
+		nvgBeginPath(vg);
+		if (inL>rmsL+3.0f)
+			nvgRoundedRect(vg,width+spacer2-width2,max(height-inL+1.0f,0.f),width2,inL-rmsL-2.0f,0.0f);
+		if (inR>rmsR+3.0f)
+			nvgRoundedRect(vg,3.0f*widthSpacer-spacer2,max(height-inR+1.0f,0.f),width2,inR-rmsR-2.0f,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, LIGHTBLUE_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,width+spacer2-width2,height-rmsL,width2,rmsL,0.0f);
+		nvgRoundedRect(vg,3.0f*widthSpacer-spacer2,height-rmsR,width2,rmsR,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+
+
+		nvgFillColor(vg, BLUE_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,widthSpacer,height-SC_vuL,width2,SC_vuL,0.0f);
+		nvgRoundedRect(vg,2.0f*widthSpacer+width2,height-SC_vuR,width2,SC_vuR,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, RED_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,widthSpacer+width2+spacer2,SC_peakL,width2,2.0f,0.0f);
+		nvgRoundedRect(vg,2.0f*widthSpacer-spacer2,SC_peakR,width2,2.0f,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, ORANGE_BIDOO);
+		nvgBeginPath(vg);
+		if (inL>rmsL+3.0f)
+			nvgRoundedRect(vg,widthSpacer+width2+spacer2,max(height-SC_inL+1.0f,0.f),width2,SC_inL-SC_rmsL-2.0f,0.0f);
+		if (inR>rmsR+3.0f)
+			nvgRoundedRect(vg,2.0f*widthSpacer-spacer2,max(height-SC_inR+1.0f,0.f),width2,SC_inR-SC_rmsR-2.0f,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, LIGHTBLUE_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,widthSpacer+width2+spacer2,height-SC_rmsL,width2,SC_rmsL,0.0f);
+		nvgRoundedRect(vg,2.0f*widthSpacer-spacer2,height-SC_rmsR,width2,SC_rmsR,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+	}
+	else {
+		nvgSave(vg);
+		nvgStrokeWidth(vg, 0.0f);
+
+		nvgFillColor(vg, BLUE_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,0.0f,height-vuL,width,vuL,0.0f);
+		nvgRoundedRect(vg,3.0f*widthSpacer,height-vuR,width,vuR,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, RED_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,widthSpacer,peakL,width,2.0f,0.0f);
+		nvgRoundedRect(vg,2.0f*widthSpacer,peakR,width,2.0f,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, ORANGE_BIDOO);
+		nvgBeginPath(vg);
+		if (inL>rmsL+3.0f)
+			nvgRoundedRect(vg,widthSpacer,max(height-inL+1.0f,0.f),width,inL-rmsL-2.0f,0.0f);
+		if (inR>rmsR+3.0f)
+			nvgRoundedRect(vg,2.0f*widthSpacer,max(height-inR+1.0f,0.f),width,inR-rmsR-2.0f,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, LIGHTBLUE_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,widthSpacer,height-rmsL,width,rmsL,0.0f);
+		nvgRoundedRect(vg,2.0f*widthSpacer,height-rmsR,width,rmsR,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+	}
+
 
 	nvgStrokeWidth(vg, 0.5f);
 	nvgFillColor(vg, nvgRGBA(255, 255, 255, 255));
@@ -254,10 +395,10 @@ void draw(NVGcontext *vg) override {
 	nvgMoveTo(vg, width+spacer+5.0f, threshold);
 	nvgLineTo(vg, 3.0f*width+2.0f*spacer-5.0f, threshold);
 	{
-		nvgMoveTo(vg, width+spacer, threshold-3.0f);
-		nvgLineTo(vg, width+spacer, threshold+3.0f);
-		nvgLineTo(vg, width+spacer+5.0f, threshold);
-		nvgLineTo(vg, width+spacer, threshold-3.0f);
+		nvgMoveTo(vg, widthSpacer, threshold-3.0f);
+		nvgLineTo(vg, widthSpacer, threshold+3.0f);
+		nvgLineTo(vg, widthSpacer+5.0f, threshold);
+		nvgLineTo(vg, widthSpacer, threshold-3.0f);
 		nvgMoveTo(vg, 3.0f*width+2.0f*spacer, threshold-3.0f);
 		nvgLineTo(vg, 3*width+2*spacer, threshold+3.0f);
 		nvgLineTo(vg, 3.0f*width+2.0f*spacer-5.0f, threshold);
@@ -272,11 +413,11 @@ void draw(NVGcontext *vg) override {
 	nvgFillColor(vg, YELLOW_BIDOO);
 	nvgStrokeColor(vg, YELLOW_BIDOO);
 	nvgBeginPath(vg);
-	nvgRoundedRect(vg,4.0f*(width+spacer)+offset,70.0f,width,-gain-makeup,0.0f);
-	nvgMoveTo(vg, 5.0f*(width+spacer)+7.0f+offset, 70.0f-3.0f);
-	nvgLineTo(vg, 5.0f*(width+spacer)+7.0f+offset, 70.0f+3.0f);
-	nvgLineTo(vg, 5.0f*(width+spacer)+2.0f+offset, 70.0f);
-	nvgLineTo(vg, 5.0f*(width+spacer)+7.0f+offset, 70.0f-3.0f);
+	nvgRoundedRect(vg,4.0f*widthSpacer+offset,70.0f,width,-gain-makeup,0.0f);
+	nvgMoveTo(vg, 5.0f*widthSpacer+7.0f+offset, 70.0f-3.0f);
+	nvgLineTo(vg, 5.0f*widthSpacer+7.0f+offset, 70.0f+3.0f);
+	nvgLineTo(vg, 5.0f*widthSpacer+2.0f+offset, 70.0f);
+	nvgLineTo(vg, 5.0f*widthSpacer+7.0f+offset, 70.0f-3.0f);
 	nvgClosePath(vg);
 	nvgStroke(vg);
 	nvgFill(vg);

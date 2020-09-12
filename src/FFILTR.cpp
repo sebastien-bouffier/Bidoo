@@ -17,6 +17,7 @@ struct FFILTR : Module {
 	enum InputIds {
 		INPUT,
 		CUTOFF_INPUT,
+		RES_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -43,7 +44,9 @@ struct FFILTR : Module {
 		in_Buffer.push(inputs[INPUT].getVoltage() / 10.0f);
 
 		if (in_Buffer.full()) {
-			vocoder->process(clamp(params[CUTOFF_PARAM].getValue() + inputs[CUTOFF_INPUT].getVoltage()*BUFF_SIZE*0.05f, 0.0f, BUFF_SIZE / 2.0f), params[RES_PARAM].getValue(), in_Buffer.startData(), out_Buffer.endData());
+			vocoder->process(clamp(params[CUTOFF_PARAM].getValue() + inputs[CUTOFF_INPUT].getVoltage()*BUFF_SIZE*0.05f, 0.0f, BUFF_SIZE / 2.0f),
+			 clamp(params[RES_PARAM].getValue() + rescale(inputs[RES_INPUT].getVoltage(), -10.0f, 10.0f, 1.0f, 10.0f) , 1.0f, 10.0f),
+			  in_Buffer.startData(), out_Buffer.endData());
 			out_Buffer.endIncr(BUFF_SIZE);
 			in_Buffer.clear();
 		}
@@ -68,7 +71,8 @@ struct FFILTRWidget : ModuleWidget {
 
 		addParam(createParam<BidooBlueKnob>(Vec(8, 70), module, FFILTR::CUTOFF_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(8, 185), module, FFILTR::RES_PARAM));
-		addInput(createInput<PJ301MPort>(Vec(10, 130), module, FFILTR::CUTOFF_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 120), module, FFILTR::CUTOFF_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10, 235), module, FFILTR::RES_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(10, 283.0f), module, FFILTR::INPUT));
 		addOutput(createOutput<PJ301MPort>(Vec(10, 330.0f), module, FFILTR::OUTPUT));
 	}
