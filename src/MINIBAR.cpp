@@ -36,6 +36,12 @@ struct MINIBAR : Module {
 	dsp::DoubleRingBuffer<float,512> rms_L_Buffer;
 	float runningVU_L_Sum = 1e-6f, runningRMS_L_Sum = 1e-6f, rms_L = -96.3f, vu_L = -96.3f, peakL = -96.3f;
 	float in_L_dBFS = 1e-6f;
+
+	dsp::DoubleRingBuffer<float,16384> SC_vu_L_Buffer;
+	dsp::DoubleRingBuffer<float,512> SC_rms_L_Buffer;
+	float SC_runningVU_L_Sum = 1e-6f, SC_runningRMS_L_Sum = 1e-6f, SC_rms_L = -96.3f, SC_vu_L = -96.3f, SC_peakL = -96.3f;
+	float SC_in_L_dBFS = 1e-6f;
+
 	float dist = 0.0f, gain = 1.0f, gaindB = 1.0f, ratio = 1.0f, threshold = 1.0f, knee = 0.0f;
 	float attackTime = 0.0f, releaseTime = 0.0f, makeup = 1.0f, previousPostGain = 1.0f, mix = 1.0f, mixDisplay = 1.0f;
 	int indexVU = 0, indexRMS = 0, lookAheadWriteIndex=0;
@@ -71,12 +77,16 @@ void MINIBAR::process(const ProcessArgs &args) {
 	if (indexVU>=16384) {
 		runningVU_L_Sum -= *vu_L_Buffer.startData();
 		vu_L_Buffer.startIncr(1);
+		SC_runningVU_L_Sum -= *SC_vu_L_Buffer.startData();
+		SC_vu_L_Buffer.startIncr(1);
 		indexVU--;
 	}
 
 	if (indexRMS>=512) {
 		runningRMS_L_Sum -= *rms_L_Buffer.startData();
 		rms_L_Buffer.startIncr(1);
+		SC_runningRMS_L_Sum -= *SC_rms_L_Buffer.startData();
+		SC_rms_L_Buffer.startIncr(1);
 		indexRMS--;
 	}
 
@@ -85,26 +95,38 @@ void MINIBAR::process(const ProcessArgs &args) {
 
 	buffL[lookAheadWriteIndex]=inputs[IN_L_INPUT].getVoltage();
 
-	if (!inputs[SC_L_INPUT].active && inputs[IN_L_INPUT].active)
+	if (inputs[IN_L_INPUT].isConnected())
 		in_L_dBFS = max(20.0f*log10((abs(inputs[IN_L_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
-	else if (inputs[SC_L_INPUT].active)
-		in_L_dBFS = max(20.0f*log10((abs(inputs[SC_L_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
 	else
 		in_L_dBFS = -96.3f;
 
+	if (inputs[SC_L_INPUT].isConnected())
+		SC_in_L_dBFS = max(20.0f*log10((abs(inputs[SC_L_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
+	else
+		SC_in_L_dBFS = -96.3f;
+
 	float data_L = in_L_dBFS*in_L_dBFS;
+	float SC_data_L = SC_in_L_dBFS*SC_in_L_dBFS;
 
 	if (!vu_L_Buffer.full()) {
 		vu_L_Buffer.push(data_L);
+		SC_vu_L_Buffer.push(SC_data_L);
 	}
 	if (!rms_L_Buffer.full()) {
 		rms_L_Buffer.push(data_L);
+		SC_rms_L_Buffer.push(SC_data_L);
 	}
 
 	runningVU_L_Sum += data_L;
 	runningRMS_L_Sum += data_L;
 	rms_L = clamp(-1 * sqrtf(runningRMS_L_Sum/512), -96.3f,0.0f);
 	vu_L = clamp(-1 * sqrtf(runningVU_L_Sum/16384), -96.3f,0.0f);
+
+	SC_runningVU_L_Sum += SC_data_L;
+	SC_runningRMS_L_Sum += SC_data_L;
+	SC_rms_L = clamp(-1 * sqrtf(SC_runningRMS_L_Sum/512), -96.3f,0.0f);
+	SC_vu_L = clamp(-1 * sqrtf(SC_runningVU_L_Sum/16384), -96.3f,0.0f);
+
 	threshold = params[THRESHOLD_PARAM].getValue();
 	attackTime = params[ATTACK_PARAM].getValue();
 	releaseTime = params[RELEASE_PARAM].getValue();
@@ -117,8 +139,13 @@ void MINIBAR::process(const ProcessArgs &args) {
 	else
 		peakL -= 50.0f / args.sampleRate;
 
+	if (SC_in_L_dBFS>SC_peakL)
+		SC_peakL=SC_in_L_dBFS;
+	else
+		SC_peakL -= 50.0f / args.sampleRate;
+
 	float slope = 1.0f/ratio-1.0f;
-	float maxIn = in_L_dBFS;
+	float maxIn = inputs[SC_L_INPUT].isConnected() ? SC_in_L_dBFS : in_L_dBFS;
 	float dist = maxIn-threshold;
 	float gcurve = 0.0f;
 
@@ -165,56 +192,127 @@ void MINIBAR::process(const ProcessArgs &args) {
 struct MINIBARDisplay : TransparentWidget {
 	MINIBAR *module;
 	std::shared_ptr<Font> font;
+	float height = 230.0f;
+	float width = 10.0f;
+	float spacer = 2.0f;
 	MINIBARDisplay() {
 		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 	}
 
 void draw(NVGcontext *vg) override {
-	float height = 230.0f;
-	float width = 10.0f;
-	float spacer = 2.0f;
+
 	float vuL = rescale(module->vu_L,-97.0f,0.0f,0.0f,height);
 	float rmsL = rescale(module->rms_L,-97.0f,0.0f,0.0f,height);
-	float threshold = rescale(module->threshold,0.0f,-97.0f,0.0f,height);
-	float gain = rescale(1-(module->gaindB-module->makeup),-97.0f,0.0f,97.0f,0.0f);
-	float makeup = rescale(module->makeup,0.0f,60.0f,0.0f,60.0f);
 	float peakL = clamp(rescale(module->peakL,0.0f,-97.0f,0.0f,height),0.f,height);
 	float inL = rescale(module->in_L_dBFS,-97.0f,0.0f,0.0f,height);
 
-	nvgSave(vg);
-	nvgStrokeWidth(vg, 0.0f);
-	nvgFillColor(vg, BLUE_BIDOO);
-	nvgBeginPath(vg);
-	nvgRoundedRect(vg,0.0f,height-vuL,width,vuL,0.0f);
-	nvgFill(vg);
-	nvgClosePath(vg);
+	float SC_vuL = rescale(module->SC_vu_L,-97.0f,0.0f,0.0f,height);
+	float SC_rmsL = rescale(module->SC_rms_L,-97.0f,0.0f,0.0f,height);
+	float SC_peakL = clamp(rescale(module->SC_peakL,0.0f,-97.0f,0.0f,height),0.f,height);
+	float SC_inL = rescale(module->SC_in_L_dBFS,-97.0f,0.0f,0.0f,height);
 
-	nvgFillColor(vg, RED_BIDOO);
-	nvgBeginPath(vg);
-	nvgRoundedRect(vg,width+spacer,peakL,width,2.0f,0.0f);
-	nvgFill(vg);
-	nvgClosePath(vg);
+	float threshold = rescale(module->threshold,0.0f,-97.0f,0.0f,height);
+	float gain = rescale(1-(module->gaindB-module->makeup),-97.0f,0.0f,97.0f,0.0f);
+	float makeup = rescale(module->makeup,0.0f,60.0f,0.0f,60.0f);
 
-	nvgFillColor(vg, ORANGE_BIDOO);
-	nvgBeginPath(vg);
-	if (inL>rmsL+3.0f)
-		nvgRoundedRect(vg,width+spacer,max(height-inL+1.0f,0.f),width,inL-rmsL-2.0f,0.0f);
-	nvgFill(vg);
-	nvgClosePath(vg);
+	bool sc = module->inputs[MINIBAR::SC_L_INPUT].isConnected();
 
-	nvgFillColor(vg, LIGHTBLUE_BIDOO);
-	nvgBeginPath(vg);
-	nvgRoundedRect(vg,width+spacer,height-rmsL,width,rmsL,0.0f);
-	nvgFill(vg);
-	nvgClosePath(vg);
+	if (sc) {
+		nvgSave(vg);
+		nvgStrokeWidth(vg, 0.0f);
+		nvgFillColor(vg, BLUE_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,0.0f,height-vuL,width/2,vuL,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, RED_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,width/2+spacer/2,peakL,width/2,2.0f,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, ORANGE_BIDOO);
+		nvgBeginPath(vg);
+		if (inL>rmsL+3.0f)
+			nvgRoundedRect(vg,width/2+spacer/2,max(height-inL+1.0f,0.f),width/2,inL-rmsL-2.0f,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, LIGHTBLUE_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,width/2+spacer/2,height-rmsL,width/2,rmsL,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgStrokeWidth(vg, 0.0f);
+		nvgFillColor(vg, BLUE_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,width+spacer,height-SC_vuL,width/2,SC_vuL,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, RED_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,1.5f*(width+spacer),SC_peakL,width/2,2.0f,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, ORANGE_BIDOO);
+		nvgBeginPath(vg);
+		if (inL>rmsL+3.0f)
+			nvgRoundedRect(vg,1.5f*(width+spacer),max(height-SC_inL+1.0f,0.f),width/2,SC_inL-SC_rmsL-2.0f,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, LIGHTBLUE_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,1.5f*(width+spacer),height-SC_rmsL,width/2,SC_rmsL,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+	}
+	else {
+		nvgSave(vg);
+		nvgStrokeWidth(vg, 0.0f);
+		nvgFillColor(vg, BLUE_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,0.0f,height-vuL,width,vuL,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, RED_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,width+spacer,peakL,width,2.0f,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, ORANGE_BIDOO);
+		nvgBeginPath(vg);
+		if (inL>rmsL+3.0f)
+			nvgRoundedRect(vg,width+spacer,max(height-inL+1.0f,0.f),width,inL-rmsL-2.0f,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+
+		nvgFillColor(vg, LIGHTBLUE_BIDOO);
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg,width+spacer,height-rmsL,width,rmsL,0.0f);
+		nvgFill(vg);
+		nvgClosePath(vg);
+	}
+
+
 
 	nvgStrokeWidth(vg, 2.0f);
 	nvgFillColor(vg, nvgRGBA(255, 255, 255, 255));
 	nvgStrokeColor(vg, nvgRGBA(255, 255, 255, 255));
 	nvgBeginPath(vg);
 	nvgMoveTo(vg, width+spacer, threshold);
-	nvgLineTo(vg, 2*width+spacer, threshold);
-
+	if (sc) {
+		nvgLineTo(vg, 2*width+1.5f*spacer, threshold);
+	}
+	else {
+		nvgLineTo(vg, 2*width+spacer, threshold);
+	}
 	nvgClosePath(vg);
 	nvgStroke(vg);
 	nvgFill(vg);
@@ -244,7 +342,7 @@ struct LabelMICROBARWidget : TransparentWidget {
 	};
 
 	void draw(const DrawArgs &args) override {
-		nvgFillColor(args.vg, GREEN_BIDOO);
+		nvgFillColor(args.vg, YELLOW_BIDOO);
 		nvgTextAlign(args.vg, NVG_ALIGN_LEFT);
 		if (header) {
 			nvgFontSize(args.vg, 12.0f);
@@ -291,7 +389,7 @@ struct MINIBARWidget : ModuleWidget {
 		}
 
 		LabelMICROBARWidget *display = new LabelMICROBARWidget();
-		display->box.pos = Vec(32, 287);
+		display->box.pos = Vec(31.5f, 287);
 		addChild(display);
 
 		addParam(createParam<MiniLEDButton>(Vec(34.0f, 15.0f), module, MINIBAR::BYPASS_PARAM));
@@ -302,7 +400,7 @@ struct MINIBARWidget : ModuleWidget {
 		tresh->valueForDisplay = module ? &module->threshold : NULL;
 		tresh->format = "%2.1f";
 		tresh->header = "Tresh.";
-		tresh->tail = " dB";
+		tresh->tail = "dB";
 		addParam(tresh);
 
 		MicrobarTrimpotWithDisplay* ratio = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,72.0f), module, MINIBAR::RATIO_PARAM);
@@ -318,7 +416,7 @@ struct MINIBARWidget : ModuleWidget {
 		attack->valueForDisplay = module ? &module->attackTime : NULL;
 		attack->format = "%1.0f";
 		attack->header = "Attack";
-		attack->tail = " ms";
+		attack->tail = "ms";
 		addParam(attack);
 
 		MicrobarTrimpotWithDisplay* release = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,142.0f), module, MINIBAR::RELEASE_PARAM);
@@ -326,7 +424,7 @@ struct MINIBARWidget : ModuleWidget {
 		release->valueForDisplay = module ? &module->releaseTime : NULL;
 		release->format = "%1.0f";
 		release->header = "Release";
-		release->tail = " ms";
+		release->tail = "ms";
 		addParam(release);
 
 		MicrobarTrimpotWithDisplay* knee = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,177.0f), module, MINIBAR::KNEE_PARAM);
@@ -334,7 +432,7 @@ struct MINIBARWidget : ModuleWidget {
 		knee->valueForDisplay = module ? &module->knee : NULL;
 		knee->format = "%1.1f";
 		knee->header = "Knee";
-		knee->tail = " dB";
+		knee->tail = "dB";
 		addParam(knee);
 
 		MicrobarTrimpotWithDisplay* makeup = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,212.0f), module, MINIBAR::MAKEUP_PARAM);
@@ -342,7 +440,7 @@ struct MINIBARWidget : ModuleWidget {
 		makeup->valueForDisplay = module ? &module->makeup : NULL;
 		makeup->format = "%1.1f";
 		makeup->header = "Gain";
-		makeup->tail = " dB";
+		makeup->tail = "dB";
 		addParam(makeup);
 
 		MicrobarTrimpotWithDisplay* mix = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,247.0f), module, MINIBAR::MIX_PARAM);
@@ -350,7 +448,7 @@ struct MINIBARWidget : ModuleWidget {
 		mix->valueForDisplay = module ? &module->mixDisplay : NULL;
 		mix->format = "%1.0f%";
 		mix->header = "Mix";
-		mix->tail = " %";
+		mix->tail = "%";
 		addParam(mix);
 
 		MicrobarTrimpotWithDisplay* looka = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,282.0f), module, MINIBAR::LOOKAHEAD_PARAM);
@@ -358,7 +456,7 @@ struct MINIBARWidget : ModuleWidget {
 		looka->valueForDisplay = module ? &module->lookAhead : NULL;
 		looka->format = "%1.0f";
 		looka->header = "Look.";
-		looka->tail = " %";
+		looka->tail = "%";
 		addParam(looka);
 
 		addInput(createInput<TinyPJ301MPort>(Vec(6.0f, 340.0f), module, MINIBAR::IN_L_INPUT));

@@ -466,10 +466,12 @@ struct ZOUMAI : Module {
 
 	void updateTrigVO() {
 		for (int i=0;i<7;i++) {
-			if (octaveTriggers[i].process(params[OCTAVE_PARAMS+i].getValue())) {
-				nTrigsAttibutes[currentPattern][currentTrack][currentTrig].setTrigOctave(i);
+			if (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigOctave()==i) {
+				params[OCTAVE_PARAMS+i].setValue(1.0f);
 			}
-			lights[OCTAVE_LIGHT+i].setBrightness(i==nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigOctave()?1.0f:0.f);
+			else {
+				params[OCTAVE_PARAMS+i].setValue(0.0f);
+			}
 		}
 
 		for (int i=0;i<12;i++) {
@@ -1441,6 +1443,34 @@ void ZOUMAI::process(const ProcessArgs &args) {
 	}
 }
 
+struct octaveBtn : SvgSwitch {
+	Param *octaveParams;
+	ZOUMAI *module;
+
+	octaveBtn() {
+		momentary = false;
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/octave_0.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/octave_1.svg")));
+		shadow->opacity = 0.0f;
+	}
+
+	void onButton(const event::Button &e) override {
+		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
+			for (int i = 0; i < 7; i++) {
+				if (i != paramQuantity->paramId - ZOUMAI::OCTAVE_PARAMS) {
+					octaveParams[i].setValue(0.0f);
+				}
+				else {
+					module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].setTrigOctave(i);
+				}
+			}
+			e.consume(this);
+			return;
+		}
+		SvgSwitch::onButton(e);
+	}
+};
+
 struct ZOUMAIDisplay : TransparentWidget {
 	ZOUMAI *module;
 	shared_ptr<Font> font;
@@ -1826,8 +1856,13 @@ struct ZOUMAIWidget : ModuleWidget {
 		float yKeyboardAnchor = 255.0f;
 
 		for (size_t i=0;i<7;i++) {
-			addParam(createParam<LEDButton>(Vec(xKeyboardAnchor + 35.0f + i * 19.0f, yKeyboardAnchor - 1.0f), module, ZOUMAI::OCTAVE_PARAMS+i));
-			addChild(createLight<SmallLight<BlueLight>>(Vec(xKeyboardAnchor + 41.0f  + i * 19.0f, yKeyboardAnchor+5.0f), module, ZOUMAI::OCTAVE_LIGHT+i));
+			// addParam(createParam<LEDButton>(Vec(xKeyboardAnchor + 35.0f + i * 19.0f, yKeyboardAnchor - 1.0f), module, ZOUMAI::OCTAVE_PARAMS+i));
+			// addChild(createLight<SmallLight<BlueLight>>(Vec(xKeyboardAnchor + 41.0f  + i * 19.0f, yKeyboardAnchor+5.0f), module, ZOUMAI::OCTAVE_LIGHT+i));
+
+			octaveBtn* oBtn;
+			addParam(oBtn = createParam<octaveBtn>(Vec(xKeyboardAnchor + 40.0f  + i * 19.0f, yKeyboardAnchor+4.0f), module, ZOUMAI::OCTAVE_PARAMS+i));
+			oBtn->octaveParams =  module ? &module->params[ZOUMAI::OCTAVE_PARAMS] : NULL;
+			oBtn->module = module ? module : NULL;
 		}
 
 		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS));

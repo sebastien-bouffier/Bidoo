@@ -1,3 +1,7 @@
+### v1.1.24 (12/09/2020)
+- mINIBar shows side chain and input signals at the same time
+- zOù MAï latched octave buttons
+
 ### v1.1.23 (12/09/2020)
 - per-module manual URLs
 - Res input added on FFilTr
