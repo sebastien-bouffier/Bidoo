@@ -5,9 +5,9 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
-   width="3mm"
-   height="3mm"
-   viewBox="0 0 3 3"
+   width="7mm"
+   height="7mm"
+   viewBox="0 0 7 7"
    version="1.1"
    id="svg12484">
   <defs
@@ -25,20 +25,20 @@
     </rdf:RDF>
   </metadata>
   <g
-     style="fill:#1db2ef;fill-opacity:1;stroke:#000000;stroke-width:0.59361;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     style="fill:#606060;fill-opacity:1;stroke:#000000;stroke-width:0.334873;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
      id="layer1"
-     transform="matrix(0.84503605,0,0,0.8395856,-73.652782,-87.613426)">
+     transform="matrix(2.099577,0,0,2.0811527,-183.22464,-217.39308)">
     <g
        transform="matrix(0.27270608,0,0,-0.27270608,12.503198,432.85055)"
        id="g12430"
-       style="fill:#1db2ef;fill-opacity:1;stroke:#000000;stroke-width:2.17674;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
+       style="fill:#606060;fill-opacity:1;stroke:#000000;stroke-width:1.22796;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
       <g
          transform="matrix(0.40494938,0,0,0.40500901,285.76998,1198.0322)"
          id="g5959-5"
-         style="fill:#1db2ef;fill-opacity:1;stroke:#000000;stroke-width:5.37493;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
+         style="fill:#606060;fill-opacity:1;stroke:#000000;stroke-width:3.03216;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
         <path
            id="path5961-3"
-           style="fill:#1db2ef;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:5.37493;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           style="fill:#606060;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:3.03216;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
            d="m 0,0 c 0,-7.5 -6.083,-13.58 -13.584,-13.58 -7.5,0 -13.582,6.08 -13.582,13.58 0,7.503 6.082,13.582 13.582,13.582 C -6.083,13.582 0,7.503 0,0" />
       </g>
     </g>

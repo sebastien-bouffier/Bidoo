@@ -296,13 +296,8 @@ struct ZOUMAI : Module {
 
 	enum LightIds {
 		STEPS_LIGHTS,
-		TRACKSONOFF_LIGHTS = STEPS_LIGHTS + 16*3,
-		TRACKSELECT_LIGHTS = TRACKSONOFF_LIGHTS + 8*3,
-		TRIGPAGE_LIGHTS = TRACKSELECT_LIGHTS + 8,
-		FILL_LIGHT = TRIGPAGE_LIGHTS + 4*3,
-		OCTAVE_LIGHT,
-		NOTES_LIGHT = OCTAVE_LIGHT + 7,
-		COPYTRACK_LIGHT = NOTES_LIGHT + 12*3,
+		FILL_LIGHT = STEPS_LIGHTS + 16*3,
+		COPYTRACK_LIGHT = FILL_LIGHT,
 		COPYPATTERN_LIGHT,
 		COPYTRIG_LIGHT,
 		PASTETRACK_LIGHT,
@@ -326,13 +321,9 @@ struct ZOUMAI : Module {
 
 	dsp::SchmittTrigger clockTrigger;
 	dsp::SchmittTrigger resetTrigger;
-	dsp::SchmittTrigger trigPageTriggers[4];
 	dsp::SchmittTrigger trackResetTriggers[8];
 	dsp::SchmittTrigger trackActiveTriggers[8];
-	dsp::SchmittTrigger trackSelectTriggers[8];
 	dsp::SchmittTrigger stepsTriggers[16];
-	dsp::SchmittTrigger octaveTriggers[7];
-	dsp::SchmittTrigger noteTriggers[12];
 	dsp::SchmittTrigger fillTrigger;
 	dsp::SchmittTrigger copyTrackTrigger;
 	dsp::SchmittTrigger copyPatternTrigger;
@@ -384,10 +375,11 @@ struct ZOUMAI : Module {
 	ZOUMAI() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(FILL_PARAM, 0.0f, 1.0f, 0.0f);
-    configParam(TRIGPAGE_PARAM, 0.0f, 1.0f,  0.0f);
-    configParam(TRIGPAGE_PARAM+1, 0.0f, 1.0f,  0.0f);
-    configParam(TRIGPAGE_PARAM+2, 0.0f, 1.0f,  0.0f);
-    configParam(TRIGPAGE_PARAM+3, 0.0f, 1.0f,  0.0f);
+
+    configParam(TRIGPAGE_PARAM, 0.0f, 2.0f,  0.0f);
+    configParam(TRIGPAGE_PARAM+1, 0.0f, 2.0f,  0.0f);
+    configParam(TRIGPAGE_PARAM+2, 0.0f, 2.0f,  0.0f);
+    configParam(TRIGPAGE_PARAM+3, 0.0f, 2.0f,  0.0f);
 
     configParam(PATTERN_PARAM, 0.0f, 7.0f, 0.0f);
     configParam(COPYTRACK_PARAM, 0.0f, 1.0f, 0.0f, "Copy track");
@@ -427,12 +419,16 @@ struct ZOUMAI : Module {
 		configParam(TRIGPROBACOUNTRESET_PARAM, 1.0f, 100.0f, 1.0f);
 
   	for (int i=0;i<16;i++) {
-      configParam(STEPS_PARAMS + i, 0.0f, 1.0f, 0.0f);
+      configParam(STEPS_PARAMS + i, 0.0f, 3.0f, 0.0f);
+  	}
+
+		for (int i=0;i<12;i++) {
+      configParam(NOTE_PARAMS + i, 0.0f, 3.0f, 0.0f);
   	}
 
   	for (int i=0;i<8;i++) {
       configParam(TRACKSONOFF_PARAMS + i, 0.0f, 10.0f, 0.0f);
-			configParam(TRACKSELECT_PARAMS + i, 0.0f, 10.0f, 0.0f);
+			configParam(TRACKSELECT_PARAMS + i, 0.0f, 1.0f, 0.0f);
 			for (int j=0;j<8;j++) {
 				for (int k=0;k<64;k++) {
 					nTrigsAttibutes[i][j][k].setTrigIndex(k);
@@ -476,24 +472,11 @@ struct ZOUMAI : Module {
 
 		for (int i=0;i<12;i++) {
 			bool focused = nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigSemiTones() == i;
-			if (noteTriggers[i].process(params[NOTE_PARAMS+i].getValue())) {
-				if (focused) {
-					nTrigsAttibutes[currentPattern][currentTrack][currentTrig].toggleTrigActive();
-				}
-				else {
-					nTrigsAttibutes[currentPattern][currentTrack][currentTrig].setTrigSemiTones(i);
-					nTrigsAttibutes[currentPattern][currentTrack][currentTrig].setTrigActive(true);
-				}
-			}
 			if ((i!=1)&&(i!=3)&&(i!=6)&&(i!=8)&&(i!=10)) {
-				lights[NOTES_LIGHT+i*3].setBrightness(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 0.0f : 0.0f) : 1.0f);
-				lights[NOTES_LIGHT+(i*3)+1].setBrightness(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 1.0f : 0.5f) : 1.0f);
-				lights[NOTES_LIGHT+(i*3)+2].setBrightness(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 0.0f : 0.0f) : 1.0f);
+				params[NOTE_PARAMS+i].setValue(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 2.0f : 3.0f) : 1.0f);
 			}
 			else {
-				lights[NOTES_LIGHT+i*3].setBrightness(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 0.0f : 0.0f) : 0.0f);
-				lights[NOTES_LIGHT+(i*3)+1].setBrightness(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 1.0f : 0.5f) : 0.0f);
-				lights[NOTES_LIGHT+(i*3)+2].setBrightness(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 0.0f : 0.0f) : 0.0f);
+				params[NOTE_PARAMS+i].setValue(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 2.0f : 3.0f) : 0.0f);
 			}
 		}
 	}
@@ -1278,65 +1261,31 @@ void ZOUMAI::process(const ProcessArgs &args) {
 	performTools();
 
 	for (int i = 0; i<4; i++) {
-		if (trigPageTriggers[i].process(params[TRIGPAGE_PARAM + i].getValue())) {
-			trigPage = i;
-			if (currentTrig>48) currentTrig = currentTrig - 48;
-			if (currentTrig>32) currentTrig = currentTrig - 32;
-			if (currentTrig>16) currentTrig = currentTrig - 16;
-			currentTrig = i*16+currentTrig;
-			updateTrigToParams();
-		}
-		if (trigPage == i) {
-			lights[TRIGPAGE_LIGHTS+(i*3)].setBrightness(0.0f);
-			lights[TRIGPAGE_LIGHTS+(i*3)+1].setBrightness(0.0f);
-			lights[TRIGPAGE_LIGHTS+(i*3)+2].setBrightness(1.0f);
+		if (i == trigPage) {
+			params[TRIGPAGE_PARAM+i].setValue(2.0f);
 		}
 		else if ((nTracksAttibutes[currentPattern][currentTrack].getTrackCurrentTrig() >= (i*16)) && (nTracksAttibutes[currentPattern][currentTrack].getTrackCurrentTrig()<(16*(i+1)-1))) {
-			lights[TRIGPAGE_LIGHTS+(i*3)].setBrightness(1.0f);
-			lights[TRIGPAGE_LIGHTS+(i*3)+1].setBrightness(0.5f);
-			lights[TRIGPAGE_LIGHTS+(i*3)+2].setBrightness(0.0f);
+			params[TRIGPAGE_PARAM+i].setValue(1.0f);
 		}
 		else {
-			lights[TRIGPAGE_LIGHTS+(i*3)].setBrightness(0.0f);
-			lights[TRIGPAGE_LIGHTS+(i*3)+1].setBrightness(0.0f);
-			lights[TRIGPAGE_LIGHTS+(i*3)+2].setBrightness(0.0f);
+			params[TRIGPAGE_PARAM+i].setValue(0.0f);
 		}
 	}
 
 	int pageOffset = trigPage*16;
 	for (size_t i = 0; i<16; i++) {
-		if (stepsTriggers[i].process(params[STEPS_PARAMS+i].getValue())) {
-			currentTrig = i + pageOffset;
-			updateTrigToParams();
-		}
-
 		int shiftedIndex = i + pageOffset;
 		if (nTracksAttibutes[currentPattern][currentTrack].getTrackCurrentTrig() == shiftedIndex) {
-			lights[STEPS_LIGHTS+(i*3)].setBrightness(1.0f);
-			lights[STEPS_LIGHTS+(i*3)+1].setBrightness(0.5f);
-			lights[STEPS_LIGHTS+(i*3)+2].setBrightness(0.0f);
+			params[STEPS_PARAMS+i].setValue(3.0f);
 		}
 		else if (nTrigsAttibutes[currentPattern][currentTrack][shiftedIndex].getTrigActive()) {
-			if (shiftedIndex == currentTrig) {
-				lights[STEPS_LIGHTS+(i*3)].setBrightness(0.0f);
-				lights[STEPS_LIGHTS+(i*3)+1].setBrightness(0.0f);
-				lights[STEPS_LIGHTS+(i*3)+2].setBrightness(1.0f);
-			}
-			else {
-				lights[STEPS_LIGHTS+(i*3)].setBrightness(0.0f);
-				lights[STEPS_LIGHTS+(i*3)+1].setBrightness(1.0f);
-				lights[STEPS_LIGHTS+(i*3)+2].setBrightness(0.0f);
-			}
+			params[STEPS_PARAMS+i].setValue(1.0f);
 		}
 		else if (currentTrig == shiftedIndex) {
-			lights[STEPS_LIGHTS+(i*3)].setBrightness(0.0f);
-			lights[STEPS_LIGHTS+(i*3)+1].setBrightness(0.0f);
-			lights[STEPS_LIGHTS+(i*3)+2].setBrightness(0.5f);
+			params[STEPS_PARAMS+i].setValue(2.0f);
 		}
 		else {
-			lights[STEPS_LIGHTS+(i*3)].setBrightness(0.0f);
-			lights[STEPS_LIGHTS+(i*3)+1].setBrightness(0.0f);
-			lights[STEPS_LIGHTS+(i*3)+2].setBrightness(0.0f);
+			params[STEPS_PARAMS+i].setValue(0.0f);
 		}
 	}
 
@@ -1376,35 +1325,18 @@ void ZOUMAI::process(const ProcessArgs &args) {
 
 		for (int i=0; i<8;i++) {
 
-			if (trackActiveTriggers[i].process(inputs[TRACKACTIVE_INPUTS+i].getVoltage() + params[TRACKSONOFF_PARAMS+i].getValue())) {
+			if (trackActiveTriggers[i].process(inputs[TRACKACTIVE_INPUTS+i].getVoltage())) {
 				nTracksAttibutes[currentPattern][i].toggleTrackActive();
 			}
 
-			if (trackSelectTriggers[i].process(params[TRACKSELECT_PARAMS+i].getValue())) {
-				currentTrack=i;
-				updateTrackToParams();
-				updateTrigToParams();
-			}
-
-			lights[TRACKSELECT_LIGHTS+i].setBrightness(0.0f);
-			if (currentTrack==i) {
-				lights[TRACKSELECT_LIGHTS+i].setBrightness(1.0f);
-			}
-
 			if (!solo && nTracksAttibutes[currentPattern][i].getTrackActive()) {
-				lights[TRACKSONOFF_LIGHTS+(i*3)].setBrightness(0.0f);
-				lights[TRACKSONOFF_LIGHTS+(i*3)+1].setBrightness(1.0f);
-				lights[TRACKSONOFF_LIGHTS+(i*3)+2].setBrightness(0.0f);
+				params[TRACKSONOFF_PARAMS+i].setValue(1.0f);
 			}
 			else if (solo && nTracksAttibutes[currentPattern][i].getTrackSolo()) {
-				lights[TRACKSONOFF_LIGHTS+(i*3)].setBrightness(1.0f);
-				lights[TRACKSONOFF_LIGHTS+(i*3)+1].setBrightness(0.0f);
-				lights[TRACKSONOFF_LIGHTS+(i*3)+2].setBrightness(0.0f);
+				params[TRACKSONOFF_PARAMS+i].setValue(2.0f);
 			}
 			else {
-				lights[TRACKSONOFF_LIGHTS+(i*3)].setBrightness(0.0f);
-				lights[TRACKSONOFF_LIGHTS+(i*3)+1].setBrightness(0.0f);
-				lights[TRACKSONOFF_LIGHTS+(i*3)+2].setBrightness(0.0f);
+				params[TRACKSONOFF_PARAMS+i].setValue(0.0f);
 			}
 
 			if (clockTrigged && run) {
@@ -1449,8 +1381,9 @@ struct octaveBtn : SvgSwitch {
 
 	octaveBtn() {
 		momentary = false;
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/octave_0.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/octave_1.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledgrey.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledblue.svg")));
+		sw->wrap();
 		shadow->opacity = 0.0f;
 	}
 
@@ -1470,6 +1403,168 @@ struct octaveBtn : SvgSwitch {
 		SvgSwitch::onButton(e);
 	}
 };
+
+struct trigPageBtn : SvgSwitch {
+	Param *trigPageParams;
+	ZOUMAI *module;
+
+	trigPageBtn() {
+		momentary = false;
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledgrey.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledorange.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledblue.svg")));
+		sw->wrap();
+		shadow->opacity = 0.0f;
+	}
+
+	void onButton(const event::Button &e) override {
+		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
+			module->trigPage = paramQuantity->paramId - ZOUMAI::TRIGPAGE_PARAM;
+			if (module->currentTrig>48) module->currentTrig = module->currentTrig - 48;
+			if (module->currentTrig>32) module->currentTrig = module->currentTrig - 32;
+			if (module->currentTrig>16) module->currentTrig = module->currentTrig - 16;
+			module->currentTrig = module->trigPage*16 + module->currentTrig;
+			module->updateTrigToParams();
+			e.consume(this);
+			return;
+		}
+		SvgSwitch::onButton(e);
+	}
+};
+
+struct trackSelectBtn : SvgSwitch {
+	Param *trackSelectParams;
+	ZOUMAI *module;
+
+	trackSelectBtn() {
+		momentary = false;
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledgrey.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledblue.svg")));
+		sw->wrap();
+		shadow->opacity = 0.0f;
+	}
+
+	void onButton(const event::Button &e) override {
+		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
+			for (int i = 0; i < 8; i++) {
+				if (i != paramQuantity->paramId - ZOUMAI::TRACKSELECT_PARAMS) {
+					trackSelectParams[i].setValue(0.0f);
+				}
+				else {
+					module->currentTrack=i;
+					module->updateTrackToParams();
+					module->updateTrigToParams();
+				}
+			}
+			e.consume(this);
+			return;
+		}
+		SvgSwitch::onButton(e);
+	}
+};
+
+struct trackOnOffBtn : SvgSwitch {
+	Param *trackOnOffParams;
+	Param *trackSelectParams;
+	ZOUMAI *module;
+
+	trackOnOffBtn() {
+		momentary = false;
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btngrey.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btngreen.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btnred.svg")));
+		sw->wrap();
+		shadow->opacity = 0.0f;
+	}
+
+	void onButton(const event::Button &e) override {
+		if (paramQuantity && paramQuantity->module && e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
+			for (int i = 0; i < 8; i++) {
+				if (i != paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS) {
+					trackSelectParams[i].setValue(0.0f);
+				}
+				else {
+					module->nTracksAttibutes[module->currentPattern][i].toggleTrackSolo();
+					trackSelectParams[i].setValue(1.0f);
+					module->currentTrack=i;
+					module->updateTrackToParams();
+					module->updateTrigToParams();
+				}
+			}
+		}
+		else if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
+			module->nTracksAttibutes[module->currentPattern][paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS].toggleTrackActive();
+			e.consume(this);
+			return;
+		}
+		SvgSwitch::onButton(e);
+	}
+};
+
+struct noteBtn : SvgSwitch {
+	Param *noteParams;
+	ZOUMAI *module;
+
+	noteBtn() {
+		momentary = false;
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btngrey.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btnwhite.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btngreen.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btndimmedgreen.svg")));
+		sw->wrap();
+		shadow->opacity = 0.0f;
+	}
+
+	void onButton(const event::Button &e) override {
+		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
+			bool focused = module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigSemiTones() == paramQuantity->paramId - ZOUMAI::NOTE_PARAMS;
+			if (focused) {
+				module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].toggleTrigActive();
+			}
+			else {
+				module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].setTrigSemiTones(paramQuantity->paramId - ZOUMAI::NOTE_PARAMS);
+				module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].setTrigActive(true);
+			}
+			e.consume(this);
+			return;
+		}
+		SvgSwitch::onButton(e);
+	}
+};
+
+struct stepBtn : SvgSwitch {
+	Param *stepParams;
+	ZOUMAI *module;
+
+	stepBtn() {
+		momentary = false;
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btngrey.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btnblue.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btndimmedblue.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btnorange.svg")));
+		sw->wrap();
+		shadow->opacity = 0.0f;
+	}
+
+	void onButton(const event::Button &e) override {
+		if (paramQuantity && paramQuantity->module && e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
+			module->nTrigsAttibutes[module->currentPattern][module->currentTrack][paramQuantity->paramId - ZOUMAI::STEPS_PARAMS + module->trigPage*16].toggleTrigActive();
+			module->currentTrig = paramQuantity->paramId - ZOUMAI::STEPS_PARAMS + module->trigPage*16;
+			module->updateTrigToParams();
+			e.consume(this);
+			return;
+		}
+		else if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
+			module->currentTrig = paramQuantity->paramId - ZOUMAI::STEPS_PARAMS + module->trigPage*16;
+			module->updateTrigToParams();
+			e.consume(this);
+			return;
+		}
+
+		SvgSwitch::onButton(e);
+	}
+};
+
 
 struct ZOUMAIDisplay : TransparentWidget {
 	ZOUMAI *module;
@@ -1682,31 +1777,6 @@ struct BidooProbBlueKnob : BidooBlueSnapKnob {
 	}
 };
 
-struct ZoumaiLEDBezel : LEDBezel {
-	int index=0;
-	void onButton(const event::Button &e) override {
-		if (paramQuantity && paramQuantity->module && e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
-			ZOUMAI* zou = dynamic_cast<ZOUMAI*>(this->paramQuantity->module);
-			zou->nTracksAttibutes[zou->currentPattern][index].toggleTrackSolo();
-			zou->currentTrack = index;
-			zou->updateTrackToParams();
-			zou->updateTrigToParams();
-		}
-		LEDBezel::onButton(e);
-	}
-};
-
-struct ZoumaiTrigLEDBezel : LEDBezel {
-	int index=0;
-	void onButton(const event::Button &e) override {
-		if (paramQuantity && paramQuantity->module && e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
-			ZOUMAI* zou = dynamic_cast<ZOUMAI*>(this->paramQuantity->module);
-			zou->nTrigsAttibutes[zou->currentPattern][zou->currentTrack][index+zou->trigPage*16].toggleTrigActive();
-		}
-		LEDBezel::onButton(e);
-	}
-};
-
 struct ZOUMAIWidget : ModuleWidget {
 	ZOUMAIWidget(ZOUMAI *module) {
 		setModule(module);
@@ -1750,10 +1820,6 @@ struct ZOUMAIWidget : ModuleWidget {
 		addParam(createParam<BidooBlueKnob>(Vec(portX1Controls[0],portY0[4]), module, ZOUMAI::TRIGCV1_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(portX1Controls[1],portY0[4]), module, ZOUMAI::TRIGCV2_PARAM));
 
-		// addParam(createParam<BidooBlueKnob>(Vec(portX1Controls[2],portY0[4]), module, ZOUMAI::TRIGPROBA_PARAM));
-		// addParam(createParam<BidooBlueKnob>(Vec(portX1Controls[3],portY0[4]), module, ZOUMAI::TRIGPROBACOUNT_PARAM));
-		// addParam(createParam<BidooBlueKnob>(Vec(portX1Controls[4],portY0[4]), module, ZOUMAI::TRIGPROBACOUNTRESET_PARAM));
-
 		ParamWidget *probCountKnob = createParam<BidooBlueKnob>(Vec(portX1Controls[3],portY0[4]), module, ZOUMAI::TRIGPROBACOUNT_PARAM);
 		addParam(probCountKnob);
 		ParamWidget *probCountResetKnob = createParam<BidooBlueKnob>(Vec(portX1Controls[4],portY0[4]), module, ZOUMAI::TRIGPROBACOUNTRESET_PARAM);
@@ -1771,15 +1837,12 @@ struct ZOUMAIWidget : ModuleWidget {
 
 		static const float portX0[5] = {374.0f, 389.0f, 404.0f, 419.0f, 434.0f};
 
-		addParam(createParam<LEDButton>(Vec(380-6, 317.0f-6), module, ZOUMAI::TRIGPAGE_PARAM));
-		addParam(createParam<LEDButton>(Vec(380+19-6, 317.0f-6), module, ZOUMAI::TRIGPAGE_PARAM+1));
-		addParam(createParam<LEDButton>(Vec(380+2*19-6, 317.0f-6), module, ZOUMAI::TRIGPAGE_PARAM+2));
-		addParam(createParam<LEDButton>(Vec(380+3*19-6, 317.0f-6), module, ZOUMAI::TRIGPAGE_PARAM+3));
-
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(380, 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS));
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(380+19, 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+3));
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(380+2*19, 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+6));
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(380+3*19, 317.0f), module, ZOUMAI::TRIGPAGE_LIGHTS+9));
+		for (size_t i=0;i<4;i++) {
+			trigPageBtn* tpBtn;
+			addParam(tpBtn = createParam<trigPageBtn>(Vec(380+19*i-6, 317.0f-6), module, ZOUMAI::TRIGPAGE_PARAM+i));
+			tpBtn->trigPageParams =  module ? &module->params[ZOUMAI::TRIGPAGE_PARAM] : NULL;
+			tpBtn->module = module ? module : NULL;
+		}
 
 		static const float portYFunctions[4] = {244.0f, 256.0f, 268.0f, 280.0f};
 
@@ -1829,14 +1892,16 @@ struct ZOUMAIWidget : ModuleWidget {
 			addInput(createInput<TinyPJ301MPort>(Vec(50.0f, 67.0f + i*28.0f), module, ZOUMAI::TRACKRESET_INPUTS + i));
 			addInput(createInput<TinyPJ301MPort>(Vec(70.0f, 67.0f + i*28.0f), module, ZOUMAI::TRACKACTIVE_INPUTS + i));
 
-			ZoumaiLEDBezel *p = createParam<ZoumaiLEDBezel>(Vec(90.0f , 64.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_PARAMS + i);
-			p->index=i;
-			addParam(p);
+			trackOnOffBtn* tofBtn;
+			addParam(tofBtn = createParam<trackOnOffBtn>(Vec(90.0f , 64.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_PARAMS+i));
+			tofBtn->trackOnOffParams =  module ? &module->params[ZOUMAI::TRACKSONOFF_PARAMS] : NULL;
+			tofBtn->trackSelectParams =  module ? &module->params[ZOUMAI::TRACKSELECT_PARAMS] : NULL;
+			tofBtn->module = module ? module : NULL;
 
-			addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(92.0f, 66.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_LIGHTS + i*3));
-
-			addParam(createParam<LEDButton>(Vec(120.0f - 6, 72.0f - 6 + i*28.0f), module, ZOUMAI::TRACKSELECT_PARAMS + i));
-			addChild(createLight<SmallLight<BlueLight>>(Vec(120.0f, 72.0f + i*28.0f), module, ZOUMAI::TRACKSELECT_LIGHTS + i));
+			trackSelectBtn* tsBtn;
+			addParam(tsBtn = createParam<trackSelectBtn>(Vec(120.0f - 6, 72.0f - 6 + i*28.0f), module, ZOUMAI::TRACKSELECT_PARAMS+i));
+			tsBtn->trackSelectParams =  module ? &module->params[ZOUMAI::TRACKSELECT_PARAMS] : NULL;
+			tsBtn->module = module ? module : NULL;
 
 			addOutput(createOutput<TinyPJ301MPort>(Vec(375.0f, 65.0f + i * 20.0f), module, ZOUMAI::GATE_OUTPUTS + i));
 			addOutput(createOutput<TinyPJ301MPort>(Vec(395.0f, 65.0f + i * 20.0f),  module, ZOUMAI::VO_OUTPUTS + i));
@@ -1845,50 +1910,81 @@ struct ZOUMAIWidget : ModuleWidget {
 		}
 
 		for (size_t i=0;i<16;i++) {
-			ZoumaiTrigLEDBezel *p = createParam<ZoumaiTrigLEDBezel>(Vec(12.0f+ 28.0f*i, 330.0f), module, ZOUMAI::STEPS_PARAMS + i);
-			p->index=i;
-			addParam(p);
-
-			addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(14.0f+ 28.0f*i, 332.0f), module, ZOUMAI::STEPS_LIGHTS + i*3));
+			stepBtn* sBtn;
+			addParam(sBtn = createParam<stepBtn>(Vec(12.0f+ 28.0f*i, 330.0f), module, ZOUMAI::STEPS_PARAMS+i));
+			sBtn->stepParams =  module ? &module->params[ZOUMAI::STEPS_PARAMS] : NULL;
+			sBtn->module = module ? module : NULL;
 		}
 
 		float xKeyboardAnchor = 140.0f;
 		float yKeyboardAnchor = 255.0f;
 
 		for (size_t i=0;i<7;i++) {
-			// addParam(createParam<LEDButton>(Vec(xKeyboardAnchor + 35.0f + i * 19.0f, yKeyboardAnchor - 1.0f), module, ZOUMAI::OCTAVE_PARAMS+i));
-			// addChild(createLight<SmallLight<BlueLight>>(Vec(xKeyboardAnchor + 41.0f  + i * 19.0f, yKeyboardAnchor+5.0f), module, ZOUMAI::OCTAVE_LIGHT+i));
-
 			octaveBtn* oBtn;
-			addParam(oBtn = createParam<octaveBtn>(Vec(xKeyboardAnchor + 40.0f  + i * 19.0f, yKeyboardAnchor+4.0f), module, ZOUMAI::OCTAVE_PARAMS+i));
+			addParam(oBtn = createParam<octaveBtn>(Vec(xKeyboardAnchor + 35.0f  + i * 19.0f, yKeyboardAnchor - 1.0f), module, ZOUMAI::OCTAVE_PARAMS+i));
 			oBtn->octaveParams =  module ? &module->params[ZOUMAI::OCTAVE_PARAMS] : NULL;
 			oBtn->module = module ? module : NULL;
 		}
 
-		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS));
-		addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(xKeyboardAnchor+2.0f, yKeyboardAnchor+40.0f+2.0f), module, ZOUMAI::NOTES_LIGHT));
-		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor+15.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+1));
-		addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(xKeyboardAnchor+15.0f+2.0f, yKeyboardAnchor+20.0f+2.0f), module, ZOUMAI::NOTES_LIGHT+1*3));
-		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor+30.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+2));
-		addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(xKeyboardAnchor+30.0f+2.0f, yKeyboardAnchor+40.0f+2.0f), module, ZOUMAI::NOTES_LIGHT+2*3));
-		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor+45.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+3));
-		addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(xKeyboardAnchor+45.0f+2.0f, yKeyboardAnchor+20.0f+2.0f), module, ZOUMAI::NOTES_LIGHT+3*3));
-		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor+60.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+4));
-		addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(xKeyboardAnchor+60.0f+2.0f, yKeyboardAnchor+40.0f+2.0f), module, ZOUMAI::NOTES_LIGHT+4*3));
-		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor+90.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+5));
-		addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(xKeyboardAnchor+90.0f+2.0f, yKeyboardAnchor+40.0f+2.0f), module, ZOUMAI::NOTES_LIGHT+5*3));
-		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor+105.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+6));
-		addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(xKeyboardAnchor+105.0f+2.0f, yKeyboardAnchor+20.0f+2.0f), module, ZOUMAI::NOTES_LIGHT+6*3));
-		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor+120.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+7));
-		addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(xKeyboardAnchor+120.0f+2.0f, yKeyboardAnchor+40.0f+2.0f), module, ZOUMAI::NOTES_LIGHT+7*3));
-		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor+135.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+8));
-		addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(xKeyboardAnchor+135.0f+2.0f, yKeyboardAnchor+20.0f+2.0f), module, ZOUMAI::NOTES_LIGHT+8*3));
-		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor+150.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+9));
-		addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(xKeyboardAnchor+150.0f+2.0f, yKeyboardAnchor+40.0f+2.0f), module, ZOUMAI::NOTES_LIGHT+9*3));
-		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor+165.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+10));
-		addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(xKeyboardAnchor+165.0f+2.0f, yKeyboardAnchor+20.0f+2.0f), module, ZOUMAI::NOTES_LIGHT+10*3));
-		addParam(createParam<LEDBezel>(Vec(xKeyboardAnchor+180.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+11));
-		addChild(createLight<ZOUMAILight<RedGreenBlueLight>>(Vec(xKeyboardAnchor+180.0f+2.0f, yKeyboardAnchor+40.0f+2.0f), module, ZOUMAI::NOTES_LIGHT+11*3));
+		noteBtn* nBtn;
+		addParam(nBtn = createParam<noteBtn>(Vec(xKeyboardAnchor, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS));
+		nBtn->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
+		nBtn->module = module ? module : NULL;
+
+		noteBtn* nBtn1;
+		addParam(nBtn1 = createParam<noteBtn>(Vec(xKeyboardAnchor+15.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+1));
+		nBtn1->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
+		nBtn1->module = module ? module : NULL;
+
+		noteBtn* nBtn2;
+		addParam(nBtn2 = createParam<noteBtn>(Vec(xKeyboardAnchor+30.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+2));
+		nBtn2->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
+		nBtn2->module = module ? module : NULL;
+
+		noteBtn* nBtn3;
+		addParam(nBtn3 = createParam<noteBtn>(Vec(xKeyboardAnchor+45.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+3));
+		nBtn3->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
+		nBtn3->module = module ? module : NULL;
+
+		noteBtn* nBtn4;
+		addParam(nBtn4 = createParam<noteBtn>(Vec(xKeyboardAnchor+60.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+4));
+		nBtn4->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
+		nBtn4->module = module ? module : NULL;
+
+		noteBtn* nBtn5;
+		addParam(nBtn5 = createParam<noteBtn>(Vec(xKeyboardAnchor+90.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+5));
+		nBtn5->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
+		nBtn5->module = module ? module : NULL;
+
+		noteBtn* nBtn6;
+		addParam(nBtn6 = createParam<noteBtn>(Vec(xKeyboardAnchor+105.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+6));
+		nBtn6->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
+		nBtn6->module = module ? module : NULL;
+
+		noteBtn* nBtn7;
+		addParam(nBtn7 = createParam<noteBtn>(Vec(xKeyboardAnchor+120.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+7));
+		nBtn7->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
+		nBtn7->module = module ? module : NULL;
+
+		noteBtn* nBtn8;
+		addParam(nBtn8 = createParam<noteBtn>(Vec(xKeyboardAnchor+135.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+8));
+		nBtn8->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
+		nBtn8->module = module ? module : NULL;
+
+		noteBtn* nBtn9;
+		addParam(nBtn9 = createParam<noteBtn>(Vec(xKeyboardAnchor+150.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+9));
+		nBtn9->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
+		nBtn9->module = module ? module : NULL;
+
+		noteBtn* nBtn10;
+		addParam(nBtn10 = createParam<noteBtn>(Vec(xKeyboardAnchor+165.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+10));
+		nBtn10->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
+		nBtn10->module = module ? module : NULL;
+
+		noteBtn* nBtn11;
+		addParam(nBtn11 = createParam<noteBtn>(Vec(xKeyboardAnchor+180.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+11));
+		nBtn11->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
+		nBtn11->module = module ? module : NULL;
 
 	}
 };
