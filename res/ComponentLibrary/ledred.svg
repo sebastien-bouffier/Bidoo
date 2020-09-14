@@ -25,20 +25,20 @@
     </rdf:RDF>
   </metadata>
   <g
-     transform="matrix(1.8358186,0,0,1.8308094,-160.26744,-191.3217)"
+     transform="matrix(1.5040358,0,0,1.4973073,-130.76054,-155.92386)"
      id="layer1"
-     style="fill:#fe2f26;fill-opacity:1;stroke:#000000;stroke-width:0.272732;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
+     style="fill:#fe2f26;fill-opacity:1;stroke:#000000;stroke-width:0.999555;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
     <g
-       style="fill:#fe2f26;fill-opacity:1;stroke:#000000;stroke-width:1.00009;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       style="fill:#fe2f26;fill-opacity:1;stroke:#000000;stroke-width:3.66532;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
        id="g12430"
        transform="matrix(0.27270608,0,0,-0.27270608,12.503198,432.85055)">
       <g
-         style="fill:#fe2f26;fill-opacity:1;stroke:#000000;stroke-width:2.46949;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         style="fill:#fe2f26;fill-opacity:1;stroke:#000000;stroke-width:9.05064;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          id="g5959-5"
          transform="matrix(0.40494938,0,0,0.40500901,285.76998,1198.0322)">
         <path
            d="m 0,0 c 0,-7.5 -6.083,-13.58 -13.584,-13.58 -7.5,0 -13.582,6.08 -13.582,13.58 0,7.503 6.082,13.582 13.582,13.582 C -6.083,13.582 0,7.503 0,0"
-           style="fill:#fe2f26;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:2.46949;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           style="fill:#fe2f26;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:9.05064;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
            id="path5961-3" />
       </g>
     </g>

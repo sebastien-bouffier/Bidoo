@@ -271,6 +271,8 @@ struct ZOUMAI : Module {
 		TRIGPROBA_PARAM,
 		TRIGPROBACOUNT_PARAM,
 		TRIGPROBACOUNTRESET_PARAM,
+		RECORD_PARAM,
+		QUANTIZE_PARAM,
 		NUM_PARAMS
 	};
 
@@ -283,6 +285,8 @@ struct ZOUMAI : Module {
 		PATTERN_INPUT,
 		TRACKACTIVE_INPUTS,
 		FILL_INPUT = TRACKACTIVE_INPUTS + 8,
+		GATE_INPUT,
+		VO_INPUT,
 		NUM_INPUTS
 	};
 
@@ -323,7 +327,6 @@ struct ZOUMAI : Module {
 	dsp::SchmittTrigger resetTrigger;
 	dsp::SchmittTrigger trackResetTriggers[8];
 	dsp::SchmittTrigger trackActiveTriggers[8];
-	dsp::SchmittTrigger stepsTriggers[16];
 	dsp::SchmittTrigger fillTrigger;
 	dsp::SchmittTrigger copyTrackTrigger;
 	dsp::SchmittTrigger copyPatternTrigger;
@@ -359,6 +362,8 @@ struct ZOUMAI : Module {
 	int clockMaxDelay = 0;
 	int clockMaxCount = 0;
 	int gear = 0;
+	bool noteIncoming = false;
+	float currentIncomingVO = -100.0f;
 
 	TrigAttibutes nTrigsAttibutes[8][8][64];
 	TrackAttibutes nTracksAttibutes[8][8];
@@ -418,8 +423,11 @@ struct ZOUMAI : Module {
 		configParam(TRIGPROBACOUNT_PARAM, 1.0f, 100.0f, 100.0f);
 		configParam(TRIGPROBACOUNTRESET_PARAM, 1.0f, 100.0f, 1.0f);
 
+		configParam(RECORD_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(QUANTIZE_PARAM, 0.0f, 1.0f, 1.0f);
+
   	for (int i=0;i<16;i++) {
-      configParam(STEPS_PARAMS + i, 0.0f, 3.0f, 0.0f);
+      configParam(STEPS_PARAMS + i, 0.0f, 4.0f, 0.0f);
   	}
 
 		for (int i=0;i<12;i++) {
@@ -1276,10 +1284,15 @@ void ZOUMAI::process(const ProcessArgs &args) {
 	for (size_t i = 0; i<16; i++) {
 		int shiftedIndex = i + pageOffset;
 		if (nTracksAttibutes[currentPattern][currentTrack].getTrackCurrentTrig() == shiftedIndex) {
-			params[STEPS_PARAMS+i].setValue(3.0f);
+			params[STEPS_PARAMS+i].setValue(4.0f);
 		}
 		else if (nTrigsAttibutes[currentPattern][currentTrack][shiftedIndex].getTrigActive()) {
-			params[STEPS_PARAMS+i].setValue(1.0f);
+			if (shiftedIndex == currentTrig) {
+				params[STEPS_PARAMS+i].setValue(1.0f);
+			}
+			else {
+				params[STEPS_PARAMS+i].setValue(3.0f);
+			}
 		}
 		else if (currentTrig == shiftedIndex) {
 			params[STEPS_PARAMS+i].setValue(2.0f);
@@ -1350,6 +1363,52 @@ void ZOUMAI::process(const ProcessArgs &args) {
 				trackReset(i, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
 			}
 
+			if ((currentTrack == i) && (params[RECORD_PARAM].getValue() == 1.0f)) {
+					if (inputs[GATE_INPUT].getVoltage()>0.0f) {
+						if (!noteIncoming) {
+							noteIncoming = true;
+							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigActive(true);
+							if (params[QUANTIZE_PARAM].getValue() == 0.0f) {
+								trigTrim[currentPattern][i][(long)trackHead[currentPattern][i]] = trackHead[currentPattern][i] - (long)trackHead[currentPattern][i];
+							} else {
+								trigTrim[currentPattern][i][(long)trackHead[currentPattern][i]] = 0.0f;
+							}
+							currentIncomingVO = inputs[VO_INPUT].getVoltage();
+							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigOctave((long)currentIncomingVO+3.0f);
+							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigSemiTones((long)((currentIncomingVO-(long)currentIncomingVO)*12.f));
+						}
+						else if (currentIncomingVO != inputs[VO_INPUT].getVoltage()) {
+							currentIncomingVO = inputs[VO_INPUT].getVoltage();
+							if (trackHead[currentPattern][i]>nTrigsAttibutes[currentPattern][i][nTracksAttibutes[currentPattern][i].getTrackPlayedTrig()].getTrigIndex()) {
+								trigLength[currentPattern][i][nTracksAttibutes[currentPattern][i].getTrackPlayedTrig()] = trackHead[currentPattern][i] - nTrigsAttibutes[currentPattern][i][nTracksAttibutes[currentPattern][i].getTrackPlayedTrig()].getTrigIndex()-0.01f;
+							}
+							else {
+								trigLength[currentPattern][i][nTracksAttibutes[currentPattern][i].getTrackPlayedTrig()] = nTracksAttibutes[currentPattern][i].getTrackLength() - nTrigsAttibutes[currentPattern][i][nTracksAttibutes[currentPattern][i].getTrackPlayedTrig()].getTrigIndex()-0.01f;
+							}
+							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigActive(true);
+							if (params[QUANTIZE_PARAM].getValue() == 0.0f) {
+								trigTrim[currentPattern][i][(long)trackHead[currentPattern][i]] = trackHead[currentPattern][i] - (long)trackHead[currentPattern][i];
+							} else {
+								trigTrim[currentPattern][i][(long)trackHead[currentPattern][i]] = 0.0f;
+							}
+							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigOctave((long)currentIncomingVO+3.0f);
+							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigSemiTones((long)((currentIncomingVO-(long)currentIncomingVO)*12.f));
+						}
+					} else {
+						if (noteIncoming) {
+							noteIncoming = false;
+							if (trackHead[currentPattern][i]>nTrigsAttibutes[currentPattern][i][nTracksAttibutes[currentPattern][i].getTrackPlayedTrig()].getTrigIndex()) {
+								trigLength[currentPattern][i][nTracksAttibutes[currentPattern][i].getTrackPlayedTrig()] = trackHead[currentPattern][i] - nTrigsAttibutes[currentPattern][i][nTracksAttibutes[currentPattern][i].getTrackPlayedTrig()].getTrigIndex();
+							}
+							else {
+								trigLength[currentPattern][i][nTracksAttibutes[currentPattern][i].getTrackPlayedTrig()] = nTracksAttibutes[currentPattern][i].getTrackLength() - nTrigsAttibutes[currentPattern][i][nTracksAttibutes[currentPattern][i].getTrackPlayedTrig()].getTrigIndex()-0.01f;
+							}
+							currentIncomingVO = -100.0f;
+						}
+					}
+			}
+
+
 			if ((patternIsSoloed() && nTracksAttibutes[currentPattern][i].getTrackSolo()) || (!patternIsSoloed() && nTracksAttibutes[currentPattern][i].getTrackActive())) {
 				float gate = trackGetGate(i);
 				if (gate>0.0f) {
@@ -1374,6 +1433,32 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		}
 	}
 }
+
+struct recordBtn : SvgSwitch {
+	ZOUMAI *module;
+
+	recordBtn() {
+		momentary = false;
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledgrey.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledred.svg")));
+		sw->wrap();
+		shadow->opacity = 0.0f;
+	}
+
+};
+
+struct quantizeBtn : SvgSwitch {
+	ZOUMAI *module;
+
+	quantizeBtn() {
+		momentary = false;
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledgrey.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledblue.svg")));
+		sw->wrap();
+		shadow->opacity = 0.0f;
+	}
+
+};
 
 struct octaveBtn : SvgSwitch {
 	Param *octaveParams;
@@ -1541,6 +1626,7 @@ struct stepBtn : SvgSwitch {
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btngrey.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btnblue.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btndimmedblue.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btngreen.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btnorange.svg")));
 		sw->wrap();
 		shadow->opacity = 0.0f;
@@ -1921,7 +2007,7 @@ struct ZOUMAIWidget : ModuleWidget {
 
 		for (size_t i=0;i<7;i++) {
 			octaveBtn* oBtn;
-			addParam(oBtn = createParam<octaveBtn>(Vec(xKeyboardAnchor + 35.0f  + i * 19.0f, yKeyboardAnchor - 1.0f), module, ZOUMAI::OCTAVE_PARAMS+i));
+			addParam(oBtn = createParam<octaveBtn>(Vec(xKeyboardAnchor + 36.0f  + i * 19.0f, yKeyboardAnchor - 1.0f), module, ZOUMAI::OCTAVE_PARAMS+i));
 			oBtn->octaveParams =  module ? &module->params[ZOUMAI::OCTAVE_PARAMS] : NULL;
 			oBtn->module = module ? module : NULL;
 		}
@@ -1985,6 +2071,18 @@ struct ZOUMAIWidget : ModuleWidget {
 		addParam(nBtn11 = createParam<noteBtn>(Vec(xKeyboardAnchor+180.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+11));
 		nBtn11->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
 		nBtn11->module = module ? module : NULL;
+
+		recordBtn* rBtn;
+		addParam(rBtn = createParam<recordBtn>(Vec(297.0f, 358.0f), module, ZOUMAI::RECORD_PARAM));
+		rBtn->module = module ? module : NULL;
+
+		addInput(createInput<TinyPJ301MPort>(Vec(327.0f, 360.0f), module, ZOUMAI::GATE_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(356.0f, 360.0f), module, ZOUMAI::VO_INPUT));
+
+		quantizeBtn* qBtn;
+		addParam(qBtn = createParam<quantizeBtn>(Vec(385.0f, 358.0f), module, ZOUMAI::QUANTIZE_PARAM));
+		qBtn->module = module ? module : NULL;
+
 
 	}
 };

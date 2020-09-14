@@ -1,3 +1,7 @@
+### v1.1.25 (14/09/2020)
+- zOù MAï latched buttons
+- zOù MAï record V/O + gate capability
+
 ### v1.1.24 (12/09/2020)
 - mINIBar shows side chain and input signals at the same time
 - zOù MAï latched octave buttons
