@@ -57,10 +57,10 @@ struct CHUTE : Module {
 void CHUTE::process(const ProcessArgs &args) {
 
 	// Running
-	if (playTrigger.process(params[RUN_PARAM].value + inputs[TRIG_INPUT].value)) {
+	if (playTrigger.process(params[RUN_PARAM].getValue() + inputs[TRIG_INPUT].getVoltage())) {
 		running = true;
 		desc = true;
-		altitude = params[ALTITUDE_PARAM].value + inputs[ALTITUDE_INPUT].value;
+		altitude = params[ALTITUDE_PARAM].getValue() + inputs[ALTITUDE_INPUT].getVoltage();
 		altitudeInit = altitude;
 		minAlt = altitude;
 		speed = 0.0f;

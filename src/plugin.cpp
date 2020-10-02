@@ -39,6 +39,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelBAR);
 	p->addModel(modelMINIBAR);
 	p->addModel(modelZINC);
+	p->addModel(modelFREIN);
 	p->addModel(modelHCTIP);
 	p->addModel(modelCURT);
 	p->addModel(modelDFUZE);

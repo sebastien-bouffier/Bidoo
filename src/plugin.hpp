@@ -49,6 +49,7 @@ extern Model *modelDUKE;
 extern Model *modelMOIRE;
 extern Model *modelHUITRE;
 extern Model *modelCANARD;
+extern Model *modelFREIN;
 extern Model *modelLOURDE;
 extern Model *modelHCTIP;
 extern Model *modelCURT;

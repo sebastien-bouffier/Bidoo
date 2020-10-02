@@ -435,8 +435,8 @@ struct ZOUMAI : Module {
   	}
 
   	for (int i=0;i<8;i++) {
-      configParam(TRACKSONOFF_PARAMS + i, 0.0f, 10.0f, 0.0f);
-			configParam(TRACKSELECT_PARAMS + i, 0.0f, 1.0f, 0.0f);
+      configParam(TRACKSONOFF_PARAMS + i, 0.0f, 2.0f, 1.0f);
+			configParam(TRACKSELECT_PARAMS + i, 0.0f, 1.0f, i == currentTrack ? 1.0f : 0.0f);
 			for (int j=0;j<8;j++) {
 				for (int k=0;k<64;k++) {
 					nTrigsAttibutes[i][j][k].setTrigIndex(k);
@@ -1530,21 +1530,23 @@ struct trackSelectBtn : SvgSwitch {
 	}
 
 	void onButton(const event::Button &e) override {
+		//SvgSwitch::onButton(e);
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
 			for (int i = 0; i < 8; i++) {
-				if (i != paramQuantity->paramId - ZOUMAI::TRACKSELECT_PARAMS) {
+				if (i != (paramQuantity->paramId - ZOUMAI::TRACKSELECT_PARAMS)) {
 					trackSelectParams[i].setValue(0.0f);
 				}
 				else {
+					trackSelectParams[i].setValue(1.0f);
 					module->currentTrack=i;
 					module->updateTrackToParams();
 					module->updateTrigToParams();
 				}
 			}
-			e.consume(this);
-			return;
+			//e.consume(this);
+			//return;
 		}
-		SvgSwitch::onButton(e);
+		//SvgSwitch::onButton(e);
 	}
 };
 
@@ -1563,27 +1565,42 @@ struct trackOnOffBtn : SvgSwitch {
 	}
 
 	void onButton(const event::Button &e) override {
-		if (paramQuantity && paramQuantity->module && e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
+		SvgSwitch::onButton(e);
+
+		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
 			for (int i = 0; i < 8; i++) {
-				if (i != paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS) {
-					trackSelectParams[i].setValue(0.0f);
+				if (i != (paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS)) {
+					if (trackSelectParams[i].getValue() == 1.0f) {
+						trackSelectParams[i].setValue(0.0f);
+					}
 				}
 				else {
 					module->nTracksAttibutes[module->currentPattern][i].toggleTrackSolo();
+					trackOnOffParams[i].setValue(module->nTracksAttibutes[module->currentPattern][paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS].getTrackSolo() ? 2.0f : 0.0f);
 					trackSelectParams[i].setValue(1.0f);
 					module->currentTrack=i;
 					module->updateTrackToParams();
 					module->updateTrigToParams();
 				}
 			}
-		}
-		else if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
-			module->nTracksAttibutes[module->currentPattern][paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS].toggleTrackActive();
 			e.consume(this);
 			return;
 		}
-		SvgSwitch::onButton(e);
+		else if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
+			if (!module->patternIsSoloed()) {
+				module->nTracksAttibutes[module->currentPattern][paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS].toggleTrackActive();
+				if (module->nTracksAttibutes[module->currentPattern][paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS].getTrackActive()) {
+					trackOnOffParams[paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS].setValue(1.0f);
+				} else {
+					trackOnOffParams[paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS].setValue(0.0f);
+				}
+			}
+			e.consume(this);
+			return;
+		}
+
 	}
+
 };
 
 struct noteBtn : SvgSwitch {

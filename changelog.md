@@ -1,3 +1,7 @@
+### v1.1.26 (02/10/2020)
+- bAr and mINIBar compressor tag
+- new tape stop module fREIN
+
 ### v1.1.25 (14/09/2020)
 - zOù MAï latched buttons
 - zOù MAï record V/O + gate capability
