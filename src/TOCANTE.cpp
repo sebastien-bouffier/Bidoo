@@ -31,10 +31,13 @@ struct TOCANTE : Module {
 		OUT_QUARTER,
 		OUT_EIGHTH,
 		OUT_SIXTEENTH,
+		OUT_RESET,
+		OUT_RUN,
 		NUM_OUTPUTS
 	};
 	enum LightIds {
 		RUNNING_LIGHT,
+		RESET_LIGHT,
 		NUM_LIGHTS
 	};
 
@@ -51,12 +54,14 @@ struct TOCANTE : Module {
 	dsp::PulseGenerator gatePulse;
 	dsp::PulseGenerator gatePulse_triplets;
 	dsp::PulseGenerator gatePulse_Measure;
+	dsp::PulseGenerator resetPulse;
+	dsp::PulseGenerator runPulse;
 	dsp::SchmittTrigger runningTrigger;
 	dsp::SchmittTrigger resetTrigger;
-	bool running = true;
+	bool running = false;
 	bool reset = false;
 	float runningLight = 0.0f;
-	bool pulseEven = false, pulseTriplets = false, pulseMeasure = false;
+	bool pulseEven = false, pulseTriplets = false, pulseMeasure = false, pulseReset = false, pulseRun = false;
 	float bpm = 0.0f;
 
 	TOCANTE() {
@@ -68,19 +73,6 @@ struct TOCANTE : Module {
 	}
 
 	void process(const ProcessArgs &args) override;
-
-	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
-		json_object_set_new(rootJ, "running", json_boolean(running));
-		return rootJ;
-	}
-
-	void dataFromJson(json_t *rootJ) override {
-		json_t *runningJ = json_object_get(rootJ, "running");
-		if (runningJ){
-			running = json_boolean_value(runningJ);
-		}
-}
 
 };
 
@@ -95,17 +87,24 @@ void TOCANTE::process(const ProcessArgs &args) {
 	stepsPerBeat = stepsPerSixteenth * 16 / ref;
 	stepsPerMeasure = beats*stepsPerBeat;
 
+	lights[RESET_LIGHT].setBrightness(lights[RESET_LIGHT].getBrightness()-0.0001f*lights[RESET_LIGHT].getBrightness());
+
 	if (runningTrigger.process(params[RUN_PARAM].getValue())) {
 		running = !running;
-		if(running){
+		if (running) {
 			currentStep = 0;
 			count = beats;
+			resetPulse.trigger(1e-3f);
+			lights[RESET_LIGHT].setBrightness(1.0);
 		}
+		runPulse.trigger(1e-3f);
 	}
 
 	if (resetTrigger.process(params[RESET_PARAM].getValue())){
 		currentStep = 0;
 		count = beats;
+		resetPulse.trigger(1e-3f);
+		lights[RESET_LIGHT].setBrightness(1.0);
 	}
 
 	if ((stepsPerSixteenth>0) && ((currentStep % stepsPerSixteenth) == 0)) {
@@ -123,6 +122,8 @@ void TOCANTE::process(const ProcessArgs &args) {
 	pulseEven = gatePulse.process(args.sampleTime);
 	pulseTriplets = gatePulse_triplets.process(args.sampleTime);
 	pulseMeasure = gatePulse_Measure.process(args.sampleTime);
+	pulseReset = resetPulse.process(args.sampleTime);
+	pulseRun = runPulse.process(args.sampleTime);
 
 	if (currentStep % stepsPerBeat == 0) {
 		count--;
@@ -138,6 +139,11 @@ void TOCANTE::process(const ProcessArgs &args) {
 	outputs[OUT_QUARTER].setVoltage((pulseEven && (currentStep % stepsPerQuarter == 0)) ? 10.0f : 0.0f);
 	outputs[OUT_EIGHTH].setVoltage((pulseEven && (currentStep % stepsPerEighth == 0)) ? 10.0f : 0.0f);
 	outputs[OUT_SIXTEENTH].setVoltage((pulseEven && (currentStep % stepsPerSixteenth == 0)) ? 10.0f : 0.0f);
+
+	outputs[OUT_RESET].setVoltage(pulseReset ? 10.0f : 0.0f);
+	outputs[OUT_RUN].setVoltage(pulseRun ? 10.0f : 0.0f);
+
+
 	if (running) {
 		currentStep = floor((currentStep + 1) % stepsPerMeasure);
 	}
@@ -186,6 +192,13 @@ struct TOCANTEMeasureDisplay : TransparentWidget {
 	}
 };
 
+template <typename BASE>
+struct TocanteLight : BASE {
+	TocanteLight() {
+		this->box.size = mm2px(Vec(6.f, 6.f));
+	}
+};
+
 struct TOCANTEWidget : ModuleWidget {
 	TOCANTEWidget(TOCANTE *module) {
 		setModule(module);
@@ -203,9 +216,13 @@ struct TOCANTEWidget : ModuleWidget {
 		mDisplay->box.size = Vec(25.0f, 25.0f);
 		addChild(mDisplay);
 
-		addParam(createParam<LEDButton>(Vec(78, 185), module, TOCANTE::RUN_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(84, 191), module, TOCANTE::RUNNING_LIGHT));
-		addParam(createParam<BlueCKD6>(Vec(39, 180), module, TOCANTE::RESET_PARAM));
+		addParam(createParam<LEDBezel>(Vec(41, 160), module, TOCANTE::RESET_PARAM));
+		addChild(createLight<TocanteLight<BlueLight>>(Vec(43, 162), module, TOCANTE::RESET_LIGHT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(45, 190), module, TOCANTE::OUT_RESET));
+
+		addParam(createParam<LEDBezel>(Vec(76, 160), module, TOCANTE::RUN_PARAM));
+		addChild(createLight<TocanteLight<BlueLight>>(Vec(78, 162), module, TOCANTE::RUNNING_LIGHT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(80.0f, 190), module, TOCANTE::OUT_RUN));
 
 		addParam(createParam<BidooBlueKnob>(Vec(3.0f,90.0f), module, TOCANTE::BPM_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(3.0f,155.0f), module, TOCANTE::BPMFINE_PARAM));

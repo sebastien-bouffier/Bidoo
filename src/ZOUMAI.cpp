@@ -287,6 +287,7 @@ struct ZOUMAI : Module {
 		FILL_INPUT = TRACKACTIVE_INPUTS + 8,
 		GATE_INPUT,
 		VO_INPUT,
+		RUN_INPUT,
 		NUM_INPUTS
 	};
 
@@ -325,6 +326,7 @@ struct ZOUMAI : Module {
 
 	dsp::SchmittTrigger clockTrigger;
 	dsp::SchmittTrigger resetTrigger;
+	dsp::SchmittTrigger runTrigger;
 	dsp::SchmittTrigger trackResetTriggers[8];
 	dsp::SchmittTrigger trackActiveTriggers[8];
 	dsp::SchmittTrigger fillTrigger;
@@ -359,11 +361,10 @@ struct ZOUMAI : Module {
 	int copyPatternId = -1;
 	int copyTrigId = -1;
 	bool run = false;
-	int clockMaxDelay = 0;
-	int clockMaxCount = 0;
-	int gear = 0;
+	int clockMaxCount = 1;
 	bool noteIncoming = false;
 	float currentIncomingVO = -100.0f;
+	int clockTicks = 0;
 
 	TrigAttibutes nTrigsAttibutes[8][8][64];
 	TrackAttibutes nTracksAttibutes[8][8];
@@ -444,7 +445,6 @@ struct ZOUMAI : Module {
 			}
   	}
 
-		clockMaxDelay = appGet()->engine->getSampleRate();
 		onReset();
 	}
 
@@ -1232,10 +1232,6 @@ struct ZOUMAI : Module {
 		}
 	}
 
-	void onSampleRateChange() override {
-		clockMaxDelay = appGet()->engine->getSampleRate();
-	}
-
 };
 
 void ZOUMAI::process(const ProcessArgs &args) {
@@ -1302,20 +1298,17 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		}
 	}
 
-	if (inputs[EXTCLOCK_INPUT].isConnected()) {
+	if (runTrigger.process(inputs[RUN_INPUT].getVoltage())) {
+		run = !run;
+		clockTicks = 0;
+	}
 
-		bool globalReset = resetTrigger.process(inputs[RESET_INPUT].getVoltage());
+	if (run) {
 		bool clockTrigged = clockTrigger.process(inputs[EXTCLOCK_INPUT].getVoltage());
-
-		clockMaxCount++;
+		bool globalReset = resetTrigger.process(inputs[RESET_INPUT].getVoltage());
 
 		if (clockTrigged) {
-			if (gear == 0) {
-				clockMaxCount=1;
-				gear++;
-				run=false;
-			}
-			else if (gear == 1) {
+			if (clockTicks>1) {
 				trackLastTickCount[currentTrack][0] = clockMaxCount;
 				trackLastTickCount[currentTrack][1] = clockMaxCount;
 				trackLastTickCount[currentTrack][2] = clockMaxCount;
@@ -1324,20 +1317,18 @@ void ZOUMAI::process(const ProcessArgs &args) {
 				trackLastTickCount[currentTrack][5] = clockMaxCount;
 				trackLastTickCount[currentTrack][6] = clockMaxCount;
 				trackLastTickCount[currentTrack][7] = clockMaxCount;
-				gear++;
-				run=true;
 			}
 			else {
-				clockMaxCount=1;
+				clockTicks++;
 			}
+			clockMaxCount=1;
 		}
-		else if (clockMaxCount>clockMaxDelay) {
-			run=false;
-			gear=0;
+		else {
+			clockMaxCount++;
 		}
+
 
 		for (int i=0; i<8;i++) {
-
 			if (trackActiveTriggers[i].process(inputs[TRACKACTIVE_INPUTS+i].getVoltage())) {
 				nTracksAttibutes[currentPattern][i].toggleTrackActive();
 			}
@@ -1352,12 +1343,7 @@ void ZOUMAI::process(const ProcessArgs &args) {
 				params[TRACKSONOFF_PARAMS+i].setValue(0.0f);
 			}
 
-			if (clockTrigged && run) {
-				trackMoveNext(i, true, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
-			}
-			else if (run) {
-				trackMoveNext(i, false, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
-			}
+			trackMoveNext(i, clockTrigged, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
 
 			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage()) || (!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset)) {
 				trackReset(i, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
@@ -1430,6 +1416,11 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			outputs[VO_OUTPUTS + i].setVoltage(trackGetVO(i));
 			outputs[CV1_OUTPUTS + i].setVoltage(trigCV1[currentPattern][i][nTracksAttibutes[currentPattern][i].getTrackPlayedTrig()]);
 			outputs[CV2_OUTPUTS + i].setVoltage(trigCV2[currentPattern][i][nTracksAttibutes[currentPattern][i].getTrackPlayedTrig()]);
+		}
+	}
+	else {
+		for (int i=0; i<8;i++) {
+			outputs[GATE_OUTPUTS + i].setVoltage(0.0f);
 		}
 	}
 }
@@ -1934,9 +1925,11 @@ struct ZOUMAIWidget : ModuleWidget {
 		tProbKnob->refReset = probCountResetKnob;
 		addParam(tProbKnob);
 
-		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[6]), module, ZOUMAI::FILL_INPUT));
-		addParam(createParam<BlueCKD6>(Vec(40.0f, portY0[6]-1.0f), module, ZOUMAI::FILL_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(73.0f, portY0[6]+10.0f), module, ZOUMAI::FILL_LIGHT));
+		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[6]+3.0f), module, ZOUMAI::FILL_INPUT));
+		addParam(createParam<BlueCKD6>(Vec(40.0f, portY0[6]-1.0f+3.0f), module, ZOUMAI::FILL_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(50.5f, portY0[6]-8.0f), module, ZOUMAI::FILL_LIGHT));
+
+		addInput(createInput<PJ301MPort>(Vec(80.0f, portY0[6]+3.0f), module, ZOUMAI::RUN_INPUT));
 
 		static const float portX0[5] = {374.0f, 389.0f, 404.0f, 419.0f, 434.0f};
 

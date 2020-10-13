@@ -1,3 +1,7 @@
+### v1.1.27 (13/10/2020)
+- tOCAnTe reset and run outputs added
+- zOù MAï run input
+
 ### v1.1.26 (02/10/2020)
 - bAr and mINIBar compressor tag
 - new tape stop module fREIN
