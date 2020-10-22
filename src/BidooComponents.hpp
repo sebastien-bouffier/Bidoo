@@ -250,7 +250,7 @@ struct BidooColoredTrimpot : RoundKnob {
 
 	void step() override {
 		if (paramQuantity && tShape) {
-			tShape->fill.color = int(42+paramQuantity->getValue() *21) | int(87-paramQuantity->getValue() *8) << 8 | int(117-paramQuantity->getValue()) << 16;
+			tShape->fill.color = int(42+paramQuantity->getValue() * 210) | int(87-paramQuantity->getValue() * 80) << 8 | int(117-paramQuantity->getValue()*10) << 16;
 			tShape->fill.color |= 255 << 24;
 		}
 		RoundKnob::step();

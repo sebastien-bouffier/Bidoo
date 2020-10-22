@@ -350,6 +350,9 @@ struct ZOUMAI : Module {
 	dsp::SchmittTrigger upTrackTrigger;
 	dsp::SchmittTrigger downTrackTrigger;
 
+	dsp::Timer runTimer;
+	dsp::Timer resetTimer;
+
 	int currentPattern = 0;
 	int previousPattern = -1;
 	int currentTrack = 0;
@@ -364,7 +367,9 @@ struct ZOUMAI : Module {
 	int clockMaxCount = 1;
 	bool noteIncoming = false;
 	float currentIncomingVO = -100.0f;
-	int clockTicks = 0;
+	int clockTicks = 1;
+	bool globalReset = false;
+	bool clockTrigged = false;
 
 	TrigAttibutes nTrigsAttibutes[8][8][64];
 	TrackAttibutes nTracksAttibutes[8][8];
@@ -1300,28 +1305,45 @@ void ZOUMAI::process(const ProcessArgs &args) {
 
 	if (runTrigger.process(inputs[RUN_INPUT].getVoltage())) {
 		run = !run;
+		globalReset = true;
 		clockTicks = 0;
+		runTimer.reset();
+		resetTimer.reset();
 	}
 
 	if (run) {
-		bool clockTrigged = clockTrigger.process(inputs[EXTCLOCK_INPUT].getVoltage());
-		bool globalReset = resetTrigger.process(inputs[RESET_INPUT].getVoltage());
+
+		if ((runTimer.process(args.sampleTime)>1e-3) && resetTrigger.process(inputs[RESET_INPUT].getVoltage())) {
+			globalReset = true;
+			clockTicks = 0;
+			resetTimer.reset();
+		}
+		else {
+			globalReset = false;
+		}
+
+		if ((resetTimer.process(args.sampleTime)>1e-3) && clockTrigger.process(inputs[EXTCLOCK_INPUT].getVoltage())) {
+			clockTrigged = true;
+		}
+		else {
+			clockTrigged = false;
+		}
 
 		if (clockTrigged) {
 			if (clockTicks>1) {
-				trackLastTickCount[currentTrack][0] = clockMaxCount;
-				trackLastTickCount[currentTrack][1] = clockMaxCount;
-				trackLastTickCount[currentTrack][2] = clockMaxCount;
-				trackLastTickCount[currentTrack][3] = clockMaxCount;
-				trackLastTickCount[currentTrack][4] = clockMaxCount;
-				trackLastTickCount[currentTrack][5] = clockMaxCount;
-				trackLastTickCount[currentTrack][6] = clockMaxCount;
-				trackLastTickCount[currentTrack][7] = clockMaxCount;
+				trackLastTickCount[currentPattern][0] = clockMaxCount;
+				trackLastTickCount[currentPattern][1] = clockMaxCount;
+				trackLastTickCount[currentPattern][2] = clockMaxCount;
+				trackLastTickCount[currentPattern][3] = clockMaxCount;
+				trackLastTickCount[currentPattern][4] = clockMaxCount;
+				trackLastTickCount[currentPattern][5] = clockMaxCount;
+				trackLastTickCount[currentPattern][6] = clockMaxCount;
+				trackLastTickCount[currentPattern][7] = clockMaxCount;
 			}
 			else {
 				clockTicks++;
 			}
-			clockMaxCount=1;
+			clockMaxCount=0;
 		}
 		else {
 			clockMaxCount++;
@@ -1343,10 +1365,12 @@ void ZOUMAI::process(const ProcessArgs &args) {
 				params[TRACKSONOFF_PARAMS+i].setValue(0.0f);
 			}
 
-			trackMoveNext(i, clockTrigged, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
 
 			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage()) || (!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset)) {
 				trackReset(i, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
+			}
+			else {
+				trackMoveNext(i, clockTrigged, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
 			}
 
 			if ((currentTrack == i) && (params[RECORD_PARAM].getValue() == 1.0f)) {

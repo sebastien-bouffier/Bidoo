@@ -1,3 +1,8 @@
+### v1.1.28 (22/10/2020)
+- ACnE ramp fix between snaphots
+- ACnE ramp is applied on Solo and Mute
+- zOù MAï run input reset clock fix
+
 ### v1.1.27 (13/10/2020)
 - tOCAnTe reset and run outputs added
 - zOù MAï run input
