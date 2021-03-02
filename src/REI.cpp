@@ -93,7 +93,7 @@ struct REI : Module {
 		inL = inputs[IN_L_INPUT].getVoltage();
 		inR = inputs[IN_R_INPUT].getVoltage();
 
-		float fact = clamp(params[SHIMM_PARAM].getValue() + rescale(inputs[SHIMM_INPUT].getVoltage(), 0.0f, 10.0f, 0.0f, 1.0f), 0.0f, 1.0f);
+		float fact = clamp(params[SHIMM_PARAM].getValue() + rescale(inputs[SHIMM_INPUT].getVoltage(), 0.0f, 10.0f, 0.0f, 1.0f), 0.0f, 1.0f)*0.2f;
 
 		if (pin_Buffer.size() > REIBUFF_SIZE) {
 			revprocessor.process(inL, inR, fact*(*pin_Buffer.startData()), outL, outR, wOutL, wOutR);

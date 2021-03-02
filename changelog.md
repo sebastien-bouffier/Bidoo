@@ -1,3 +1,7 @@
+### v1.1.29 (03/03/2021)
+- zOù MAï Sync issue on Reset and Pattern change fixed
+- bordL & dTrOY lydian scale quantization fixed
+
 ### v1.1.28 (22/10/2020)
 - ACnE ramp fix between snaphots
 - ACnE ramp is applied on Solo and Mute

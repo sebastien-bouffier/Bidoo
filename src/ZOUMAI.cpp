@@ -350,9 +350,6 @@ struct ZOUMAI : Module {
 	dsp::SchmittTrigger upTrackTrigger;
 	dsp::SchmittTrigger downTrackTrigger;
 
-	dsp::Timer runTimer;
-	dsp::Timer resetTimer;
-
 	int currentPattern = 0;
 	int previousPattern = -1;
 	int currentTrack = 0;
@@ -364,10 +361,9 @@ struct ZOUMAI : Module {
 	int copyPatternId = -1;
 	int copyTrigId = -1;
 	bool run = false;
-	int clockMaxCount = 1;
+	int clockMaxCount = 0;
 	bool noteIncoming = false;
 	float currentIncomingVO = -100.0f;
-	int clockTicks = 1;
 	bool globalReset = false;
 	bool clockTrigged = false;
 
@@ -1306,23 +1302,17 @@ void ZOUMAI::process(const ProcessArgs &args) {
 	if (runTrigger.process(inputs[RUN_INPUT].getVoltage())) {
 		run = !run;
 		globalReset = true;
-		clockTicks = 0;
-		runTimer.reset();
-		resetTimer.reset();
 	}
 
 	if (run) {
-
-		if ((runTimer.process(args.sampleTime)>1e-3) && resetTrigger.process(inputs[RESET_INPUT].getVoltage())) {
+		if (resetTrigger.process(inputs[RESET_INPUT].getVoltage())) {
 			globalReset = true;
-			clockTicks = 0;
-			resetTimer.reset();
 		}
 		else {
 			globalReset = false;
 		}
 
-		if ((resetTimer.process(args.sampleTime)>1e-3) && clockTrigger.process(inputs[EXTCLOCK_INPUT].getVoltage())) {
+		if (clockTrigger.process(inputs[EXTCLOCK_INPUT].getVoltage())) {
 			clockTrigged = true;
 		}
 		else {
@@ -1330,7 +1320,7 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		}
 
 		if (clockTrigged) {
-			if (clockTicks>1) {
+			if (clockMaxCount>0) {
 				trackLastTickCount[currentPattern][0] = clockMaxCount;
 				trackLastTickCount[currentPattern][1] = clockMaxCount;
 				trackLastTickCount[currentPattern][2] = clockMaxCount;
@@ -1339,9 +1329,6 @@ void ZOUMAI::process(const ProcessArgs &args) {
 				trackLastTickCount[currentPattern][5] = clockMaxCount;
 				trackLastTickCount[currentPattern][6] = clockMaxCount;
 				trackLastTickCount[currentPattern][7] = clockMaxCount;
-			}
-			else {
-				clockTicks++;
 			}
 			clockMaxCount=0;
 		}
@@ -1368,6 +1355,7 @@ void ZOUMAI::process(const ProcessArgs &args) {
 
 			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage()) || (!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset)) {
 				trackReset(i, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
+				trackMoveNext(i, true, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
 			}
 			else {
 				trackMoveNext(i, clockTrigged, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());

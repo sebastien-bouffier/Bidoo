@@ -29,6 +29,8 @@ struct LATE : Module {
 	bool armed = false;
 	dsp::SchmittTrigger clockTrigger;
 	dsp::SchmittTrigger resetTrigger;
+	dsp::Timer resetTimer;
+	dsp::PulseGenerator pulse;
 	clock_t tCurrent = clock();
 	clock_t tPrevious = clock();
 
@@ -44,14 +46,19 @@ struct LATE : Module {
 		clock_t now = clock();
 
 		if (resetTrigger.process(inputs[RESET_INPUT].getVoltage())) {
-			odd = true;
+			odd = false;
+			resetTimer.reset();
+			tPrevious = tCurrent;
+			tCurrent = now;
+			pulse.trigger(1e-3f);
+			armed = false;
 		}
 
-		if (clockTrigger.process(inputs[CLOCK_INPUT].getVoltage())) {
+		if ((resetTimer.process(args.sampleTime)>1e-3) && clockTrigger.process(inputs[CLOCK_INPUT].getVoltage())) {
 			tPrevious = tCurrent;
 			tCurrent = now;
 			if (odd) {
-				outputs[CLOCK_OUTPUT].setVoltage(10.0f);
+				pulse.trigger(1e-3f);
 				odd = false;
 				armed = false;
 			} else {
@@ -62,10 +69,12 @@ struct LATE : Module {
 		float lag = rescale(clamp(params[SWING_PARAM].getValue() + params[CVCOEFF_PARAM].getValue() * inputs[SWING_INPUT].getVoltage(), 0.0f, 9.0f), 0.0f, 10.0f, 0.0f, (float)tCurrent - (float)tPrevious);
 
 		if (armed && !odd && (((float)now - (float)tCurrent) >= lag)) {
-			outputs[CLOCK_OUTPUT].setVoltage(10.0f);
+			pulse.trigger(1e-3f);
 			armed = false;
 			odd = true;
 		}
+
+		outputs[CLOCK_OUTPUT].setVoltage(pulse.process(args.sampleTime) ? 10.0f : 0.0f);
 	}
 
 };
