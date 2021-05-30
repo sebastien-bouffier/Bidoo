@@ -319,16 +319,18 @@ void ACNE::process(const ProcessArgs &args) {
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
 		outputs[TRACKS_OUTPUTS + i].setVoltage(0.0f);
+		if (linksTriggers[i].process(params[TRACKLINK_PARAMS + i].getValue()))
+			links[i] = !links[i];
+
+		lights[TRACKLINK_LIGHTS + i].setBrightness(links[i] == true ? 1 : 0);
+		
 		if (outputs[TRACKS_OUTPUTS + i].isConnected()) {
 			if (outMutesTriggers[i].process(params[OUT_MUTE_PARAMS + i].getValue())) {
 				outMutes[i] = !outMutes[i];
 			}
 			lights[OUT_MUTE_LIGHTS + i].setBrightness(outMutes[i] == true ? 1 : 0);
 
-			if (linksTriggers[i].process(params[TRACKLINK_PARAMS + i].getValue()))
-				links[i] = !links[i];
 
-			lights[TRACKLINK_LIGHTS + i].setBrightness(links[i] == true ? 1 : 0);
 
 			for (int j = 0; j < ACNE_NB_TRACKS; j++) {
 				if (inputs[TRACKS_INPUTS + j].isConnected()) {

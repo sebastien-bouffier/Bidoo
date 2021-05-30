@@ -1,3 +1,6 @@
+### v1.1.30 (30/05/2021)
+- ACnE stereo link bug fixed
+
 ### v1.1.29 (03/03/2021)
 - zOù MAï Sync issue on Reset and Pattern change fixed
 - bordL & dTrOY lydian scale quantization fixed
