@@ -1,3 +1,7 @@
+### v1.1.31 (11/09/2021)
+- maGma empty sample bug fix
+- póUPrè empty sample bug fix
+
 ### v1.1.30 (30/05/2021)
 - ACnE stereo link bug fixed
 

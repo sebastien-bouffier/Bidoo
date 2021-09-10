@@ -284,10 +284,10 @@ void MAGMA::process(const ProcessArgs &args) {
 		lights[SAMPLE_LIGHT+2].setBrightness(0.0f);
 	}
 
-	lights[PRESET_LIGHT].setBrightness(lights[PRESET_LIGHT].getBrightness() -  lights[PRESET_LIGHT].getBrightness() * 0.0001f);
-	lights[PRESET_LIGHT+1].setBrightness(lights[PRESET_LIGHT+1].getBrightness() -  lights[PRESET_LIGHT+1].getBrightness() * 0.0001f);
-	lights[PRESET_LIGHT+2].setBrightness(lights[PRESET_LIGHT+2].getBrightness() -  lights[PRESET_LIGHT+2].getBrightness() * 0.0001f);
-	lights[PRESET_LIGHT+3].setBrightness(lights[PRESET_LIGHT+3].getBrightness() -  lights[PRESET_LIGHT+3].getBrightness() * 0.0001f);
+	lights[PRESET_LIGHT].setBrightness(lights[PRESET_LIGHT].getBrightness() - lights[PRESET_LIGHT].getBrightness() * 0.0001f);
+	lights[PRESET_LIGHT+1].setBrightness(lights[PRESET_LIGHT+1].getBrightness() - lights[PRESET_LIGHT+1].getBrightness() * 0.0001f);
+	lights[PRESET_LIGHT+2].setBrightness(lights[PRESET_LIGHT+2].getBrightness() - lights[PRESET_LIGHT+2].getBrightness() * 0.0001f);
+	lights[PRESET_LIGHT+3].setBrightness(lights[PRESET_LIGHT+3].getBrightness() - lights[PRESET_LIGHT+3].getBrightness() * 0.0001f);
 
 	for (int i=0;i<4;i++) {
 		if (presetTriggers[i].process(params[PRESET_PARAM+i].getValue())) {
@@ -397,7 +397,7 @@ void MAGMA::process(const ProcessArgs &args) {
 			}
 		}
 
-		if (channels[i].active) {
+		if (channels[i].active && (playBuffer.size()!=0)) {
 			int xi = channels[i].head;
 			float xf = channels[i].head - xi;
 			float crossfaded = crossfade(playBuffer[xi].samples[0], playBuffer[xi + 1].samples[0], xf);

@@ -256,7 +256,7 @@ void POUPRE::process(const ProcessArgs &args) {
 			active[i] = false;
 		}
 
-		if (active[i]) {
+		if (active[i] && (playBuffer.size()!=0)) {
 			int xi = channels[i].head;
 			float xf = channels[i].head - xi;
 			outputs[POLY_OUTPUT].setVoltage(5.0f * crossfade(playBuffer[xi].samples[0], playBuffer[xi + 1].samples[0], xf),i);

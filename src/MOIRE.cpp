@@ -61,10 +61,22 @@ struct MOIRE : Module {
 
   void process(const ProcessArgs &args) override;
 
+	void randomizeScenes() {
+		for (int i = 0; i < 16; i++) {
+			for (int j = 0; j < 16; j++) {
+				scenes[i][j]=random::uniform()*10;
+			}
+		}
+	}
+
 	void randomizeTargetScene() {
 		for (int i = 0; i < 16; i++) {
-			scenes[targetScene][i]=random::uniform()*10;
+				scenes[targetScene][i]=random::uniform()*10;
 		}
+	}
+
+	void onRandomize() override {
+		randomizeScenes();
 	}
 
 	json_t *dataToJson() override {
@@ -149,6 +161,7 @@ struct MOIREWidget : ModuleWidget {
 	ParamWidget *controls[16];
 	ParamWidget *morphButton;
 	void step() override;
+	void appendContextMenu(ui::Menu *menu) override;
   MOIREWidget(MOIRE *module);
 };
 
@@ -278,6 +291,20 @@ MOIREWidget::MOIREWidget(MOIRE *module) {
 		addChild(createLight<SmallLight<RedLight>>(Vec(portX0[i%4+5]+24, portY0[int(i/4) + 2]+25), module, MOIRE::TYPE_LIGHTS + i));
 		addOutput(createOutput<PJ301MPort>(Vec(portX0[i%4+5]+2, portY0[int(i/4) + 7]), module, MOIRE::CV_OUTPUTS + i));
 	}
+}
+
+struct MoireItem : MenuItem {
+	MOIRE *module;
+	void onAction(const event::Action &e) override {
+			module->randomizeTargetScene();
+	}
+};
+
+void MOIREWidget::appendContextMenu(ui::Menu *menu) {
+	MOIRE *module = dynamic_cast<MOIRE*>(this->module);
+	assert(module);
+	menu->addChild(construct<MenuLabel>());
+	menu->addChild(construct<MoireItem>(&MenuItem::text, "Randomize target scene only", &MoireItem::module, module));
 }
 
 void MOIREWidget::step() {
