@@ -1,3 +1,7 @@
+### v1.1.32 (21/09/2021)
+- MOiRE random button for target scene added
+- πlOT is a kind of MOiRE++ with automorphing between scenes and more
+
 ### v1.1.31 (11/09/2021)
 - maGma empty sample bug fix
 - póUPrè empty sample bug fix

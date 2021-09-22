@@ -15,6 +15,7 @@ struct MOIRE : Module {
 		NADA_PARAM,
 		SAVE_PARAM,
 		VOLTAGE_PARAM,
+		RND_PARAM,
 		TYPE_PARAMS,
 		CONTROLS_PARAMS = TYPE_PARAMS + 16,
 		NUM_PARAMS = CONTROLS_PARAMS + 16
@@ -38,10 +39,11 @@ struct MOIRE : Module {
 	int currentScene = 0;
 	int  targetScene = 0;
 	float currentValues[16] = {0.0f};
-	int controlsTypes[16] = {0};
+	int controlTypes[16] = {0};
 	bool controlFocused[16] = {false};
 
 	dsp::SchmittTrigger typeTriggers[16];
+	dsp::SchmittTrigger rndTrigger;
 
 	MOIRE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -52,6 +54,7 @@ struct MOIRE : Module {
     configParam(NADA_PARAM, 0.0f, 1.0f, 0.0f);
     configParam(MORPH_PARAM, 0.0f, 10.0f, 0.0f);
     configParam(VOLTAGE_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(RND_PARAM, 0.0f, 1.0f, 0.0f);
 
   	for (int i = 0; i < 16; i++) {
       configParam(CONTROLS_PARAMS + i, 0.0f, 10.0f, 0.0f);
@@ -66,17 +69,28 @@ struct MOIRE : Module {
 			for (int j = 0; j < 16; j++) {
 				scenes[i][j]=random::uniform()*10;
 			}
+			controlTypes[i] = (random::uniform()>0.5f) ? 1 : 0;
 		}
 	}
 
 	void randomizeTargetScene() {
 		for (int i = 0; i < 16; i++) {
 				scenes[targetScene][i]=random::uniform()*10;
+				controlTypes[i] = (random::uniform()>0.5f) ? 1 : 0;
 		}
 	}
 
 	void onRandomize() override {
 		randomizeScenes();
+	}
+
+	void onReset() override {
+		for (int i=0; i<16; i++) {
+			for (int j=0; j<16; j++) {
+				scenes[i][j]=0.0f;
+			}
+			controlTypes[i] = 0.0f;
+		}
 	}
 
 	json_t *dataToJson() override {
@@ -92,7 +106,7 @@ struct MOIRE : Module {
 			}
 			json_array_append_new(scenesJ, sceneJ);
 
-			json_t *typeJ = json_integer(controlsTypes[i]);
+			json_t *typeJ = json_integer(controlTypes[i]);
 			json_array_append_new(typesJ, typeJ);
 		}
 		json_object_set_new(rootJ, "scenes", scenesJ);
@@ -117,7 +131,7 @@ struct MOIRE : Module {
 				}
 				json_t *typeJ = json_array_get(typesJ, i);
 				if (typeJ) {
-					controlsTypes[i] = json_integer_value(typeJ);
+					controlTypes[i] = json_integer_value(typeJ);
 				}
 			}
 		}
@@ -128,18 +142,22 @@ void MOIRE::process(const ProcessArgs &args) {
 	targetScene = clamp(floor(inputs[TARGETSCENE_INPUT].getVoltage() * 1.5f) + params[TARGETSCENE_PARAM].getValue() , 0.0f, 15.0f);
 	currentScene = clamp(floor(inputs[CURRENTSCENE_INPUT].getVoltage() * 1.5f) + params[CURRENTSCENE_PARAM].getValue() , 0.0f, 15.0f);
 
+	if (rndTrigger.process(params[RND_PARAM].getValue())) {
+		randomizeTargetScene();
+	}
+
 	for (int i = 0; i < 16; i++) {
 		if (typeTriggers[i].process(params[TYPE_PARAMS + i].getValue())) {
-			controlsTypes[i] = controlsTypes[i] == 0 ? 1 : 0;
+			controlTypes[i] = controlTypes[i] == 0 ? 1 : 0;
 		}
-		lights[TYPE_LIGHTS + i].setBrightness(controlsTypes[i]);
+		lights[TYPE_LIGHTS + i].setBrightness(controlTypes[i]);
 	}
 
 	float coeff = clamp(inputs[MORPH_INPUT].getVoltage() + params[MORPH_PARAM].getValue(), 0.0f, 10.0f);
 
 	for (int i = 0 ; i < 16; i++) {
 		if (!controlFocused[i]) {
-			if (controlsTypes[i] == 0) {
+			if (controlTypes[i] == 0) {
 				currentValues[i] = rescale(coeff,0.0f,10.0f,scenes[currentScene][i],scenes[targetScene][i]);
 			} else {
 				if (coeff == 10.f) {
@@ -258,6 +276,7 @@ MOIREWidget::MOIREWidget(MOIRE *module) {
 	static const float portY0[12] = {20,50,80,110,140,170,200,230,260,290,320,350};
 
 	addParam(createParam<MOIRECKD6>(Vec(portX0[5], portY0[0]+18), module, MOIRE::SAVE_PARAM));
+	addParam(createParam<MOIRECKD6>(Vec(portX0[5]+30, portY0[0]+18), module, MOIRE::RND_PARAM));
 
   addParam(createParam<BidooBlueSnapTrimpot>(Vec(portX0[0], portY0[1]+16), module, MOIRE::TARGETSCENE_PARAM));
 	MOIREDisplay *displayTarget = new MOIREDisplay();

@@ -46,6 +46,13 @@ struct BidooRedKnob : RoundKnob {
 	}
 };
 
+struct BidooHugeRedKnob : RoundKnob {
+	BidooHugeRedKnob() {
+		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/HugeRedKnobBidoo.svg")));
+		shadow->opacity = 0.0f;
+	}
+};
+
 struct BidooHugeBlueKnob : RoundKnob {
 	BidooHugeBlueKnob() {
 		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/HugeBlueKnobBidoo.svg")));
@@ -100,6 +107,8 @@ struct BidooBlueTrimpot : Trimpot {
 struct BlueCKD6 : app::SvgSwitch {
 	BlueCKD6() {
 		momentary = true;
+		momentaryPressed = true;
+		momentaryReleased = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueCKD6_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueCKD6_1.svg")));
 		shadow->opacity = 0.0f;
@@ -167,6 +176,15 @@ struct SoloBtn : app::SvgSwitch {
 	}
 };
 
+struct RndBtn : app::SvgSwitch {
+	RndBtn() {
+		momentary = true;
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/RndBtn_0.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/RndBtn_1.svg")));
+		shadow->opacity = 0.0f;
+	}
+};
+
 struct LeftBtn : app::SvgSwitch {
 	LeftBtn() {
 		momentary = true;
@@ -222,6 +240,28 @@ struct BidooColoredKnob : RoundKnob {
 		RoundKnob::step();
 	}
 };
+
+struct BidooLargeColoredKnob : RoundKnob {
+	BidooLargeColoredKnob() {
+		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ColoredLargeKnobBidoo.svg")));
+		shadow->opacity = 0.0f;
+	}
+
+	void step() override {
+		if (paramQuantity) {
+			for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
+				std::string str(shape->id);
+				if (str == "bidooKnob") {
+					shape->fill.color = (((unsigned int)42+(unsigned int)(paramQuantity->getValue()*210)) | (((unsigned int)87-(unsigned int)(paramQuantity->getValue()*80)) << 8) | (((unsigned int)117-(unsigned int)(paramQuantity->getValue()*10)) << 16));
+					shape->fill.color |= (unsigned int)(255) << 24;
+				}
+			}
+		}
+		RoundKnob::step();
+	}
+};
+
+
 
 struct BidooMorphKnob : RoundKnob {
 	BidooMorphKnob() {
@@ -370,6 +410,12 @@ struct MiniLEDButton : app::SvgSwitch {
 	MiniLEDButton() {
 		momentary = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/miniLEDButton.svg")));
+		shadow->opacity = 0.0f;
+	}
+};
+
+struct BidooLEDButton : LEDButton {
+	BidooLEDButton() {
 		shadow->opacity = 0.0f;
 	}
 };

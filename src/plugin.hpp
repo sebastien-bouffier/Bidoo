@@ -47,6 +47,7 @@ extern Model *modelMINIBAR;
 extern Model *modelZINC;
 extern Model *modelDUKE;
 extern Model *modelMOIRE;
+extern Model *modelPILOT;
 extern Model *modelHUITRE;
 extern Model *modelCANARD;
 extern Model *modelFREIN;
