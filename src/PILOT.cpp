@@ -29,6 +29,7 @@ struct PILOT : Module {
 		RNDBOTTOM_PARAM,
 		FRNDBOTTOM_PARAM,
 		WEOM_PARAM,
+		LENGTH_PARAM,
 		TYPE_PARAMS,
 		CONTROLS_PARAMS = TYPE_PARAMS + 16,
 		VOLTAGE_PARAMS = CONTROLS_PARAMS + 16,
@@ -78,6 +79,7 @@ struct PILOT : Module {
 	bool forward = false;
 	bool rev = false;
 	bool waitEOM = true;
+	int length = 15;
 
 	dsp::SchmittTrigger typeTriggers[16];
 	dsp::SchmittTrigger voltageTriggers[16];
@@ -120,8 +122,9 @@ struct PILOT : Module {
     configParam(MORPH_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(MOVETYPE_PARAM, 0.0f, 10.0f, 0.0f);
 		configParam(MOVENEXT_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(SPEED_PARAM, 1e-9f, 1.0f, 0.4f);
+		configParam(SPEED_PARAM, 1e-9f, 1.0f, 0.5f);
 		configParam(WEOM_PARAM, 0.0f, 10.0f, 0.0f);
+		configParam(LENGTH_PARAM, 0.0f, 15.0f, 15.0f);
 
 		configParam(RNDTOP_PARAM, 0.0f, 10.0f, 0.0f);
 		configParam(FRNDTOP_PARAM, 0.0f, 10.0f, 0.0f);
@@ -252,6 +255,8 @@ void PILOT::process(const ProcessArgs &args) {
 
 	speed = powf(clamp(params[SPEED_PARAM].getValue()+inputs[SPEED_INPUT].getVoltage()/10.0f,1e-9f,1.0f),16.0f);
 
+	length = params[LENGTH_PARAM].getValue();
+
 	if (moveTypeTrigger.process(params[MOVETYPE_PARAM].getValue())) {
 		moveType = (moveType+1)%6;
 	}
@@ -261,11 +266,11 @@ void PILOT::process(const ProcessArgs &args) {
 		forward = !forward;
 		if (forward) {
 			if (moveType==0) {
-				params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()+1.0f)%16);
+				params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()+1.0f)%(length+1));
 			}
 			else if (moveType==1) {
 				if (params[BOTTOMSCENE_PARAM].getValue()==0.0f) {
-					params[TOPSCENE_PARAM].setValue(15.0f);
+					params[TOPSCENE_PARAM].setValue(length);
 				}
 				else {
 					params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()-1.0f));
@@ -273,26 +278,26 @@ void PILOT::process(const ProcessArgs &args) {
 			}
 			else if (moveType==2) {
 				if (!rev) {
-					params[TOPSCENE_PARAM].setValue(clamp(int(params[BOTTOMSCENE_PARAM].getValue()+1.0f),0,15));
+					params[TOPSCENE_PARAM].setValue(clamp(int(params[BOTTOMSCENE_PARAM].getValue()+1.0f),0,length));
 				}
 				else if (rev) {
-					params[TOPSCENE_PARAM].setValue(clamp(int(params[BOTTOMSCENE_PARAM].getValue()-1.0f),0,15));
+					params[TOPSCENE_PARAM].setValue(clamp(int(params[BOTTOMSCENE_PARAM].getValue()-1.0f),0,length));
 				}
 
-				if ((params[TOPSCENE_PARAM].getValue() == 0.0f) || (params[TOPSCENE_PARAM].getValue() == 15.0f)) {
+				if ((params[TOPSCENE_PARAM].getValue() == 0.0f) || (params[TOPSCENE_PARAM].getValue() == (float)length)) {
 					rev= !rev;
 				}
 			}
 			else if (moveType==3) {
-				params[TOPSCENE_PARAM].setValue(clamp(floor(random::uniform()*16.0f), 0.0f, 15.0f));
+				params[TOPSCENE_PARAM].setValue(clamp(floor(random::uniform()*(length+1)), 0.0f, (float)length));
 			}
 			else if (moveType==4) {
 				float dice = random::uniform();
 				if (dice<0.5f) {
-					params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()+1.0f)%16);
+					params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()+1.0f)%length);
 				}
 				else if ((dice >= 0.5f) && (dice < 0.75f)) {
-					params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()-1.0f)%16);
+					params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()-1.0f)%length);
 				}
 				else {
 					params[TOPSCENE_PARAM].setValue(params[BOTTOMSCENE_PARAM].getValue());
@@ -301,11 +306,11 @@ void PILOT::process(const ProcessArgs &args) {
 		}
 		else {
 			if (moveType==0) {
-				params[BOTTOMSCENE_PARAM].setValue(int(params[TOPSCENE_PARAM].getValue()+1.0f)%16);
+				params[BOTTOMSCENE_PARAM].setValue(int(params[TOPSCENE_PARAM].getValue()+1.0f)%(length+1));
 			}
 			else if (moveType==1) {
 				if (params[TOPSCENE_PARAM].getValue()==0.0f) {
-					params[BOTTOMSCENE_PARAM].setValue(15.0f);
+					params[BOTTOMSCENE_PARAM].setValue(length);
 				}
 				else {
 					params[BOTTOMSCENE_PARAM].setValue(int(params[TOPSCENE_PARAM].getValue()-1.0f));
@@ -313,26 +318,26 @@ void PILOT::process(const ProcessArgs &args) {
 			}
 			else if (moveType==2) {
 				if (!rev) {
-					params[BOTTOMSCENE_PARAM].setValue(clamp(int(params[TOPSCENE_PARAM].getValue()+1.0f),0,15));
+					params[BOTTOMSCENE_PARAM].setValue(clamp(int(params[TOPSCENE_PARAM].getValue()+1.0f),0,length));
 				}
 				else if (rev) {
-					params[BOTTOMSCENE_PARAM].setValue(clamp(int(params[TOPSCENE_PARAM].getValue()-1.0f),0,15));
+					params[BOTTOMSCENE_PARAM].setValue(clamp(int(params[TOPSCENE_PARAM].getValue()-1.0f),0,length));
 				}
 
-				if ((params[BOTTOMSCENE_PARAM].getValue() == 0.0f) || (params[BOTTOMSCENE_PARAM].getValue() == 15.0f)) {
+				if ((params[BOTTOMSCENE_PARAM].getValue() == 0.0f) || (params[BOTTOMSCENE_PARAM].getValue() == (float)length)) {
 					rev= !rev;
 				}
 			}
 			else if (moveType==3) {
-				params[BOTTOMSCENE_PARAM].setValue(clamp(floor(random::uniform()*16.0f), 0.0f, 15.0f));
+				params[BOTTOMSCENE_PARAM].setValue(clamp(floor(random::uniform()*(length+1)), 0.0f, (float)length));
 			}
 			else if (moveType==4) {
 				float dice = random::uniform();
 				if (dice<0.5f) {
-					params[BOTTOMSCENE_PARAM].setValue(int(params[TOPSCENE_PARAM].getValue()+1.0f)%16);
+					params[BOTTOMSCENE_PARAM].setValue(int(params[TOPSCENE_PARAM].getValue()+1.0f)%(length+1));
 				}
 				else if ((dice >= 0.5f) && (dice < 0.75f)) {
-					params[BOTTOMSCENE_PARAM].setValue(int(params[TOPSCENE_PARAM].getValue()-1.0f)%16);
+					params[BOTTOMSCENE_PARAM].setValue(int(params[TOPSCENE_PARAM].getValue()-1.0f)%(length+1));
 				}
 				else {
 					params[BOTTOMSCENE_PARAM].setValue(params[TOPSCENE_PARAM].getValue());
@@ -342,47 +347,47 @@ void PILOT::process(const ProcessArgs &args) {
 	}
 
 	if (inputs[TOPSCENE_INPUT].isConnected()) {
-		topScene = clamp(floor(inputs[TOPSCENE_INPUT].getVoltage() * 1.6f), 0.0f, 15.0f);
+		topScene = clamp(floor(inputs[TOPSCENE_INPUT].getVoltage() * 1.6f), 0.0f, (float)length);
 	}
 	else {
 		if (topScenePlusTrigger.process(params[TOPSCENEPLUS_PARAM].getValue()+inputs[TOPSCENEPLUS_INPUT].getVoltage()))
 		{
-			params[TOPSCENE_PARAM].setValue(clamp((int)(params[TOPSCENE_PARAM].getValue() + 1.0f)%16, 0, 15));
+			params[TOPSCENE_PARAM].setValue(clamp((int)(params[TOPSCENE_PARAM].getValue() + 1.0f)%16, 0, length));
 		} else if (topSceneMinusTrigger.process(params[TOPSCENEMINUS_PARAM].getValue()+inputs[TOPSCENEMINUS_INPUT].getVoltage()))
 		{
 			int next = (int)(params[TOPSCENE_PARAM].getValue() - 1.0f);
 			if (next == -1) {
-				params[TOPSCENE_PARAM].setValue(15);
+				params[TOPSCENE_PARAM].setValue(length);
 			}
 			else {
-				params[TOPSCENE_PARAM].setValue(clamp((int)(params[TOPSCENE_PARAM].getValue() - 1.0f), 0, 15));
+				params[TOPSCENE_PARAM].setValue(clamp((int)(params[TOPSCENE_PARAM].getValue() - 1.0f), 0, length));
 			}
 		} else if (topSceneRndTrigger.process(params[TOPSCENERND_PARAM].getValue()+inputs[TOPSCENERND_INPUT].getVoltage()))
 		{
-			params[TOPSCENE_PARAM].setValue(clamp(floor(random::uniform()*16.0f), 0.0f, 15.0f));
+			params[TOPSCENE_PARAM].setValue(clamp(floor(random::uniform()*(length+1)), 0.0f, (float)length));
 		}
 		topScene = params[TOPSCENE_PARAM].getValue();
 	}
 
 	if (inputs[BOTTOMSCENE_INPUT].isConnected()) {
-		bottomScene = clamp(floor(inputs[BOTTOMSCENE_INPUT].getVoltage() * 1.6f), 0.0f, 15.0f);
+		bottomScene = clamp(floor(inputs[BOTTOMSCENE_INPUT].getVoltage() * 1.6f), 0.0f, (float)length);
 	}
 	else {
 		if (bottomScenePlusTrigger.process(params[BOTTOMSCENEPLUS_PARAM].getValue()+inputs[BOTTOMSCENEPLUS_INPUT].getVoltage()))
 		{
-			params[BOTTOMSCENE_PARAM].setValue(clamp((int)(params[BOTTOMSCENE_PARAM].getValue() + 1.0f)%16, 0, 15));
+			params[BOTTOMSCENE_PARAM].setValue(clamp((int)(params[BOTTOMSCENE_PARAM].getValue() + 1.0f)%(length+1), 0, length));
 		} else if (bottomSceneMinusTrigger.process(params[BOTTOMSCENEMINUS_PARAM].getValue()+inputs[BOTTOMSCENEMINUS_INPUT].getVoltage()))
 		{
 			int next = (int)(params[BOTTOMSCENE_PARAM].getValue() - 1.0f);
 			if (next == -1) {
-				params[BOTTOMSCENE_PARAM].setValue(15);
+				params[BOTTOMSCENE_PARAM].setValue(length);
 			}
 			else {
-				params[BOTTOMSCENE_PARAM].setValue(clamp((int)(params[BOTTOMSCENE_PARAM].getValue() - 1.0f), 0, 15));
+				params[BOTTOMSCENE_PARAM].setValue(clamp((int)(params[BOTTOMSCENE_PARAM].getValue() - 1.0f), 0, length));
 			}
 		} else if (bottomSceneRndTrigger.process(params[BOTTOMSCENERND_PARAM].getValue()+inputs[BOTTOMSCENERND_INPUT].getVoltage()))
 		{
-			params[BOTTOMSCENE_PARAM].setValue(clamp(floor(random::uniform()*16.0f), 0.0f, 15.0f));
+			params[BOTTOMSCENE_PARAM].setValue(clamp(floor(random::uniform()*(length+1)), 0.0f, (float)length));
 		}
 		bottomScene = params[BOTTOMSCENE_PARAM].getValue();
 	}
@@ -693,19 +698,26 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	const int controlsYOffest = 40;
 
 	addParam(createParam<BlueCKD6>(Vec(sceneXAnchor, outputsYAnchor + controlsYOffest), module, PILOT::MOVETYPE_PARAM));
-	addParam(createParam<BidooBlueKnob>(Vec(sceneXAnchor + controlsXOffest, outputsYAnchor + controlsYOffest), module, PILOT::SPEED_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 2*controlsXOffest, outputsYAnchor + controlsYOffest + 6), module, PILOT::SPEED_INPUT));
-	addParam(createParam<BlueCKD6>(Vec(sceneXAnchor + 3*controlsXOffest, outputsYAnchor + controlsYOffest), module, PILOT::MOVENEXT_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 4*controlsXOffest, outputsYAnchor + controlsYOffest + 6), module, PILOT::MOVENEXT_INPUT));
+	addParam(createParam<BidooBlueSnapKnob>(Vec(sceneXAnchor + controlsXOffest, outputsYAnchor + controlsYOffest), module, PILOT::LENGTH_PARAM));
+	addParam(createParam<BidooBlueKnob>(Vec(sceneXAnchor + 2*controlsXOffest, outputsYAnchor + controlsYOffest), module, PILOT::SPEED_PARAM));
+	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 3*controlsXOffest, outputsYAnchor + controlsYOffest + 6), module, PILOT::SPEED_INPUT));
+	addParam(createParam<BlueCKD6>(Vec(sceneXAnchor + 4*controlsXOffest, outputsYAnchor + controlsYOffest), module, PILOT::MOVENEXT_PARAM));
+	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 5*controlsXOffest, outputsYAnchor + controlsYOffest + 6), module, PILOT::MOVENEXT_INPUT));
 
 	PILOTMoveTypeDisplay *displayMoveType = new PILOTMoveTypeDisplay();
-	displayMoveType->box.pos = Vec(sceneXAnchor+14,outputsYAnchor + controlsYOffest-9);
+	displayMoveType->box.pos = Vec(sceneXAnchor+15,outputsYAnchor + controlsYOffest-9);
 	displayMoveType->box.size = Vec(20, 20);
 	displayMoveType->value = module ? &module->moveType : NULL;
 	addChild(displayMoveType);
 
-	addParam(createParam<BidooLEDButton>(Vec(70, 340), module, PILOT::WEOM_PARAM));
-	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(70+6, 340+6), module, PILOT::WEOM_LIGHT));
+	PILOTDisplay *displayLength = new PILOTDisplay();
+	displayLength->box.pos = Vec(sceneXAnchor+ controlsXOffest+4,outputsYAnchor + controlsYOffest-31);
+	displayLength->box.size = Vec(20, 20);
+	displayLength->value = module ? &module->length : NULL;
+	addChild(displayLength);
+
+	addParam(createParam<BidooLEDButton>(Vec(118, 340), module, PILOT::WEOM_PARAM));
+	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(118+6, 340+6), module, PILOT::WEOM_LIGHT));
 }
 
 struct PILOTItem : MenuItem {
