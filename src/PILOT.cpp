@@ -461,20 +461,6 @@ void PILOT::process(const ProcessArgs &args) {
 
 		lights[MORPH_LIGHTS+ i].setBrightness(((morph*16.0f >= i) && (morph*16.0f <= i+1))? 1 : 0);
 
-		if ((morph==1.0f) && !fired[i]) {
-			gatePulses[i].trigger(scenes[topScene][i]);
-			fired[i] = true;
-		}
-		else if ((morph==0.0f) && !fired[i]) {
-			gatePulses[i].trigger(scenes[bottomScene][i]);
-			fired[i] = true;
-		}
-		else if ((morph>0.0f) && (morph<1.0f)) {
-			fired[i] = false;
-		}
-
-		pulses[i] = gatePulses[i].process(args.sampleTime);
-
 		if (!controlFocused[i]) {
 			if (controlTypes[i] != 1) {
 				params[CONTROLS_PARAMS+i].setValue(rescale(morph,0.0f,1.0f,scenes[bottomScene][i],scenes[topScene][i]));
@@ -488,6 +474,20 @@ void PILOT::process(const ProcessArgs &args) {
 				}
 			}
 		}
+
+		if ((morph==1.0f) && !fired[i]) {
+			gatePulses[i].trigger(params[CONTROLS_PARAMS+i].getValue());
+			fired[i] = true;
+		}
+		else if ((morph==0.0f) && !fired[i]) {
+			gatePulses[i].trigger(params[CONTROLS_PARAMS+i].getValue());
+			fired[i] = true;
+		}
+		else if ((morph>0.0f) && (morph<1.0f)) {
+			fired[i] = false;
+		}
+
+		pulses[i] = gatePulses[i].process(args.sampleTime);
 
 		if (controlTypes[i] != 2) {
 			outputs[CV_OUTPUTS + i].setVoltage(params[CONTROLS_PARAMS+i].getValue()*10.0f-5.0f*voltageTypes[i]);
