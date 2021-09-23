@@ -30,6 +30,11 @@ struct PILOT : Module {
 		FRNDBOTTOM_PARAM,
 		WEOM_PARAM,
 		LENGTH_PARAM,
+		AX_PARAM,
+		AY_PARAM,
+		BX_PARAM,
+		BY_PARAM,
+		CURVE_PARAM,
 		TYPE_PARAMS,
 		CONTROLS_PARAMS = TYPE_PARAMS + 16,
 		VOLTAGE_PARAMS = CONTROLS_PARAMS + 16,
@@ -57,10 +62,11 @@ struct PILOT : Module {
 	};
 	enum LightIds {
 		WEOM_LIGHT,
-		TYPE_LIGHTS= WEOM_LIGHT + 3,
+		CURVE_LIGHT = WEOM_LIGHT + 3,
+		TYPE_LIGHTS = CURVE_LIGHT + 3,
 		VOLTAGE_LIGHTS = TYPE_LIGHTS + 16*3,
 		MORPH_LIGHTS = VOLTAGE_LIGHTS + 16*3,
-		NUM_LIGHTS = MORPH_LIGHTS + 16
+		NUM_LIGHTS = MORPH_LIGHTS + 16*3
 	};
 
 	float scenes[16][16] = {{0.0f}};
@@ -79,6 +85,7 @@ struct PILOT : Module {
 	bool forward = false;
 	bool rev = false;
 	bool waitEOM = true;
+	bool curve = false;
 	int length = 15;
 
 	dsp::SchmittTrigger typeTriggers[16];
@@ -100,6 +107,7 @@ struct PILOT : Module {
 	dsp::SchmittTrigger rndBottomTrigger;
 	dsp::SchmittTrigger frndBottomTrigger;
 	dsp::SchmittTrigger weomTrigger;
+	dsp::SchmittTrigger curveTrigger;
 	dsp::PulseGenerator gatePulses[16];
 
 
@@ -125,11 +133,17 @@ struct PILOT : Module {
 		configParam(SPEED_PARAM, 1e-9f, 1.0f, 0.5f);
 		configParam(WEOM_PARAM, 0.0f, 10.0f, 0.0f);
 		configParam(LENGTH_PARAM, 0.0f, 15.0f, 15.0f);
+		configParam(CURVE_PARAM, 0.0f, 10.0f, 15.0f);
 
 		configParam(RNDTOP_PARAM, 0.0f, 10.0f, 0.0f);
 		configParam(FRNDTOP_PARAM, 0.0f, 10.0f, 0.0f);
 		configParam(RNDBOTTOM_PARAM, 0.0f, 10.0f, 0.0f);
 		configParam(FRNDBOTTOM_PARAM, 0.0f, 10.0f, 0.0f);
+
+		configParam(AX_PARAM, 0.0f, 1.0f, 0.5f);
+		configParam(AY_PARAM, -5.0f, 5.0f, 0.5f);
+		configParam(BX_PARAM, 0.0f, 1.0f, 0.5f);
+		configParam(BY_PARAM, -5.0f, 5.0f, 0.5f);
 
   	for (int i = 0; i < 16; i++) {
       configParam(CONTROLS_PARAMS + i, 0.0f, 1.0f, 0.0f);
@@ -137,6 +151,20 @@ struct PILOT : Module {
 			configParam(VOLTAGE_PARAMS + i, 0.0f, 10.0f, 0.0f);
   	}
   }
+
+	float getXBez(float pos)
+	{
+		float a = pos * pos;
+		float b = pos * pos * pos;
+		return clamp(b + (3*a - 3*b)*params[BX_PARAM].getValue() + (3*b - 6*a + 3*pos)*params[AX_PARAM].getValue(),0.0f,1.0f);
+	}
+
+	float getYBez(float pos)
+	{
+		float a = pos * pos;
+		float b = pos * pos * pos;
+		return clamp(b + (3*a - 3*b)*params[BY_PARAM].getValue() + (3*b - 6*a + 3*pos)*params[AY_PARAM].getValue(),0.0f,1.0f);
+	}
 
   void process(const ProcessArgs &args) override;
 
@@ -185,6 +213,7 @@ struct PILOT : Module {
 
 		json_object_set_new(rootJ, "moveType", json_integer(moveType));
 		json_object_set_new(rootJ, "WEOM", json_boolean(waitEOM));
+		json_object_set_new(rootJ, "CURVE", json_boolean(curve));
 
 		json_t *scenesJ = json_array();
 		json_t *typesJ = json_array();
@@ -217,6 +246,10 @@ struct PILOT : Module {
 		json_t *weomJ = json_object_get(rootJ, "WEOM");
 		if (weomJ)
 			waitEOM = json_boolean_value(weomJ);
+
+		json_t *curveJ = json_object_get(rootJ, "CURVE");
+		if (curveJ)
+			curve = json_boolean_value(curveJ);
 
 		json_t *scenesJ = json_object_get(rootJ, "scenes");
 		json_t *typesJ = json_object_get(rootJ, "types");
@@ -252,6 +285,13 @@ void PILOT::process(const ProcessArgs &args) {
 	lights[WEOM_LIGHT].setBrightness(waitEOM?0:1);
 	lights[WEOM_LIGHT+1].setBrightness(waitEOM?0:1);
 	lights[WEOM_LIGHT+2].setBrightness(waitEOM?1:0);
+
+	if (curveTrigger.process(params[CURVE_PARAM].getValue())) {
+		curve = !curve;
+	}
+	lights[CURVE_LIGHT].setBrightness(curve?0:1);
+	lights[CURVE_LIGHT+1].setBrightness(curve?0:1);
+	lights[CURVE_LIGHT+2].setBrightness(curve?1:0);
 
 	speed = powf(clamp(params[SPEED_PARAM].getValue()+inputs[SPEED_INPUT].getVoltage()/10.0f,1e-9f,1.0f),16.0f);
 
@@ -464,11 +504,26 @@ void PILOT::process(const ProcessArgs &args) {
 		lights[VOLTAGE_LIGHTS+ i*3 + 1].setBrightness(voltageTypes[i] == 1 ? 1 : 0);
 		lights[VOLTAGE_LIGHTS+ i*3 + 2].setBrightness(voltageTypes[i] == 0 ? 1 : 0);
 
-		lights[MORPH_LIGHTS+ i].setBrightness(((morph*16.0f >= i) && (morph*16.0f <= i+1))? 1 : 0);
+		lights[MORPH_LIGHTS+i*3].setBrightness(((morph*16.0f >= i) && (morph*16.0f <= i+1))? 1 : 0);
+		if (morph == 1.0f) {
+			lights[MORPH_LIGHTS+i*3+1].setBrightness(((morph*16.0f >= i) && (morph*16.0f <= i+1))? 1 : 0);
+		}
+		else if (morph == 0.0f) {
+			lights[MORPH_LIGHTS+i*3+1].setBrightness(((morph*16.0f >= i) && (morph*16.0f <= i+1))? 1 : 0);
+		}
+		else {
+				lights[MORPH_LIGHTS+i*3+1].setBrightness(0);
+		}
+		lights[MORPH_LIGHTS+i*3+2].setBrightness(0);
 
 		if (!controlFocused[i]) {
 			if (controlTypes[i] != 1) {
-				params[CONTROLS_PARAMS+i].setValue(rescale(morph,0.0f,1.0f,scenes[bottomScene][i],scenes[topScene][i]));
+				if (!curve) {
+					params[CONTROLS_PARAMS+i].setValue(clamp(rescale(morph,0.0f,1.0f,scenes[bottomScene][i],scenes[topScene][i]),0.0f,1.0f));
+				}
+				else {
+					params[CONTROLS_PARAMS+i].setValue(getYBez(rescale(morph,0.0f,1.0f,scenes[bottomScene][i],scenes[topScene][i])));
+				}
 			}
 			else {
 				if (morph == 1.0f) {
@@ -583,6 +638,59 @@ struct PILOTDisplay : TransparentWidget {
 	}
 };
 
+struct PILOTCurveDisplay : TransparentWidget {
+	PILOT *module;
+
+	PILOTCurveDisplay() {
+	}
+
+	void draw(const DrawArgs &args) override {
+		if (module) {
+			nvgStrokeColor(args.vg, YELLOW_BIDOO);
+			nvgStrokeWidth(args.vg, 2);
+			nvgSave(args.vg);
+
+			nvgBeginPath(args.vg);
+			for( float i = 0 ; i <= 1 ; i =i+0.01 ) {
+				if (i == 0) {
+					if (module->curve) {
+						nvgMoveTo(args.vg, module->getXBez(i)*box.size.x,box.size.x - module->getYBez(i)*box.size.x);
+					}
+					else {
+						nvgMoveTo(args.vg, i*box.size.x,box.size.x - i*box.size.x);
+					}
+				}
+				else {
+					if (module->curve) {
+						nvgLineTo(args.vg, module->getXBez(i)*box.size.y,box.size.y - module->getYBez(i)*box.size.y);
+					}
+					else {
+						nvgLineTo(args.vg, i*box.size.x,box.size.x - i*box.size.x);
+					}
+				}
+			}
+			nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+			nvgStroke(args.vg);
+
+			nvgBeginPath(args.vg);
+			nvgStrokeColor(args.vg, PINK_BIDOO);
+			nvgFillColor(args.vg, PINK_BIDOO);
+			nvgStrokeWidth(args.vg, 1);
+			if (module->curve) {
+				nvgCircle(args.vg, module->getXBez(module->morph)*box.size.x, box.size.y - module->getYBez(module->morph)*box.size.y,3);
+			}
+			else {
+				nvgCircle(args.vg, module->morph*box.size.x, box.size.y - module->morph*box.size.y,3);
+			}
+			nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+			nvgStroke(args.vg);
+			nvgFill(args.vg);
+
+			nvgRestore(args.vg);
+		}
+	}
+};
+
 struct PILOTMorphKnob : BidooHugeRedKnob {
 	void onButton(const event::Button &e) override {
 			PILOT *module = dynamic_cast<PILOT*>(this->paramQuantity->module);
@@ -612,7 +720,7 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
 	const int morphXAnchor = 100;
-	const int morphYAnchor = 128;
+	const int morphYAnchor = 123;
 	const int morphLigthsXAnchor = morphXAnchor + 73;
 	const int morphLigthsYAnchor = morphYAnchor - 90;
 	const int morphLigth_spacer = 12;
@@ -676,14 +784,14 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	const int led_offset = 6;
 	const int diffYled_offset = 20;
 	const int controlsXAnchor = 202;
-	const int controlsYAnchor = 40;
-	const int outputsXAnchor = 265;
-	const int outputsYAnchor = 262;
+	const int controlsYAnchor = 35;
+	const int outputsXAnchor = 325;
+	const int outputsYAnchor = 257;
 	const int ledsXAnchor = controlsXAnchor + 38;
 	const int ledsYAnchor = controlsYAnchor;
 
 	for (int i = 0; i < 16; i++) {
-		addChild(createLight<MediumLight<RedLight>>(Vec(morphLigthsXAnchor, morphLigthsYAnchor + (16-i) * morphLigth_spacer), module, PILOT::MORPH_LIGHTS + i));
+		addChild(createLight<MediumLight<RedGreenBlueLight>>(Vec(morphLigthsXAnchor, morphLigthsYAnchor + (16-i) * morphLigth_spacer), module, PILOT::MORPH_LIGHTS + i*3));
 
 		controls[i] = createParam<PILOTColoredKnob>(Vec(controlsXAnchor + controlsSpacer *(i%4), controlsYAnchor + controlsSpacer * floor(i/4)), module, PILOT::CONTROLS_PARAMS + i);
 		addParam(controls[i]);
@@ -701,8 +809,8 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	addParam(createParam<BidooBlueSnapKnob>(Vec(sceneXAnchor + controlsXOffest, outputsYAnchor + controlsYOffest), module, PILOT::LENGTH_PARAM));
 	addParam(createParam<BidooBlueKnob>(Vec(sceneXAnchor + 2*controlsXOffest, outputsYAnchor + controlsYOffest), module, PILOT::SPEED_PARAM));
 	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 3*controlsXOffest, outputsYAnchor + controlsYOffest + 6), module, PILOT::SPEED_INPUT));
-	addParam(createParam<BlueCKD6>(Vec(sceneXAnchor + 4*controlsXOffest, outputsYAnchor + controlsYOffest), module, PILOT::MOVENEXT_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 5*controlsXOffest, outputsYAnchor + controlsYOffest + 6), module, PILOT::MOVENEXT_INPUT));
+	addParam(createParam<BlueCKD6>(Vec(sceneXAnchor + 4*controlsXOffest-15, outputsYAnchor + controlsYOffest), module, PILOT::MOVENEXT_PARAM));
+	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 5*controlsXOffest-15, outputsYAnchor + controlsYOffest + 6), module, PILOT::MOVENEXT_INPUT));
 
 	PILOTMoveTypeDisplay *displayMoveType = new PILOTMoveTypeDisplay();
 	displayMoveType->box.pos = Vec(sceneXAnchor+15,outputsYAnchor + controlsYOffest-9);
@@ -716,8 +824,22 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	displayLength->value = module ? &module->length : NULL;
 	addChild(displayLength);
 
-	addParam(createParam<BidooLEDButton>(Vec(118, 340), module, PILOT::WEOM_PARAM));
-	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(118+6, 340+6), module, PILOT::WEOM_LIGHT));
+	addParam(createParam<BidooLEDButton>(Vec(98, 340), module, PILOT::WEOM_PARAM));
+	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(98+6, 340+6), module, PILOT::WEOM_LIGHT));
+
+	addParam(createParam<BidooLEDButton>(Vec(138, 340), module, PILOT::CURVE_PARAM));
+	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(138+6, 340+6), module, PILOT::CURVE_LIGHT));
+
+	addParam(createParam<BidooBlueTrimpot>(Vec(sceneXAnchor + 6*controlsXOffest-20, 345), module, PILOT::AX_PARAM));
+	addParam(createParam<BidooBlueTrimpot>(Vec(sceneXAnchor + 6*controlsXOffest, 345), module, PILOT::AY_PARAM));
+	addParam(createParam<BidooBlueTrimpot>(Vec(sceneXAnchor + 6*controlsXOffest+20, 345), module, PILOT::BX_PARAM));
+	addParam(createParam<BidooBlueTrimpot>(Vec(sceneXAnchor + 6*controlsXOffest+40, 345), module, PILOT::BY_PARAM));
+
+	PILOTCurveDisplay *displayCurve = new PILOTCurveDisplay();
+	displayCurve->box.pos = Vec(sceneXAnchor+ 6*controlsXOffest-20, outputsYAnchor+4);
+	displayCurve->box.size = Vec(78, 78);
+	displayCurve->module = module ? module : NULL;
+	addChild(displayCurve);
 }
 
 struct PILOTItem : MenuItem {

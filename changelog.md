@@ -1,3 +1,6 @@
+### v1.1.36 (21/09/2021)
+- πlOT custom morphing curve
+
 ### v1.1.32 (21/09/2021)
 - MOiRE random button for target scene added
 - πlOT is a kind of MOiRE++ with automorphing between scenes and more
