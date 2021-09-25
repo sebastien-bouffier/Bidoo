@@ -158,6 +158,24 @@ struct RedBtn : app::SvgSwitch {
 	}
 };
 
+struct SaveBtn : app::SvgSwitch {
+	SaveBtn() {
+		momentary = true;
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/SaveBtn_0.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/SaveBtn_1.svg")));
+		shadow->opacity = 0.0f;
+	}
+};
+
+struct Rnd2Btn : app::SvgSwitch {
+	Rnd2Btn() {
+		momentary = true;
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/Rnd2Btn_0.svg")));
+		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/Rnd2Btn_1.svg")));
+		shadow->opacity = 0.0f;
+	}
+};
+
 struct MuteBtn : app::SvgSwitch {
 	MuteBtn() {
 		momentary = true;
@@ -242,6 +260,10 @@ struct BidooColoredKnob : RoundKnob {
 };
 
 struct BidooLargeColoredKnob : RoundKnob {
+	bool *blink=NULL;
+	int frame=0;
+	unsigned int tFade=255;
+
 	BidooLargeColoredKnob() {
 		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ColoredLargeKnobBidoo.svg")));
 		shadow->opacity = 0.0f;
@@ -253,7 +275,22 @@ struct BidooLargeColoredKnob : RoundKnob {
 				std::string str(shape->id);
 				if (str == "bidooKnob") {
 					shape->fill.color = (((unsigned int)42+(unsigned int)(paramQuantity->getValue()*210)) | (((unsigned int)87-(unsigned int)(paramQuantity->getValue()*80)) << 8) | (((unsigned int)117-(unsigned int)(paramQuantity->getValue()*10)) << 16));
-					shape->fill.color |= (unsigned int)(255) << 24;
+					if (!*blink) {
+						tFade = 255;
+					}
+					else {
+						if (++frame <= 30) {
+							tFade -= frame*3;
+						}
+						else if (++frame<60) {
+							tFade = 255;
+						}
+						else {
+							tFade = 255;
+							frame = 0;
+						}
+					}
+					shape->fill.color |= (unsigned int)(tFade) << 24;
 				}
 			}
 		}

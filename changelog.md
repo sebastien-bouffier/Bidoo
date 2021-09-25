@@ -1,3 +1,11 @@
+### v1.1.37 (25/09/2021)
+- πlOT UI redesigned
+- πlOT red mode for controls = quantization to semi-tones + display of note when edited
+- πlOT saving a scene release all the controls
+- πlOT red wait mode for the sequencer = morph must reach min or max to change controls in yellow mode (jump) and to fire the gates of controls in green mode (gate)
+- πlOT yellow wait mode for the sequencer = morph changes controls in yellow mode (jump) when a trig occurs and fires the gates of controls in green mode (gate)
+- πlOT bezier curve morphing error fixed
+
 ### v1.1.36 (21/09/2021)
 - πlOT custom morphing curve
 

@@ -50,6 +50,10 @@ struct PILOT : Module {
 		TOPSCENEPLUS_INPUT,
 		TOPSCENEMINUS_INPUT,
 		TOPSCENERND_INPUT,
+		AX_INPUT,
+		AY_INPUT,
+		BX_INPUT,
+		BY_INPUT,
 		SPEED_INPUT,
 		GOBOTTOM_INPUT,
 		GOTOP_INPUT,
@@ -65,26 +69,26 @@ struct PILOT : Module {
 		CURVE_LIGHT = WEOM_LIGHT + 3,
 		TYPE_LIGHTS = CURVE_LIGHT + 3,
 		VOLTAGE_LIGHTS = TYPE_LIGHTS + 16*3,
-		MORPH_LIGHTS = VOLTAGE_LIGHTS + 16*3,
-		NUM_LIGHTS = MORPH_LIGHTS + 16*3
+		NUM_LIGHTS = VOLTAGE_LIGHTS + 16*3
 	};
 
 	float scenes[16][16] = {{0.0f}};
 	int controlTypes[16] = {0};
 	int voltageTypes[16] = {0};
 	bool controlFocused[16] = {false};
+	int currentFocus = -1;
 	bool morphFocused = false;
 	int topScene = 0;
 	int bottomScene = 0;
 	float morph = 0.0f;
 	bool pulses[16] = {false};
-	bool fired[16] = {false};
 	float speed = 1e-3f;
 	int moveType = 5;
 	bool moving = false;
-	bool forward = false;
+	bool forward = true;
+	bool changeDir =false;
 	bool rev = false;
-	bool waitEOM = true;
+	int waitEOM = 0;
 	bool curve = false;
 	int length = 15;
 
@@ -140,9 +144,9 @@ struct PILOT : Module {
 		configParam(RNDBOTTOM_PARAM, 0.0f, 10.0f, 0.0f);
 		configParam(FRNDBOTTOM_PARAM, 0.0f, 10.0f, 0.0f);
 
-		configParam(AX_PARAM, 0.0f, 1.0f, 0.5f);
+		configParam(AX_PARAM, -1.0f, 2.0f, 0.5f);
 		configParam(AY_PARAM, -5.0f, 5.0f, 0.5f);
-		configParam(BX_PARAM, 0.0f, 1.0f, 0.5f);
+		configParam(BX_PARAM, -1.0f, 2.0f, 0.5f);
 		configParam(BY_PARAM, -5.0f, 5.0f, 0.5f);
 
   	for (int i = 0; i < 16; i++) {
@@ -156,14 +160,64 @@ struct PILOT : Module {
 	{
 		float a = pos * pos;
 		float b = pos * pos * pos;
-		return clamp(b + (3*a - 3*b)*params[BX_PARAM].getValue() + (3*b - 6*a + 3*pos)*params[AX_PARAM].getValue(),0.0f,1.0f);
+		return clamp(b + (3*a - 3*b)*(params[BX_PARAM].getValue()+inputs[BX_INPUT].getVoltage()) + (3*b - 6*a + 3*pos)*(params[AX_PARAM].getValue()+inputs[AX_INPUT].getVoltage()),0.0f,1.0f);
 	}
 
 	float getYBez(float pos)
 	{
 		float a = pos * pos;
 		float b = pos * pos * pos;
-		return clamp(b + (3*a - 3*b)*params[BY_PARAM].getValue() + (3*b - 6*a + 3*pos)*params[AY_PARAM].getValue(),0.0f,1.0f);
+		return clamp(b + (3*a - 3*b)*(params[BY_PARAM].getValue()+inputs[BY_INPUT].getVoltage()) + (3*b - 6*a + 3*pos)*(params[AY_PARAM].getValue()+inputs[AY_INPUT].getVoltage()),0.0f,1.0f);
+	}
+
+	float closestVoltageInScale(float in){
+		float voltsIn=in-4.0f;
+		float closestVal = 0.0f;
+		float closestDist = 1.0f;
+		int octaveInVolts = 0;
+		if ((voltsIn >= 0.0f) || (voltsIn == (int)voltsIn)) {
+			octaveInVolts = int(voltsIn);
+		}
+		else {
+			octaveInVolts = int(voltsIn)-1;
+		}
+		for (int i = 0; i < 12; i++) {
+			float scaleNoteInVolts = octaveInVolts + (float)i / 12.0f;
+			float distAway = fabs(voltsIn - scaleNoteInVolts);
+			if(distAway < closestDist) {
+				closestVal = scaleNoteInVolts;
+				closestDist = distAway;
+			}
+		}
+		return closestVal;
+	}
+
+	std::string noteName() {
+		if (currentFocus >= 0) {
+			float voltsIn=outputs[CV_OUTPUTS + currentFocus].getVoltage();
+			float closestDist = 1.0f;
+			int octaveInVolts = 0;
+			std::string note = "";
+			const char *notes[12] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
+			if ((voltsIn >= 0.0f) || (voltsIn == (int)voltsIn)) {
+				octaveInVolts = int(voltsIn);
+			}
+			else {
+				octaveInVolts = int(voltsIn)-1;
+			}
+			for (int i = 0; i < 12; i++) {
+				float scaleNoteInVolts = octaveInVolts + (float)i / 12.0f;
+				float distAway = fabs(voltsIn - scaleNoteInVolts);
+				if(distAway < closestDist) {
+					closestDist = distAway;
+					note = notes[i];
+				}
+			}
+			return note + to_string(octaveInVolts+4);
+		}
+		else {
+			return "";
+		}
 	}
 
   void process(const ProcessArgs &args) override;
@@ -212,7 +266,7 @@ struct PILOT : Module {
 		json_t *rootJ = json_object();
 
 		json_object_set_new(rootJ, "moveType", json_integer(moveType));
-		json_object_set_new(rootJ, "WEOM", json_boolean(waitEOM));
+		json_object_set_new(rootJ, "WEOM", json_integer(waitEOM));
 		json_object_set_new(rootJ, "CURVE", json_boolean(curve));
 
 		json_t *scenesJ = json_array();
@@ -245,7 +299,7 @@ struct PILOT : Module {
 
 		json_t *weomJ = json_object_get(rootJ, "WEOM");
 		if (weomJ)
-			waitEOM = json_boolean_value(weomJ);
+			waitEOM = json_integer_value(weomJ);
 
 		json_t *curveJ = json_object_get(rootJ, "CURVE");
 		if (curveJ)
@@ -279,12 +333,14 @@ struct PILOT : Module {
 };
 
 void PILOT::process(const ProcessArgs &args) {
+	changeDir =false;
+
 	if (weomTrigger.process(params[WEOM_PARAM].getValue())) {
-		waitEOM = !waitEOM;
+		waitEOM = (waitEOM+1)%3;
 	}
-	lights[WEOM_LIGHT].setBrightness(waitEOM?0:1);
-	lights[WEOM_LIGHT+1].setBrightness(waitEOM?0:1);
-	lights[WEOM_LIGHT+2].setBrightness(waitEOM?1:0);
+	lights[WEOM_LIGHT].setBrightness(waitEOM>0?1:0);
+	lights[WEOM_LIGHT+1].setBrightness(waitEOM==1?1:0);
+	lights[WEOM_LIGHT+2].setBrightness(waitEOM==0?1:0);
 
 	if (curveTrigger.process(params[CURVE_PARAM].getValue())) {
 		curve = !curve;
@@ -301,9 +357,10 @@ void PILOT::process(const ProcessArgs &args) {
 		moveType = (moveType+1)%6;
 	}
 
-	if ((moveNextTrigger.process(params[MOVENEXT_PARAM].getValue()+inputs[MOVENEXT_INPUT].getVoltage())) && ((waitEOM && !moving) || (!waitEOM))) {
+	if ((moveNextTrigger.process(params[MOVENEXT_PARAM].getValue()+inputs[MOVENEXT_INPUT].getVoltage())) && ((waitEOM==0 && !moving) || (waitEOM>0))) {
 		moving = true;
 		forward = !forward;
+		changeDir = true;
 		if (forward) {
 			if (moveType==0) {
 				params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()+1.0f)%(length+1));
@@ -451,13 +508,17 @@ void PILOT::process(const ProcessArgs &args) {
 	if (topSceneSaveTrigger.process(params[SAVETOP_PARAM].getValue())) {
 		for (int i = 0; i < 16; i++) {
 			scenes[topScene][i] = params[CONTROLS_PARAMS+i].getValue();
+			controlFocused[i]=false;
 		}
+		currentFocus = -1;
 	}
 
 	if (bottomSceneSaveTrigger.process(params[SAVEBOTTOM_PARAM].getValue())) {
 		for (int i = 0; i < 16; i++) {
 			scenes[bottomScene][i] = params[CONTROLS_PARAMS+i].getValue();
+			controlFocused[i]=false;
 		}
+		currentFocus = -1;
 	}
 
 	if (inputs[MORPH_INPUT].isConnected()) {
@@ -492,68 +553,73 @@ void PILOT::process(const ProcessArgs &args) {
 
 	for (int i = 0; i < 16; i++) {
 		if (typeTriggers[i].process(params[TYPE_PARAMS + i].getValue())) {
-			controlTypes[i] = (controlTypes[i]+1)%3;
+			controlTypes[i] = (controlTypes[i]+1)%4;
 		}
 		if (voltageTriggers[i].process(params[VOLTAGE_PARAMS + i].getValue())) {
 			voltageTypes[i] = voltageTypes[i] == 0 ? 1 : 0;
 		}
-		lights[TYPE_LIGHTS+ i*3].setBrightness(controlTypes[i] == 1 ? 1 : 0);
-		lights[TYPE_LIGHTS+ i*3 + 1].setBrightness(controlTypes[i] != 0 ? 1 : 0);
+
+		lights[TYPE_LIGHTS+ i*3].setBrightness((controlTypes[i] == 1) || (controlTypes[i] == 3) ? 1 : 0);
+		lights[TYPE_LIGHTS+ i*3 + 1].setBrightness((controlTypes[i] == 1) || (controlTypes[i] == 2) ? 1 : 0);
 		lights[TYPE_LIGHTS+ i*3 + 2].setBrightness(controlTypes[i] == 0 ? 1 : 0);
 		lights[VOLTAGE_LIGHTS+ i*3].setBrightness(voltageTypes[i] == 1 ? 1 : 0);
 		lights[VOLTAGE_LIGHTS+ i*3 + 1].setBrightness(voltageTypes[i] == 1 ? 1 : 0);
 		lights[VOLTAGE_LIGHTS+ i*3 + 2].setBrightness(voltageTypes[i] == 0 ? 1 : 0);
 
-		lights[MORPH_LIGHTS+i*3].setBrightness(((morph*16.0f >= i) && (morph*16.0f <= i+1))? 1 : 0);
-		if (morph == 1.0f) {
-			lights[MORPH_LIGHTS+i*3+1].setBrightness(((morph*16.0f >= i) && (morph*16.0f <= i+1))? 1 : 0);
-		}
-		else if (morph == 0.0f) {
-			lights[MORPH_LIGHTS+i*3+1].setBrightness(((morph*16.0f >= i) && (morph*16.0f <= i+1))? 1 : 0);
-		}
-		else {
-				lights[MORPH_LIGHTS+i*3+1].setBrightness(0);
-		}
-		lights[MORPH_LIGHTS+i*3+2].setBrightness(0);
-
 		if (!controlFocused[i]) {
 			if (controlTypes[i] != 1) {
 				if (!curve) {
-					params[CONTROLS_PARAMS+i].setValue(clamp(rescale(morph,0.0f,1.0f,scenes[bottomScene][i],scenes[topScene][i]),0.0f,1.0f));
+					if (scenes[bottomScene][i] != scenes[topScene][i]) {
+						params[CONTROLS_PARAMS+i].setValue(clamp(rescale(morph,0.0f,1.0f,scenes[bottomScene][i],scenes[topScene][i]),0.0f,1.0f));
+					}
+					else {
+						params[CONTROLS_PARAMS+i].setValue(scenes[bottomScene][i]);
+					}
 				}
 				else {
-					params[CONTROLS_PARAMS+i].setValue(getYBez(rescale(morph,0.0f,1.0f,scenes[bottomScene][i],scenes[topScene][i])));
+					if (scenes[bottomScene][i] != scenes[topScene][i]) {
+						params[CONTROLS_PARAMS+i].setValue(rescale(getYBez(morph),0.0f,1.0f,scenes[bottomScene][i],scenes[topScene][i]));
+					}
+					else {
+						params[CONTROLS_PARAMS+i].setValue(scenes[bottomScene][i]);
+					}
 				}
 			}
 			else {
-				if (morph == 1.0f) {
+				if (morph == 1.0f || (changeDir && (waitEOM==1) && forward)) {
 					params[CONTROLS_PARAMS+i].setValue(scenes[topScene][i]);
 				}
-				else if (morph == 0.0f) {
+				else if (morph == 0.0f || (changeDir && (waitEOM==1) && !forward)) {
 					params[CONTROLS_PARAMS+i].setValue(scenes[bottomScene][i]);
 				}
 			}
 		}
 
-		if ((morph==1.0f) && !fired[i]) {
-			gatePulses[i].trigger(params[CONTROLS_PARAMS+i].getValue());
-			fired[i] = true;
-		}
-		else if ((morph==0.0f) && !fired[i]) {
-			gatePulses[i].trigger(params[CONTROLS_PARAMS+i].getValue());
-			fired[i] = true;
-		}
-		else if ((morph>0.0f) && (morph<1.0f)) {
-			fired[i] = false;
+		if ((changeDir && waitEOM==1) || (morph==0.0f) || (morph==1.0f)) {
+			gatePulses[i].reset();
+			gatePulses[i].trigger(powf(params[CONTROLS_PARAMS+i].getValue(),8.0f));
 		}
 
 		pulses[i] = gatePulses[i].process(args.sampleTime);
 
-		if (controlTypes[i] != 2) {
-			outputs[CV_OUTPUTS + i].setVoltage(params[CONTROLS_PARAMS+i].getValue()*10.0f-5.0f*voltageTypes[i]);
+		if (controlTypes[i] == 3) {
+			if (controlFocused[i]) {
+				outputs[CV_OUTPUTS + i].setVoltage(closestVoltageInScale(params[CONTROLS_PARAMS+i].getValue()*10.0f));
+			}
+			else {
+				if ((scenes[bottomScene][i]==scenes[topScene][i]) || (bottomScene==topScene)) {
+					outputs[CV_OUTPUTS + i].setVoltage(closestVoltageInScale(scenes[bottomScene][i]*10.0f));
+				}
+				else {
+					outputs[CV_OUTPUTS + i].setVoltage(rescale(params[CONTROLS_PARAMS+i].getValue(),scenes[bottomScene][i],scenes[topScene][i],closestVoltageInScale(scenes[bottomScene][i]*10.0f),closestVoltageInScale(scenes[topScene][i]*10.0f)));
+				}
+			}
+		}
+		else if (controlTypes[i] == 2) {
+			outputs[CV_OUTPUTS + i].setVoltage(pulses[i] ? 10.0f-5.0f*voltageTypes[i] : 0.0f);
 		}
 		else {
-			outputs[CV_OUTPUTS + i].setVoltage(pulses[i] ? 10.0f-5.0f*voltageTypes[i] : 0.0f);
+			outputs[CV_OUTPUTS + i].setVoltage(params[CONTROLS_PARAMS+i].getValue()*10.0f-5.0f*voltageTypes[i]);
 		}
 	}
 
@@ -563,6 +629,7 @@ struct PILOTWidget : ModuleWidget {
 	ParamWidget *controls[16];
 	ParamWidget *morphButton;
 	void appendContextMenu(ui::Menu *menu) override;
+	void step() override;
   PILOTWidget(PILOT *module);
 };
 
@@ -578,6 +645,7 @@ struct PILOTColoredKnob : BidooLargeColoredKnob {
 		RoundKnob::onDragStart(e);
 		PILOT *module = dynamic_cast<PILOT*>(this->paramQuantity->module);
 		module->controlFocused[this->paramQuantity->paramId - PILOT::PILOT::CONTROLS_PARAMS] = true;
+		module->currentFocus = this->paramQuantity->paramId - PILOT::PILOT::CONTROLS_PARAMS;
 	}
 };
 
@@ -606,7 +674,7 @@ struct PILOTMoveTypeDisplay : TransparentWidget {
 			nvgFillColor(args.vg, YELLOW_BIDOO);
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 			if (value) {
-				nvgText(args.vg, 0.0f, 0.0f, displayPlayMode().c_str(), NULL);
+				nvgText(args.vg, 0.0f, 14, displayPlayMode().c_str(), NULL);
 			}
 	}
 };
@@ -620,21 +688,36 @@ struct PILOTDisplay : TransparentWidget {
 		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 	}
 
-	void drawMessage(NVGcontext *vg, Vec pos) {
-    if (value) {
-      nvgFontSize(vg, 18);
-  		nvgFontFaceId(vg, font->handle);
-  		nvgTextLetterSpacing(vg, -2);
-  		nvgFillColor(vg, YELLOW_BIDOO);
+	void draw(const DrawArgs &args) override {
+		if (value) {
+      nvgFontSize(args.vg, 18);
+  		nvgFontFaceId(args.vg, font->handle);
+  		nvgTextLetterSpacing(args.vg, -2);
+  		nvgFillColor(args.vg, YELLOW_BIDOO);
   		std::stringstream ss;
   		ss << std::setw(2) << std::setfill('0') << *value + 1;
   		std::string s = ss.str();
-  		nvgText(vg, pos.x + 2, pos.y + 2, s.c_str(), NULL);
+  		nvgText(args.vg, 0, 14, s.c_str(), NULL);
     }
+	}
+};
+
+struct PILOTNoteDisplay : TransparentWidget {
+	PILOT *module;
+	shared_ptr<Font> font;
+
+	PILOTNoteDisplay() {
+		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 	}
 
 	void draw(const DrawArgs &args) override {
-		drawMessage(args.vg, Vec(0, 20));
+		if ((module) && (module->currentFocus>=0) && (module->controlTypes[module->currentFocus]==3)) {
+      nvgFontSize(args.vg, 18);
+  		nvgFontFaceId(args.vg, font->handle);
+  		nvgTextLetterSpacing(args.vg, -2);
+  		nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgText(args.vg, 0, 12, module->noteName().c_str(), NULL);
+    }
 	}
 };
 
@@ -646,10 +729,14 @@ struct PILOTCurveDisplay : TransparentWidget {
 
 	void draw(const DrawArgs &args) override {
 		if (module) {
-			nvgStrokeColor(args.vg, YELLOW_BIDOO);
+			if (module->curve) {
+				nvgStrokeColor(args.vg, SCHEME_BLUE);
+			}
+			else {
+				nvgStrokeColor(args.vg, YELLOW_BIDOO);
+			}
 			nvgStrokeWidth(args.vg, 2);
 			nvgSave(args.vg);
-
 			nvgBeginPath(args.vg);
 			for( float i = 0 ; i <= 1 ; i =i+0.01 ) {
 				if (i == 0) {
@@ -669,20 +756,20 @@ struct PILOTCurveDisplay : TransparentWidget {
 					}
 				}
 			}
-			nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+			//nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
 			nvgStroke(args.vg);
 
 			nvgBeginPath(args.vg);
-			nvgStrokeColor(args.vg, PINK_BIDOO);
-			nvgFillColor(args.vg, PINK_BIDOO);
-			nvgStrokeWidth(args.vg, 1);
+			nvgStrokeColor(args.vg, RED_BIDOO);
+			nvgFillColor(args.vg, RED_BIDOO);
+			nvgStrokeWidth(args.vg, 2);
 			if (module->curve) {
 				nvgCircle(args.vg, module->getXBez(module->morph)*box.size.x, box.size.y - module->getYBez(module->morph)*box.size.y,3);
 			}
 			else {
 				nvgCircle(args.vg, module->morph*box.size.x, box.size.y - module->morph*box.size.y,3);
 			}
-			nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+			//nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
 			nvgStroke(args.vg);
 			nvgFill(args.vg);
 
@@ -700,6 +787,7 @@ struct PILOTMorphKnob : BidooHugeRedKnob {
 				for (int i = 0 ; i < 16; i++) {
 					module->controlFocused[i] = false;
 				}
+				module->currentFocus = -1;
 			}
 			else if (e.action == GLFW_RELEASE) {
 				module->morphFocused = false;
@@ -719,81 +807,89 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	addChild(createWidget<ScrewSilver>(Vec(15, 365)));
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
-	const int morphXAnchor = 100;
-	const int morphYAnchor = 123;
-	const int morphLigthsXAnchor = morphXAnchor + 73;
-	const int morphLigthsYAnchor = morphYAnchor - 90;
-	const int morphLigth_spacer = 12;
-	const int sceneXAnchor = morphXAnchor - 85;
-	const int topSceneYAnchor = morphYAnchor - 80;
-	const int bottomSceneYAnchor = morphYAnchor + 95;
-	const int xDisplayOffset = 4;
-	const int yDisplayOffset = -8;
-	const int minusXOffset = -18;
-	const int plusXOffset = 32;
-	const int inputSceneYOffset = 20;
+	const int morphXAnchor = 144;
+	const int morphYAnchor = 111;
+	const int jumpersXOffset = -30;
+	const int topJumpYOffset = -15;
+	const int bottomJumpYOffset = 44;
+	const int morphInputXOffset = -24;
+	const int morphInputYOffset = 21;
+	const int jumpInputXOffset = -10;
+	const int jumpTopInputYOffset = 25;
+	const int jumpBottomInputYOffset = -12;
 
-	morphButton = createParam<PILOTMorphKnob>(Vec(morphXAnchor-13, morphYAnchor-12), module, PILOT::MORPH_PARAM);
+	morphButton = createParam<PILOTMorphKnob>(Vec(morphXAnchor, morphYAnchor), module, PILOT::MORPH_PARAM);
 	addParam(morphButton);
+	addInput(createInput<TinyPJ301MPort>(Vec(morphXAnchor + morphInputXOffset, morphYAnchor + morphInputYOffset), module, PILOT::MORPH_INPUT));
+	addParam(createParam<BlueCKD6>(Vec(morphXAnchor+jumpersXOffset, morphYAnchor+topJumpYOffset), module, PILOT::GOTOP_PARAM));
+	addParam(createParam<BlueCKD6>(Vec(morphXAnchor+jumpersXOffset, morphYAnchor+bottomJumpYOffset), module, PILOT::GOBOTTOM_PARAM));
+	addInput(createInput<TinyPJ301MPort>(Vec(morphXAnchor+jumpersXOffset+jumpInputXOffset, morphYAnchor+topJumpYOffset+jumpTopInputYOffset), module, PILOT::GOTOP_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(morphXAnchor+jumpersXOffset+jumpInputXOffset, morphYAnchor+bottomJumpYOffset+jumpBottomInputYOffset), module, PILOT::GOBOTTOM_INPUT));
 
-	addInput(createInput<TinyPJ301MPort>(Vec(morphXAnchor - 20 -15, morphYAnchor + 8), module, PILOT::MORPH_INPUT));
 
-	addParam(createParam<BidooBlueSnapTrimpot>(Vec(sceneXAnchor+5, topSceneYAnchor - 2), module, PILOT::TOPSCENE_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor+7, topSceneYAnchor-inputSceneYOffset - 2), module, PILOT::TOPSCENE_INPUT));
+	const int sceneXAnchor = 119;
+	const int topSceneYAnchor = 29;
+	const int bottomSceneYAnchor = 190;
+	const int ctrlSceneYOffset = 20;
+	const int inputSceneYOffset = 43;
+	const int ctrlSceneXOffset = 20;
+	const int inputSceneXOffset = 20;
+	const int inputRoundBtnDrift = 2;
+	const int inputSquBtnDrift = 4;
+	const int sqBtnYDrift = 2;
+	const int sqBtnDrift = 3;
+	const int dispOffset = 2;
+
 	PILOTDisplay *displayTop = new PILOTDisplay();
-	displayTop->box.pos = Vec(morphXAnchor+xDisplayOffset,topSceneYAnchor+yDisplayOffset);
+	displayTop->box.pos = Vec(sceneXAnchor+dispOffset,topSceneYAnchor);
 	displayTop->box.size = Vec(20, 20);
 	displayTop->value = module ? &module->topScene : NULL;
 	addChild(displayTop);
+	addParam(createParam<SaveBtn>(Vec(sceneXAnchor + ctrlSceneXOffset + sqBtnDrift, topSceneYAnchor), module, PILOT::SAVETOP_PARAM));
+	addParam(createParam<Rnd2Btn>(Vec(sceneXAnchor + 2*ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor), module, PILOT::RNDTOP_PARAM));
+	addParam(createParam<Rnd2Btn>(Vec(sceneXAnchor + 3*ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor), module, PILOT::FRNDTOP_PARAM));
+	addParam(createParam<BidooBlueSnapTrimpot>(Vec(sceneXAnchor, topSceneYAnchor+ ctrlSceneYOffset), module, PILOT::TOPSCENE_PARAM));
+	addParam(createParam<LeftBtn>(Vec(sceneXAnchor + ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift), module, PILOT::TOPSCENEMINUS_PARAM));
+	addParam(createParam<RightBtn>(Vec(sceneXAnchor + 2*ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift), module, PILOT::TOPSCENEPLUS_PARAM));
+	addParam(createParam<RndBtn>(Vec(sceneXAnchor + 3*ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift), module, PILOT::TOPSCENERND_PARAM));
+	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor+inputRoundBtnDrift, topSceneYAnchor + inputSceneYOffset), module, PILOT::TOPSCENE_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + inputSceneXOffset+inputSquBtnDrift, topSceneYAnchor + inputSceneYOffset), module, PILOT::TOPSCENEMINUS_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 2*inputSceneXOffset+inputSquBtnDrift, topSceneYAnchor + inputSceneYOffset), module, PILOT::TOPSCENEPLUS_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 3*inputSceneXOffset+inputSquBtnDrift, topSceneYAnchor + inputSceneYOffset), module, PILOT::TOPSCENERND_INPUT));
 
-	addParam(createParam<BidooBlueSnapTrimpot>(Vec(sceneXAnchor+5, bottomSceneYAnchor - 2), module, PILOT::BOTTOMSCENE_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor+7, bottomSceneYAnchor+inputSceneYOffset + 2 ), module, PILOT::BOTTOMSCENE_INPUT));
 	PILOTDisplay *displayBottom = new PILOTDisplay();
-	displayBottom->box.pos = Vec(morphXAnchor+xDisplayOffset,bottomSceneYAnchor+yDisplayOffset);
+	displayBottom->box.pos = Vec(sceneXAnchor+dispOffset,bottomSceneYAnchor);
 	displayBottom->box.size = Vec(20, 20);
 	displayBottom->value = module ? &module->bottomScene : NULL;
 	addChild(displayBottom);
-
-	addParam(createParam<LeftBtn>(Vec(morphXAnchor + minusXOffset, topSceneYAnchor), module, PILOT::TOPSCENEMINUS_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(morphXAnchor + minusXOffset - 20, topSceneYAnchor + 1), module, PILOT::TOPSCENEMINUS_INPUT));
-	addParam(createParam<RightBtn>(Vec(morphXAnchor + plusXOffset, topSceneYAnchor), module, PILOT::TOPSCENEPLUS_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(morphXAnchor + plusXOffset + 20, topSceneYAnchor + 1), module, PILOT::TOPSCENEPLUS_INPUT));
-	addParam(createParam<RndBtn>(Vec(morphXAnchor + 7, topSceneYAnchor + 20), module, PILOT::TOPSCENERND_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(morphXAnchor + 7, topSceneYAnchor + 40), module, PILOT::TOPSCENERND_INPUT));
-	addParam(createParam<BlueCKD6>(Vec(morphXAnchor + 1, topSceneYAnchor - 35), module, PILOT::SAVETOP_PARAM));
-	addParam(createParam<BlueCKD6>(Vec(morphXAnchor + 31, topSceneYAnchor - 35), module, PILOT::RNDTOP_PARAM));
-	addParam(createParam<BlueCKD6>(Vec(morphXAnchor + 61, topSceneYAnchor - 35), module, PILOT::FRNDTOP_PARAM));
-
-	addParam(createParam<LeftBtn>(Vec(morphXAnchor + minusXOffset, bottomSceneYAnchor ), module, PILOT::BOTTOMSCENEMINUS_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(morphXAnchor + minusXOffset - 20, bottomSceneYAnchor + 1), module, PILOT::BOTTOMSCENEMINUS_INPUT));
-	addParam(createParam<RightBtn>(Vec(morphXAnchor + plusXOffset, bottomSceneYAnchor), module, PILOT::BOTTOMSCENEPLUS_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(morphXAnchor + plusXOffset + 20, bottomSceneYAnchor + 1), module, PILOT::BOTTOMSCENEPLUS_INPUT));
-	addParam(createParam<RndBtn>(Vec(morphXAnchor + 7, bottomSceneYAnchor - 20), module, PILOT::BOTTOMSCENERND_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(morphXAnchor + 7, bottomSceneYAnchor - 40), module, PILOT::BOTTOMSCENERND_INPUT));
-	addParam(createParam<BlueCKD6>(Vec(morphXAnchor + 1, bottomSceneYAnchor + 25), module, PILOT::SAVEBOTTOM_PARAM));
-	addParam(createParam<BlueCKD6>(Vec(morphXAnchor + 31, bottomSceneYAnchor + 25), module, PILOT::RNDBOTTOM_PARAM));
-	addParam(createParam<BlueCKD6>(Vec(morphXAnchor + 61, bottomSceneYAnchor + 25), module, PILOT::FRNDBOTTOM_PARAM));
-
-	addParam(createParam<BlueCKD6>(Vec(sceneXAnchor, topSceneYAnchor + 32), module, PILOT::GOTOP_PARAM));
-	addParam(createParam<BlueCKD6>(Vec(sceneXAnchor,bottomSceneYAnchor - 45), module, PILOT::GOBOTTOM_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 7, topSceneYAnchor + 65), module, PILOT::GOTOP_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 7, bottomSceneYAnchor - 65), module, PILOT::GOBOTTOM_INPUT));
+	addParam(createParam<SaveBtn>(Vec(sceneXAnchor + ctrlSceneXOffset + sqBtnDrift, bottomSceneYAnchor), module, PILOT::SAVEBOTTOM_PARAM));
+	addParam(createParam<Rnd2Btn>(Vec(sceneXAnchor + 2*ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor), module, PILOT::RNDBOTTOM_PARAM));
+	addParam(createParam<Rnd2Btn>(Vec(sceneXAnchor + 3*ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor), module, PILOT::FRNDBOTTOM_PARAM));
+	addParam(createParam<BidooBlueSnapTrimpot>(Vec(sceneXAnchor, bottomSceneYAnchor+ ctrlSceneYOffset), module, PILOT::BOTTOMSCENE_PARAM));
+	addParam(createParam<LeftBtn>(Vec(sceneXAnchor + ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift), module, PILOT::BOTTOMSCENEMINUS_PARAM));
+	addParam(createParam<RightBtn>(Vec(sceneXAnchor + 2*ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift), module, PILOT::BOTTOMSCENEPLUS_PARAM));
+	addParam(createParam<RndBtn>(Vec(sceneXAnchor + 3*ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift), module, PILOT::BOTTOMSCENERND_PARAM));
+	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor+inputRoundBtnDrift, bottomSceneYAnchor + inputSceneYOffset), module, PILOT::BOTTOMSCENE_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + inputSceneXOffset+inputSquBtnDrift, bottomSceneYAnchor + inputSceneYOffset), module, PILOT::BOTTOMSCENEMINUS_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 2*inputSceneXOffset+inputSquBtnDrift, bottomSceneYAnchor + inputSceneYOffset), module, PILOT::BOTTOMSCENEPLUS_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 3*inputSceneXOffset+inputSquBtnDrift, bottomSceneYAnchor + inputSceneYOffset), module, PILOT::BOTTOMSCENERND_INPUT));
 
 	const int controlsSpacer = 57;
 	const int outputsSpacer = 27;
 	const int led_offset = 6;
 	const int diffYled_offset = 20;
-	const int controlsXAnchor = 202;
+	const int controlsXAnchor = 208;
 	const int controlsYAnchor = 35;
-	const int outputsXAnchor = 325;
+	const int outputsXAnchor = 335;
 	const int outputsYAnchor = 257;
 	const int ledsXAnchor = controlsXAnchor + 38;
 	const int ledsYAnchor = controlsYAnchor;
 
 	for (int i = 0; i < 16; i++) {
-		addChild(createLight<MediumLight<RedGreenBlueLight>>(Vec(morphLigthsXAnchor, morphLigthsYAnchor + (16-i) * morphLigth_spacer), module, PILOT::MORPH_LIGHTS + i*3));
-
 		controls[i] = createParam<PILOTColoredKnob>(Vec(controlsXAnchor + controlsSpacer *(i%4), controlsYAnchor + controlsSpacer * floor(i/4)), module, PILOT::CONTROLS_PARAMS + i);
+		if (module) {
+			dynamic_cast<PILOTColoredKnob*>(controls[i])->blink=&module->controlFocused[i];
+		}
 		addParam(controls[i]);
 		addParam(createParam<BidooLEDButton>(Vec(ledsXAnchor + controlsSpacer * (i%4), ledsYAnchor + controlsSpacer * floor(i/4)), module, PILOT::TYPE_PARAMS + i));
 		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(ledsXAnchor + led_offset + controlsSpacer * (i%4), ledsYAnchor + led_offset + controlsSpacer * floor(i/4)), module, PILOT::TYPE_LIGHTS + i*3));
@@ -802,44 +898,72 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 		addOutput(createOutput<PJ301MPort>(Vec(outputsXAnchor + outputsSpacer * (i%4), outputsYAnchor + outputsSpacer * floor(i/4)), module, PILOT::CV_OUTPUTS + i));
 	}
 
+	const int curveXAnchor = 16;
+	const int curveYAnchor = 102;
+	const int curveCtrlYOffset = 90;
+	const int curveCtrlXOffset = 24;
+	const int curveCtrlXAnchor = 10;
+	const int curveTypeXAnchor = 15;
+	const int curveTypeYAnchor = 65;
+	const int morphSpeedXAnchor = 40;
+	const int morphSpeedYAnchor = 60;
 	const int controlsXOffest = 40;
-	const int controlsYOffest = 40;
+	const int curveInputYOffset = 23;
+	const int curveInputXOffset = 2;
 
-	addParam(createParam<BlueCKD6>(Vec(sceneXAnchor, outputsYAnchor + controlsYOffest), module, PILOT::MOVETYPE_PARAM));
-	addParam(createParam<BidooBlueSnapKnob>(Vec(sceneXAnchor + controlsXOffest, outputsYAnchor + controlsYOffest), module, PILOT::LENGTH_PARAM));
-	addParam(createParam<BidooBlueKnob>(Vec(sceneXAnchor + 2*controlsXOffest, outputsYAnchor + controlsYOffest), module, PILOT::SPEED_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 3*controlsXOffest, outputsYAnchor + controlsYOffest + 6), module, PILOT::SPEED_INPUT));
-	addParam(createParam<BlueCKD6>(Vec(sceneXAnchor + 4*controlsXOffest-15, outputsYAnchor + controlsYOffest), module, PILOT::MOVENEXT_PARAM));
-	addInput(createInput<TinyPJ301MPort>(Vec(sceneXAnchor + 5*controlsXOffest-15, outputsYAnchor + controlsYOffest + 6), module, PILOT::MOVENEXT_INPUT));
+	addParam(createParam<BidooLEDButton>(Vec(curveTypeXAnchor, curveTypeYAnchor), module, PILOT::CURVE_PARAM));
+	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(curveTypeXAnchor+6, curveTypeYAnchor+6), module, PILOT::CURVE_LIGHT));
+
+	addParam(createParam<BidooBlueKnob>(Vec(morphSpeedXAnchor, morphSpeedYAnchor), module, PILOT::SPEED_PARAM));
+	addInput(createInput<TinyPJ301MPort>(Vec(morphSpeedXAnchor + controlsXOffest, morphSpeedYAnchor + 6), module, PILOT::SPEED_INPUT));
+
+	PILOTCurveDisplay *displayCurve = new PILOTCurveDisplay();
+	displayCurve->box.pos = Vec(curveXAnchor, curveYAnchor);
+	displayCurve->box.size = Vec(78, 78);
+	displayCurve->module = module ? module : NULL;
+	addChild(displayCurve);
+	addParam(createParam<BidooBlueTrimpot>(Vec(curveCtrlXAnchor , curveYAnchor+curveCtrlYOffset), module, PILOT::AX_PARAM));
+	addParam(createParam<BidooBlueTrimpot>(Vec(curveCtrlXAnchor + curveCtrlXOffset, curveYAnchor+curveCtrlYOffset), module, PILOT::AY_PARAM));
+	addParam(createParam<BidooBlueTrimpot>(Vec(curveCtrlXAnchor + 2*curveCtrlXOffset, curveYAnchor+curveCtrlYOffset), module, PILOT::BX_PARAM));
+	addParam(createParam<BidooBlueTrimpot>(Vec(curveCtrlXAnchor + 3*curveCtrlXOffset, curveYAnchor+curveCtrlYOffset), module, PILOT::BY_PARAM));
+	addInput(createInput<TinyPJ301MPort>(Vec(curveCtrlXAnchor +curveInputXOffset, curveYAnchor+curveCtrlYOffset+curveInputYOffset), module, PILOT::AX_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(curveCtrlXAnchor + curveCtrlXOffset+curveInputXOffset, curveYAnchor+curveCtrlYOffset+curveInputYOffset), module, PILOT::AY_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(curveCtrlXAnchor + 2*curveCtrlXOffset+curveInputXOffset, curveYAnchor+curveCtrlYOffset+curveInputYOffset), module, PILOT::BX_INPUT));
+	addInput(createInput<TinyPJ301MPort>(Vec(curveCtrlXAnchor + 3*curveCtrlXOffset+curveInputXOffset, curveYAnchor+curveCtrlYOffset+curveInputYOffset), module, PILOT::BY_INPUT));
+
+
+	const int controlsYOffest = 5;
+
+	const int seqXAnchor = 15;
+	const int seqYAnchor = 310;
+	const int seqDispOffset = 33;
+
+	addParam(createParam<BlueCKD6>(Vec(seqXAnchor, seqYAnchor), module, PILOT::MOVETYPE_PARAM));
+	addParam(createParam<BidooBlueSnapKnob>(Vec(seqXAnchor + controlsXOffest, seqYAnchor), module, PILOT::LENGTH_PARAM));
+	addParam(createParam<BidooLEDButton>(Vec(seqXAnchor + 2*controlsXOffest+4, seqYAnchor +controlsYOffest), module, PILOT::WEOM_PARAM));
+	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(seqXAnchor + 2*controlsXOffest+6+4, seqYAnchor+controlsYOffest+6), module, PILOT::WEOM_LIGHT));
+	addParam(createParam<BlueCKD6>(Vec(seqXAnchor + 3*controlsXOffest, seqYAnchor), module, PILOT::MOVENEXT_PARAM));
+	addInput(createInput<TinyPJ301MPort>(Vec(seqXAnchor + 4*controlsXOffest, seqYAnchor+controlsYOffest+2), module, PILOT::MOVENEXT_INPUT));
+
+
 
 	PILOTMoveTypeDisplay *displayMoveType = new PILOTMoveTypeDisplay();
-	displayMoveType->box.pos = Vec(sceneXAnchor+15,outputsYAnchor + controlsYOffest-9);
+	displayMoveType->box.pos = Vec(seqXAnchor+13,seqYAnchor+seqDispOffset);
 	displayMoveType->box.size = Vec(20, 20);
 	displayMoveType->value = module ? &module->moveType : NULL;
 	addChild(displayMoveType);
 
 	PILOTDisplay *displayLength = new PILOTDisplay();
-	displayLength->box.pos = Vec(sceneXAnchor+ controlsXOffest+4,outputsYAnchor + controlsYOffest-31);
+	displayLength->box.pos = Vec(seqXAnchor+ controlsXOffest+6,seqYAnchor+seqDispOffset);
 	displayLength->box.size = Vec(20, 20);
 	displayLength->value = module ? &module->length : NULL;
 	addChild(displayLength);
 
-	addParam(createParam<BidooLEDButton>(Vec(98, 340), module, PILOT::WEOM_PARAM));
-	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(98+6, 340+6), module, PILOT::WEOM_LIGHT));
-
-	addParam(createParam<BidooLEDButton>(Vec(138, 340), module, PILOT::CURVE_PARAM));
-	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(138+6, 340+6), module, PILOT::CURVE_LIGHT));
-
-	addParam(createParam<BidooBlueTrimpot>(Vec(sceneXAnchor + 6*controlsXOffest-20, 345), module, PILOT::AX_PARAM));
-	addParam(createParam<BidooBlueTrimpot>(Vec(sceneXAnchor + 6*controlsXOffest, 345), module, PILOT::AY_PARAM));
-	addParam(createParam<BidooBlueTrimpot>(Vec(sceneXAnchor + 6*controlsXOffest+20, 345), module, PILOT::BX_PARAM));
-	addParam(createParam<BidooBlueTrimpot>(Vec(sceneXAnchor + 6*controlsXOffest+40, 345), module, PILOT::BY_PARAM));
-
-	PILOTCurveDisplay *displayCurve = new PILOTCurveDisplay();
-	displayCurve->box.pos = Vec(sceneXAnchor+ 6*controlsXOffest-20, outputsYAnchor+4);
-	displayCurve->box.size = Vec(78, 78);
-	displayCurve->module = module ? module : NULL;
-	addChild(displayCurve);
+	PILOTNoteDisplay *displayNote = new PILOTNoteDisplay();
+	displayNote->box.pos = Vec(curveXAnchor,curveYAnchor);
+	displayNote->box.size = Vec(20, 20);
+	displayNote->module = module ? module : NULL;
+	addChild(displayNote);
 }
 
 struct PILOTItem : MenuItem {
@@ -854,6 +978,13 @@ void PILOTWidget::appendContextMenu(ui::Menu *menu) {
 	assert(module);
 	menu->addChild(construct<MenuLabel>());
 	menu->addChild(construct<PILOTItem>(&MenuItem::text, "Randomize top scene only", &PILOTItem::module, module));
+}
+
+void PILOTWidget::step() {
+	for (int i = 0; i < 16; i++) {
+			if (controls[i]->paramQuantity) controls[i]->dirtyValue=controls[i]->paramQuantity->getValue()-0.1f;
+	}
+	ModuleWidget::step();
 }
 
 Model *modelPILOT = createModel<PILOT, PILOTWidget>("PILOT");
