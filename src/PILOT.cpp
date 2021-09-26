@@ -391,10 +391,15 @@ void PILOT::process(const ProcessArgs &args) {
 			else if (moveType==4) {
 				float dice = random::uniform();
 				if (dice<0.5f) {
-					params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()+1.0f)%length);
+					params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()+1.0f)%(length+1));
 				}
 				else if ((dice >= 0.5f) && (dice < 0.75f)) {
-					params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()-1.0f)%length);
+					if (params[TOPSCENE_PARAM].getValue()>0.0f) {
+						params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()-1.0f));
+					}
+					else {
+						params[TOPSCENE_PARAM].setValue(length);
+					}
 				}
 				else {
 					params[TOPSCENE_PARAM].setValue(params[BOTTOMSCENE_PARAM].getValue());
@@ -434,7 +439,12 @@ void PILOT::process(const ProcessArgs &args) {
 					params[BOTTOMSCENE_PARAM].setValue(int(params[TOPSCENE_PARAM].getValue()+1.0f)%(length+1));
 				}
 				else if ((dice >= 0.5f) && (dice < 0.75f)) {
-					params[BOTTOMSCENE_PARAM].setValue(int(params[TOPSCENE_PARAM].getValue()-1.0f)%(length+1));
+					if (params[TOPSCENE_PARAM].getValue()>0.0f) {
+						params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()-1.0f));
+					}
+					else {
+						params[TOPSCENE_PARAM].setValue(length);
+					}
 				}
 				else {
 					params[BOTTOMSCENE_PARAM].setValue(params[TOPSCENE_PARAM].getValue());
@@ -595,7 +605,7 @@ void PILOT::process(const ProcessArgs &args) {
 			}
 		}
 
-		if ((changeDir && waitEOM==1) || (morph==0.0f) || (morph==1.0f)) {
+		if ((changeDir && waitEOM<2) || (waitEOM==2 && ((morph==0.0f) || (morph==1.0f)) && !pulses[i])) {
 			gatePulses[i].reset();
 			gatePulses[i].trigger(powf(params[CONTROLS_PARAMS+i].getValue(),8.0f));
 		}

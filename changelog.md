@@ -1,3 +1,7 @@
+### v1.1.38 (26/09/2021)
+- πlOT gate time issue fixed
+- πlOT sequencer mode 3 => negative snapshots fixed
+
 ### v1.1.37 (25/09/2021)
 - πlOT UI redesigned
 - πlOT red mode for controls = quantization to semi-tones + display of note when edited
