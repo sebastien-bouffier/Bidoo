@@ -35,6 +35,7 @@ struct PILOT : Module {
 		BX_PARAM,
 		BY_PARAM,
 		CURVE_PARAM,
+		RECORD_PARAM,
 		TYPE_PARAMS,
 		CONTROLS_PARAMS = TYPE_PARAMS + 16,
 		VOLTAGE_PARAMS = CONTROLS_PARAMS + 16,
@@ -66,7 +67,8 @@ struct PILOT : Module {
 	};
 	enum LightIds {
 		WEOM_LIGHT,
-		CURVE_LIGHT = WEOM_LIGHT + 3,
+		RECORD_LIGHT = WEOM_LIGHT + 3,
+		CURVE_LIGHT = RECORD_LIGHT + 3,
 		TYPE_LIGHTS = CURVE_LIGHT + 3,
 		VOLTAGE_LIGHTS = TYPE_LIGHTS + 16*3,
 		NUM_LIGHTS = VOLTAGE_LIGHTS + 16*3
@@ -91,6 +93,7 @@ struct PILOT : Module {
 	int waitEOM = 0;
 	bool curve = false;
 	int length = 15;
+	int recordingStatus = 0;
 
 	dsp::SchmittTrigger typeTriggers[16];
 	dsp::SchmittTrigger voltageTriggers[16];
@@ -112,6 +115,7 @@ struct PILOT : Module {
 	dsp::SchmittTrigger frndBottomTrigger;
 	dsp::SchmittTrigger weomTrigger;
 	dsp::SchmittTrigger curveTrigger;
+	dsp::SchmittTrigger recordingTrigger;
 	dsp::PulseGenerator gatePulses[16];
 
 
@@ -138,6 +142,7 @@ struct PILOT : Module {
 		configParam(WEOM_PARAM, 0.0f, 10.0f, 0.0f);
 		configParam(LENGTH_PARAM, 0.0f, 15.0f, 15.0f);
 		configParam(CURVE_PARAM, 0.0f, 10.0f, 15.0f);
+		configParam(RECORD_PARAM, 0.0f, 10.0f, 0.0f);
 
 		configParam(RNDTOP_PARAM, 0.0f, 10.0f, 0.0f);
 		configParam(FRNDTOP_PARAM, 0.0f, 10.0f, 0.0f);
@@ -335,6 +340,10 @@ struct PILOT : Module {
 void PILOT::process(const ProcessArgs &args) {
 	changeDir =false;
 
+	if (moveTypeTrigger.process(params[MOVETYPE_PARAM].getValue())) {
+		moveType = (moveType+1)%6;
+	}
+
 	if (weomTrigger.process(params[WEOM_PARAM].getValue())) {
 		waitEOM = (waitEOM+1)%3;
 	}
@@ -349,13 +358,15 @@ void PILOT::process(const ProcessArgs &args) {
 	lights[CURVE_LIGHT+1].setBrightness(curve?0:1);
 	lights[CURVE_LIGHT+2].setBrightness(curve?1:0);
 
+	if (recordingTrigger.process(params[RECORD_PARAM].getValue())) {
+		if ((recordingStatus==0) && (moveType==0) && (waitEOM==0)) {
+			recordingStatus=1;
+		}
+	}
+
 	speed = powf(clamp(params[SPEED_PARAM].getValue()+inputs[SPEED_INPUT].getVoltage()/10.0f,1e-9f,1.0f),16.0f);
 
 	length = params[LENGTH_PARAM].getValue();
-
-	if (moveTypeTrigger.process(params[MOVETYPE_PARAM].getValue())) {
-		moveType = (moveType+1)%6;
-	}
 
 	if ((moveNextTrigger.process(params[MOVENEXT_PARAM].getValue()+inputs[MOVENEXT_INPUT].getVoltage())) && ((waitEOM==0 && !moving) || (waitEOM>0))) {
 		moving = true;
@@ -364,6 +375,12 @@ void PILOT::process(const ProcessArgs &args) {
 		if (forward) {
 			if (moveType==0) {
 				params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()+1.0f)%(length+1));
+				if ((params[TOPSCENE_PARAM].getValue()==0.0f) && (recordingStatus>0)) {
+					recordingStatus=(recordingStatus+1)%4;
+					if (recordingStatus==0) {
+						controlFocused[currentFocus]=false;
+					}
+				}
 			}
 			else if (moveType==1) {
 				if (params[BOTTOMSCENE_PARAM].getValue()==0.0f) {
@@ -409,6 +426,12 @@ void PILOT::process(const ProcessArgs &args) {
 		else {
 			if (moveType==0) {
 				params[BOTTOMSCENE_PARAM].setValue(int(params[TOPSCENE_PARAM].getValue()+1.0f)%(length+1));
+				if ((params[BOTTOMSCENE_PARAM].getValue()==0.0f) && (recordingStatus>0)) {
+					recordingStatus=(recordingStatus+1)%4;
+					if (recordingStatus==0) {
+						controlFocused[currentFocus]=false;
+					}
+				}
 			}
 			else if (moveType==1) {
 				if (params[TOPSCENE_PARAM].getValue()==0.0f) {
@@ -531,6 +554,27 @@ void PILOT::process(const ProcessArgs &args) {
 		currentFocus = -1;
 	}
 
+	if (recordingStatus == 1) {
+		lights[RECORD_LIGHT].setBrightness(0);
+		lights[RECORD_LIGHT+1].setBrightness(0);
+		lights[RECORD_LIGHT+2].setBrightness(lights[RECORD_LIGHT+2].getBrightness()<0.1f ? 1 : lights[RECORD_LIGHT+2].getBrightness()-lights[RECORD_LIGHT+2].getBrightness()*2.0f*args.sampleTime);
+	}
+	else if (recordingStatus == 2) {
+		lights[RECORD_LIGHT].setBrightness(lights[RECORD_LIGHT].getBrightness()<0.1f ? 1 : lights[RECORD_LIGHT].getBrightness()-lights[RECORD_LIGHT].getBrightness()*4.0f*args.sampleTime);
+		lights[RECORD_LIGHT+1].setBrightness(lights[RECORD_LIGHT+1].getBrightness()<0.1f ? 1 : lights[RECORD_LIGHT+1].getBrightness()-lights[RECORD_LIGHT+1].getBrightness()*4.0f*args.sampleTime);
+		lights[RECORD_LIGHT+2].setBrightness(0);
+	}
+	else if (recordingStatus == 3) {
+		lights[RECORD_LIGHT].setBrightness(1);
+		lights[RECORD_LIGHT+1].setBrightness(0);
+		lights[RECORD_LIGHT+2].setBrightness(0);
+	}
+	else {
+		lights[RECORD_LIGHT].setBrightness(0);
+		lights[RECORD_LIGHT+1].setBrightness(0);
+		lights[RECORD_LIGHT+2].setBrightness(0);
+	}
+
 	if (inputs[MORPH_INPUT].isConnected()) {
 		morph = clamp(inputs[MORPH_INPUT].getVoltage()/10.0f + params[MORPH_PARAM].getValue(), 0.0f, 1.0f);
 
@@ -562,22 +606,31 @@ void PILOT::process(const ProcessArgs &args) {
 	}
 
 	for (int i = 0; i < 16; i++) {
+		if (recordingStatus==3 && i==currentFocus) {
+			if (params[MORPH_PARAM].getValue() == 0.0f) {
+				scenes[bottomScene][i]=params[CONTROLS_PARAMS+i].getValue();
+			}
+			else if (params[MORPH_PARAM].getValue() == 1.0f) {
+				scenes[topScene][i]=params[CONTROLS_PARAMS+i].getValue();
+			}
+		}
+
 		if (typeTriggers[i].process(params[TYPE_PARAMS + i].getValue())) {
-			controlTypes[i] = (controlTypes[i]+1)%4;
+			controlTypes[i] = (controlTypes[i]+1)%5;
 		}
 		if (voltageTriggers[i].process(params[VOLTAGE_PARAMS + i].getValue())) {
 			voltageTypes[i] = voltageTypes[i] == 0 ? 1 : 0;
 		}
 
-		lights[TYPE_LIGHTS+ i*3].setBrightness((controlTypes[i] == 1) || (controlTypes[i] == 3) ? 1 : 0);
-		lights[TYPE_LIGHTS+ i*3 + 1].setBrightness((controlTypes[i] == 1) || (controlTypes[i] == 2) ? 1 : 0);
+		lights[TYPE_LIGHTS+ i*3].setBrightness((controlTypes[i] == 1) || (controlTypes[i] == 3) || (controlTypes[i] == 4) ? 1 : 0);
+		lights[TYPE_LIGHTS+ i*3 + 1].setBrightness((controlTypes[i] == 1) || (controlTypes[i] == 2) ? 1 : ((controlTypes[i] == 4) ? 0.5f : 0));
 		lights[TYPE_LIGHTS+ i*3 + 2].setBrightness(controlTypes[i] == 0 ? 1 : 0);
 		lights[VOLTAGE_LIGHTS+ i*3].setBrightness(voltageTypes[i] == 1 ? 1 : 0);
 		lights[VOLTAGE_LIGHTS+ i*3 + 1].setBrightness(voltageTypes[i] == 1 ? 1 : 0);
 		lights[VOLTAGE_LIGHTS+ i*3 + 2].setBrightness(voltageTypes[i] == 0 ? 1 : 0);
 
 		if (!controlFocused[i]) {
-			if (controlTypes[i] != 1) {
+			if ((controlTypes[i] != 1) && (controlTypes[i] != 4)) {
 				if (!curve) {
 					if (scenes[bottomScene][i] != scenes[topScene][i]) {
 						params[CONTROLS_PARAMS+i].setValue(clamp(rescale(morph,0.0f,1.0f,scenes[bottomScene][i],scenes[topScene][i]),0.0f,1.0f));
@@ -612,8 +665,8 @@ void PILOT::process(const ProcessArgs &args) {
 
 		pulses[i] = gatePulses[i].process(args.sampleTime);
 
-		if (controlTypes[i] == 3) {
-			if (controlFocused[i]) {
+		if (controlTypes[i] >= 3) {
+			if (controlFocused[i] || (controlTypes[i] == 4)) {
 				outputs[CV_OUTPUTS + i].setVoltage(closestVoltageInScale(params[CONTROLS_PARAMS+i].getValue()*10.0f));
 			}
 			else {
@@ -954,8 +1007,8 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(seqXAnchor + 2*controlsXOffest+6+4, seqYAnchor+controlsYOffest+6), module, PILOT::WEOM_LIGHT));
 	addParam(createParam<BlueCKD6>(Vec(seqXAnchor + 3*controlsXOffest, seqYAnchor), module, PILOT::MOVENEXT_PARAM));
 	addInput(createInput<TinyPJ301MPort>(Vec(seqXAnchor + 4*controlsXOffest, seqYAnchor+controlsYOffest+2), module, PILOT::MOVENEXT_INPUT));
-
-
+	addParam(createParam<BidooLEDButton>(Vec(seqXAnchor + 5*controlsXOffest+4, seqYAnchor +controlsYOffest), module, PILOT::RECORD_PARAM));
+	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(seqXAnchor + 5*controlsXOffest+6+4, seqYAnchor+controlsYOffest+6), module, PILOT::RECORD_LIGHT));
 
 	PILOTMoveTypeDisplay *displayMoveType = new PILOTMoveTypeDisplay();
 	displayMoveType->box.pos = Vec(seqXAnchor+13,seqYAnchor+seqDispOffset);

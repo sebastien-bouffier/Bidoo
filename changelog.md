@@ -1,3 +1,7 @@
+### v1.1.39 (26/09/2021)
+- πlOT Orange mode for controls => Like in Red mode they are quantized in order to drive a VCO but they jump from note to note like in Yellow mode.
+- πlOT sequencer can record controls values
+
 ### v1.1.38 (26/09/2021)
 - πlOT gate time issue fixed
 - πlOT sequencer mode 3 => negative snapshots fixed
