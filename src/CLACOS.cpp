@@ -330,14 +330,14 @@ struct CLACOSDisplay : TransparentWidget {
 
 	void onDragStart(const event::DragStart &e) override {
 
-		dragX = APP->scene->rack->mousePos.x;
-		dragY = APP->scene->rack->mousePos.y;
+		dragX = APP->scene->rack->getMousePos().x;
+		dragY = APP->scene->rack->getMousePos().y;
 	}
 
 	void onDragMove(const event::DragMove &e) override {
 		if ((!module->inputs[CLACOS::DIST_X_INPUT + segmentNumber].isConnected()) && (!module->inputs[CLACOS::DIST_X_INPUT + segmentNumber].isConnected())) {
-			float newDragX = APP->scene->rack->mousePos.x;
-			float newDragY = APP->scene->rack->mousePos.y;
+			float newDragX = APP->scene->rack->getMousePos().x;
+			float newDragY = APP->scene->rack->getMousePos().y;
 			module->phaseDistX[segmentNumber] = rescale(clamp(initX + (newDragX - dragX), 0.0f, 70.0f), 0.0f, 70.0f, 0.01f, 0.99f);
 			module->phaseDistY[segmentNumber] = rescale(clamp(initY - (newDragY - dragY), 0.0f, 70.0f), 0.0f, 70.0f, 0.01f, 0.99f);
 		}
@@ -353,6 +353,7 @@ struct CLACOSDisplay : TransparentWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		if (++frame >= 4) {
 			frame = 0;
 			if (module->waveFormIndex[segmentNumber] == 0)

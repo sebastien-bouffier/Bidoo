@@ -5,7 +5,7 @@
 #include <vector>
 #include <random>
 #include <algorithm>
-#include "window.hpp"
+//#include "window.hpp"
 #include <iomanip>
 #include <sstream>
 
@@ -1478,7 +1478,7 @@ struct octaveBtn : SvgSwitch {
 	void onButton(const event::Button &e) override {
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
 			for (int i = 0; i < 7; i++) {
-				if (i != paramQuantity->paramId - ZOUMAI::OCTAVE_PARAMS) {
+				if (i != getParamQuantity()->paramId - ZOUMAI::OCTAVE_PARAMS) {
 					octaveParams[i].setValue(0.0f);
 				}
 				else {
@@ -1507,7 +1507,7 @@ struct trigPageBtn : SvgSwitch {
 
 	void onButton(const event::Button &e) override {
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
-			module->trigPage = paramQuantity->paramId - ZOUMAI::TRIGPAGE_PARAM;
+			module->trigPage = getParamQuantity()->paramId - ZOUMAI::TRIGPAGE_PARAM;
 			if (module->currentTrig>48) module->currentTrig = module->currentTrig - 48;
 			if (module->currentTrig>32) module->currentTrig = module->currentTrig - 32;
 			if (module->currentTrig>16) module->currentTrig = module->currentTrig - 16;
@@ -1536,7 +1536,7 @@ struct trackSelectBtn : SvgSwitch {
 		//SvgSwitch::onButton(e);
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
 			for (int i = 0; i < 8; i++) {
-				if (i != (paramQuantity->paramId - ZOUMAI::TRACKSELECT_PARAMS)) {
+				if (i != (getParamQuantity()->paramId - ZOUMAI::TRACKSELECT_PARAMS)) {
 					trackSelectParams[i].setValue(0.0f);
 				}
 				else {
@@ -1572,14 +1572,14 @@ struct trackOnOffBtn : SvgSwitch {
 
 		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
 			for (int i = 0; i < 8; i++) {
-				if (i != (paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS)) {
+				if (i != (getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS)) {
 					if (trackSelectParams[i].getValue() == 1.0f) {
 						trackSelectParams[i].setValue(0.0f);
 					}
 				}
 				else {
 					module->nTracksAttibutes[module->currentPattern][i].toggleTrackSolo();
-					trackOnOffParams[i].setValue(module->nTracksAttibutes[module->currentPattern][paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS].getTrackSolo() ? 2.0f : 0.0f);
+					trackOnOffParams[i].setValue(module->nTracksAttibutes[module->currentPattern][getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].getTrackSolo() ? 2.0f : 0.0f);
 					trackSelectParams[i].setValue(1.0f);
 					module->currentTrack=i;
 					module->updateTrackToParams();
@@ -1591,11 +1591,11 @@ struct trackOnOffBtn : SvgSwitch {
 		}
 		else if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
 			if (!module->patternIsSoloed()) {
-				module->nTracksAttibutes[module->currentPattern][paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS].toggleTrackActive();
-				if (module->nTracksAttibutes[module->currentPattern][paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS].getTrackActive()) {
-					trackOnOffParams[paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS].setValue(1.0f);
+				module->nTracksAttibutes[module->currentPattern][getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].toggleTrackActive();
+				if (module->nTracksAttibutes[module->currentPattern][getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].getTrackActive()) {
+					trackOnOffParams[getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].setValue(1.0f);
 				} else {
-					trackOnOffParams[paramQuantity->paramId - ZOUMAI::TRACKSONOFF_PARAMS].setValue(0.0f);
+					trackOnOffParams[getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].setValue(0.0f);
 				}
 			}
 			e.consume(this);
@@ -1622,12 +1622,12 @@ struct noteBtn : SvgSwitch {
 
 	void onButton(const event::Button &e) override {
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
-			bool focused = module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigSemiTones() == paramQuantity->paramId - ZOUMAI::NOTE_PARAMS;
+			bool focused = module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigSemiTones() == getParamQuantity()->paramId - ZOUMAI::NOTE_PARAMS;
 			if (focused) {
 				module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].toggleTrigActive();
 			}
 			else {
-				module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].setTrigSemiTones(paramQuantity->paramId - ZOUMAI::NOTE_PARAMS);
+				module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].setTrigSemiTones(getParamQuantity()->paramId - ZOUMAI::NOTE_PARAMS);
 				module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].setTrigActive(true);
 			}
 			e.consume(this);
@@ -1653,15 +1653,15 @@ struct stepBtn : SvgSwitch {
 	}
 
 	void onButton(const event::Button &e) override {
-		if (paramQuantity && paramQuantity->module && e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
-			module->nTrigsAttibutes[module->currentPattern][module->currentTrack][paramQuantity->paramId - ZOUMAI::STEPS_PARAMS + module->trigPage*16].toggleTrigActive();
-			module->currentTrig = paramQuantity->paramId - ZOUMAI::STEPS_PARAMS + module->trigPage*16;
+		if (getParamQuantity() && getParamQuantity()->module && e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
+			module->nTrigsAttibutes[module->currentPattern][module->currentTrack][getParamQuantity()->paramId - ZOUMAI::STEPS_PARAMS + module->trigPage*16].toggleTrigActive();
+			module->currentTrig = getParamQuantity()->paramId - ZOUMAI::STEPS_PARAMS + module->trigPage*16;
 			module->updateTrigToParams();
 			e.consume(this);
 			return;
 		}
 		else if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
-			module->currentTrig = paramQuantity->paramId - ZOUMAI::STEPS_PARAMS + module->trigPage*16;
+			module->currentTrig = getParamQuantity()->paramId - ZOUMAI::STEPS_PARAMS + module->trigPage*16;
 			module->updateTrigToParams();
 			e.consume(this);
 			return;
@@ -1674,13 +1674,14 @@ struct stepBtn : SvgSwitch {
 
 struct ZOUMAIDisplay : TransparentWidget {
 	ZOUMAI *module;
-	shared_ptr<Font> font;
 
 	ZOUMAIDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void draw(const DrawArgs &args) override {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		nvgGlobalTint(args.vg, color::WHITE);
 		stringstream sPatternHeader, sSteps, sSpeed, sRead;
 		stringstream sTrigHeader, sLen, sPuls, sDist, sType, sTrim, sSlide, sVO, sCV1, sCV2, sProb, sProbBase;
 		nvgBeginPath(args.vg);
@@ -1867,11 +1868,11 @@ struct ZOUMAILight : BASE {
 struct BidooProbBlueKnob : BidooBlueSnapKnob {
 	Widget *ref, *refReset;
 	void draw(const DrawArgs &args) override {
-		if (ref && this->paramQuantity && (this->paramQuantity->getValue() < 1.0f)) {
+		if (ref && this->getParamQuantity() && (this->getParamQuantity()->getValue() < 1.0f)) {
 			ref->visible = true;
 			refReset->visible = false;
 		}
-		else if (ref && this->paramQuantity && (this->paramQuantity->getValue() < 2.0f)) {
+		else if (ref && this->getParamQuantity() && (this->getParamQuantity()->getValue() < 2.0f)) {
 			ref->visible = true;
 			refReset->visible = true;
 		}

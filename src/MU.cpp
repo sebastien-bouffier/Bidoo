@@ -219,14 +219,14 @@ struct LabelMICROWidget : TransparentWidget {
   float *value = NULL;
 	const char *format = NULL;
 	const char *header = "Have fun !!!";
-  std::shared_ptr<Font> font;
 
   LabelMICROWidget() {
-    font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
   };
 
   void draw(const DrawArgs &args) override
   {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgFontFaceId(args.vg, font->handle);
 		nvgTextLetterSpacing(args.vg, -2.0f);
 		nvgFillColor(args.vg, YELLOW_BIDOO);

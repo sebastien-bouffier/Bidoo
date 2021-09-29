@@ -698,26 +698,25 @@ struct PILOTWidget : ModuleWidget {
 
 struct PILOTColoredKnob : BidooLargeColoredKnob {
 	void setValueNoEngine(float value) {
-		float newValue = clamp(value, fminf(this->paramQuantity->getMinValue(), this->paramQuantity->getMaxValue()), fmaxf(this->paramQuantity->getMinValue(), this->paramQuantity->getMaxValue()));
-		if (this->paramQuantity->getValue() != newValue) {
-			this->paramQuantity->setValue(newValue);
+		float newValue = clamp(value, fminf(this->getParamQuantity()->getMinValue(), this->getParamQuantity()->getMaxValue()), fmaxf(this->getParamQuantity()->getMinValue(), this->getParamQuantity()->getMaxValue()));
+		if (this->getParamQuantity()->getValue() != newValue) {
+			this->getParamQuantity()->setValue(newValue);
 		}
 	};
 
 	void onDragStart(const event::DragStart &e) override {
 		RoundKnob::onDragStart(e);
-		PILOT *module = dynamic_cast<PILOT*>(this->paramQuantity->module);
-		module->controlFocused[this->paramQuantity->paramId - PILOT::PILOT::CONTROLS_PARAMS] = true;
-		module->currentFocus = this->paramQuantity->paramId - PILOT::PILOT::CONTROLS_PARAMS;
+		PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
+		module->controlFocused[this->getParamQuantity()->paramId - PILOT::PILOT::CONTROLS_PARAMS] = true;
+		module->currentFocus = this->getParamQuantity()->paramId - PILOT::PILOT::CONTROLS_PARAMS;
 	}
 };
 
 struct PILOTMoveTypeDisplay : TransparentWidget {
-	shared_ptr<Font> font;
 	int *value;
 
 	PILOTMoveTypeDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	std::string displayPlayMode() {
@@ -733,25 +732,28 @@ struct PILOTMoveTypeDisplay : TransparentWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
-			nvgFontSize(args.vg, 18.0f);
-			nvgFillColor(args.vg, YELLOW_BIDOO);
-			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
-			if (value) {
-				nvgText(args.vg, 0.0f, 14, displayPlayMode().c_str(), NULL);
-			}
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		nvgGlobalTint(args.vg, color::WHITE);
+		nvgFontSize(args.vg, 18.0f);
+		nvgFillColor(args.vg, YELLOW_BIDOO);
+		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+		if (value) {
+			nvgText(args.vg, 0.0f, 14, displayPlayMode().c_str(), NULL);
+		}
 	}
 };
 
 
 struct PILOTDisplay : TransparentWidget {
-	shared_ptr<Font> font;
 	int *value;
 
 	PILOTDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void draw(const DrawArgs &args) override {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		nvgGlobalTint(args.vg, color::WHITE);
 		if (value) {
       nvgFontSize(args.vg, 18);
   		nvgFontFaceId(args.vg, font->handle);
@@ -767,13 +769,14 @@ struct PILOTDisplay : TransparentWidget {
 
 struct PILOTNoteDisplay : TransparentWidget {
 	PILOT *module;
-	shared_ptr<Font> font;
 
 	PILOTNoteDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void draw(const DrawArgs &args) override {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		nvgGlobalTint(args.vg, color::WHITE);
 		if ((module) && (module->currentFocus>=0) && (module->controlTypes[module->currentFocus]==3)) {
       nvgFontSize(args.vg, 18);
   		nvgFontFaceId(args.vg, font->handle);
@@ -791,6 +794,7 @@ struct PILOTCurveDisplay : TransparentWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
+		nvgGlobalTint(args.vg, color::WHITE);
 		if (module) {
 			if (module->curve) {
 				nvgStrokeColor(args.vg, SCHEME_BLUE);
@@ -843,7 +847,7 @@ struct PILOTCurveDisplay : TransparentWidget {
 
 struct PILOTMorphKnob : BidooHugeRedKnob {
 	void onButton(const event::Button &e) override {
-			PILOT *module = dynamic_cast<PILOT*>(this->paramQuantity->module);
+			PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
 
 			if (e.action == GLFW_PRESS) {
 				module->morphFocused = true;
@@ -1044,9 +1048,9 @@ void PILOTWidget::appendContextMenu(ui::Menu *menu) {
 }
 
 void PILOTWidget::step() {
-	for (int i = 0; i < 16; i++) {
-			if (controls[i]->paramQuantity) controls[i]->dirtyValue=controls[i]->paramQuantity->getValue()-0.1f;
-	}
+	// for (int i = 0; i < 16; i++) {
+	// 		if (controls[i]->getParamQuantity()) controls[i]->dirtyValue=controls[i]->getParamQuantity()->getValue()-0.1f;
+	// }
 	ModuleWidget::step();
 }
 

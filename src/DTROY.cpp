@@ -894,15 +894,15 @@ void DTROY::process(const ProcessArgs &args) {
 struct DTROYDisplay : TransparentWidget {
 	DTROY *module;
 	int frame = 0;
-	shared_ptr<Font> font;
 
 	std::string note, scale, steps, playMode, selectedPattern, playedPattern;
 
 	DTROYDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void drawMessage(NVGcontext *vg, Vec pos, std::string note, std::string playMode, std::string selectedPattern, std::string playedPattern, std::string steps, std::string scale) {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgFontSize(vg, 18.0f);
 		// nvgFontFaceId(vg, font->handle);
 		// nvgTextLetterSpacing(vg, -2.0f);
@@ -976,7 +976,8 @@ struct DTROYDisplay : TransparentWidget {
 		}
 	}
 
-	void draw(NVGcontext *vg) override {
+	void draw(const DrawArgs &args) override {
+		nvgGlobalTint(args.vg, color::WHITE);
     if (module) {
       note = displayRootNote(module->patterns[module->selectedPattern].rootNote);
   		steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);
@@ -984,7 +985,7 @@ struct DTROYDisplay : TransparentWidget {
   		scale = displayScale(module->patterns[module->selectedPattern].scale);
   		selectedPattern = "P" + to_string(module->selectedPattern + 1);
   		playedPattern = "P" + to_string(module->playedPattern + 1);
-  		drawMessage(vg, Vec(0, 20), note, playMode, selectedPattern, playedPattern, steps, scale);
+  		drawMessage(args.vg, Vec(0, 20), note, playMode, selectedPattern, playedPattern, steps, scale);
     }
 	}
 };

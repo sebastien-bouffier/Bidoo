@@ -1,5 +1,5 @@
 #pragma once
-#include <string.hpp>
+#include <system.hpp>
 #include <dsp/common.hpp>
 
 namespace waves {

@@ -3,7 +3,6 @@
 #include "dsp/digital.hpp"
 #include <iomanip>
 #include <sstream>
-#include "window.hpp"
 
 using namespace std;
 
@@ -323,7 +322,7 @@ void ACNE::process(const ProcessArgs &args) {
 			links[i] = !links[i];
 
 		lights[TRACKLINK_LIGHTS + i].setBrightness(links[i] == true ? 1 : 0);
-		
+
 		if (outputs[TRACKS_OUTPUTS + i].isConnected()) {
 			if (outMutesTriggers[i].process(params[OUT_MUTE_PARAMS + i].getValue())) {
 				outMutes[i] = !outMutes[i];
@@ -369,20 +368,20 @@ struct AcneBidooColoredTrimpot : BidooColoredTrimpot {
 	int index=0;
 
 	void onDragStart(const event::DragStart& e) override {
-		ACNE* acne = dynamic_cast<ACNE*>(paramQuantity->module);
+		ACNE* acne = dynamic_cast<ACNE*>(getParamQuantity()->module);
 		acne->eFader=index;
 		BidooColoredTrimpot::onDragStart(e);
 	}
 
 	void onDragEnd(const event::DragEnd& e) override {
-		ACNE* acne = dynamic_cast<ACNE*>(paramQuantity->module);
+		ACNE* acne = dynamic_cast<ACNE*>(getParamQuantity()->module);
 		acne->eFader=-1;
 		acne->shifted=false;
 		BidooColoredTrimpot::onDragEnd(e);
 	}
 
 	void onButton(const event::Button &e) override {
-		ACNE* acne = dynamic_cast<ACNE*>(paramQuantity->module);
+		ACNE* acne = dynamic_cast<ACNE*>(getParamQuantity()->module);
 		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
 					acne->shifted=true;
 		}

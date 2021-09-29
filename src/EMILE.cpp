@@ -262,7 +262,7 @@ struct EMILEWidget : ModuleWidget {
   	EMILE *module;
   	void onAction(const event::Action &e) override {
 
-  		std::string dir = module->lastPath.empty() ?  asset::user("") : rack::string::directory(module->lastPath);
+  		std::string dir = module->lastPath.empty() ?  asset::user("") : rack::system::getDirectory(module->lastPath);
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
   			module->loadSample(path);

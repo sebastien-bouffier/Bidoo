@@ -990,15 +990,15 @@ void BORDL::process(const ProcessArgs &args) {
 struct BORDLDisplay : TransparentWidget {
 	BORDL *module;
 	int frame = 0;
-	shared_ptr<Font> font;
 
 	std::string note, scale, steps, playMode, selectedPattern, playedPattern;
 
 	BORDLDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void drawMessage(NVGcontext *vg, Vec pos, std::string note, std::string playMode, std::string selectedPattern, std::string playedPattern, std::string steps, std::string scale) {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgFontSize(vg, 18.0f);
 		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgText(vg, pos.x + 3.0f, pos.y + 8.0f, playMode.c_str(), NULL);
@@ -1071,7 +1071,8 @@ struct BORDLDisplay : TransparentWidget {
 		}
 	}
 
-	void draw(NVGcontext *vg) override {
+	void draw(const DrawArgs &args) override {
+		nvgGlobalTint(args.vg, color::WHITE);
 		if (module) {
 			note = displayRootNote(clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,11.0f),0.0f, 11.0f));
 			steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);
@@ -1079,22 +1080,22 @@ struct BORDLDisplay : TransparentWidget {
 			scale = displayScale(module->patterns[module->selectedPattern].scale);
 			selectedPattern = "P" + to_string(module->selectedPattern + 1);
 			playedPattern = "P" + to_string(module->playedPattern + 1);
-			drawMessage(vg, Vec(0.0f, 20.0f), note, playMode, selectedPattern, playedPattern, steps, scale);
+			drawMessage(args.vg, Vec(0.0f, 20.0f), note, playMode, selectedPattern, playedPattern, steps, scale);
 		}
 	}
 };
 
 struct BORDLGateDisplay : TransparentWidget {
 	BORDL *module;
-	shared_ptr<Font> font;
 
 	int index;
 
 	BORDLGateDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void drawGate(const DrawArgs &args, Vec pos) {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		if (module) {
 			int gateType = (int)module->params[BORDL::TRIG_TYPE_PARAM+index].getValue();
 			nvgStrokeWidth(args.vg, 1.0f);
@@ -1147,21 +1148,22 @@ struct BORDLGateDisplay : TransparentWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
+		nvgGlobalTint(args.vg, color::WHITE);
 		drawGate(args, Vec(0.0f, 0.0f));
 	}
 };
 
 struct BORDLPulseDisplay : TransparentWidget {
 	BORDL *module;
-	shared_ptr<Font> font;
 
 	int index;
 
 	BORDLPulseDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void drawPulse(const DrawArgs &args, Vec pos) {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		if (module) {
 			nvgStrokeWidth(args.vg, 1.0f);
 			nvgStrokeColor(args.vg, YELLOW_BIDOO);
@@ -1177,18 +1179,18 @@ struct BORDLPulseDisplay : TransparentWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
+		nvgGlobalTint(args.vg, color::WHITE);
 		drawPulse(args, Vec(0.0f, 0.0f));
 	}
 };
 
 struct BORDLPitchDisplay : TransparentWidget {
 	BORDL *module;
-	shared_ptr<Font> font;
 
 	int index;
 
 	BORDLPitchDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	std::string displayNote(float value) {
@@ -1213,6 +1215,7 @@ struct BORDLPitchDisplay : TransparentWidget {
 	}
 
 	void drawPitch(const DrawArgs &args, Vec pos) {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		if (module) {
 			nvgStrokeWidth(args.vg, 3.0f);
 			nvgStrokeColor(args.vg, YELLOW_BIDOO);
@@ -1226,6 +1229,7 @@ struct BORDLPitchDisplay : TransparentWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
+		nvgGlobalTint(args.vg, color::WHITE);
 		drawPitch(args, Vec(0.0f, 0.0f));
 	}
 };

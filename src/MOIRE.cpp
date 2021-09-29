@@ -186,24 +186,24 @@ struct MOIREWidget : ModuleWidget {
 struct MOIRECKD6 : BlueCKD6 {
 	void onButton(const event::Button &e) override {
 		MOIREWidget *parent = dynamic_cast<MOIREWidget*>(this->parent);
-		MOIRE *module = dynamic_cast<MOIRE*>(this->paramQuantity->module);
+		MOIRE *module = dynamic_cast<MOIRE*>(this->getParamQuantity()->module);
 		if (parent && module) {
-			if (this->paramQuantity->paramId == MOIRE::ADONF_PARAM) {
-				parent->morphButton->paramQuantity->setValue(10.0f);
+			if (this->getParamQuantity()->paramId == MOIRE::ADONF_PARAM) {
+				parent->morphButton->getParamQuantity()->setValue(10.0f);
 				for (int i = 0; i<16; i++){
-					parent->controls[i]->paramQuantity->setValue(module->scenes[module->targetScene][i]);
+					parent->controls[i]->getParamQuantity()->setValue(module->scenes[module->targetScene][i]);
 					module->controlFocused[i] = false;
 				}
-			} else if (this->paramQuantity->paramId == MOIRE::NADA_PARAM) {
-				parent->morphButton->paramQuantity->setValue(0.0f);
+			} else if (this->getParamQuantity()->paramId == MOIRE::NADA_PARAM) {
+				parent->morphButton->getParamQuantity()->setValue(0.0f);
 				for (int i = 0; i<16; i++){
-					parent->controls[i]->paramQuantity->setValue(module->scenes[module->currentScene][i]);
+					parent->controls[i]->getParamQuantity()->setValue(module->scenes[module->currentScene][i]);
 					module->controlFocused[i] = false;
 				}
 			}
-			else if (this->paramQuantity->paramId == MOIRE::SAVE_PARAM) {
+			else if (this->getParamQuantity()->paramId == MOIRE::SAVE_PARAM) {
 				for (int i = 0 ; i < 16; i++) {
-					module->scenes[module->targetScene][i] = parent->controls[i]->paramQuantity->getValue();
+					module->scenes[module->targetScene][i] = parent->controls[i]->getParamQuantity()->getValue();
 				}
 			}
 		}
@@ -212,14 +212,14 @@ struct MOIRECKD6 : BlueCKD6 {
 };
 
 struct MOIREDisplay : TransparentWidget {
-	shared_ptr<Font> font;
 	int *value;
 
 	MOIREDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void drawMessage(NVGcontext *vg, Vec pos) {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
     if (value) {
       nvgFontSize(vg, 18);
   		nvgFontFaceId(vg, font->handle);
@@ -233,28 +233,29 @@ struct MOIREDisplay : TransparentWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
+		nvgGlobalTint(args.vg, color::WHITE);
 		drawMessage(args.vg, Vec(0, 20));
 	}
 };
 
 struct MOIREColoredKnob : BidooColoredKnob {
 	void setValueNoEngine(float value) {
-		float newValue = clamp(value, fminf(this->paramQuantity->getMinValue(), this->paramQuantity->getMaxValue()), fmaxf(this->paramQuantity->getMinValue(), this->paramQuantity->getMaxValue()));
-		if (this->paramQuantity->getValue() != newValue) {
-			this->paramQuantity->setValue(newValue);
+		float newValue = clamp(value, fminf(this->getParamQuantity()->getMinValue(), this->getParamQuantity()->getMaxValue()), fmaxf(this->getParamQuantity()->getMinValue(), this->getParamQuantity()->getMaxValue()));
+		if (this->getParamQuantity()->getValue() != newValue) {
+			this->getParamQuantity()->setValue(newValue);
 		}
 	};
 
 	void onDragStart(const event::DragStart &e) override {
 		RoundKnob::onDragStart(e);
-		MOIRE *module = dynamic_cast<MOIRE*>(this->paramQuantity->module);
-		module->controlFocused[this->paramQuantity->paramId - MOIRE::MOIRE::CONTROLS_PARAMS] = true;
+		MOIRE *module = dynamic_cast<MOIRE*>(this->getParamQuantity()->module);
+		module->controlFocused[this->getParamQuantity()->paramId - MOIRE::MOIRE::CONTROLS_PARAMS] = true;
 	}
 };
 
 struct MOIREMorphKnob : BidooMorphKnob {
 	void onButton(const event::Button &e) override {
-			MOIRE *module = dynamic_cast<MOIRE*>(this->paramQuantity->module);
+			MOIRE *module = dynamic_cast<MOIRE*>(this->getParamQuantity()->module);
 			for (int i = 0 ; i < 16; i++) {
 				module->controlFocused[i] = false;
 			}
@@ -331,7 +332,7 @@ void MOIREWidget::step() {
 	for (int i = 0; i < 16; i++) {
 		if (module && !module->controlFocused[i]){
 			MOIREColoredKnob* knob = dynamic_cast<MOIREColoredKnob*>(controls[i]);
-      knob->paramQuantity->setValue(module->currentValues[i]);
+      knob->getParamQuantity()->setValue(module->currentValues[i]);
 		}
 	}
 	ModuleWidget::step();

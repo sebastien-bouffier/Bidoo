@@ -300,17 +300,17 @@ struct TIAREDisplay : TransparentWidget {
 	TIAREDisplay() {}
 
 	void onDragStart(const event::DragStart &e) override {
-		dragX = APP->scene->rack->mousePos.x;
-		dragY = APP->scene->rack->mousePos.y;
+		dragX = APP->scene->rack->getMousePos().x;
+		dragY = APP->scene->rack->getMousePos().y;
 	}
 
 	void onDragMove(const event::DragMove &e) override {
 		if (!module->inputs[TIARE::DIST_X_INPUT].isConnected()) {
-			float newDragX = APP->scene->rack->mousePos.x;
+			float newDragX = APP->scene->rack->getMousePos().x;
 			module->phaseDistX = rescale(clamp(initX + (newDragX - dragX), 0.0f, 140.0f), 0.0f, 140.0f, 0.01f, 0.98f);
 		}
 		if (!module->inputs[TIARE::DIST_Y_INPUT].isConnected()) {
-			float newDragY = APP->scene->rack->mousePos.y;
+			float newDragY = APP->scene->rack->getMousePos().y;
 			module->phaseDistY = rescale(clamp(initY - (newDragY - dragY), 0.0f, 140.0f), 0.0f, 140.0f, 0.01f, 1.0f);
 		}
 	}

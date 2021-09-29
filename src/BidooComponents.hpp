@@ -13,115 +13,110 @@ namespace rack {
 
 struct BidooRoundBlackSnapKnob : RoundBlackSnapKnob {
 	BidooRoundBlackSnapKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlackKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlackKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlackKnobBidoo.svg")));
 	}
 };
 
 struct BidooRoundBlackKnob : RoundBlackKnob {
 	BidooRoundBlackKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlackKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlackKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlackKnobBidoo.svg")));
 	}
 };
 
 struct BidooBlueKnob : RoundKnob {
 	BidooBlueKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueKnobBidoo.svg")));
 	}
 };
 
 struct BidooGreenKnob : RoundKnob {
 	BidooGreenKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/GreenKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/GreenKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/GreenKnobBidoo.svg")));
 	}
 };
 
 struct BidooRedKnob : RoundKnob {
 	BidooRedKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/RedKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/RedKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/RedKnobBidoo.svg")));
 	}
 };
 
 struct BidooHugeRedKnob : RoundKnob {
 	BidooHugeRedKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/HugeRedKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/HugeRedKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/HugeRedKnobBidoo.svg")));
 	}
 };
 
 struct BidooHugeBlueKnob : RoundKnob {
 	BidooHugeBlueKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/HugeBlueKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/HugeBlueKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/HugeBlueKnobBidoo.svg")));
 	}
 };
 
 struct BidooLargeBlueKnob : RoundKnob {
 	BidooLargeBlueKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/LargeBlueKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/LargeBlueKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/LargeBlueKnobBidoo.svg")));
 	}
 };
 
 struct BidooSmallBlueKnob : RoundKnob {
 	BidooSmallBlueKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/SmallBlueKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/SmallBlueKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/SmallBlueKnobBidoo.svg")));
 	}
 };
 
 struct BidooSmallSnapBlueKnob : RoundBlackSnapKnob {
 	BidooSmallSnapBlueKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/SmallBlueKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/SmallBlueKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/SmallBlueKnobBidoo.svg")));
 	}
 };
 
 struct BidooBlueSnapKnob : RoundBlackSnapKnob  {
 	BidooBlueSnapKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueKnobBidoo.svg")));
 	}
 };
 
 struct BidooBlueSnapTrimpot : Trimpot  {
 	BidooBlueSnapTrimpot() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueTrimpotBidoo.svg")));
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueTrimpotBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueTrimpotBidoo.svg")));
 		snap = true;
 		smooth = false;
-		shadow->opacity = 0.0f;
 	}
 };
 
 struct BidooBlueTrimpot : Trimpot {
 	BidooBlueTrimpot() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueTrimpotBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueTrimpotBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueTrimpotBidoo.svg")));
 	}
 };
 
 struct BlueCKD6 : app::SvgSwitch {
 	BlueCKD6() {
 		momentary = true;
-		momentaryPressed = true;
-		momentaryReleased = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueCKD6_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueCKD6_1.svg")));
-		shadow->opacity = 0.0f;
 	}
 };
 
 struct BlueBtn : app::SvgSwitch {
 	std::string caption;
-	shared_ptr<Font> font;
 
 	BlueBtn() {
 		momentary = true;
-		font = APP->window->loadFont(asset::plugin(pluginInstance,"res/DejaVuSansMono.ttf"));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueBtn_1.svg")));
 		shadow->opacity = 0.0f;
@@ -129,6 +124,7 @@ struct BlueBtn : app::SvgSwitch {
 
 	void draw(const DrawArgs &args) override {
 		SvgSwitch::draw(args);
+		shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance,"res/DejaVuSansMono.ttf"));
 		nvgFontSize(args.vg, 12.0f);
 		nvgFontFaceId(args.vg, font->handle);
 		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
@@ -138,11 +134,9 @@ struct BlueBtn : app::SvgSwitch {
 
 struct RedBtn : app::SvgSwitch {
 	std::string caption;
-	shared_ptr<Font> font;
 
 	RedBtn() {
 		momentary = true;
-		font = APP->window->loadFont(asset::plugin(pluginInstance,"res/DejaVuSansMono.ttf"));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/RedBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/RedBtn_1.svg")));
 		shadow->opacity = 0.0f;
@@ -150,6 +144,7 @@ struct RedBtn : app::SvgSwitch {
 
 	void draw(const DrawArgs &args) override {
 		SvgSwitch::draw(args);
+		shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance,"res/DejaVuSansMono.ttf"));
 		nvgFontSize(args.vg, 12.0f);
 		nvgFontFaceId(args.vg, font->handle);
 		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
@@ -163,7 +158,6 @@ struct SaveBtn : app::SvgSwitch {
 		momentary = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/SaveBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/SaveBtn_1.svg")));
-		shadow->opacity = 0.0f;
 	}
 };
 
@@ -172,7 +166,6 @@ struct Rnd2Btn : app::SvgSwitch {
 		momentary = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/Rnd2Btn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/Rnd2Btn_1.svg")));
-		shadow->opacity = 0.0f;
 	}
 };
 
@@ -181,7 +174,6 @@ struct MuteBtn : app::SvgSwitch {
 		momentary = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/MuteBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/MuteBtn_1.svg")));
-		shadow->opacity = 0.0f;
 	}
 };
 
@@ -190,7 +182,6 @@ struct SoloBtn : app::SvgSwitch {
 		momentary = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/SoloBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/SoloBtn_1.svg")));
-		shadow->opacity = 0.0f;
 	}
 };
 
@@ -199,7 +190,6 @@ struct RndBtn : app::SvgSwitch {
 		momentary = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/RndBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/RndBtn_1.svg")));
-		shadow->opacity = 0.0f;
 	}
 };
 
@@ -208,7 +198,6 @@ struct LeftBtn : app::SvgSwitch {
 		momentary = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/LeftBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/LeftBtn_1.svg")));
-		shadow->opacity = 0.0f;
 	}
 };
 
@@ -217,7 +206,6 @@ struct RightBtn : app::SvgSwitch {
 		momentary = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/RightBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/RightBtn_1.svg")));
-		shadow->opacity = 0.0f;
 	}
 };
 
@@ -226,7 +214,6 @@ struct UpBtn : app::SvgSwitch {
 		momentary = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/UpBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/UpBtn_1.svg")));
-		shadow->opacity = 0.0f;
 	}
 };
 
@@ -235,22 +222,21 @@ struct DownBtn : app::SvgSwitch {
 		momentary = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/DownBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/DownBtn_1.svg")));
-		shadow->opacity = 0.0f;
 	}
 };
 
 struct BidooColoredKnob : RoundKnob {
 	BidooColoredKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ColoredKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/ColoredKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/ColoredKnobBidoo.svg")));
 	}
 
 	void step() override {
-		if (paramQuantity) {
+		if (getParamQuantity()) {
 			for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
 				std::string str(shape->id);
 				if (str == "bidooKnob") {
-					shape->fill.color = (((unsigned int)42+(unsigned int)paramQuantity->getValue()*21) | (((unsigned int)87-(unsigned int)paramQuantity->getValue()*8) << 8) | (((unsigned int)117-(unsigned int)paramQuantity->getValue()) << 16));
+					shape->fill.color = (((unsigned int)42+(unsigned int)getParamQuantity()->getValue()*21) | (((unsigned int)87-(unsigned int)getParamQuantity()->getValue()*8) << 8) | (((unsigned int)117-(unsigned int)getParamQuantity()->getValue()) << 16));
 					shape->fill.color |= (unsigned int)(255) << 24;
 				}
 			}
@@ -265,16 +251,16 @@ struct BidooLargeColoredKnob : RoundKnob {
 	unsigned int tFade=255;
 
 	BidooLargeColoredKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ColoredLargeKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/ColoredLargeKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/ColoredLargeKnobBidoo.svg")));
 	}
 
 	void step() override {
-		if (paramQuantity) {
+		if (getParamQuantity()) {
 			for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
 				std::string str(shape->id);
 				if (str == "bidooKnob") {
-					shape->fill.color = (((unsigned int)42+(unsigned int)(paramQuantity->getValue()*210)) | (((unsigned int)87-(unsigned int)(paramQuantity->getValue()*80)) << 8) | (((unsigned int)117-(unsigned int)(paramQuantity->getValue()*10)) << 16));
+					shape->fill.color = (((unsigned int)42+(unsigned int)(getParamQuantity()->getValue()*210)) | (((unsigned int)87-(unsigned int)(getParamQuantity()->getValue()*80)) << 8) | (((unsigned int)117-(unsigned int)(getParamQuantity()->getValue()*10)) << 16));
 					if (!*blink) {
 						tFade = 255;
 					}
@@ -302,8 +288,8 @@ struct BidooLargeColoredKnob : RoundKnob {
 
 struct BidooMorphKnob : RoundKnob {
 	BidooMorphKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/SpiralKnobBidoo.svg")));
-		shadow->opacity = 0.0f;
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/SpiralKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/SpiralKnobBidoo.svg")));
 	}
 };
 
@@ -313,7 +299,9 @@ struct BidooColoredTrimpot : RoundKnob {
 	BidooColoredTrimpot() {
 		minAngle = -0.75f*M_PI;
 		maxAngle = 0.75f*M_PI;
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/TrimpotBidoo.svg")));
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/TrimpotBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/TrimpotBidoo.svg")));
+
 		if (this->sw && this->sw->svg && this->sw->svg->handle && this->sw->svg->handle->shapes) {
 			for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
 				std::string str(shape->id);
@@ -322,12 +310,11 @@ struct BidooColoredTrimpot : RoundKnob {
 				}
 			}
 		}
-		shadow->opacity = 0.0f;
 	}
 
 	void step() override {
-		if (paramQuantity && tShape) {
-			tShape->fill.color = int(42+paramQuantity->getValue() * 210) | int(87-paramQuantity->getValue() * 80) << 8 | int(117-paramQuantity->getValue()*10) << 16;
+		if (getParamQuantity() && tShape) {
+			tShape->fill.color = int(42+getParamQuantity()->getValue() * 210) | int(87-getParamQuantity()->getValue() * 80) << 8 | int(117-getParamQuantity()->getValue()*10) << 16;
 			tShape->fill.color |= 255 << 24;
 		}
 		RoundKnob::step();
@@ -340,7 +327,9 @@ struct BidooziNCColoredKnob : RoundKnob {
 	NSVGshape *tShape = NULL;
 
 	BidooziNCColoredKnob() {
-		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueKnobBidoo.svg")));
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueKnobBidoo.svg")));
+
 		box.size = Vec(28, 28);
 		if (this->sw && this->sw->svg && this->sw->svg->handle && this->sw->svg->handle->shapes) {
 			for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
@@ -350,11 +339,10 @@ struct BidooziNCColoredKnob : RoundKnob {
 				}
 			}
 		}
-		shadow->opacity = 0.0f;
 	}
 
 	void step() override {
-		if (paramQuantity) {
+		if (getParamQuantity()) {
 			corrCoef = rescale(clamp(*coeff,0.f,2.f),0.f,2.f,0.f,255.f);
 		}
 
@@ -379,10 +367,10 @@ struct BidooSlidePotLong : app::SvgSlider {
 		handle->wrap();
 	}
 
-	void randomize() override {
-		random::init();
-  	paramQuantity->setValue(roundf(rescale(random::uniform(), 0.0f, 1.0f, paramQuantity->getMinValue(), paramQuantity->getMaxValue())));
-  }
+	// void randomize() override {
+	// 	random::init();
+  // 	getParamQuantity()->setValue(roundf(rescale(random::uniform(), 0.0f, 1.0f, getParamQuantity()->getMinValue(), getParamQuantity()->getMaxValue())));
+  // }
 };
 
 struct BidooSlidePotShort : app::SvgSlider {
@@ -398,10 +386,10 @@ struct BidooSlidePotShort : app::SvgSlider {
 		handle->wrap();
 	}
 
-	void randomize() override {
-		random::init();
-  	paramQuantity->setValue(roundf(rescale(random::uniform(), 0.0f, 1.0f, paramQuantity->getMinValue(), paramQuantity->getMaxValue())));
-  }
+	// void randomize() override {
+	// 	random::init();
+  // 	getParamQuantity()->setValue(roundf(rescale(random::uniform(), 0.0f, 1.0f, getParamQuantity()->getMinValue(), getParamQuantity()->getMaxValue())));
+  // }
 };
 
 struct CKSS8 : app::SvgSwitch {
@@ -416,7 +404,6 @@ struct CKSS8 : app::SvgSwitch {
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/CKSS8_7.svg")));
 		sw->wrap();
 		box.size = sw->box.size;
-		shadow->opacity = 0.0f;
 	}
 };
 
@@ -428,7 +415,6 @@ struct CKSS4 : app::SvgSwitch {
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/CKSS4_3.svg")));
 		sw->wrap();
 		box.size = sw->box.size;
-		shadow->opacity = 0.0f;
 	}
 };
 
@@ -439,7 +425,6 @@ struct TinyPJ301MPort : app::SvgPort {
 		setSvg(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/TinyPJ301M.svg")));
 		sw->wrap();
 		box.size = sw->box.size;
-		shadow->opacity = 0.0f;
 	}
 };
 
@@ -447,13 +432,12 @@ struct MiniLEDButton : app::SvgSwitch {
 	MiniLEDButton() {
 		momentary = true;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/miniLEDButton.svg")));
-		shadow->opacity = 0.0f;
 	}
 };
 
 struct BidooLEDButton : LEDButton {
 	BidooLEDButton() {
-		shadow->opacity = 0.0f;
+
 	}
 };
 

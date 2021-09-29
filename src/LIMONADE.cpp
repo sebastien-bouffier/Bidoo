@@ -1,7 +1,6 @@
 #include "plugin.hpp"
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
-#include "window.hpp"
 #include <thread>
 #include "dsp/resampler.hpp"
 #include "dsp/fir.hpp"
@@ -22,8 +21,8 @@ void tUpdateWaveTable(wtTable &table, float index) {
 }
 
 void tLoadSample(wtTable &table, std::string path, size_t frameLen, bool interpolate) {
-	std::string waveExtension = rack::string::filenameExtension(rack::string::filename(path));
-	if (waveExtension == "wav") {
+	std::string waveExtension = rack::system::getExtension(rack::system::getFilename(path));
+	if (waveExtension == ".wav") {
 		unsigned int c;
 	  unsigned int sr;
 	  drwav_uint64 sc;
@@ -43,7 +42,7 @@ void tLoadSample(wtTable &table, std::string path, size_t frameLen, bool interpo
 			table.calcFFT();
 		}
 	}
-	else if (waveExtension == "aiff") {
+	else if (waveExtension == ".aiff") {
 		float *sample;
 		AudioFile<float> audioFile;
 		if (audioFile.load(path.c_str()))  {
@@ -81,8 +80,8 @@ void tLoadIFrame(wtTable &table, float *iRec, float index, size_t frameLen, bool
 }
 
 void tLoadFrame(wtTable &table, std::string path, float index, bool interpolate) {
-	std::string waveExtension = rack::string::filenameExtension(rack::string::filename(path));
-	if (waveExtension == "wav") {
+	std::string waveExtension = rack::system::getExtension(rack::system::getFilename(path));
+	if (waveExtension == ".wav") {
 		unsigned int c;
 	  unsigned int sr;
 	  drwav_uint64 sc;
@@ -109,7 +108,7 @@ void tLoadFrame(wtTable &table, std::string path, float index, bool interpolate)
 			table.calcFFT();
 		}
 	}
-	else if (waveExtension == "aiff") {
+	else if (waveExtension == ".aiff") {
 		float *sample;
 			AudioFile<float> audioFile;
 			if (audioFile.load(path.c_str()))  {
@@ -707,7 +706,6 @@ void LIMONADE::process(const ProcessArgs &args) {
 
 struct LIMONADEBinsDisplay : OpaqueWidget {
 	LIMONADE *module;
-	shared_ptr<Font> font;
 	const float width = 420.0f;
 	const float heightMagn = 70.0f;
 	const float heightPhas = 50.0f;
@@ -722,7 +720,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 	bool scroll = false;
 
 	LIMONADEBinsDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void onButton(const event::Button &e) override {
@@ -739,7 +737,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 	}
 
   void onDragStart(const event::DragStart &e) override {
-		appGet()->window->cursorLock();
+		APP->window->cursorLock();
 		OpaqueWidget::onDragStart(e);
 	}
 
@@ -747,20 +745,20 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 		if ((!scroll) && (module->table.nFrames>0)) {
 			size_t i = module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames-1);
 			if (refY<=heightMagn) {
-				if ((appGet()->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_CONTROL)) {
+				if ((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_CONTROL)) {
 					module->table.frames[i].magnitude[refIdx] = 0.0f;
 				}
 				else {
-					module->table.frames[i].magnitude[refIdx] -= e.mouseDelta.y/(250/appGet()->scene->rackScroll->zoomWidget->zoom);
+					module->table.frames[i].magnitude[refIdx] -= e.mouseDelta.y/(250/APP->scene->rackScroll->zoomWidget->zoom);
 					module->table.frames[i].magnitude[refIdx] = clamp(module->table.frames[i].magnitude[refIdx],0.0f, 1.0f);
 				}
 			}
 			else if (refY>=heightMagn+graphGap) {
-				if ((appGet()->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_CONTROL)) {
+				if ((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_CONTROL)) {
 					module->table.frames[i].phase[refIdx] = 0.0f;
 				}
 				else {
-					module->table.frames[i].phase[refIdx] -= e.mouseDelta.y / (250 / appGet()->scene->rackScroll->zoomWidget->zoom);
+					module->table.frames[i].phase[refIdx] -= e.mouseDelta.y / (250 / APP->scene->rackScroll->zoomWidget->zoom);
 					module->table.frames[i].phase[refIdx] = clamp(module->table.frames[i].phase[refIdx],-1.0f*M_PI, M_PI);
 				}
 			}
@@ -768,18 +766,20 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 			module->updateWaveTable();
 		}
 		else {
-				scrollLeftAnchor = clamp(scrollLeftAnchor + e.mouseDelta.x / appGet()->scene->rackScroll->zoomWidget->zoom, 0.0f,width-20.0f);
+				scrollLeftAnchor = clamp(scrollLeftAnchor + e.mouseDelta.x / APP->scene->rackScroll->zoomWidget->zoom, 0.0f,width-20.0f);
 				zoomLeftAnchor = rescale(scrollLeftAnchor, 0.0f, width-20.0f, 0.0f, (width - zoomWidth)/2.f);
 		}
 		OpaqueWidget::onDragMove(e);
 	}
 
   void onDragEnd(const event::DragEnd &e) override {
-    appGet()->window->cursorUnlock();
+    APP->window->cursorUnlock();
     OpaqueWidget::onDragEnd(e);
   }
 
 	void draw(const DrawArgs &args) override {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		nvgGlobalTint(args.vg, color::WHITE);
     if (module) {
       wtFrame frame, playedFrame;
   		size_t tag=1;
@@ -901,7 +901,6 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 
 struct LIMONADEWavDisplay : OpaqueWidget {
 	LIMONADE *module;
-	shared_ptr<Font> font;
 	const float width = 130.0f;
 	const float height = 130.0f;
 	int refIdx = 0;
@@ -916,7 +915,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 	float x3D, y3D, z3D, x2D, y2D;
 
 	LIMONADEWavDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void onButton(const event::Button &e) override {
@@ -924,7 +923,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 	}
 
 	void onDragStart(const event::DragStart &e) override {
-		appGet()->window->cursorLock();
+		APP->window->cursorLock();
 		OpaqueWidget::onDragStart(e);
 	}
 
@@ -946,11 +945,13 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 	}
 
 	void onDragEnd(const event::DragEnd &e) override {
-		appGet()->window->cursorUnlock();
+		APP->window->cursorUnlock();
 		OpaqueWidget::onDragEnd(e);
 	}
 
 	void draw(const DrawArgs &args) override {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		nvgGlobalTint(args.vg, color::WHITE);
     if (module && (module->displayMode == 0)) {
       size_t fs = module->table.nFrames;
   		size_t idx = 0;
@@ -1092,21 +1093,21 @@ struct moduleDisplayPlayedFrameItem : MenuItem {
 
 struct LimonadeBlueBtnLoadSample : BlueBtn {
 	virtual void onButton(const event::Button &e) override {
-		if ((e.button == GLFW_MOUSE_BUTTON_LEFT) && (e.action == GLFW_PRESS)) dynamic_cast<LIMONADE*>(this->paramQuantity->module)->loadSample();
+		if ((e.button == GLFW_MOUSE_BUTTON_LEFT) && (e.action == GLFW_PRESS)) dynamic_cast<LIMONADE*>(this->getParamQuantity()->module)->loadSample();
 		BlueBtn::onButton(e);
 	}
 };
 
 struct LimonadeBlueBtnLoadPNG : BlueBtn {
 	virtual void onButton(const event::Button &e) override {
-		if ((e.button == GLFW_MOUSE_BUTTON_LEFT) && (e.action == GLFW_PRESS)) dynamic_cast<LIMONADE*>(this->paramQuantity->module)->loadPNG();
+		if ((e.button == GLFW_MOUSE_BUTTON_LEFT) && (e.action == GLFW_PRESS)) dynamic_cast<LIMONADE*>(this->getParamQuantity()->module)->loadPNG();
 		BlueBtn::onButton(e);
 	}
 };
 
 struct LimonadeBlueBtnLoadFrame : BlueBtn {
 	virtual void onButton(const event::Button &e) override {
-		if ((e.button == GLFW_MOUSE_BUTTON_LEFT) && (e.action == GLFW_PRESS)) dynamic_cast<LIMONADE*>(this->paramQuantity->module)->loadFrame();
+		if ((e.button == GLFW_MOUSE_BUTTON_LEFT) && (e.action == GLFW_PRESS)) dynamic_cast<LIMONADE*>(this->getParamQuantity()->module)->loadFrame();
 		BlueBtn::onButton(e);
 	}
 };

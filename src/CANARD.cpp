@@ -7,7 +7,6 @@
 #include <iomanip>
 #include <sstream>
 #include <algorithm>
-#include "window.hpp"
 #include <mutex>
 #include "dep/waves.hpp"
 
@@ -131,8 +130,8 @@ struct CANARD : Module {
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		if (lastPathJ) {
 			lastPath = json_string_value(lastPathJ);
-			waveFileName = rack::string::filename(lastPath);
-			waveExtension = rack::string::filenameBase(lastPath);
+			waveFileName = rack::system::getFilename(lastPath);
+			waveExtension = rack::system::getExtension(lastPath);
 			if (!lastPath.empty()) loadSample();
 			if (totalSampleCount>0) {
 				json_t *slicesJ = json_object_get(rootJ, "slices");
@@ -187,18 +186,18 @@ void CANARD::calcTransients() {
 }
 
 void CANARD::loadSample() {
-	appGet()->engine->yieldWorkers();
+	APP->engine->yieldWorkers();
 	mylock.lock();
-	playBuffer = waves::getStereoWav(lastPath, appGet()->engine->getSampleRate(), waveFileName, waveExtension, channels, sampleRate, totalSampleCount);
+	playBuffer = waves::getStereoWav(lastPath, APP->engine->getSampleRate(), waveFileName, waveExtension, channels, sampleRate, totalSampleCount);
 	mylock.unlock();
 	slices.clear();
 	loading = false;
 }
 
 void CANARD::saveSample() {
-	appGet()->engine->yieldWorkers();
+	APP->engine->yieldWorkers();
 	mylock.lock();
-	waves::saveWave(playBuffer, appGet()->engine->getSampleRate(), lastPath);
+	waves::saveWave(playBuffer, APP->engine->getSampleRate(), lastPath);
 	mylock.unlock();
 	save = false;
 }
@@ -491,7 +490,6 @@ struct BidooTransientsBlueTrimpot : BidooBlueTrimpot {
 
 struct CANARDDisplay : OpaqueWidget {
 	CANARD *module;
-	shared_ptr<Font> font;
 	const float width = 175.0f;
 	const float height = 50.0f;
 	float zoomWidth = 175.0f;
@@ -500,7 +498,7 @@ struct CANARDDisplay : OpaqueWidget {
 	float refX = 0.0f;
 
 	CANARDDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void onButton(const event::Button &e) override {
@@ -524,29 +522,31 @@ struct CANARDDisplay : OpaqueWidget {
 	}
 
 	void onDragStart(const event::DragStart &e) override {
-		appGet()->window->cursorLock();
+		APP->window->cursorLock();
 		OpaqueWidget::onDragStart(e);
 	}
 
 	void onDragMove(const event::DragMove &e) override {
 		float zoom = 1.0f;
 		if (e.mouseDelta.y > 0.0f) {
-			zoom = 1.0f/(((appGet()->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) ? 2.0f : 1.1f);
+			zoom = 1.0f/(((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) ? 2.0f : 1.1f);
 		}
 		else if (e.mouseDelta.y < 0.0f) {
-			zoom = ((appGet()->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) ? 2.0f : 1.1f;
+			zoom = ((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) ? 2.0f : 1.1f;
 		}
-		zoomWidth = clamp(zoomWidth*zoom,width,zoomWidth*((appGet()->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT) ? 2.0f : 1.1f));
+		zoomWidth = clamp(zoomWidth*zoom,width,zoomWidth*((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT) ? 2.0f : 1.1f));
 		zoomLeftAnchor = clamp(refX - (refX - zoomLeftAnchor)*zoom + e.mouseDelta.x, width - zoomWidth,0.0f);
 		OpaqueWidget::onDragMove(e);
 	}
 
 	void onDragEnd(const event::DragEnd &e) override {
-		appGet()->window->cursorUnlock();
+		APP->window->cursorUnlock();
 		OpaqueWidget::onDragEnd(e);
 	}
 
 	void draw(const DrawArgs &args) override {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		nvgGlobalTint(args.vg, color::WHITE);
 		if (module && (module->playBuffer.size()>0)) {
 			module->mylock.lock();
 			std::vector<float> vL;
@@ -796,7 +796,7 @@ struct CANARDWidget : ModuleWidget {
 	struct CANARDTransientDetect : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
-			appGet()->engine->yieldWorkers();
+			APP->engine->yieldWorkers();
 			module->calcTransients();
 		}
 	};
@@ -804,7 +804,7 @@ struct CANARDWidget : ModuleWidget {
 	struct CANARDLoadSample : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
-			std::string dir = module->lastPath.empty() ? asset::user("") : rack::string::directory(module->lastPath);
+			std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
 			char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
 			if (path) {
 				module->lastPath = path;
@@ -817,7 +817,7 @@ struct CANARDWidget : ModuleWidget {
 	struct CANARDSaveSample : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
-			std::string dir = module->lastPath.empty() ? asset::user("") : rack::string::directory(module->lastPath);
+			std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
 			std::string fileName = module->waveFileName.empty() ? "temp.wav" : module->waveFileName;
 			char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), fileName.c_str(), NULL);
 			if (path) {

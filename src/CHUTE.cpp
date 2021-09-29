@@ -108,13 +108,15 @@ void CHUTE::process(const ProcessArgs &args) {
 struct CHUTEDisplay : TransparentWidget {
 	CHUTE *module;
 	int frame = 0;
-	shared_ptr<Font> font;
+
 
 	CHUTEDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void draw(const DrawArgs &args) override {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		nvgGlobalTint(args.vg, color::WHITE);
 		frame = 0;
 		//nvgSave(args.vg);
 		nvgFontSize(args.vg, 18.0f);

@@ -7,10 +7,12 @@
 namespace waves {
 
   std::vector<rack::dsp::Frame<1>> getMonoWav(const std::string path, const float currentSampleRate, std::string &waveFileName, std::string &waveExtension, int &sampleChannels, int &sampleRate, int &sampleCount) {
-    waveFileName = rack::string::filename(path);
-    waveExtension = rack::string::filenameExtension(rack::string::filename(path));
+    waveFileName = rack::system::getFilename(path);
+    waveExtension = rack::system::getExtension(waveFileName);
+    std::cout << waveFileName << '\n';
+    std::cout << waveExtension << '\n';
     std::vector<rack::dsp::Frame<1>> result;
-    if (waveExtension == "wav") {
+    if (waveExtension == ".wav") {
       unsigned int c;
       unsigned int sr;
       drwav_uint64 sc;
@@ -33,7 +35,7 @@ namespace waves {
         drwav_free(pSampleData);
       }
     }
-    else if (waveExtension == "aiff") {
+    else if (waveExtension == ".aiff") {
       AudioFile<float> audioFile;
       if (audioFile.load (path.c_str()))  {
         sampleChannels = audioFile.getNumChannels();
@@ -71,10 +73,10 @@ namespace waves {
   }
 
   std::vector<rack::dsp::Frame<2>> getStereoWav(const std::string path, const float currentSampleRate, std::string &waveFileName, std::string &waveExtension, int &sampleChannels, int &sampleRate, int &sampleCount) {
-    waveFileName = rack::string::filename(path);
-    waveExtension = rack::string::filenameExtension(rack::string::filename(path));
+    waveFileName = rack::system::getFilename(path);
+    waveExtension = rack::system::getExtension(waveFileName);
     std::vector<rack::dsp::Frame<2>> result;
-    if (waveExtension == "wav") {
+    if (waveExtension == ".wav") {
       unsigned int c;
       unsigned int sr;
       drwav_uint64 sc;
@@ -96,7 +98,7 @@ namespace waves {
         drwav_free(pSampleData);
       }
     }
-    else if (waveExtension == "aiff") {
+    else if (waveExtension == ".aiff") {
       AudioFile<float> audioFile;
       if (audioFile.load (path.c_str()))  {
         sampleChannels = audioFile.getNumChannels();

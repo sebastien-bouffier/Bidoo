@@ -76,6 +76,7 @@ struct GARCONDisplay : OpaqueWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
+		nvgGlobalTint(args.vg, color::WHITE);
 		if (module) {
 			module->mylock.lock();
 			vector<vector<float>> tmp(module->fft);

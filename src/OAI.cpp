@@ -282,8 +282,8 @@ struct OAI : Module {
 };
 
 void OAI::loadSample() {
-	appGet()->engine->yieldWorkers();
-	channels[currentChannel].playBuffer = waves::getMonoWav(channels[currentChannel].lastPath, appGet()->engine->getSampleRate(), channels[currentChannel].waveFileName, channels[currentChannel].waveExtension,
+	APP->engine->yieldWorkers();
+	channels[currentChannel].playBuffer = waves::getMonoWav(channels[currentChannel].lastPath, APP->engine->getSampleRate(), channels[currentChannel].waveFileName, channels[currentChannel].waveExtension,
 	 channels[currentChannel].sampleChannels, channels[currentChannel].sampleRate, channels[currentChannel].totalSampleCount);
 	loading = false;
 }
@@ -439,7 +439,7 @@ struct OAIWidget : ModuleWidget {
 	struct OAIItem : MenuItem {
   	OAI *module;
   	void onAction(const event::Action &e) override {
-  		std::string dir = module->channels[module->currentChannel].lastPath.empty() ? asset::user("") : rack::string::directory(module->channels[module->currentChannel].lastPath);
+  		std::string dir = module->channels[module->currentChannel].lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->channels[module->currentChannel].lastPath);
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
 				module->mylock.lock();

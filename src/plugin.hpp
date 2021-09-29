@@ -53,7 +53,7 @@ extern Model *modelCANARD;
 extern Model *modelFREIN;
 extern Model *modelLOURDE;
 extern Model *modelHCTIP;
-extern Model *modelCURT;
+//extern Model *modelCURT;
 extern Model *modelDFUZE;
 extern Model *modelREI;
 extern Model *modelMU;

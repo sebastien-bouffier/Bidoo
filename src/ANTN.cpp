@@ -118,7 +118,7 @@ void * threadReadTask(threadReadData data)
   std::string url;
   data.secUrl == "" ? url = data.url : url = data.secUrl;
 
-  if ((rack::string::filenameExtension(data.url) == "pls") || (rack::string::filenameExtension(data.url) == "m3u")) {
+  if ((rack::system::getExtension(data.url) == "pls") || (rack::system::getExtension(data.url) == "m3u")) {
     istringstream iss(url);
     for (std::string line; std::getline(iss, line); )
     {
@@ -270,7 +270,7 @@ void ANTN::process(const ProcessArgs &args) {
     tDl.store(true);
     rData.url = url;
     rData.sr = args.sampleRate;
-    if ((rack::string::filenameExtension(rData.url) == "m3u") || (rack::string::filenameExtension(rData.url) == "pls")) {
+    if ((rack::system::getExtension(rData.url) == "m3u") || (rack::system::getExtension(rData.url) == "pls")) {
       rThread = thread(urlTask, std::ref(rData));
     }
     else {
@@ -305,7 +305,7 @@ struct ANTNTextField : LedDisplayTextField {
 
   ANTNTextField(ANTN *mod) {
     module = mod;
-    font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+    std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
   	color = GREEN_BIDOO;
   	textOffset = Vec(3, 3);
     if (module != NULL) text = module->url;
@@ -324,13 +324,14 @@ struct ANTNTextField : LedDisplayTextField {
 
 struct ANTNDisplay : TransparentWidget {
 	ANTN *module;
-	std::shared_ptr<Font> font;
+
 	ANTNDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 void draw(NVGcontext *vg) override {
   if (module) {
+    std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
     nvgSave(vg);
   	nvgStrokeWidth(vg, 1.0f);
     nvgStrokeColor(vg, BLUE_BIDOO);
@@ -348,8 +349,6 @@ void draw(NVGcontext *vg) override {
 
 struct ANTNWidget : ModuleWidget {
   TextField *textField;
-	json_t *toJson() override;
-	void fromJson(json_t *rootJ) override;
 
 	ANTNWidget(ANTN *module) {
 		setModule(module);
@@ -383,18 +382,5 @@ struct ANTNWidget : ModuleWidget {
   	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[1]+4, 340), module, ANTN::OUTR_OUTPUT));
   }
 };
-
-json_t *ANTNWidget::toJson() {
-	json_t *rootJ = ModuleWidget::toJson();
-	json_object_set_new(rootJ, "text", json_string(textField->text.c_str()));
-	return rootJ;
-}
-
-void ANTNWidget::fromJson(json_t *rootJ) {
-	ModuleWidget::fromJson(rootJ);
-	json_t *textJ = json_object_get(rootJ, "text");
-	if (textJ)
-		textField->text = json_string_value(textJ);
-}
 
 Model *modelANTN = createModel<ANTN, ANTNWidget>("antN");

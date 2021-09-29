@@ -8,7 +8,6 @@
 
 using namespace std;
 
-
 #define pi 3.14159265359
 
 struct MultiFilter {
@@ -208,8 +207,8 @@ struct MAGMA : Module {
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		if (lastPathJ) {
 			lastPath = json_string_value(lastPathJ);
-			waveFileName = rack::string::filename(lastPath);
-			waveExtension = rack::string::filenameBase(lastPath);
+			waveFileName = rack::system::getFilename(lastPath);
+			waveExtension = rack::system::getExtension(lastPath);
 			if (!lastPath.empty()) loadSample();
 			for (size_t i = 0; i<16 ; i++) {
 				json_t *channelJ = json_object_get(rootJ, ("channel" + to_string(i)).c_str());
@@ -262,8 +261,8 @@ struct MAGMA : Module {
 };
 
 void MAGMA::loadSample() {
-	appGet()->engine->yieldWorkers();
-	playBuffer = waves::getMonoWav(lastPath, appGet()->engine->getSampleRate(), waveFileName, waveExtension, sampleChannels, sampleRate, totalSampleCount);
+	APP->engine->yieldWorkers();
+	playBuffer = waves::getMonoWav(lastPath, APP->engine->getSampleRate(), waveFileName, waveExtension, sampleChannels, sampleRate, totalSampleCount);
 	loading = false;
 }
 
@@ -485,7 +484,7 @@ struct MAGMAWidget : ModuleWidget {
 	struct MAGMAItem : MenuItem {
   	MAGMA *module;
   	void onAction(const event::Action &e) override {
-  		std::string dir = module->lastPath.empty() ? asset::user("") : rack::string::directory(module->lastPath);
+  		std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
 				module->mylock.lock();

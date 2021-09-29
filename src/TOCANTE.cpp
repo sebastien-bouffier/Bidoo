@@ -152,13 +152,14 @@ void TOCANTE::process(const ProcessArgs &args) {
 
 struct TOCANTEDisplay : TransparentWidget {
 	TOCANTE *module;
-	std::shared_ptr<Font> font;
 
 	TOCANTEDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void draw(const DrawArgs &args) override {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		nvgGlobalTint(args.vg, color::WHITE);
 		if (module != NULL) {
 			char tBPM[128],tBeats[128];
 			snprintf(tBPM, sizeof(tBPM), "%1.2f BPM", module->bpm);

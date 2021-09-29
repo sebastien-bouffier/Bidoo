@@ -51,14 +51,15 @@ void LOURDE::process(const ProcessArgs &args) {
 
 struct LabelDisplayWidget : TransparentWidget {
   Param *value;
-  std::shared_ptr<Font> font;
 
   LabelDisplayWidget() {
-    font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
   };
 
   void draw(const DrawArgs &args) override
   {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		nvgGlobalTint(args.vg, color::WHITE);
     if (value) {
       char display[128];
   		snprintf(display, sizeof(display), "%2.2f", value->getValue());

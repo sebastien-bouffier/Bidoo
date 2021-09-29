@@ -1,7 +1,6 @@
 #include "plugin.hpp"
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
-#include "window.hpp"
 #include <thread>
 #include "dsp/resampler.hpp"
 
@@ -235,7 +234,6 @@ void PENEQUE::process(const ProcessArgs &args) {
 
 struct PENEQUEMagnDisplay : OpaqueWidget {
 	PENEQUE *module;
-	shared_ptr<Font> font;
 	const float width = 400.0f;
 	const float heightMagn = 70.0f;
 	const float heightPhas = 50.0f;
@@ -248,7 +246,7 @@ struct PENEQUEMagnDisplay : OpaqueWidget {
 	bool write = false;
 
 	PENEQUEMagnDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void onButton(const event::Button &e) override {
@@ -259,14 +257,14 @@ struct PENEQUEMagnDisplay : OpaqueWidget {
 	}
 
 	void onDragStart(const event::DragStart &e) override {
-		appGet()->window->cursorLock();
+		APP->window->cursorLock();
 		OpaqueWidget::onDragStart(e);
 	}
 
 	void onDragMove(const event::DragMove &e) override {
-		if (!((appGet()->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_CONTROL))) {
+		if (!((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_CONTROL))) {
 			if (refY<=heightMagn) {
-				if (((appGet()->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_CONTROL))) {
+				if (((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_CONTROL))) {
 					module->magn[refIdx] = 0.0f;
 				}
 				else {
@@ -275,7 +273,7 @@ struct PENEQUEMagnDisplay : OpaqueWidget {
 				}
 			}
 			else if (refY>=heightMagn+graphGap) {
-				if ((appGet()->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_CONTROL)) {
+				if ((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_CONTROL)) {
 					module->phas[refIdx] = 0.0f;
 				}
 				else {
@@ -292,17 +290,19 @@ struct PENEQUEMagnDisplay : OpaqueWidget {
 	}
 
 	void onDragEnd(const event::DragEnd &e) override {
-		appGet()->window->cursorUnlock();
+		APP->window->cursorUnlock();
 		OpaqueWidget::onDragEnd(e);
 		//module->computeWavelet();
 	}
 
-	void draw(NVGcontext *vg) override {
+	void draw(const DrawArgs &args) override {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		nvgGlobalTint(args.vg, color::WHITE);
     if (module) {
       // Draw Magnitude & Phase
-  		nvgSave(vg);
+  		nvgSave(args.vg);
   		Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, heightMagn + graphGap + heightPhas));
-  		nvgScissor(vg, 0, b.pos.y, width, heightMagn + graphGap + heightPhas);
+  		nvgScissor(args.vg, 0, b.pos.y, width, heightMagn + graphGap + heightPhas);
   		float invBins = 1.0f/ BINS;
   		size_t tag=1;
   		for (size_t i = 0; i < BINS-1; i++) {
@@ -314,35 +314,35 @@ struct PENEQUEMagnDisplay : OpaqueWidget {
   			p.y = heightMagn * y;
 
   			if ((i+1)==tag){
-  				nvgBeginPath(vg);
-  				nvgFillColor(vg, nvgRGBA(45, 114, 143, 100));
-  				nvgRect(vg, p.x, 0, b.size.x * invBins, heightMagn);
-  				nvgRect(vg, p.x, heightMagn + graphGap, b.size.x * invBins, heightPhas);
-  				nvgClosePath(vg);
-  				nvgLineCap(vg, NVG_MITER);
-  				nvgStrokeWidth(vg, 0);
-  				//nvgStroke(vg);
-  				nvgFill(vg);
+  				nvgBeginPath(args.vg);
+  				nvgFillColor(args.vg, nvgRGBA(45, 114, 143, 100));
+  				nvgRect(args.vg, p.x, 0, b.size.x * invBins, heightMagn);
+  				nvgRect(args.vg, p.x, heightMagn + graphGap, b.size.x * invBins, heightPhas);
+  				nvgClosePath(args.vg);
+  				nvgLineCap(args.vg, NVG_MITER);
+  				nvgStrokeWidth(args.vg, 0);
+  				//nvgStroke(args.vg);
+  				nvgFill(args.vg);
   				tag *=2;
   			}
 
   			if (p.x < width) {
-  				nvgBeginPath(vg);
-  				nvgStrokeColor(vg, YELLOW_BIDOO);
-  				nvgFillColor(vg, YELLOW_BIDOO);
-  				nvgRect(vg, p.x, heightMagn - p.y, b.size.x * invBins, p.y);
+  				nvgBeginPath(args.vg);
+  				nvgStrokeColor(args.vg, YELLOW_BIDOO);
+  				nvgFillColor(args.vg, YELLOW_BIDOO);
+  				nvgRect(args.vg, p.x, heightMagn - p.y, b.size.x * invBins, p.y);
   				y = module->phas[i+1]/M_PI;
   				p.y = heightPhas * 0.5 * y;
-  				nvgRect(vg, p.x, heightMagn + graphGap + heightPhas * 0.5f - p.y, b.size.x * invBins, p.y);
-  				nvgClosePath(vg);
-  				nvgLineCap(vg, NVG_MITER);
-  				nvgStrokeWidth(vg, 1);
-  				nvgStroke(vg);
-  				nvgFill(vg);
+  				nvgRect(args.vg, p.x, heightMagn + graphGap + heightPhas * 0.5f - p.y, b.size.x * invBins, p.y);
+  				nvgClosePath(args.vg);
+  				nvgLineCap(args.vg, NVG_MITER);
+  				nvgStrokeWidth(args.vg, 1);
+  				nvgStroke(args.vg);
+  				nvgFill(args.vg);
   			}
   		}
-  		nvgResetScissor(vg);
-  		nvgRestore(vg);
+  		nvgResetScissor(args.vg);
+  		nvgRestore(args.vg);
     }
 	}
 };
@@ -367,29 +367,30 @@ struct PENEQUEWavDisplay : OpaqueWidget {
   }
 
   void onDragStart(const event::DragStart &e) override {
-    appGet()->window->cursorLock();
+    APP->window->cursorLock();
     OpaqueWidget::onDragStart(e);
   }
 
   void onDragEnd(const event::DragEnd &e) override {
-    appGet()->window->cursorUnlock();
+    APP->window->cursorUnlock();
     OpaqueWidget::onDragEnd(e);
   }
 
 	void onDragMove(const event::DragMove &e) override {
 		float zoom = 1.0f;
 		if (e.mouseDelta.y > 0.0f) {
-			zoom = 1.0f/(((appGet()->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) ? 2.0f : 1.1f);
+			zoom = 1.0f/(((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) ? 2.0f : 1.1f);
 		}
 		else if (e.mouseDelta.y < 0.0f) {
-			zoom = ((appGet()->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) ? 2.0f : 1.1f;
+			zoom = ((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) ? 2.0f : 1.1f;
 		}
-		zoomWidth = clamp(zoomWidth*zoom,width,zoomWidth*(((appGet()->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) ? 2.0f : 1.1f));
+		zoomWidth = clamp(zoomWidth*zoom,width,zoomWidth*(((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) ? 2.0f : 1.1f));
 		zoomLeftAnchor = clamp(refX - (refX - zoomLeftAnchor)*zoom + e.mouseDelta.x, width - zoomWidth,0.0f);
 		OpaqueWidget::onDragMove(e);
 	}
 
 	void draw(const DrawArgs &args) override {
+		nvgGlobalTint(args.vg, color::WHITE);
     if (module) {
       // Draw ref line
   		nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));

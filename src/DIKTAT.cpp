@@ -232,7 +232,6 @@ struct RootNoteButton : OpaqueWidget {
 	DIKTAT *module;
 	int rootNote;
 	std::string sRootNote="";
-	shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 
 	bool isInScale() {
 		for (int i=0; i<7; i++) {
@@ -242,6 +241,8 @@ struct RootNoteButton : OpaqueWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		nvgGlobalTint(args.vg, color::WHITE);
 		if (module && module->rootNote[module->currentChannel] == rootNote) {
 			nvgBeginPath(args.vg);
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
@@ -303,6 +304,7 @@ struct ScaleButton : OpaqueWidget {
 	shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 
 	void draw(const DrawArgs &args) override {
+		nvgGlobalTint(args.vg, color::WHITE);
 		if (module && module->scale[module->currentChannel] == scale) {
   		nvgBeginPath(args.vg);
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
@@ -347,12 +349,10 @@ struct ScaleButton : OpaqueWidget {
 };
 
 struct DiktatDisplay : OpaqueWidget {
-	shared_ptr<Font> font;
 	DIKTAT *module;
 
 	DiktatDisplay() {
 		box.size = mm2px(Vec(50, 87));
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 	}
 
 	void setModule(DIKTAT *module) {
@@ -448,6 +448,8 @@ struct DiktatDisplay : OpaqueWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		nvgGlobalTint(args.vg, color::WHITE);
 		if (module) {
 			nvgBeginPath(args.vg);
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
