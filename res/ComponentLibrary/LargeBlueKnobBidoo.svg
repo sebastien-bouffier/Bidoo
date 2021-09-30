@@ -7,70 +7,71 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="12.7mm"
-   height="12.7mm"
-   viewBox="0 0 12.7 12.7"
-   version="1.1"
-   id="svg49872"
+   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
    sodipodi:docname="LargeBlueKnobBidoo.svg"
-   inkscape:version="0.92.3 (2405546, 2018-03-11)">
+   id="svg49872"
+   version="1.1"
+   viewBox="0 0 12.7 12.7"
+   height="12.7mm"
+   width="12.7mm">
   <sodipodi:namedview
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1"
-     objecttolerance="10"
-     gridtolerance="10"
-     guidetolerance="10"
-     inkscape:pageopacity="0"
-     inkscape:pageshadow="2"
-     inkscape:window-width="3840"
-     inkscape:window-height="2066"
-     id="namedview19"
-     showgrid="false"
-     inkscape:zoom="19.666667"
-     inkscape:cx="22.542248"
-     inkscape:cy="27.35657"
-     inkscape:window-x="-11"
-     inkscape:window-y="-11"
+     inkscape:document-rotation="0"
+     inkscape:current-layer="svg49872"
      inkscape:window-maximized="1"
-     inkscape:current-layer="svg49872" />
+     inkscape:window-y="-11"
+     inkscape:window-x="-11"
+     inkscape:cy="27.35657"
+     inkscape:cx="22.542248"
+     inkscape:zoom="19.666667"
+     showgrid="false"
+     id="namedview19"
+     inkscape:window-height="2066"
+     inkscape:window-width="3840"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0"
+     guidetolerance="10"
+     gridtolerance="10"
+     objecttolerance="10"
+     borderopacity="1"
+     bordercolor="#666666"
+     pagecolor="#ffffff" />
   <defs
      id="defs49866">
     <clipPath
        id="clip12">
       <path
-         d="m 143,129.75 h 3 V 158 h -3 z m 0,0"
-         id="path28860" />
+         id="path28860"
+         d="m 143,129.75 h 3 V 158 h -3 z m 0,0" />
     </clipPath>
     <clipPath
        id="clip11">
       <path
-         d="m 117.39453,129.75 h 54 v 54.00391 h -54 z m 0,0"
-         id="path28857" />
+         id="path28857"
+         d="m 117.39453,129.75 h 54 v 54.00391 h -54 z m 0,0" />
     </clipPath>
     <clipPath
        id="clip150">
       <path
-         d="m 176,208.92578 h 2 V 228 h -2 z m 0,0"
-         id="path29465" />
+         id="path29465"
+         d="m 176,208.92578 h 2 V 228 h -2 z m 0,0" />
     </clipPath>
     <clipPath
        id="clip149">
       <path
-         d="m 159.27734,208.92578 h 36 v 36 h -36 z m 0,0"
-         id="path29462" />
+         id="path29462"
+         d="m 159.27734,208.92578 h 36 v 36 h -36 z m 0,0" />
     </clipPath>
     <clipPath
        id="clip142">
       <path
-         d="m 110,208.92578 h 3 V 228 h -3 z m 0,0"
-         id="path29320" />
+         id="path29320"
+         d="m 110,208.92578 h 3 V 228 h -3 z m 0,0" />
     </clipPath>
     <clipPath
        id="clip141">
       <path
-         d="m 93.511719,208.92578 h 36.000001 v 36 H 93.511719 Z m 0,0"
-         id="path29317" />
+         id="path29317"
+         d="m 93.511719,208.92578 h 36.000001 v 36 H 93.511719 Z m 0,0" />
     </clipPath>
   </defs>
   <metadata
@@ -81,23 +82,18 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
   <path
-     id="paath31010907"
-     d="M 6.3822428,0.25008751 A 6.1000596,6.099938 44.643369 0 1 12.449914,6.3821518 6.1000596,6.099938 44.643369 0 1 6.3181812,12.449915 6.1000596,6.099938 44.643369 0 1 0.25008319,6.3182699 6.1000596,6.099938 44.643369 0 1 6.3813975,0.25008306"
-     style="opacity:1;fill:#2a5775;fill-opacity:1;fill-rule:evenodd;stroke:#6b6b6b;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-     inkscape:connector-curvature="0" />
-  <path
-     id="path832"
-     d="m 6.3499999,0.65921609 v 5.69078381 0"
+     inkscape:connector-curvature="0"
      style="fill:none;fill-rule:evenodd;stroke:#fcfcfc;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     inkscape:connector-curvature="0" />
+     d="m 6.3499999,0.65921609 v 5.69078381 0"
+     id="path832" />
   <path
-     id="paath31010907-2"
-     d="M 6.3795998,0.75008053 A 5.6000546,5.5999428 44.628019 0 1 11.949921,6.3795162 5.6000546,5.5999428 44.628019 0 1 6.3207891,11.949921 5.6000546,5.5999428 44.628019 0 1 0.75007658,6.3208704 5.6000546,5.5999428 44.628019 0 1 6.3788239,0.75007643"
+     inkscape:connector-curvature="0"
      style="opacity:1;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-     inkscape:connector-curvature="0" />
+     d="M 6.3795998,0.75008053 A 5.6000546,5.5999428 44.628019 0 1 11.949921,6.3795162 5.6000546,5.5999428 44.628019 0 1 6.3207891,11.949921 5.6000546,5.5999428 44.628019 0 1 0.75007658,6.3208704 5.6000546,5.5999428 44.628019 0 1 6.3788239,0.75007643"
+     id="paath31010907-2" />
 </svg>

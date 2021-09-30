@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
+   sodipodi:docname="LargeBlueKnobBidoo-bg.svg"
+   id="svg49872"
+   version="1.1"
+   viewBox="0 0 12.7 12.7"
+   height="12.7mm"
+   width="12.7mm">
+  <sodipodi:namedview
+     inkscape:document-rotation="0"
+     inkscape:current-layer="svg49872"
+     inkscape:window-maximized="1"
+     inkscape:window-y="-11"
+     inkscape:window-x="-11"
+     inkscape:cy="33.317297"
+     inkscape:cx="31.0777"
+     inkscape:zoom="13.906434"
+     showgrid="false"
+     id="namedview19"
+     inkscape:window-height="2066"
+     inkscape:window-width="3840"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0"
+     guidetolerance="10"
+     gridtolerance="10"
+     objecttolerance="10"
+     borderopacity="1"
+     bordercolor="#666666"
+     pagecolor="#ffffff" />
+  <defs
+     id="defs49866">
+    <clipPath
+       id="clip12">
+      <path
+         id="path28860"
+         d="m 143,129.75 h 3 V 158 h -3 z m 0,0" />
+    </clipPath>
+    <clipPath
+       id="clip11">
+      <path
+         id="path28857"
+         d="m 117.39453,129.75 h 54 v 54.00391 h -54 z m 0,0" />
+    </clipPath>
+    <clipPath
+       id="clip150">
+      <path
+         id="path29465"
+         d="m 176,208.92578 h 2 V 228 h -2 z m 0,0" />
+    </clipPath>
+    <clipPath
+       id="clip149">
+      <path
+         id="path29462"
+         d="m 159.27734,208.92578 h 36 v 36 h -36 z m 0,0" />
+    </clipPath>
+    <clipPath
+       id="clip142">
+      <path
+         id="path29320"
+         d="m 110,208.92578 h 3 V 228 h -3 z m 0,0" />
+    </clipPath>
+    <clipPath
+       id="clip141">
+      <path
+         id="path29317"
+         d="m 93.511719,208.92578 h 36.000001 v 36 H 93.511719 Z m 0,0" />
+    </clipPath>
+    <linearGradient
+       gradientUnits="userSpaceOnUse"
+       y2="3.96875"
+       x2="6.3499999"
+       y1="11.377084"
+       x1="6.3499999"
+       id="linearGradient934"
+       xlink:href="#linearGradient940"
+       inkscape:collect="always" />
+    <linearGradient
+       inkscape:collect="always"
+       id="linearGradient940">
+      <stop
+         style="stop-color:#000000;stop-opacity:0.62127662"
+         offset="0"
+         id="stop936" />
+      <stop
+         style="stop-color:#000000;stop-opacity:0.01134752"
+         offset="1"
+         id="stop938" />
+    </linearGradient>
+  </defs>
+  <metadata
+     id="metadata49869">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <path
+     inkscape:label="bidooKnob"
+     id="bidooKnob"
+     d="M 6.3822418,0.25008766 A 6.1000606,6.0999387 44.379803 0 1 12.449915,6.3821516 6.1000606,6.0999387 44.379803 0 1 6.3181798,12.449915 6.1000606,6.0999387 44.379803 0 1 0.25008249,6.3182696 6.1000606,6.0999387 44.379803 0 1 6.3813968,0.25008252"
+     style="opacity:1;mix-blend-mode:normal;fill:#2a5775;fill-opacity:1;fill-rule:evenodd;stroke:#100e0e;stroke-width:0.499999;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.720567">
+    <title
+       id="title848">bidooKnob</title>
+  </path>
+  <path
+     style="opacity:1;mix-blend-mode:normal;fill:url(#linearGradient934);fill-opacity:1;fill-rule:evenodd;stroke:#100e0e;stroke-width:0.499999;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.720567"
+     d="M 6.3822408,0.25008753 A 6.10006,6.0999384 44.8528 0 1 12.449915,6.3821529 6.10006,6.0999384 44.8528 0 1 6.3181787,12.449915 6.10006,6.0999384 44.8528 0 1 0.25008243,6.3182709 6.10006,6.0999384 44.8528 0 1 6.3813958,0.25008253"
+     id="bidooKnob-2"
+     inkscape:label="bidooKnob">
+    <title
+       id="title848-9">bidooKnob</title>
+  </path>
+  <path
+     style="opacity:1;mix-blend-mode:normal;fill:#2a5775;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.288396;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+     d="M 6.3744744,1.7198569 A 4.6302546,4.6301624 44.815954 0 1 10.980144,6.374404 4.6302546,4.6301624 44.815954 0 1 6.3258486,10.980145 4.6302546,4.6301624 44.815954 0 1 1.7198537,6.3259139 4.6302546,4.6301624 44.815954 0 1 6.3738325,1.7198531"
+     id="bidooInterior"
+     inkscape:label="bidooInterior">
+    <title
+       id="title848-0">bidooInterior</title>
+  </path>
+</svg>

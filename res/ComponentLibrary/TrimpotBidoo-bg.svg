@@ -5,10 +5,11 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
-   sodipodi:docname="TrimpotBidoo.svg"
+   sodipodi:docname="TrimpotBidoo-bg.svg"
    width="6.3000002mm"
    height="6.3000002mm"
    viewBox="0 0 6.3000003 6.300001"
@@ -397,6 +398,27 @@
          d="M 0.855469,0.140625 H 17.914062 V 17.199219 H 0.855469 Z m 0,0"
          id="path18767" />
     </clipPath>
+    <linearGradient
+       gradientUnits="userSpaceOnUse"
+       y2="3.96875"
+       x2="6.3499999"
+       y1="11.377084"
+       x1="6.3499999"
+       id="linearGradient934"
+       xlink:href="#linearGradient940"
+       inkscape:collect="always" />
+    <linearGradient
+       inkscape:collect="always"
+       id="linearGradient940">
+      <stop
+         style="stop-color:#000000;stop-opacity:0.62127662"
+         offset="0"
+         id="stop936" />
+      <stop
+         style="stop-color:#000000;stop-opacity:0.01134752"
+         offset="1"
+         id="stop938" />
+    </linearGradient>
   </defs>
   <metadata
      id="metadata15243">
@@ -411,13 +433,27 @@
     </rdf:RDF>
   </metadata>
   <path
-     style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#ffffff;stroke-width:0.50000006;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="m 3.1500004,0.70304351 c 0,-0.004462 0,-0.008933 0,-0.008933 0,0 0,0.004462 0,0.008933 v 2.54695689 0 z m 0,0"
-     id="path7221"
-     inkscape:connector-curvature="0" />
+     inkscape:label="bidooKnob"
+     id="bidooKnob"
+     d="M 3.1653289,0.25004543 A 2.9000254,2.8999674 44.433054 0 1 6.0499569,3.1652856 2.9000254,2.8999674 44.433054 0 1 3.1348729,6.0499568 2.9000254,2.8999674 44.433054 0 1 0.25004288,3.1349155 2.9000254,2.8999674 44.433054 0 1 3.1649269,0.25004293"
+     style="opacity:1;mix-blend-mode:normal;fill:#2a5775;fill-opacity:1;fill-rule:evenodd;stroke:#100e0e;stroke-width:0.499999;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.720567">
+    <title
+       id="title848">bidooKnob</title>
+  </path>
   <path
-     style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#ffffff;stroke-width:0.50000006;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="m 0.75000016,3.1500035 c 0,1.3259832 1.07425044,2.3999971 2.40052464,2.3999971 1.3252251,0 2.3994759,-1.0740139 2.3994759,-2.3999971 0,-1.3249373 -1.0742508,-2.40000329 -2.3994759,-2.40000329 -1.3262742,0 -2.40052464,1.07506599 -2.40052464,2.40000329"
-     id="bidooTrimPot-3"
-     inkscape:connector-curvature="0" />
+     style="opacity:1;mix-blend-mode:normal;fill:url(#linearGradient934);fill-opacity:1;fill-rule:evenodd;stroke:#100e0e;stroke-width:0.499999;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.720567"
+     d="M 3.1653283,0.25004538 A 2.900025,2.8999672 44.908433 0 1 6.049957,3.1652862 2.900025,2.8999672 44.908433 0 1 3.1348726,6.0499568 2.900025,2.8999672 44.908433 0 1 0.25004277,3.1349161 2.900025,2.8999672 44.908433 0 1 3.1649266,0.25004298"
+     id="bidooKnob-2"
+     inkscape:label="bidooKnob">
+    <title
+       id="title848-9">bidooKnob</title>
+  </path>
+  <path
+     style="opacity:1;mix-blend-mode:normal;fill:#2a5775;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.288396;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+     d="m 3.1583911,1.5625227 a 1.5875161,1.5874844 44.570128 0 1 1.579088,1.5958449 1.5875161,1.5874844 44.570128 0 1 -1.595759,1.5791112 1.5875161,1.5874844 44.570128 0 1 -1.579199,-1.5957363 1.5875161,1.5874844 44.570128 0 1 1.59565,-1.5792211"
+     id="bidooInterior"
+     inkscape:label="bidooInterior">
+    <title
+       id="title848-0">bidooInterior</title>
+  </path>
 </svg>

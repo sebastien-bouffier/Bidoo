@@ -9,8 +9,6 @@ namespace waves {
   std::vector<rack::dsp::Frame<1>> getMonoWav(const std::string path, const float currentSampleRate, std::string &waveFileName, std::string &waveExtension, int &sampleChannels, int &sampleRate, int &sampleCount) {
     waveFileName = rack::system::getFilename(path);
     waveExtension = rack::system::getExtension(waveFileName);
-    std::cout << waveFileName << '\n';
-    std::cout << waveExtension << '\n';
     std::vector<rack::dsp::Frame<1>> result;
     if (waveExtension == ".wav") {
       unsigned int c;

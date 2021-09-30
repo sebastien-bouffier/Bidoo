@@ -692,24 +692,9 @@ struct PILOTWidget : ModuleWidget {
 	ParamWidget *controls[16];
 	ParamWidget *morphButton;
 	void appendContextMenu(ui::Menu *menu) override;
+	void draw(const DrawArgs& args) override;
 	void step() override;
   PILOTWidget(PILOT *module);
-};
-
-struct PILOTColoredKnob : BidooLargeColoredKnob {
-	void setValueNoEngine(float value) {
-		float newValue = clamp(value, fminf(this->getParamQuantity()->getMinValue(), this->getParamQuantity()->getMaxValue()), fmaxf(this->getParamQuantity()->getMinValue(), this->getParamQuantity()->getMaxValue()));
-		if (this->getParamQuantity()->getValue() != newValue) {
-			this->getParamQuantity()->setValue(newValue);
-		}
-	};
-
-	void onDragStart(const event::DragStart &e) override {
-		RoundKnob::onDragStart(e);
-		PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
-		module->controlFocused[this->getParamQuantity()->paramId - PILOT::PILOT::CONTROLS_PARAMS] = true;
-		module->currentFocus = this->getParamQuantity()->paramId - PILOT::PILOT::CONTROLS_PARAMS;
-	}
 };
 
 struct PILOTMoveTypeDisplay : TransparentWidget {
@@ -846,23 +831,85 @@ struct PILOTCurveDisplay : TransparentWidget {
 };
 
 struct PILOTMorphKnob : BidooHugeRedKnob {
+	void onDragStart(const DragStartEvent& e) override {
+		PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
+		module->morphFocused = true;
+		e.consume(this);
+		BidooHugeRedKnob::onDragStart(e);
+	}
+
+	void onDragEnd(const DragEndEvent& e) override {
+		PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
+		module->morphFocused = false;
+		e.consume(this);
+		BidooHugeRedKnob::onDragEnd(e);
+	}
+
 	void onButton(const event::Button &e) override {
 			PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
-
-			if (e.action == GLFW_PRESS) {
-				module->morphFocused = true;
-				for (int i = 0 ; i < 16; i++) {
-					module->controlFocused[i] = false;
-				}
-				module->currentFocus = -1;
+			for (int i = 0 ; i < 16; i++) {
+				module->controlFocused[i] = false;
 			}
-			else if (e.action == GLFW_RELEASE) {
-				module->morphFocused = false;
-			}
-
 			e.consume(this);
 			BidooHugeRedKnob::onButton(e);
 		}
+};
+
+struct BidooLargeColoredKnob : RoundKnob {
+	bool *blink=NULL;
+	int frame=0;
+	unsigned int tFade=255;
+
+	BidooLargeColoredKnob() {
+		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/ColoredLargeKnobBidoo.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/ColoredLargeKnobBidoo-bg.svg")));
+		shadow->opacity = 0.0f;
+	}
+
+	void draw(const DrawArgs& args) override {
+		if (getParamQuantity()) {
+			for (NSVGshape *shape = bg->svg->handle->shapes; shape != NULL; shape = shape->next) {
+				std::string str(shape->id);
+				if ((str == "bidooKnob") || (str == "bidooInterior")) {
+					shape->fill.color = (((unsigned int)42+(unsigned int)(getParamQuantity()->getValue()*210)) | (((unsigned int)87-(unsigned int)(getParamQuantity()->getValue()*80)) << 8) | (((unsigned int)117-(unsigned int)(getParamQuantity()->getValue()*10)) << 16));
+					if (!*blink) {
+						tFade = 255;
+					}
+					else {
+						if (++frame <= 30) {
+							tFade -= frame*3;
+						}
+						else if (++frame<60) {
+							tFade = 255;
+						}
+						else {
+							tFade = 255;
+							frame = 0;
+						}
+					}
+					shape->fill.color |= (unsigned int)(tFade) << 24;
+				}
+			}
+		}
+		RoundKnob::draw(args);
+	}
+
+};
+
+struct PILOTColoredKnob : BidooLargeColoredKnob {
+	void setValueNoEngine(float value) {
+		float newValue = clamp(value, fminf(this->getParamQuantity()->getMinValue(), this->getParamQuantity()->getMaxValue()), fmaxf(this->getParamQuantity()->getMinValue(), this->getParamQuantity()->getMaxValue()));
+		if (this->getParamQuantity()->getValue() != newValue) {
+			this->getParamQuantity()->setValue(newValue);
+		}
+	};
+
+	void onDragStart(const event::DragStart &e) override {
+		RoundKnob::onDragStart(e);
+		PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
+		module->controlFocused[this->getParamQuantity()->paramId - PILOT::PILOT::CONTROLS_PARAMS] = true;
+		module->currentFocus = this->getParamQuantity()->paramId - PILOT::PILOT::CONTROLS_PARAMS;
+	}
 };
 
 PILOTWidget::PILOTWidget(PILOT *module) {
@@ -1048,10 +1095,14 @@ void PILOTWidget::appendContextMenu(ui::Menu *menu) {
 }
 
 void PILOTWidget::step() {
-	// for (int i = 0; i < 16; i++) {
-	// 		if (controls[i]->getParamQuantity()) controls[i]->dirtyValue=controls[i]->getParamQuantity()->getValue()-0.1f;
-	// }
+	for (int i = 0; i < 16; i++) {
+		dynamic_cast<PILOTColoredKnob*>(controls[i])->fb->setDirty();
+	}
 	ModuleWidget::step();
+}
+
+void PILOTWidget::draw(const DrawArgs& args) {
+	ModuleWidget::draw(args);
 }
 
 Model *modelPILOT = createModel<PILOT, PILOTWidget>("PILOT");

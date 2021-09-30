@@ -8,7 +8,7 @@
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
-   sodipodi:docname="BlackKnobBidoo.svg"
+   sodipodi:docname="BlackKnobBidoo-bg.svg"
    width="10mm"
    height="10mm"
    viewBox="0 0 10 10"
@@ -17,16 +17,16 @@
   <sodipodi:namedview
      inkscape:document-rotation="0"
      inkscape:current-layer="svg49872"
-     inkscape:window-maximized="1"
-     inkscape:window-y="-11"
-     inkscape:window-x="-11"
+     inkscape:window-maximized="0"
+     inkscape:window-y="266"
+     inkscape:window-x="266"
      inkscape:cy="21.316213"
      inkscape:cx="-15.858324"
      inkscape:zoom="17.66117"
      showgrid="false"
      id="namedview19"
-     inkscape:window-height="2066"
-     inkscape:window-width="3840"
+     inkscape:window-height="2044"
+     inkscape:window-width="3818"
      inkscape:pageshadow="2"
      inkscape:pageopacity="0"
      guidetolerance="10"
@@ -88,12 +88,7 @@
   </metadata>
   <path
      inkscape:connector-curvature="0"
-     id="path832"
-     d="M 4.9999999,0.65916732 V 5 5"
-     style="fill:none;fill-rule:evenodd;stroke:#fcfcfc;stroke-width:0.49999997;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
-  <path
-     inkscape:connector-curvature="0"
-     id="paath31010907-6"
-     d="M 5.0224638,0.75006143 A 4.2500412,4.2499565 44.808693 0 1 9.2499398,5.0224011 4.2500412,4.2499565 44.808693 0 1 4.9778308,9.2499399 4.2500412,4.2499565 44.808693 0 1 0.75005833,4.9778933 4.2500412,4.2499565 44.808693 0 1 5.0218758,0.75005823"
-     style="opacity:1;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:0.49999997;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+     id="paath31010907"
+     d="M 5.0251066,0.25006817 A 4.7500461,4.7499513 44.90651 0 1 9.749933,5.0250365 4.7500461,4.7499513 44.90651 0 1 4.9752226,9.7499332 4.7500461,4.7499513 44.90651 0 1 0.25006494,4.9752923 4.7500461,4.7499513 44.90651 0 1 5.0244483,0.25006473"
+     style="opacity:1;fill:#020202;fill-opacity:1;fill-rule:evenodd;stroke:#6b6b6b;stroke-width:0.49999999;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
 </svg>

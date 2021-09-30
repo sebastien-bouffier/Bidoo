@@ -7,70 +7,71 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="10mm"
-   height="10mm"
-   viewBox="0 0 10 10"
-   version="1.1"
-   id="svg49872"
+   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
    sodipodi:docname="SpiralKnobBidoo.svg"
-   inkscape:version="0.92.3 (2405546, 2018-03-11)">
+   id="svg49872"
+   version="1.1"
+   viewBox="0 0 10 10"
+   height="10mm"
+   width="10mm">
   <sodipodi:namedview
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1"
-     objecttolerance="10"
-     gridtolerance="10"
-     guidetolerance="10"
-     inkscape:pageopacity="0"
-     inkscape:pageshadow="2"
-     inkscape:window-width="3840"
-     inkscape:window-height="2066"
-     id="namedview19"
-     showgrid="false"
-     inkscape:zoom="17.66117"
-     inkscape:cx="11.030002"
-     inkscape:cy="21.198946"
-     inkscape:window-x="-11"
-     inkscape:window-y="-11"
+     inkscape:document-rotation="0"
+     inkscape:current-layer="svg49872"
      inkscape:window-maximized="1"
-     inkscape:current-layer="svg49872" />
+     inkscape:window-y="-11"
+     inkscape:window-x="-11"
+     inkscape:cy="21.198946"
+     inkscape:cx="11.030002"
+     inkscape:zoom="17.66117"
+     showgrid="false"
+     id="namedview19"
+     inkscape:window-height="2066"
+     inkscape:window-width="3840"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0"
+     guidetolerance="10"
+     gridtolerance="10"
+     objecttolerance="10"
+     borderopacity="1"
+     bordercolor="#666666"
+     pagecolor="#ffffff" />
   <defs
      id="defs49866">
     <clipPath
        id="clip12">
       <path
-         d="m 143,129.75 h 3 V 158 h -3 z m 0,0"
-         id="path28860" />
+         id="path28860"
+         d="m 143,129.75 h 3 V 158 h -3 z m 0,0" />
     </clipPath>
     <clipPath
        id="clip11">
       <path
-         d="m 117.39453,129.75 h 54 v 54.00391 h -54 z m 0,0"
-         id="path28857" />
+         id="path28857"
+         d="m 117.39453,129.75 h 54 v 54.00391 h -54 z m 0,0" />
     </clipPath>
     <clipPath
        id="clip150">
       <path
-         d="m 176,208.92578 h 2 V 228 h -2 z m 0,0"
-         id="path29465" />
+         id="path29465"
+         d="m 176,208.92578 h 2 V 228 h -2 z m 0,0" />
     </clipPath>
     <clipPath
        id="clip149">
       <path
-         d="m 159.27734,208.92578 h 36 v 36 h -36 z m 0,0"
-         id="path29462" />
+         id="path29462"
+         d="m 159.27734,208.92578 h 36 v 36 h -36 z m 0,0" />
     </clipPath>
     <clipPath
        id="clip142">
       <path
-         d="m 110,208.92578 h 3 V 228 h -3 z m 0,0"
-         id="path29320" />
+         id="path29320"
+         d="m 110,208.92578 h 3 V 228 h -3 z m 0,0" />
     </clipPath>
     <clipPath
        id="clip141">
       <path
-         d="m 93.511719,208.92578 h 36.000001 v 36 H 93.511719 Z m 0,0"
-         id="path29317" />
+         id="path29317"
+         d="m 93.511719,208.92578 h 36.000001 v 36 H 93.511719 Z m 0,0" />
     </clipPath>
   </defs>
   <metadata
@@ -86,18 +87,13 @@
     </rdf:RDF>
   </metadata>
   <path
-     style="opacity:1;fill:#cd1f00;fill-opacity:1;fill-rule:evenodd;stroke:#6b6b6b;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-     d="M 5.0251067,0.25006784 A 4.7500462,4.7499515 45.029435 0 1 9.7499329,5.0250365 4.7500462,4.7499515 45.029435 0 1 4.9752224,9.7499336 4.7500462,4.7499515 45.029435 0 1 0.25006506,4.9752922 4.7500462,4.7499515 45.029435 0 1 5.0244483,0.2500644"
-     id="paath31010907"
-     inkscape:connector-curvature="0" />
-  <path
-     style="fill:none;fill-rule:evenodd;stroke:#fcfcfc;stroke-width:0.50000006;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="m 4.9999999,0.7340727 v 4.2659274 0"
+     inkscape:connector-curvature="0"
      id="path832"
-     inkscape:connector-curvature="0" />
+     d="m 4.9999999,0.7340727 v 4.2659274 0"
+     style="fill:none;fill-rule:evenodd;stroke:#fcfcfc;stroke-width:0.50000006;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <path
-     style="opacity:1;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-     d="M 5.0224644,0.75006138 A 4.250041,4.2499563 44.742406 0 1 9.2499397,5.0224009 4.250041,4.2499563 44.742406 0 1 4.9778311,9.2499398 4.250041,4.2499563 44.742406 0 1 0.75005848,4.9778929 4.250041,4.2499563 44.742406 0 1 5.0218751,0.75005834"
+     inkscape:connector-curvature="0"
      id="paath31010907-5"
-     inkscape:connector-curvature="0" />
+     d="M 5.0224644,0.75006138 A 4.250041,4.2499563 44.742406 0 1 9.2499397,5.0224009 4.250041,4.2499563 44.742406 0 1 4.9778311,9.2499398 4.250041,4.2499563 44.742406 0 1 0.75005848,4.9778929 4.250041,4.2499563 44.742406 0 1 5.0218751,0.75005834"
+     style="opacity:1;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
 </svg>

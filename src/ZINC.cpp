@@ -160,10 +160,10 @@ struct ZINCWidget : ModuleWidget {
 };
 
 void ZINCWidget::step() {
-	// for (int i = 0; i < BANDS; i++) {
-	// 		BidooziNCColoredKnob* knob = dynamic_cast<BidooziNCColoredKnob*>(controls[i]);
-	// 		if (knob->getParamQuantity()) knob->dirtyValue=knob->getParamQuantity()->getValue()-0.1f;
-	// }
+	for (int i = 0; i < BANDS; i++) {
+			BidooziNCColoredKnob* knob = dynamic_cast<BidooziNCColoredKnob*>(controls[i]);
+			knob->fb->dirty = true;
+	}
 	ModuleWidget::step();
 }
 

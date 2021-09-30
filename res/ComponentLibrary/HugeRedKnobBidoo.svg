@@ -5,48 +5,72 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
-   id="svg49872"
-   version="1.1"
-   viewBox="0 0 19 19"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
+   sodipodi:docname="HugeRedKnobBidoo.svg"
+   width="19mm"
    height="19mm"
-   width="19mm">
+   viewBox="0 0 19 19"
+   version="1.1"
+   id="svg49872">
+  <sodipodi:namedview
+     inkscape:current-layer="svg49872"
+     inkscape:window-maximized="1"
+     inkscape:window-y="-11"
+     inkscape:window-x="-11"
+     inkscape:cy="35.905512"
+     inkscape:cx="35.905512"
+     inkscape:zoom="14.2875"
+     showgrid="false"
+     id="namedview20"
+     inkscape:window-height="2066"
+     inkscape:window-width="3840"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0"
+     guidetolerance="10"
+     gridtolerance="10"
+     objecttolerance="10"
+     borderopacity="1"
+     bordercolor="#666666"
+     pagecolor="#ffffff" />
   <defs
      id="defs49866">
     <clipPath
        id="clip12">
       <path
-         id="path28860"
-         d="m 143,129.75 h 3 V 158 h -3 z m 0,0" />
+         d="m 143,129.75 h 3 V 158 h -3 z m 0,0"
+         id="path28860" />
     </clipPath>
     <clipPath
        id="clip11">
       <path
-         id="path28857"
-         d="m 117.39453,129.75 h 54 v 54.00391 h -54 z m 0,0" />
+         d="m 117.39453,129.75 h 54 v 54.00391 h -54 z m 0,0"
+         id="path28857" />
     </clipPath>
     <clipPath
        id="clip150">
       <path
-         id="path29465"
-         d="m 176,208.92578 h 2 V 228 h -2 z m 0,0" />
+         d="m 176,208.92578 h 2 V 228 h -2 z m 0,0"
+         id="path29465" />
     </clipPath>
     <clipPath
        id="clip149">
       <path
-         id="path29462"
-         d="m 159.27734,208.92578 h 36 v 36 h -36 z m 0,0" />
+         d="m 159.27734,208.92578 h 36 v 36 h -36 z m 0,0"
+         id="path29462" />
     </clipPath>
     <clipPath
        id="clip142">
       <path
-         id="path29320"
-         d="m 110,208.92578 h 3 V 228 h -3 z m 0,0" />
+         d="m 110,208.92578 h 3 V 228 h -3 z m 0,0"
+         id="path29320" />
     </clipPath>
     <clipPath
        id="clip141">
       <path
-         id="path29317"
-         d="m 93.511719,208.92578 h 36.000001 v 36 H 93.511719 Z m 0,0" />
+         d="m 93.511719,208.92578 h 36.000001 v 36 H 93.511719 Z m 0,0"
+         id="path29317" />
     </clipPath>
   </defs>
   <metadata
@@ -57,20 +81,16 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
   <path
-     style="opacity:1;fill:#cd1f00;fill-opacity:1;fill-rule:evenodd;stroke:#6b6b6b;stroke-width:0.50000003;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-     d="M 9.5488934,0.25013272 A 9.2500907,9.2499064 44.808065 0 1 18.749871,9.5487566 9.2500907,9.2499064 44.808065 0 1 9.4517511,18.749872 9.2500907,9.2499064 44.808065 0 1 0.25012685,9.4518859 9.2500907,9.2499064 44.808065 0 1 9.5476118,0.25012603"
-     id="paath31010907" />
-  <path
-     style="fill:none;fill-rule:evenodd;stroke:#fcfcfc;stroke-width:0.50000006;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     id="path832"
      d="m 9.5001948,0.72583316 v 7.77416724 0"
-     id="path832" />
+     style="fill:none;fill-rule:evenodd;stroke:#fcfcfc;stroke-width:0.50000006;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   <path
-     style="opacity:1;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:0.50000003;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+     id="paath31010907-1"
      d="M 9.5462499,0.75012574 A 8.7500855,8.7499113 44.761784 0 1 18.249878,9.5461213 8.7500855,8.7499113 44.761784 0 1 9.4543589,18.249878 8.7500855,8.7499113 44.761784 0 1 0.75011983,9.4544863 8.7500855,8.7499113 44.761784 0 1 9.5450379,0.75011944"
-     id="paath31010907-1" />
+     style="opacity:1;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:0.50000003;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
 </svg>

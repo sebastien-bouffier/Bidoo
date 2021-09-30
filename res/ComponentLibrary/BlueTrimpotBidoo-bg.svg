@@ -5,13 +5,14 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
-   sodipodi:docname="TrimpotBidoo.svg"
-   width="6.3000002mm"
-   height="6.3000002mm"
-   viewBox="0 0 6.3000003 6.300001"
+   sodipodi:docname="BlueTrimpotBidoo-bg.svg"
+   width="6.5mm"
+   height="6.5mm"
+   viewBox="0 0 6.5000001 6.5000009"
    version="1.1"
    id="svg15246">
   <sodipodi:namedview
@@ -20,9 +21,9 @@
      inkscape:window-maximized="1"
      inkscape:window-y="-11"
      inkscape:window-x="-11"
-     inkscape:cy="11.906245"
-     inkscape:cx="-3.5845406"
-     inkscape:zoom="9.9107655"
+     inkscape:cy="24.14469"
+     inkscape:cx="-5.639905"
+     inkscape:zoom="13.585516"
      showgrid="false"
      id="namedview86"
      inkscape:window-height="2066"
@@ -49,7 +50,6 @@
     <clipPath
        id="clip90">
       <path
-         inkscape:connector-curvature="0"
          d="m 0.898438,0.128906 h 16.25 v 17.882813 h -16.25 z m 0,0"
          id="path4861" />
     </clipPath>
@@ -93,7 +93,6 @@
     <clipPath
        id="clipPath17825">
       <path
-         inkscape:connector-curvature="0"
          d="m 0.898438,0.128906 h 16.25 v 17.882813 h -16.25 z m 0,0"
          id="path17823" />
     </clipPath>
@@ -109,7 +108,6 @@
     <clipPath
        id="clip88">
       <path
-         inkscape:connector-curvature="0"
          d="m 0.683594,0.921875 h 22.679687 v 24.9375 H 0.683594 Z m 0,0"
          id="path4845" />
     </clipPath>
@@ -153,7 +151,6 @@
     <clipPath
        id="clipPath17844">
       <path
-         inkscape:connector-curvature="0"
          d="m 0.683594,0.921875 h 22.679687 v 24.9375 H 0.683594 Z m 0,0"
          id="path17842" />
     </clipPath>
@@ -169,7 +166,6 @@
     <clipPath
        id="clip96">
       <path
-         inkscape:connector-curvature="0"
          d="M 0.140625,0.140625 H 17.199219 V 17.199219 H 0.140625 Z m 0,0"
          id="path4909" />
     </clipPath>
@@ -213,7 +209,6 @@
     <clipPath
        id="clipPath18545">
       <path
-         inkscape:connector-curvature="0"
          d="M 0.140625,0.140625 H 17.199219 V 17.199219 H 0.140625 Z m 0,0"
          id="path18543" />
     </clipPath>
@@ -229,7 +224,6 @@
     <clipPath
        id="clip94">
       <path
-         inkscape:connector-curvature="0"
          d="M 0.0390625,0.0390625 H 21.300781 V 23.421875 H 0.0390625 Z m 0,0"
          id="path4893" />
     </clipPath>
@@ -273,7 +267,6 @@
     <clipPath
        id="clipPath18564">
       <path
-         inkscape:connector-curvature="0"
          d="M 0.0390625,0.0390625 H 21.300781 V 23.421875 H 0.0390625 Z m 0,0"
          id="path18562" />
     </clipPath>
@@ -289,7 +282,6 @@
     <clipPath
        id="clip92">
       <path
-         inkscape:connector-curvature="0"
          d="M 0.507812,0.5 H 28.855469 V 31.679688 H 0.507812 Z m 0,0"
          id="path4877" />
     </clipPath>
@@ -333,7 +325,6 @@
     <clipPath
        id="clipPath18583">
       <path
-         inkscape:connector-curvature="0"
          d="M 0.507812,0.5 H 28.855469 V 31.679688 H 0.507812 Z m 0,0"
          id="path18581" />
     </clipPath>
@@ -349,7 +340,6 @@
     <clipPath
        id="clip203">
       <path
-         inkscape:connector-curvature="0"
          d="M 0.855469,0.140625 H 17.914062 V 17.199219 H 0.855469 Z m 0,0"
          id="path5792" />
     </clipPath>
@@ -393,10 +383,30 @@
     <clipPath
        id="clipPath18769">
       <path
-         inkscape:connector-curvature="0"
          d="M 0.855469,0.140625 H 17.914062 V 17.199219 H 0.855469 Z m 0,0"
          id="path18767" />
     </clipPath>
+    <linearGradient
+       gradientUnits="userSpaceOnUse"
+       y2="3.96875"
+       x2="6.3499999"
+       y1="11.377084"
+       x1="6.3499999"
+       id="linearGradient934"
+       xlink:href="#linearGradient940"
+       inkscape:collect="always" />
+    <linearGradient
+       inkscape:collect="always"
+       id="linearGradient940">
+      <stop
+         style="stop-color:#000000;stop-opacity:0.62127662"
+         offset="0"
+         id="stop936" />
+      <stop
+         style="stop-color:#000000;stop-opacity:0.01134752"
+         offset="1"
+         id="stop938" />
+    </linearGradient>
   </defs>
   <metadata
      id="metadata15243">
@@ -411,13 +421,27 @@
     </rdf:RDF>
   </metadata>
   <path
-     style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#ffffff;stroke-width:0.50000006;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="m 3.1500004,0.70304351 c 0,-0.004462 0,-0.008933 0,-0.008933 0,0 0,0.004462 0,0.008933 v 2.54695689 0 z m 0,0"
-     id="path7221"
-     inkscape:connector-curvature="0" />
+     inkscape:label="bidooKnob"
+     id="bidooKnob"
+     d="M 3.2658568,0.25003408 A 3.0000392,2.9999792 44.495023 0 1 6.2499676,3.2658124 3.0000392,2.9999792 44.495023 0 1 3.2343508,6.2499679 3.0000392,2.9999792 44.495023 0 1 0.25003184,3.2343948 3.0000392,2.9999792 44.495023 0 1 3.2654408,0.25003158"
+     style="opacity:1;mix-blend-mode:normal;fill:#2a5775;fill-opacity:1;fill-rule:evenodd;stroke:#100e0e;stroke-width:0.499999;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.720567">
+    <title
+       id="title848">bidooKnob</title>
+  </path>
   <path
-     style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#ffffff;stroke-width:0.50000006;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="m 0.75000016,3.1500035 c 0,1.3259832 1.07425044,2.3999971 2.40052464,2.3999971 1.3252251,0 2.3994759,-1.0740139 2.3994759,-2.3999971 0,-1.3249373 -1.0742508,-2.40000329 -2.3994759,-2.40000329 -1.3262742,0 -2.40052464,1.07506599 -2.40052464,2.40000329"
-     id="bidooTrimPot-3"
-     inkscape:connector-curvature="0" />
+     style="opacity:1;mix-blend-mode:normal;fill:url(#linearGradient934);fill-opacity:1;fill-rule:evenodd;stroke:#100e0e;stroke-width:0.499999;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:0.720567"
+     d="M 3.265857,0.25003349 A 3.0000388,2.999979 44.997576 0 1 6.2499678,3.2658131 3.0000388,2.999979 44.997576 0 1 3.234351,6.2499679 3.0000388,2.999979 44.997576 0 1 0.25003163,3.2343955 3.0000388,2.999979 44.997576 0 1 3.2654415,0.25003159"
+     id="bidooKnob-2"
+     inkscape:label="bidooKnob">
+    <title
+       id="title848-9">bidooKnob</title>
+  </path>
+  <path
+     style="opacity:1;mix-blend-mode:normal;fill:#2a5775;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.288396;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+     d="M 3.26049,1.2656532 A 1.9843947,1.9843552 44.640781 0 1 5.2343483,3.2604592 1.9843947,1.9843552 44.640781 0 1 3.2396503,5.2343483 1.9843947,1.9843552 44.640781 0 1 1.2656515,3.2396779 1.9843947,1.9843552 44.640781 0 1 3.2602148,1.2656515"
+     id="bidooInterior"
+     inkscape:label="bidooInterior">
+    <title
+       id="title848-0">bidooInterior</title>
+  </path>
 </svg>
