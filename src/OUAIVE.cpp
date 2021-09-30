@@ -33,6 +33,7 @@ struct OUAIVE : Module {
 	enum OutputIds {
 		OUTL_OUTPUT,
 		OUTR_OUTPUT,
+		EOC_OUTPUT,
 		NUM_OUTPUTS
 	};
 	enum LightIds {
@@ -61,6 +62,9 @@ struct OUAIVE : Module {
 	dsp::SchmittTrigger posResetTrigger;
 	std::mutex mylock;
 	bool first = true;
+	int eoc=0;
+	bool pulse = false;
+	dsp::PulseGenerator eocPulse;
 
 	OUAIVE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -221,8 +225,24 @@ void OUAIVE::process(const ProcessArgs &args) {
 				samplePos = clamp(sliceIndex*sliceLength, 0 , totalSampleCount);
 		}
 	}
-	else if (samplePos == totalSampleCount)
+	else if (samplePos == totalSampleCount) {
 		play = false;
+	}
+
+	if ((eoc == 0) && (play)) {
+		eoc = 1;
+	}
+
+	if ((eoc == 1) && (!play)) {
+		eoc = 0;
+		eocPulse.reset();
+		eocPulse.trigger(1e-3f);
+	}
+
+	pulse = eocPulse.process(args.sampleTime);
+
+	outputs[EOC_OUTPUT].setVoltage(pulse ? 10 : 0);
+
 }
 
 struct OUAIVEDisplay : OpaqueWidget {
@@ -447,6 +467,7 @@ struct OUAIVEWidget : ModuleWidget {
 		static const float portX0[4] = {34, 67, 101};
 
 		addInput(createInput<TinyPJ301MPort>(Vec(10, 18), module, OUAIVE::POS_RESET_INPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(112, 18), module, OUAIVE::EOC_OUTPUT));
 
 		addParam(createParam<BlueCKD6>(Vec(portX0[0]-25, 215), module, OUAIVE::TRIG_MODE_PARAM));
 

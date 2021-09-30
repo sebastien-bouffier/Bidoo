@@ -133,12 +133,12 @@ void TOCANTE::process(const ProcessArgs &args) {
 		count = beats;
 	}
 
-	outputs[OUT_MEASURE].setVoltage(pulseMeasure ? 10.0f : 0.0f);
-	outputs[OUT_BEAT].setVoltage((pulseEven && (currentStep % stepsPerBeat == 0)) ? 10.0f : 0.0f);
-	outputs[OUT_TRIPLET].setVoltage((pulseTriplets && (currentStep % stepsPerTriplet == 0)) ? 10.0f : 0.0f);
-	outputs[OUT_QUARTER].setVoltage((pulseEven && (currentStep % stepsPerQuarter == 0)) ? 10.0f : 0.0f);
-	outputs[OUT_EIGHTH].setVoltage((pulseEven && (currentStep % stepsPerEighth == 0)) ? 10.0f : 0.0f);
-	outputs[OUT_SIXTEENTH].setVoltage((pulseEven && (currentStep % stepsPerSixteenth == 0)) ? 10.0f : 0.0f);
+	outputs[OUT_MEASURE].setVoltage((running && pulseMeasure) ? 10.0f : 0.0f);
+	outputs[OUT_BEAT].setVoltage((running && pulseEven && (currentStep % stepsPerBeat == 0)) ? 10.0f : 0.0f);
+	outputs[OUT_TRIPLET].setVoltage((running && pulseTriplets && (currentStep % stepsPerTriplet == 0)) ? 10.0f : 0.0f);
+	outputs[OUT_QUARTER].setVoltage((running && pulseEven && (currentStep % stepsPerQuarter == 0)) ? 10.0f : 0.0f);
+	outputs[OUT_EIGHTH].setVoltage((running && pulseEven && (currentStep % stepsPerEighth == 0)) ? 10.0f : 0.0f);
+	outputs[OUT_SIXTEENTH].setVoltage((running && pulseEven && (currentStep % stepsPerSixteenth == 0)) ? 10.0f : 0.0f);
 
 	outputs[OUT_RESET].setVoltage(pulseReset ? 10.0f : 0.0f);
 	outputs[OUT_RUN].setVoltage(pulseRun ? 10.0f : 0.0f);
