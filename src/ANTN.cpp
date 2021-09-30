@@ -118,7 +118,7 @@ void * threadReadTask(threadReadData data)
   std::string url;
   data.secUrl == "" ? url = data.url : url = data.secUrl;
 
-  if ((rack::system::getExtension(data.url) == "pls") || (rack::system::getExtension(data.url) == "m3u")) {
+  if ((rack::system::getExtension(data.url) == ".pls") || (rack::system::getExtension(data.url) == ".m3u")) {
     istringstream iss(url);
     for (std::string line; std::getline(iss, line); )
     {
@@ -270,7 +270,7 @@ void ANTN::process(const ProcessArgs &args) {
     tDl.store(true);
     rData.url = url;
     rData.sr = args.sampleRate;
-    if ((rack::system::getExtension(rData.url) == "m3u") || (rack::system::getExtension(rData.url) == "pls")) {
+    if ((rack::system::getExtension(rData.url) == ".m3u") || (rack::system::getExtension(rData.url) == ".pls")) {
       rThread = thread(urlTask, std::ref(rData));
     }
     else {
