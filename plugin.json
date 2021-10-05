@@ -14,179 +14,12 @@
   "donateUrl": "https://www.paypal.me/sebastienbouffier",
   "modules": [
     {
-      "slug": "vOId",
-      "name": "vOId",
-      "description": "The ultimate mastering tool for Rack.\nOnce plugged in your Rack, you gonna\n sound FAAAAT.\n\nPicture is taken from a very good LP\nTERA MELOS.\n",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#void",
-      "tags": [
-        "Blank"
-      ]
-    },
-    {
-      "slug": "ChUTE",
-      "name": "ChUTE",
-      "description": "Space/Strange trigger based on the\nfree fall and bouncing an object.\nYou can change the drop altitude\nbetween 1cm and 3m\n",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#chute",
-      "tags": [
-        "Sequencer"
-      ]
-    },
-    {
-      "slug": "antN",
-      "name": "antN",
-      "description": "mp3 m3u pls radio",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#antn",
-      "tags": [
-        "Oscillator"
-      ]
-    },
-    {
       "slug": "tOCAnTe",
       "name": "tOCAnTe",
       "description": "Clock",
       "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#tocante",
       "tags": [
         "Clock"
-      ]
-    },
-    {
-      "slug": "ACnE",
-      "name": "ACnE",
-      "description": "Mixer with snaphots",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#acne",
-      "tags": [
-        "Mixer"
-      ]
-    },
-    {
-      "slug": "baR",
-      "name": "baR",
-      "description": "Compressor",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#bar",
-      "tags": [
-        "Dynamics"
-        ,"Effect","Compressor"
-      ]
-    },
-    {
-      "slug": "mINIBar",
-      "name": "mINIBar",
-      "description": "Compressor",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#minibar",
-      "tags": [
-        "Dynamics"
-        ,"Effect","Compressor"
-      ]
-    },
-    {
-      "slug": "BISTROT",
-      "name": "BISTROT",
-      "description": "Bit toy",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#bistrot",
-      "tags": [
-        "Effect",
-        "Distortion"
-      ]
-    },
-    {
-      "slug": "bordL",
-      "name": "bordL",
-      "description": "Sequencer",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#bordl",
-      "tags": [
-        "Sequencer"
-      ]
-    },
-    {
-      "slug": "cANARd",
-      "name": "cANARd",
-      "description": "Sampler with slice tools & transients detection",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#canard",
-      "tags": [
-        "Sampler"
-      ]
-    },
-    {
-      "slug": "clACos",
-      "name": "clACos",
-      "description": "Phase distortion 4 segments oscillator",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#clacos",
-      "tags": [
-        "Oscillator"
-      ]
-    },
-    {
-      "slug": "dFUZE",
-      "name": "dFUZE",
-      "description": "Reverb",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#dfuze",
-      "tags": [
-        "Reverb"
-        ,"Effect"
-      ]
-    },
-    {
-      "slug": "dTrOY",
-      "name": "dTrOY",
-      "description": "Sequencer",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#dtroy",
-      "tags": [
-        "Sequencer"
-      ]
-    },
-    {
-      "slug": "dUKe",
-      "name": "dUKe",
-      "description": "Controller",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#duke",
-      "tags": [
-        "Controller"
-      ]
-    },
-    {
-      "slug": "EMILE",
-      "name": "EMILE",
-      "description": ".png to sound",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#emile",
-      "tags": [
-        "Sampler"
-      ]
-    },
-    {
-      "slug": "FFilTr",
-      "name": "FFilTr",
-      "description": "LP Filter",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#ffiltr",
-      "tags": [
-        "VCF",
-        "Effect"
-      ]
-    },
-    {
-      "slug": "ForK",
-      "name": "ForK",
-      "description": "Formant oscillator",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#fork",
-      "tags": [
-        "Oscillator"
-      ]
-    },
-    {
-      "slug": "Garcon",
-      "name": "Garçon",
-      "description": "FFT display",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#garçon",
-      "tags": [
-        "Visual"
-      ]
-    },
-    {
-      "slug": "HCTIP",
-      "name": "HCTIP",
-      "description": "Pitch shifter",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#hctip",
-      "tags": [
-        "Effect"
       ]
     },
     {
@@ -201,13 +34,95 @@
       ]
     },
     {
-      "slug": "lIMbO",
-      "name": "lIMbO",
-      "description": "4th order stereo LP ladder filter.\nGain boosts the signal to compensate for\nglobal signal energy lose at high\nresonance. When non linear is selected gain is applied to each stage",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#limbo",
+      "slug": "ChUTE",
+      "name": "ChUTE",
+      "description": "Space/Strange trigger based on the\nfree fall and bouncing an object.\nYou can change the drop altitude\nbetween 1cm and 3m\n",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#chute",
       "tags": [
-        "VCF",
-        "Effect"
+        "Sequencer"
+      ]
+    },
+    {
+      "slug": "MU",
+      "name": "µ",
+      "description": "Synced pulse generator",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#mu",
+      "tags": [
+        "Logic",
+        "Sequencer"
+      ]
+    },
+    {
+      "slug": "dTrOY",
+      "name": "dTrOY",
+      "description": "Sequencer",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#dtroy",
+      "tags": [
+        "Sequencer"
+      ]
+    },
+    {
+      "slug": "bordL",
+      "name": "bordL",
+      "description": "Sequencer",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#bordl",
+      "tags": [
+        "Sequencer"
+      ]
+    },
+    {
+      "slug": "ZOUMAI",
+      "name": "zOù MAï",
+      "description": "Sequencer",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#zoù-maï",
+      "tags": [
+        "Sequencer"
+      ]
+    },
+    {
+      "slug": "DIKTAT",
+      "name": "DIKTAT",
+      "description": "Authoritarian quantizer",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#diktat",
+      "tags": [
+        "Quantizer"
+      ]
+    },
+    {
+      "slug": "antN",
+      "name": "antN",
+      "description": "mp3 m3u pls radio",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#antn",
+      "tags": [
+        "Oscillator"
+      ]
+    },
+    {
+      "slug": "TiARE",
+      "name": "TiARE",
+      "description": "Phase distortion oscillator",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#tiare",
+      "tags": [
+        "Oscillator",
+        "LFO"
+      ]
+    },
+    {
+      "slug": "clACos",
+      "name": "clACos",
+      "description": "Phase distortion 4 segments oscillator",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#clacos",
+      "tags": [
+        "Oscillator"
+      ]
+    },
+    {
+      "slug": "PeNEqUe",
+      "name": "PeNEqUe",
+      "description": "Additive osicllator",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#peneque",
+      "tags": [
+        "Oscillator"
       ]
     },
     {
@@ -220,51 +135,12 @@
       ]
     },
     {
-      "slug": "LoURdE",
-      "name": "LoURdE",
-      "description": "Neural comparator & gate",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#lourde",
+      "slug": "ForK",
+      "name": "ForK",
+      "description": "Formant oscillator",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#fork",
       "tags": [
-        "Logic",
-        "Effect"
-      ]
-    },
-    {
-      "slug": "MOiRE",
-      "name": "MOiRE",
-      "description": "Controller with snapshots and morphing",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#moire",
-      "tags": [
-        "Controller"
-      ]
-    },
-    {
-      "slug": "PILOT",
-      "name": "πlOT",
-      "description": "Controller with snapshots and morphing",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#πlOT",
-      "tags": [
-        "Controller"
-      ]
-    },
-    {
-      "slug": "MS",
-      "name": "MS",
-      "description": "Mid/Side Decoder/Encoder",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#ms",
-      "tags": [
-        "Effect",
-        "Utility"
-      ]
-    },
-    {
-      "slug": "MU",
-      "name": "µ",
-      "description": "Synced pulse generator",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#mu",
-      "tags": [
-        "Logic",
-        "Sequencer"
+        "Oscillator"
       ]
     },
     {
@@ -304,42 +180,40 @@
       ]
     },
     {
-      "slug": "PeNEqUe",
-      "name": "PeNEqUe",
-      "description": "Additive osicllator",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#peneque",
+      "slug": "cANARd",
+      "name": "cANARd",
+      "description": "Sampler with slice tools & transients detection",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#canard",
       "tags": [
-        "Oscillator"
+        "Sampler"
       ]
     },
     {
-      "slug": "pErCO",
-      "name": "pErCO",
-      "description": "3 bands filter",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#perco",
+      "slug": "EMILE",
+      "name": "EMILE",
+      "description": ".png to sound",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#emile",
       "tags": [
-        "VCF",
-        "Effect"
+        "Sampler"
       ]
     },
     {
-      "slug": "rabBIT",
-      "name": "rabBIT",
-      "description": "Bit toy",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#rabbit",
+      "slug": "ACnE",
+      "name": "ACnE",
+      "description": "Mixer with snaphots",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#acne",
+      "tags": [
+        "Mixer"
+      ]
+    },
+    {
+      "slug": "MS",
+      "name": "MS",
+      "description": "Mid/Side Decoder/Encoder",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#ms",
       "tags": [
         "Effect",
-        "Distortion"
-      ]
-    },
-    {
-      "slug": "REI",
-      "name": "REI",
-      "description": "Reverb",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#rei",
-      "tags": [
-        "Reverb",
-        "Effect"
+        "Utility"
       ]
     },
     {
@@ -352,32 +226,23 @@
       ]
     },
     {
-      "slug": "TiARE",
-      "name": "TiARE",
-      "description": "Phase distortion oscillator",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#tiare",
+      "slug": "lIMbO",
+      "name": "lIMbO",
+      "description": "4th order stereo LP ladder filter.\nGain boosts the signal to compensate for\nglobal signal energy lose at high\nresonance. When non linear is selected gain is applied to each stage",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#limbo",
       "tags": [
-        "Oscillator",
-        "LFO"
+        "VCF",
+        "Effect"
       ]
     },
     {
-      "slug": "ziNC",
-      "name": "ziNC",
-      "description": "Vocoder",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#zinc",
+      "slug": "pErCO",
+      "name": "pErCO",
+      "description": "3 bands filter",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#perco",
       "tags": [
-        "Effect",
-        "Vocoder"
-      ]
-    },
-    {
-      "slug": "ZOUMAI",
-      "name": "zOù MAï",
-      "description": "Sequencer",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#zoù-maï",
-      "tags": [
-        "Sequencer"
+        "VCF",
+        "Effect"
       ]
     },
     {
@@ -392,21 +257,72 @@
       ]
     },
     {
-      "slug": "HUITre",
-      "name": "HUITre",
-      "description": "Pattern launcher",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#huitre",
+      "slug": "FFilTr",
+      "name": "FFilTr",
+      "description": "LP Filter",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#ffiltr",
       "tags": [
-        "Controller"
+        "VCF",
+        "Effect"
       ]
     },
     {
-      "slug": "DIKTAT",
-      "name": "DIKTAT",
-      "description": "Authoritarian quantizer",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#diktat",
+      "slug": "ziNC",
+      "name": "ziNC",
+      "description": "Vocoder",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#zinc",
       "tags": [
-        "Quantizer"
+        "Effect",
+        "Vocoder"
+      ]
+    },
+    {
+      "slug": "baR",
+      "name": "baR",
+      "description": "Compressor",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#bar",
+      "tags": [
+        "Dynamics"
+        ,"Effect","Compressor"
+      ]
+    },
+    {
+      "slug": "mINIBar",
+      "name": "mINIBar",
+      "description": "Compressor",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#minibar",
+      "tags": [
+        "Dynamics"
+        ,"Effect","Compressor"
+      ]
+    },
+    {
+      "slug": "dFUZE",
+      "name": "dFUZE",
+      "description": "Reverb",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#dfuze",
+      "tags": [
+        "Reverb"
+        ,"Effect"
+      ]
+    },
+    {
+      "slug": "REI",
+      "name": "REI",
+      "description": "Reverb",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#rei",
+      "tags": [
+        "Reverb",
+        "Effect"
+      ]
+    },
+    {
+      "slug": "HCTIP",
+      "name": "HCTIP",
+      "description": "Pitch shifter",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#hctip",
+      "tags": [
+        "Effect"
       ]
     },
     {
@@ -416,6 +332,90 @@
       "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#frein",
       "tags": [
         "Effect"
+      ]
+    },
+    {
+      "slug": "rabBIT",
+      "name": "rabBIT",
+      "description": "Bit toy",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#rabbit",
+      "tags": [
+        "Effect",
+        "Distortion"
+      ]
+    },
+    {
+      "slug": "BISTROT",
+      "name": "BISTROT",
+      "description": "Bit toy",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#bistrot",
+      "tags": [
+        "Effect",
+        "Distortion"
+      ]
+    },
+    {
+      "slug": "LoURdE",
+      "name": "LoURdE",
+      "description": "Neural comparator & gate",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#lourde",
+      "tags": [
+        "Logic",
+        "Effect"
+      ]
+    },
+    {
+      "slug": "MOiRE",
+      "name": "MOiRE",
+      "description": "Controller with snapshots and morphing",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#moire",
+      "tags": [
+        "Controller"
+      ]
+    },
+    {
+      "slug": "PILOT",
+      "name": "πlOT",
+      "description": "Controller with snapshots and morphing",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#πlOT",
+      "tags": [
+        "Controller"
+      ]
+    },
+    {
+      "slug": "HUITre",
+      "name": "HUITre",
+      "description": "Pattern launcher",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#huitre",
+      "tags": [
+        "Controller"
+      ]
+    },
+    {
+      "slug": "dUKe",
+      "name": "dUKe",
+      "description": "Controller",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#duke",
+      "tags": [
+        "Controller"
+      ]
+    },
+    {
+      "slug": "Garcon",
+      "name": "Garçon",
+      "description": "FFT display",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#garçon",
+      "tags": [
+        "Visual"
+      ]
+    },
+    {
+      "slug": "vOId",
+      "name": "vOId",
+      "description": "The ultimate mastering tool for Rack.\nOnce plugged in your Rack, you gonna\n sound FAAAAT.\n\nPicture is taken from a very good LP\nTERA MELOS.\n",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#void",
+      "tags": [
+        "Blank"
       ]
     }
   ]

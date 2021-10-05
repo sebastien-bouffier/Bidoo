@@ -75,35 +75,40 @@ struct ACNE : Module {
 	ACNE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(MAIN_OUT_GAIN_PARAM, 0.f, 1.f, 0.7f, "Out gain", "%", 0.f, 100.f);
-		configParam(COPY_PARAM, 0.f, 1.f, 0.f, "Copy/Paste");
+		configSwitch(COPY_PARAM, 0.f, 1.f, 0.f, "Copy/Paste");
 		configParam(RAMP_PARAM, 0.f, 0.01f, 0.001f, "Snapshots ramp", "%", 0.f, 100.f);
-		configParam(SEND_MUTE_PARAM, 0.f, 1.f, 0.f, "Sends mute");
-		configParam(MUTE_PARAM, 0.f, 1.f, 0.f, "Mute");
-		configParam(SOLO_PARAM, 0.f, 1.f, 0.f, "Solo");
-		configParam(AUTOSAVE_PARAM, 0.f, 1.f, 1.f, "Auto save");
-		configParam(SAVE_PARAM, 0.f, 1.f, 0.f, "Save");
+		configSwitch(SEND_MUTE_PARAM, 0.f, 1.f, 0.f, "Sends mute");
+		configSwitch(MUTE_PARAM, 0.f, 1.f, 0.f, "Mute track");
+		configSwitch(SOLO_PARAM, 0.f, 1.f, 0.f, "Solo track");
+		configSwitch(AUTOSAVE_PARAM, 0.f, 1.f, 1.f, "Auto save");
+		configSwitch(SAVE_PARAM, 0.f, 1.f, 0.f, "Save");
 
 		for (int i = 0; i < ACNE_NB_OUTS; i++) {
-			configParam(OUT_MUTE_PARAMS + i, 0.f, 1.f, 0.f, "Mute output " + std::to_string(i));
+			configParam(OUT_MUTE_PARAMS + i, 0.f, 1.f, 0.f, "Mute output " + std::to_string(i+1));
+			configOutput(TRACKS_OUTPUTS+i, "Output " + std::to_string(i+1));
 		}
 
 		for (int i = 0; i < ACNE_NB_TRACKS; i++) {
-			configParam(SNAPSHOT_PARAMS + i, 0.f, 1.f, 0.f, "Snapshot " + std::to_string(i));
-			configParam(IN_MUTE_PARAMS + i, 0.f, 1.f, 0.f, "Mute track " + std::to_string(i));
-			configParam(IN_SOLO_PARAMS + i, 0.f, 1.f, 0.f, "Solo track " + std::to_string(i));
+			configSwitch(SNAPSHOT_PARAMS + i, 0.f, 1.f, 0.f, "Snapshot " + std::to_string(i+1));
+			configSwitch(IN_MUTE_PARAMS + i, 0.f, 1.f, 0.f, "Mute track " + std::to_string(i+1));
+			configSwitch(IN_SOLO_PARAMS + i, 0.f, 1.f, 0.f, "Solo track " + std::to_string(i+1));
+			configLight(SNAPSHOT_LIGHTS + i, "Snapshot " + std::to_string(i+1));
+			configInput(TRACKS_INPUTS + i, "Input " + std::to_string(i+1));
 		}
 
 		for (int i = 0; i < 8; i++) {
-			configParam(TRACKLINK_PARAMS + i, 0.f, 1.f, 0.f, "Track link " + std::to_string(i));
+			configParam(TRACKLINK_PARAMS + i, 0.f, 1.f, 0.f, "Track link " + std::to_string(i+1) + "/" + std::to_string((i+1)/2));
 		}
 
 		for (int i = 0; i < ACNE_NB_OUTS; i++) {
 			for (int j = 0; j < ACNE_NB_TRACKS; j++) {
-				configParam(FADERS_PARAMS + j + i * (ACNE_NB_TRACKS), 0.f, 1.f, 0.f, "Volume " + std::to_string(i) + std::to_string(j));
+				configParam(FADERS_PARAMS + j + i * (ACNE_NB_TRACKS), 0.f, 1.f, 0.f, "Volume " + std::to_string(j+1) + "/" + std::to_string(i+1));
 			}
 		}
 
+		configInput(SNAPSHOT_INPUT, "Snapshot input");
 		lights[SNAPSHOT_LIGHTS + currentSnapshot].setBrightness(1);
+
 	}
 
 	void process(const ProcessArgs &args) override;

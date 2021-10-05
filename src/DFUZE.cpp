@@ -43,14 +43,14 @@ struct DFUZE : Module {
 
 	DFUZE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(SIZE_PARAM, 0.0f, 6.0f, 0.5f, "Size");
-		configParam(REVTIME_PARAM, 0.0f, 10.0f, 0.5f, "Reverb time");
+		configParam(SIZE_PARAM, 0.0f, 300.0f, 0.5f, "Size");
+		configParam(REVTIME_PARAM, 0.0f, 50.0f, 0.5f, "Reverb time");
 		configParam(DAMP_PARAM, 0.0f, 0.9f, 0.5f, "Damping");
 		configParam(BANDWIDTH_PARAM, 0.0f, 1.0f, 0.5f, "Bandwidth");
-    configParam(EARLYLEVEL_PARAM, 0.0f, 10.0f, 0.5f, "Early reflections");
-    configParam(TAIL_PARAM, 0.0f, 10.0f, 0.5f, "Tail length");
+    configParam(EARLYLEVEL_PARAM, 0.0f, 10.0f, 5.0f, "Early reflections level");
+    configParam(TAIL_PARAM, 0.0f, 10.0f, 5.0f, "Tail level");
 
-		verb = gverb_new(APP->engine->getSampleRate(), 1, 1, 1, 1, 1, 1, 1, 1);
+		verb = gverb_new(APP->engine->getSampleRate(), 300, 1, 1, 1, 1, 1, 1, 1);
 	}
 
 	~DFUZE() {
@@ -61,12 +61,12 @@ struct DFUZE : Module {
 };
 
 void DFUZE::process(const ProcessArgs &args) {
-	gverb_set_roomsize(verb, clamp(params[SIZE_PARAM].value+inputs[SIZE_INPUT].value,0.0f,6.0f));
-	gverb_set_revtime(verb, clamp(params[REVTIME_PARAM].value+inputs[REVTIME_INPUT].value,0.0f,10.0f));
+	gverb_set_roomsize(verb, clamp(params[SIZE_PARAM].value+rescale(inputs[SIZE_INPUT].value,0.0f,10.0f,0.0f,300.0f),0.0f,300.0f));
+	gverb_set_revtime(verb, clamp(params[REVTIME_PARAM].value+rescale(inputs[REVTIME_INPUT].value,0.0f,10.0f,0.0f,50.0f),0.0f,50.0f));
 	gverb_set_damping(verb, clamp(params[DAMP_PARAM].value+inputs[DAMP_INPUT].value,0.0f,0.9f));
 	gverb_set_inputbandwidth(verb, clamp(params[BANDWIDTH_PARAM].value+inputs[BANDWIDTH_INPUT].value,0.0f,1.0f));
-	gverb_set_earlylevel(verb, clamp(params[EARLYLEVEL_PARAM].value+inputs[EARLYLEVEL_INPUT].value,0.0f,10.0f));
-	gverb_set_taillevel(verb, clamp(params[TAIL_PARAM].value+inputs[TAIL_INPUT].value,0.0f,10.0f));
+	gverb_set_earlylevel(verb, clamp(rescale(params[EARLYLEVEL_PARAM].value+inputs[EARLYLEVEL_INPUT].value,0.0f,10.0f,0.0f,1.0f),0.0f,1.0f));
+	gverb_set_taillevel(verb, clamp(rescale(params[TAIL_PARAM].value+inputs[TAIL_INPUT].value,0.0f,10.0f,0.0f,1.0f),0.0f,1.0f));
 
 	gverb_do(verb, inputs[IN_INPUT].value/10.0f, &lOut, &rOut);
 	outputs[OUT_L_OUTPUT].setVoltage(lOut);

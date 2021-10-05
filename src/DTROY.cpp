@@ -354,31 +354,49 @@ struct DTROY : Module {
 
 	DTROY() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(CLOCK_PARAM, -2.0f, 6.0f, 2.0f);
-		configParam(RUN_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(RESET_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(STEPS_PARAM, 1.0f, 16.0f, 8.0f);
-		configParam(ROOT_NOTE_PARAM, 0.0f, DTROY::NUM_NOTES-1.0f, 0.0f);
-		configParam(SCALE_PARAM, 0.0f, DTROY::NUM_SCALES-1.0f, 0.0f);
-		configParam(GATE_TIME_PARAM, 0.1f, 1.0f, 0.5f);
-		configParam(SLIDE_TIME_PARAM	, 0.1f, 1.0f, 0.2f);
-		configParam(PLAY_MODE_PARAM, 0.0f, 4.0f, 0.0f);
-		configParam(COUNT_MODE_PARAM, 0.0f, 4.0f, 0.0f);
-		configParam(PATTERN_PARAM, 1.0f, 16.0f, 1.0f);
-		configParam(SENSITIVITY_PARAM, 0.1f, 1.0f, 1.0f);
+		configParam(CLOCK_PARAM, -2.0f, 6.0f, 2.0f, "Clock");
+		configParam(RUN_PARAM, 0.0f, 1.0f, 0.0f, "Run");
+		configParam(RESET_PARAM, 0.0f, 1.0f, 0.0f, "Reset");
+		configParam(STEPS_PARAM, 1.0f, 16.0f, 8.0f, "Nb steps","",0,1,0);
+		configParam(ROOT_NOTE_PARAM, 0.0f, DTROY::NUM_NOTES-1.0f, 0.0f,"Root note");
+		configParam(SCALE_PARAM, 0.0f, DTROY::NUM_SCALES-1.0f, 0.0f, "Scale");
+		configParam(GATE_TIME_PARAM, 0.1f, 1.0f, 0.5f,"Gate length","%",0,100,0);
+		configParam(SLIDE_TIME_PARAM	, 0.1f, 1.0f, 0.2f,"Slide length","%",0,100,0);
+		configParam(PLAY_MODE_PARAM, 0.0f, 4.0f, 0.0f,"Play mode");
+		configParam(COUNT_MODE_PARAM, 0.0f, 4.0f, 0.0f,"Count mode");
+		configParam(PATTERN_PARAM, 1.0f, 16.0f, 1.0f,"Edited pattern","",0,1,0);
+		configParam(SENSITIVITY_PARAM, 0.1f, 1.0f, 1.0f,"Pitch sensitivity","%",0,100,0);
 
-		configParam(COPY_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(LEFT_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(RIGHT_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(UP_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(DOWN_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(COPY_PARAM, 0.0f, 1.0f, 0.0f,"Copy/Paste");
+		configParam(LEFT_PARAM, 0.0f, 1.0f, 0.0f,"Shift left");
+		configParam(RIGHT_PARAM, 0.0f, 1.0f, 0.0f,"Shift right");
+		configParam(UP_PARAM, 0.0f, 1.0f, 0.0f,"Shift up 1 semitone");
+		configParam(DOWN_PARAM, 0.0f, 1.0f, 0.0f,"Shift down 1 semitone");
+
+		configInput(CLOCK_INPUT, "Clock speed");
+		configInput(EXT_CLOCK_INPUT, "Ext. clock");
+		configInput(RESET_INPUT, "Reset");
+		configInput(STEPS_INPUT, "Nb steps");
+		configInput(SLIDE_TIME_INPUT, "Slide length");
+		configInput(GATE_TIME_INPUT, "Gate length");
+		configInput(ROOT_NOTE_INPUT, "Root note");
+		configInput(SCALE_INPUT, "Scale");
+		configInput(EXTGATE1_INPUT, "Ext. gate 1");
+		configInput(EXTGATE2_INPUT, "Ext. gate 2");
+		configInput(PATTERN_INPUT, "Played pattern");
+		configInput(TRANSPOSE_INPUT, "Transpose");
+		configInput(SENSITIVITY_INPUT, "Sensitivity");
+
+		configOutput(GATE_OUTPUT, "Gate");
+		configOutput(PITCH_OUTPUT, "Pitch");
 
 		for (int i = 0; i < 8; i++) {
-			configParam(TRIG_PITCH_PARAM + i, -4.0f, 6.0f, 0.0f);
-			configParam(TRIG_COUNT_PARAM + i, 1.0f, 8.0f,  1.0f);
-			configParam(TRIG_TYPE_PARAM + i, 0.0f, 5.0f,  2.0f);
-			configParam(TRIG_SLIDE_PARAM + i, 0.0f, 1.0f,  0.0f);
-			configParam(TRIG_SKIP_PARAM + i, 0.0f, 1.0f, 0.0f);
+			configParam(TRIG_PITCH_PARAM + i, -4.0f, 6.0f, 0.0f,"Pitch");
+			configParam(TRIG_COUNT_PARAM + i, 1.0f, 8.0f,  1.0f,"Nb pulses");
+			configParam(TRIG_TYPE_PARAM + i, 0.0f, 5.0f,  2.0f,"Gate type");
+			configParam(TRIG_SLIDE_PARAM + i, 0.0f, 1.0f,  0.0f, "Slide");
+			configParam(TRIG_SKIP_PARAM + i, 0.0f, 1.0f, 0.0f, "Skip");
+			configOutput(STEP_OUTPUT + i, "Step gate");
 		}
 	}
 

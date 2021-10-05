@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <iterator>
+#include "dep/quantizer.hpp"
 
 using namespace std;
 
@@ -12,6 +13,8 @@ struct DIKTAT : Module {
 	enum ParamIds {
 		CHANNEL_PARAM,
 		GLOBAL_PARAM,
+		ROOT_NOTE_PARAM,
+		SCALE_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -21,10 +24,13 @@ struct DIKTAT : Module {
 		NUM_INPUTS
 	};
 	enum OutputIds {
-		NOTE1_OUTPUT,
-		NOTE2_OUTPUT,
-		NOTE3_OUTPUT,
-		NOTE4_OUTPUT,
+		NOTE_TONIC_OUTPUT,
+		NOTE_THIRD_OUTPUT,
+		NOTE_FIFTH_OUTPUT,
+		NOTE_SEVENTH_OUTPUT,
+		NOTE_NINTH_OUTPUT,
+		NOTE_ELEVENTH_OUTPUT,
+		NOTE_THIRTEENTH_OUTPUT,
 		NUM_OUTPUTS
 	};
 	enum LightIds {
@@ -48,76 +54,27 @@ struct DIKTAT : Module {
 	float note3[16] = {0.0f};
 	float note4[16] = {0.0f};
 	int octaveInVolts[16] = {0};
-	int scales[21][7] = {
-		{0,	2, 4,	5, 7, 9, 11},
-		{0,	2, 3,	5, 7,	9, 10},
-		{0,	1, 3,	5, 7,	8, 10},
-		{0,	2, 4,	6, 7,	9, 11},
-		{0,	2, 4,	5, 7,	9, 10},
-		{0,	2, 3,	5, 7,	8, 10},
-		{0,	1, 3,	5, 6,	8, 10},
-		{0,	2, 3,	5, 7,	9, 11},
-		{0,	1, 3,	5, 7,	9, 10},
-		{0,	2, 4,	6, 8,	9, 11},
-		{0,	2, 4,	6, 7,	9, 10},
-		{0,	2, 4,	5, 7,	8, 10},
-		{0,	2, 3,	5, 6,	8, 10},
-		{0,	1, 3,	4, 6,	8, 10},
-		{0,	2, 3,	5, 7,	8, 11},
-		{0,	1, 3,	5, 6,	9, 10},
-		{0,	2, 4,	5, 8,	9, 11},
-		{0,	2, 3,	6, 7,	9, 10},
-		{0,	1, 4,	5, 7,	8, 10},
-		{0,	3, 4,	6, 7,	9, 11},
-		{0,	1, 3,	4, 6,	8, 9}
-	};
-
-
-	enum Notes {
-		NOTE_C,
-		NOTE_C_SHARP,
-		NOTE_D,
-		NOTE_D_SHARP,
-		NOTE_E,
-		NOTE_F,
-		NOTE_F_SHARP,
-		NOTE_G,
-		NOTE_G_SHARP,
-		NOTE_A,
-		NOTE_A_SHARP,
-		NOTE_B,
-		NUM_NOTES
-	};
-
-	enum Scales {
-		IONIAN,
-		DORIAN,
-		PHRYGIAN,
-		LYDIAN,
-		MIXOLYDIAN,
-		AEOLIAN,
-		LOCRIAN,
-		IONIAN_MIN,
-		DORIAN_FLAT_9,
-		LYDIAN_AUG,
-		LYDIAN_DOM,
-		MIXOLYDIAN_FLAT_6,
-		AEOLIAN_DIM,
-		SUPER_LOCRIAN,
-		AEOLIAN_NATURAL_7,
-		LOCRIAN_NATURAL_6,
-		IONIAN_AUG,
-		DORIAN_SHARP_4,
-		PHRYGIAN_DOM,
-		LYDIAN_SHARP_9,
-		SUPER_LOCRIAN_DOUBLE_FLAT_7,
-		NUM_SCALES
-	};
 
 	DIKTAT() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f);
-		configParam(GLOBAL_PARAM, 0.0f, 1.0f, 1.0f);
+		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f, "Channel","",0,1,1);
+		configParam(ROOT_NOTE_PARAM, -1.0f, quantizer::numNotes-2, 0.0f, "Root note","",0,1,1);
+		configParam(SCALE_PARAM, 0.0f, quantizer::numScales-1, 1.0f, "Scale","",0,1,1);
+
+
+		configInput(NOTE_INPUT, "1V/oct pitch");
+		configInput(ROOT_NOTE_INPUT, "Root note");
+		configInput(SCALE_INPUT, "Scale");
+
+		configOutput(NOTE_TONIC_OUTPUT, "Tonic");
+		configOutput(NOTE_THIRD_OUTPUT, "Third");
+		configOutput(NOTE_FIFTH_OUTPUT, "Fifth");
+		configOutput(NOTE_SEVENTH_OUTPUT, "Seventh");
+		configOutput(NOTE_NINTH_OUTPUT, "Ninth");
+		configOutput(NOTE_ELEVENTH_OUTPUT, "Eleventh");
+		configOutput(NOTE_THIRTEENTH_OUTPUT, "Thirteenth");
+
+		configSwitch(GLOBAL_PARAM, 0, 1, 0, "Mode", {"Individual","Global"});
   }
 
   void process(const ProcessArgs &args) override;
@@ -161,66 +118,58 @@ struct DIKTAT : Module {
 };
 
 void DIKTAT::process(const ProcessArgs &args) {
-	currentChannel = params[CHANNEL_PARAM].getValue();
+	if (currentChannel != params[CHANNEL_PARAM].getValue()) {
+		currentChannel = params[CHANNEL_PARAM].getValue();
+		params[ROOT_NOTE_PARAM].setValue(rootNote[currentChannel]);
+		params[SCALE_PARAM].setValue(scale[currentChannel]);
+	}
+	else {
+		rootNote[currentChannel] = params[ROOT_NOTE_PARAM].getValue();
+		scale[currentChannel] = params[SCALE_PARAM].getValue();
+	}
+
 	globalMode = params[GLOBAL_PARAM].getValue();
 	int c = std::max(inputs[NOTE_INPUT].getChannels(), 1);
-	outputs[NOTE1_OUTPUT].setChannels(c);
-	outputs[NOTE2_OUTPUT].setChannels(c);
-	outputs[NOTE3_OUTPUT].setChannels(c);
-	outputs[NOTE4_OUTPUT].setChannels(c);
+
+	outputs[NOTE_TONIC_OUTPUT].setChannels(c);
+	outputs[NOTE_THIRD_OUTPUT].setChannels(c);
+	outputs[NOTE_FIFTH_OUTPUT].setChannels(c);
+	outputs[NOTE_SEVENTH_OUTPUT].setChannels(c);
+	outputs[NOTE_NINTH_OUTPUT].setChannels(c);
+	outputs[NOTE_ELEVENTH_OUTPUT].setChannels(c);
+	outputs[NOTE_THIRTEENTH_OUTPUT].setChannels(c);
 
 	for (int i=0;i<c;i++) {
+		int lRootNote = 0;
+		int lScale = 0;
+
 		if (inputs[ROOT_NOTE_INPUT].isConnected()) {
-			rootNote[i] = rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(globalMode? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f);
+			lRootNote = rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,quantizer::numNotes-1);
+		}
+		else {
+			lRootNote = rootNote[i];
 		}
 
 		if (inputs[SCALE_INPUT].isConnected()) {
-			scale[i] = rescale(clamp(inputs[SCALE_INPUT].getVoltage(globalMode? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,20.0f);
+			scale[i] = rescale(clamp(inputs[SCALE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,quantizer::numScales-1);
+		}
+		else {
+			lScale = scale[i];
 		}
 
 		inputNote[i] = inputs[NOTE_INPUT].getVoltage(i);
 
-		float closestVal = 0.0f;
-		float closestDist = 2.0f;
-
-		if (( inputNote[i]>= 0.0f) || (inputNote[i] == (int)inputNote[i])) {
-			octaveInVolts[i] = int(inputNote[i]);
-		}
-		else {
-			octaveInVolts[i] = int(inputNote[i])-1;
-		}
-
 		octaveInVolts[i] = clamp(octaveInVolts[i]-1,-4,6);
 
-		index1[i] = 0;
-		for (int j = 0; j < 21; j++) {
-			float scaleNoteInVolts = octaveInVolts[i] + int(j/7) + (rootNote[globalMode? 0 : i] / 12.0f) + scales[scale[globalMode? 0 : i]][j%7] / 12.0f;
-			float distAway = fabs(inputNote[i] - scaleNoteInVolts);
-			if(distAway < closestDist) {
-				index1[i] = j;
-				closestVal = scaleNoteInVolts;
-				closestDist = distAway;
-			}
-			else { break; }
-		}
+		quantizer::Chord chord = quantizer::closestChordInScale(inputNote[i], lRootNote, lScale);
 
-		index2[i] = (index1[i]+2)%7;
-		index3[i] = (index1[i]+4)%7;
-		index4[i] = (index1[i]+6)%7;
-
-		offset2[i]=(index1[i]+2)/7;
-		offset3[i]=(index1[i]+4)/7;
-		offset4[i]=(index1[i]+6)/7;
-
-		note1[i] = clamp(closestVal ,-4.0f,6.0f);
-		note2[i] = clamp(scales[scale[globalMode? 0 : i]][index2[i]] / 12.0f + octaveInVolts[i] + offset2[i] + (rootNote[globalMode? 0 : i] / 12.0f),-4.0f,6.0f);
-		note3[i] = clamp(scales[scale[globalMode? 0 : i]][index3[i]] / 12.0f + octaveInVolts[i] + offset3[i] + (rootNote[globalMode? 0 : i] / 12.0f),-4.0f,6.0f);
-		note4[i] = clamp(scales[scale[globalMode? 0 : i]][index4[i]] / 12.0f + octaveInVolts[i] + offset4[i] + (rootNote[globalMode? 0 : i] / 12.0f),-4.0f,6.0f);
-
-		outputs[NOTE1_OUTPUT].setVoltage(note1[i],i);
-		outputs[NOTE2_OUTPUT].setVoltage(note2[i],i);
-		outputs[NOTE3_OUTPUT].setVoltage(note3[i],i);
-		outputs[NOTE4_OUTPUT].setVoltage(note4[i],i);
+		outputs[NOTE_TONIC_OUTPUT].setVoltage(chord.tonic,i);
+		outputs[NOTE_THIRD_OUTPUT].setVoltage(chord.third,i);
+		outputs[NOTE_FIFTH_OUTPUT].setVoltage(chord.fifth,i);
+		outputs[NOTE_SEVENTH_OUTPUT].setVoltage(chord.seventh,i);
+		outputs[NOTE_NINTH_OUTPUT].setVoltage(chord.ninth,i);
+		outputs[NOTE_ELEVENTH_OUTPUT].setVoltage(chord.eleventh,i);
+		outputs[NOTE_THIRTEENTH_OUTPUT].setVoltage(chord.thirteenth,i);
 	}
 }
 
@@ -228,244 +177,66 @@ struct DIKTATWidget : ModuleWidget {
   DIKTATWidget(DIKTAT *module);
 };
 
-struct RootNoteButton : OpaqueWidget {
+struct ChannelDisplay : OpaqueWidget {
 	DIKTAT *module;
-	int rootNote;
-	std::string sRootNote="";
-
-	bool isInScale() {
-		for (int i=0; i<7; i++) {
-			if ((module->scales[module->scale[module->currentChannel]][i]+module->rootNote[module->currentChannel])%12 == rootNote) return true;
-		}
-		return false;
-	}
 
 	void draw(const DrawArgs &args) override {
 		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
-		nvgGlobalTint(args.vg, color::WHITE);
-		if (module && module->rootNote[module->currentChannel] == rootNote) {
-			nvgBeginPath(args.vg);
-			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-			nvgRoundedRect(args.vg, 0, 0, box.size.x-mm2px(0.5f), box.size.y-mm2px(0.5f), 0);
-  		nvgFillColor(args.vg, nvgRGB(107, 107, 107));
-  		nvgFill(args.vg);
-
-  		nvgFontSize(args.vg, 8.0f);
-  		nvgFillColor(args.vg, YELLOW_BIDOO);
-  		nvgText(args.vg, (box.size.x-mm2px(0.5f))/2, (box.size.y-mm2px(0.5f))/2, sRootNote.c_str(), NULL);
-		}
-		else if (module && isInScale()) {
-			nvgBeginPath(args.vg);
-			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-			nvgRoundedRect(args.vg, 0, 0, box.size.x-mm2px(0.5f), box.size.y-mm2px(0.5f), 0);
-  		nvgFillColor(args.vg, nvgRGB(107, 107, 107));
-  		nvgFill(args.vg);
-
-  		nvgFontSize(args.vg, 8.0f);
-  		nvgFillColor(args.vg, nvgRGB(255, 255, 255));
-  		nvgText(args.vg, (box.size.x-mm2px(0.5f))/2, (box.size.y-mm2px(0.5f))/2, sRootNote.c_str(), NULL);
-		}
-		else {
-			nvgBeginPath(args.vg);
-			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-			nvgRoundedRect(args.vg, 0, 0, box.size.x-mm2px(0.5f), box.size.y-mm2px(0.5f), 0);
-  		nvgFillColor(args.vg, nvgRGB(107, 107, 107));
-  		nvgFill(args.vg);
-
-  		nvgFontSize(args.vg, 8.0f);
-  		nvgFillColor(args.vg, nvgRGB(150, 150, 150));
-  		nvgText(args.vg, (box.size.x-mm2px(0.5f))/2, (box.size.y-mm2px(0.5f))/2, sRootNote.c_str(), NULL);
-		}
-	}
-
-	void onButton(const event::Button &e) override {
-		if (e.button == GLFW_MOUSE_BUTTON_RIGHT && e.action == GLFW_PRESS) {
-			module->rootNote[module->currentChannel] = 0;
-			e.consume(this);
-			return;
-		}
-		OpaqueWidget::onButton(e);
-	}
-
-	void onDragEnter(const event::DragEnter &e) override {
-		if (e.button == GLFW_MOUSE_BUTTON_LEFT) {
-			RootNoteButton *w = dynamic_cast<RootNoteButton*>(e.origin);
-			if (w) {
-				module->rootNote[module->currentChannel] = rootNote;
-			}
+		if (module != NULL) {
+			nvgGlobalTint(args.vg, color::WHITE);
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgFontSize(args.vg, 12.0f);
+			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+			nvgText(args.vg, 0, 0, std::to_string(module->currentChannel+1).c_str(), NULL);
 		}
 	}
 };
 
-struct ScaleButton : OpaqueWidget {
+struct RootNoteDisplay : OpaqueWidget {
 	DIKTAT *module;
-	int scale;
-	std::string sScale="";
-	shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
-
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		if (module && module->scale[module->currentChannel] == scale) {
-  		nvgBeginPath(args.vg);
-			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-  		nvgRoundedRect(args.vg, 0, 0, box.size.x-mm2px(0.5f), box.size.y-mm2px(0.5f), 0);
-  		nvgFillColor(args.vg, nvgRGB(107, 107, 107));
-  		nvgFill(args.vg);
-
-  		nvgFontSize(args.vg, 8.0f);
-  		nvgFillColor(args.vg, YELLOW_BIDOO);
-  		nvgText(args.vg, (box.size.x-mm2px(0.5f))/2, (box.size.y-mm2px(0.5f))/2, sScale.c_str(), NULL);
-		}
-		else {
-			nvgBeginPath(args.vg);
-			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-			nvgRoundedRect(args.vg, 0, 0, box.size.x-mm2px(0.5f), box.size.y-mm2px(0.5f), 0);
-  		nvgFillColor(args.vg, nvgRGB(107, 107, 107));
-  		nvgFill(args.vg);
-
-  		nvgFontSize(args.vg, 8.0f);
-  		nvgFillColor(args.vg, nvgRGB(255, 255, 255));
-  		nvgText(args.vg, (box.size.x-mm2px(0.5f))/2, (box.size.y-mm2px(0.5f))/2, sScale.c_str(), NULL);
-		}
-	}
-
-	void onButton(const event::Button &e) override {
-		if (e.button == GLFW_MOUSE_BUTTON_RIGHT && e.action == GLFW_PRESS) {
-			module->scale[module->currentChannel] = 0;
-			e.consume(this);
-			return;
-		}
-		OpaqueWidget::onButton(e);
-	}
-
-	void onDragEnter(const event::DragEnter &e) override {
-		if (e.button == GLFW_MOUSE_BUTTON_LEFT) {
-			ScaleButton *w = dynamic_cast<ScaleButton*>(e.origin);
-			if (w) {
-				module->scale[module->currentChannel] = scale;
-			}
-		}
-	}
-};
-
-struct DiktatDisplay : OpaqueWidget {
-	DIKTAT *module;
-
-	DiktatDisplay() {
-		box.size = mm2px(Vec(50, 87));
-	}
-
-	void setModule(DIKTAT *module) {
-		clearChildren();
-		this->module = module;
-
-		const int rootNotes = 12;
-		const int scales = 21;
-		const float margin = mm2px(2.0);
-		float height = box.size.y - 2*margin;
-
-		for (int i = 0; i < rootNotes; i++) {
-			RootNoteButton *rootNoteButton = new RootNoteButton();
-			rootNoteButton->box.pos = Vec(30, height / rootNotes * i);
-			rootNoteButton->box.size = Vec(20, height / rootNotes);
-			rootNoteButton->module = module;
-			rootNoteButton->rootNote = i;
-			switch(i){
-				case 0:		rootNoteButton->sRootNote = "C"; break;
-				case 1:		rootNoteButton->sRootNote = "C#"; break;
-				case 2:		rootNoteButton->sRootNote = "D"; break;
-				case 3:		rootNoteButton->sRootNote = "D#"; break;
-				case 4:		rootNoteButton->sRootNote = "E"; break;
-				case 5:		rootNoteButton->sRootNote = "F"; break;
-				case 6:		rootNoteButton->sRootNote = "F#"; break;
-				case 7:		rootNoteButton->sRootNote = "G"; break;
-				case 8:		rootNoteButton->sRootNote = "G#"; break;
-				case 9:		rootNoteButton->sRootNote = "A"; break;
-				case 10:	rootNoteButton->sRootNote = "A#"; break;
-				case 11:	rootNoteButton->sRootNote = "B"; break;
-			}
-			addChild(rootNoteButton);
-		}
-
-		for (int i = 0; i < scales; i++) {
-			ScaleButton *scaleButton = new ScaleButton();
-			scaleButton->box.pos = Vec(55, height / scales * i);
-			scaleButton->box.size = Vec(75, height / scales);
-			scaleButton->module = module;
-			scaleButton->scale = i;
-			switch(i){
-				case 0:		scaleButton->sScale = "Ionian"; break;
-				case 1:		scaleButton->sScale = "Dorian"; break;
-				case 2:		scaleButton->sScale = "Phrygian"; break;
-				case 3:		scaleButton->sScale = "Lydian"; break;
-				case 4:		scaleButton->sScale = "Mixolydian"; break;
-				case 5:		scaleButton->sScale = "Aeolian"; break;
-				case 6:		scaleButton->sScale = "Locrian"; break;
-				case 7:		scaleButton->sScale = "Ionian Min"; break;
-				case 8:		scaleButton->sScale = "Dorian b9"; break;
-				case 9:		scaleButton->sScale = "Lydian Aug"; break;
-				case 10:	scaleButton->sScale = "Lydian Dom"; break;
-				case 11:	scaleButton->sScale = "Mixolydian b6"; break;
-				case 12:	scaleButton->sScale = "Aeolian Dim"; break;
-				case 13:	scaleButton->sScale = "Super Locrian"; break;
-				case 14:	scaleButton->sScale = "Aeolian ♮7"; break;
-				case 15:	scaleButton->sScale = "Locrian ♮6"; break;
-				case 16:	scaleButton->sScale = "Ionian Aug"; break;
-				case 17:	scaleButton->sScale = "Dorian #4"; break;
-				case 18:	scaleButton->sScale = "Phrygian Dom"; break;
-				case 19:	scaleButton->sScale = "Lydian #9"; break;
-				case 20:	scaleButton->sScale = "Super Locrian bb7"; break;
-			}
-			addChild(scaleButton);
-		}
-	}
-
-	std::string displayNote(float value) {
-		int octave = 0;
-		if ((value >= 0.0f) || (value == (int)value)) {
-			octave = int(value);
-		}
-		else {
-			octave = int(value)-1;
-		}
-		int note = (value-octave)*1000;
-		switch(note){
-			case 0:  return "C" + to_string(octave+4);
-			case 83: return "C#" + to_string(octave+4);
-			case 166: return "D" + to_string(octave+4);
-			case 250: return "D#" + to_string(octave+4);
-			case 333: return "E" + to_string(octave+4);
-			case 416: return "F" + to_string(octave+4);
-			case 500: return "F#" + to_string(octave+4);
-			case 583: return "G" + to_string(octave+4);
-			case 666: return "G#" + to_string(octave+4);
-			case 750: return "A" + to_string(octave+4);
-			case 833: return "A#" + to_string(octave+4);
-			case 916: return "B" + to_string(octave+4);
-			case 1000: return "C" + to_string(octave+5);
-			default: return "OOS";
-		}
-	}
 
 	void draw(const DrawArgs &args) override {
 		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
-		nvgGlobalTint(args.vg, color::WHITE);
-		if (module) {
-			nvgBeginPath(args.vg);
-			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-  		nvgFontSize(args.vg, 10.0f);
-  		nvgFillColor(args.vg, nvgRGB(255, 255, 255));
-			nvgText(args.vg, 7.5f, 20, to_string(module->currentChannel+1).c_str(), NULL);
-			nvgText(args.vg, 5, 257, displayNote(module->inputNote[module->currentChannel]).c_str(), NULL);
-  		nvgText(args.vg, 5, 303, displayNote(module->note1[module->currentChannel]).c_str(), NULL);
-			nvgText(args.vg, 42, 303, displayNote(module->note2[module->currentChannel]).c_str(), NULL);
-			nvgText(args.vg, 79, 303, displayNote(module->note3[module->currentChannel]).c_str(), NULL);
-			nvgText(args.vg, 116, 303, displayNote(module->note4[module->currentChannel]).c_str(), NULL);
+		if (module != NULL) {
+			nvgGlobalTint(args.vg, color::WHITE);
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgFontSize(args.vg, 12.0f);
+			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+			nvgText(args.vg, 0, 0, quantizer::rootNotes[module->rootNote[module->currentChannel]+1].label.c_str(), NULL);
 		}
-
-		Widget::draw(args);
 	}
 };
+
+struct ScaleDisplay : OpaqueWidget {
+	DIKTAT *module;
+
+	void draw(const DrawArgs &args) override {
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		if (module != NULL) {
+			nvgGlobalTint(args.vg, color::WHITE);
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgFontSize(args.vg, 12.0f);
+			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+			nvgText(args.vg, 0, 0, quantizer::scales[module->scale[module->currentChannel]].label.c_str(), NULL);
+		}
+	}
+};
+
+struct DiktatPJ301MPort : PJ301MPort {
+
+	void draw(const DrawArgs& args) override {
+		if (getPort() && (module != NULL)) {
+			nvgGlobalTint(args.vg, color::WHITE);
+			nvgFillColor(args.vg, SCHEME_WHITE);
+			nvgFontSize(args.vg, 10.0f);
+			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+			DIKTAT *mod = dynamic_cast<DIKTAT*>(module);
+			nvgText(args.vg, 12, -4, quantizer::noteName(getPort()->getVoltage(mod->currentChannel)).c_str(), NULL);
+		}
+		PJ301MPort::draw(args);
+	}
+};
+
 
 DIKTATWidget::DIKTATWidget(DIKTAT *module) {
 	setModule(module);
@@ -476,22 +247,44 @@ DIKTATWidget::DIKTATWidget(DIKTAT *module) {
 	addChild(createWidget<ScrewSilver>(Vec(15, 365)));
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
-	DiktatDisplay *diktatDisplay = new DiktatDisplay();
-	diktatDisplay->box.pos = mm2px(Vec(5, 7));
-	diktatDisplay->setModule(module);
-	addChild(diktatDisplay);
+	RootNoteDisplay *rootNoteDisplay = new RootNoteDisplay();
+	rootNoteDisplay->box.pos = Vec(96, 44);
+	rootNoteDisplay->box.size = Vec(20, 20);
+	rootNoteDisplay->module =  module ? module : NULL;
+	addChild(rootNoteDisplay);
+
+	addParam(createParam<BidooBlueSnapKnob>(Vec(82,55), module, DIKTAT::ROOT_NOTE_PARAM));
+	addInput(createInput<TinyPJ301MPort>(Vec(120, 62), module, DIKTAT::ROOT_NOTE_INPUT));
+
+	ScaleDisplay *scaleDisplay = new ScaleDisplay();
+	scaleDisplay->box.pos = Vec(96, 117);
+	scaleDisplay->box.size = Vec(20, 20);
+	scaleDisplay->module =  module ? module : NULL;
+	addChild(scaleDisplay);
+
+	addParam(createParam<BidooBlueSnapKnob>(Vec(82,128), module, DIKTAT::SCALE_PARAM));
+	addInput(createInput<TinyPJ301MPort>(Vec(120, 135), module, DIKTAT::SCALE_INPUT));
+
+	ChannelDisplay *channelDisplay = new ChannelDisplay();
+	channelDisplay->box.pos = Vec(22, 44);
+	channelDisplay->box.size = Vec(20, 20);
+	channelDisplay->module =  module ? module : NULL;
+	addChild(channelDisplay);
 
 	addParam(createParam<BidooBlueSnapKnob>(Vec(7.5f,55.0f), module, DIKTAT::CHANNEL_PARAM));
+
+
 	addParam(createParam<CKSS>(Vec(15.5f, 115.0f), module, DIKTAT::GLOBAL_PARAM));
 
-	addInput(createInput<PJ301MPort>(Vec(7, 283), module, DIKTAT::NOTE_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(62.75f, 283), module, DIKTAT::ROOT_NOTE_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(118.5f, 283), module, DIKTAT::SCALE_INPUT));
+	addInput(createInput<DiktatPJ301MPort>(Vec(7, 240), module, DIKTAT::NOTE_INPUT));
 
-	addOutput(createOutput<PJ301MPort>(Vec(7.0f, 330), module, DIKTAT::NOTE1_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(44.0f, 330), module, DIKTAT::NOTE2_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(81.5f, 330), module, DIKTAT::NOTE3_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(118.5f, 330), module, DIKTAT::NOTE4_OUTPUT));
+	addOutput(createOutput<DiktatPJ301MPort>(Vec(7.0f, 285), module, DIKTAT::NOTE_TONIC_OUTPUT));
+	addOutput(createOutput<DiktatPJ301MPort>(Vec(45.0f, 285), module, DIKTAT::NOTE_THIRD_OUTPUT));
+	addOutput(createOutput<DiktatPJ301MPort>(Vec(82.0f, 285), module, DIKTAT::NOTE_FIFTH_OUTPUT));
+	addOutput(createOutput<DiktatPJ301MPort>(Vec(119.0f, 285), module, DIKTAT::NOTE_SEVENTH_OUTPUT));
+	addOutput(createOutput<DiktatPJ301MPort>(Vec(7.0f, 330), module, DIKTAT::NOTE_NINTH_OUTPUT));
+	addOutput(createOutput<DiktatPJ301MPort>(Vec(45.0f, 330), module, DIKTAT::NOTE_ELEVENTH_OUTPUT));
+	addOutput(createOutput<DiktatPJ301MPort>(Vec(82.0f, 330), module, DIKTAT::NOTE_THIRTEENTH_OUTPUT));
 }
 
 Model *modelDIKTAT = createModel<DIKTAT, DIKTATWidget>("DIKTAT");

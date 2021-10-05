@@ -3,6 +3,7 @@
 #include "dsp/digital.hpp"
 #include <sstream>
 #include <iomanip>
+#include "dep/quantizer.hpp"
 
 using namespace std;
 
@@ -59,6 +60,7 @@ struct PILOT : Module {
 		GOBOTTOM_INPUT,
 		GOTOP_INPUT,
 		MOVENEXT_INPUT,
+		RESET_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -77,6 +79,8 @@ struct PILOT : Module {
 	float scenes[16][16] = {{0.0f}};
 	int controlTypes[16] = {0};
 	int voltageTypes[16] = {0};
+	int controlRootNotes[16] = {0};
+	int controlScales[16] = {0};
 	bool controlFocused[16] = {false};
 	int currentFocus = -1;
 	bool morphFocused = false;
@@ -94,6 +98,7 @@ struct PILOT : Module {
 	bool curve = false;
 	int length = 15;
 	int recordingStatus = 0;
+	bool reset = false;
 
 	dsp::SchmittTrigger typeTriggers[16];
 	dsp::SchmittTrigger voltageTriggers[16];
@@ -116,6 +121,7 @@ struct PILOT : Module {
 	dsp::SchmittTrigger weomTrigger;
 	dsp::SchmittTrigger curveTrigger;
 	dsp::SchmittTrigger recordingTrigger;
+	dsp::SchmittTrigger resetTrigger;
 	dsp::PulseGenerator gatePulses[16];
 
 
@@ -175,56 +181,6 @@ struct PILOT : Module {
 		return clamp(b + (3*a - 3*b)*(params[BY_PARAM].getValue()+inputs[BY_INPUT].getVoltage()) + (3*b - 6*a + 3*pos)*(params[AY_PARAM].getValue()+inputs[AY_INPUT].getVoltage()),0.0f,1.0f);
 	}
 
-	float closestVoltageInScale(float in){
-		float voltsIn=in-4.0f;
-		float closestVal = 0.0f;
-		float closestDist = 1.0f;
-		int octaveInVolts = 0;
-		if ((voltsIn >= 0.0f) || (voltsIn == (int)voltsIn)) {
-			octaveInVolts = int(voltsIn);
-		}
-		else {
-			octaveInVolts = int(voltsIn)-1;
-		}
-		for (int i = 0; i < 12; i++) {
-			float scaleNoteInVolts = octaveInVolts + (float)i / 12.0f;
-			float distAway = fabs(voltsIn - scaleNoteInVolts);
-			if(distAway < closestDist) {
-				closestVal = scaleNoteInVolts;
-				closestDist = distAway;
-			}
-		}
-		return closestVal;
-	}
-
-	std::string noteName() {
-		if (currentFocus >= 0) {
-			float voltsIn=outputs[CV_OUTPUTS + currentFocus].getVoltage();
-			float closestDist = 1.0f;
-			int octaveInVolts = 0;
-			std::string note = "";
-			const char *notes[12] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
-			if ((voltsIn >= 0.0f) || (voltsIn == (int)voltsIn)) {
-				octaveInVolts = int(voltsIn);
-			}
-			else {
-				octaveInVolts = int(voltsIn)-1;
-			}
-			for (int i = 0; i < 12; i++) {
-				float scaleNoteInVolts = octaveInVolts + (float)i / 12.0f;
-				float distAway = fabs(voltsIn - scaleNoteInVolts);
-				if(distAway < closestDist) {
-					closestDist = distAway;
-					note = notes[i];
-				}
-			}
-			return note + to_string(octaveInVolts+4);
-		}
-		else {
-			return "";
-		}
-	}
-
   void process(const ProcessArgs &args) override;
 
 	void onReset() override {
@@ -277,6 +233,9 @@ struct PILOT : Module {
 		json_t *scenesJ = json_array();
 		json_t *typesJ = json_array();
 		json_t *voltagesJ = json_array();
+		json_t *rootNotesJ = json_array();
+		json_t *scalesJ = json_array();
+
 		for (int i = 0; i < 16; i++) {
 			json_t *sceneJ = json_array();
 			for (int j = 0; j < 16; j++) {
@@ -289,10 +248,16 @@ struct PILOT : Module {
 			json_array_append_new(typesJ, typeJ);
 			json_t *voltageJ = json_integer(voltageTypes[i]);
 			json_array_append_new(voltagesJ, voltageJ);
+			json_t *rootNoteJ = json_integer(controlRootNotes[i]);
+			json_array_append_new(rootNotesJ, rootNoteJ);
+			json_t *scaleJ = json_integer(controlScales[i]);
+			json_array_append_new(scalesJ, scaleJ);
 		}
 		json_object_set_new(rootJ, "scenes", scenesJ);
 		json_object_set_new(rootJ, "types", typesJ);
 		json_object_set_new(rootJ, "voltages", voltagesJ);
+		json_object_set_new(rootJ, "roots", rootNotesJ);
+		json_object_set_new(rootJ, "scales", scalesJ);
 
 		return rootJ;
 	}
@@ -313,6 +278,9 @@ struct PILOT : Module {
 		json_t *scenesJ = json_object_get(rootJ, "scenes");
 		json_t *typesJ = json_object_get(rootJ, "types");
 		json_t *voltagesJ = json_object_get(rootJ, "voltages");
+		json_t *rootsJ = json_object_get(rootJ, "roots");
+		json_t *scalesJ = json_object_get(rootJ, "scales");
+
 		if (scenesJ && typesJ) {
 			for (int i = 0; i < 16; i++) {
 				json_t *sceneJ = json_array_get(scenesJ, i);
@@ -332,9 +300,18 @@ struct PILOT : Module {
 				if (voltageJ) {
 					voltageTypes[i] = json_integer_value(voltageJ);
 				}
+				json_t *rootJ = json_array_get(rootsJ, i);
+				if (rootJ) {
+					controlRootNotes[i] = json_integer_value(rootJ);
+				}
+				json_t *scaleJ = json_array_get(scalesJ, i);
+				if (scaleJ) {
+					controlScales[i] = json_integer_value(scaleJ);
+				}
 			}
 		}
 	}
+
 };
 
 void PILOT::process(const ProcessArgs &args) {
@@ -342,6 +319,10 @@ void PILOT::process(const ProcessArgs &args) {
 
 	if (moveTypeTrigger.process(params[MOVETYPE_PARAM].getValue())) {
 		moveType = (moveType+1)%6;
+	}
+
+	if ((resetTrigger.process(inputs[RESET_INPUT].getVoltage())) && (moveType==0)) {
+		reset = true;
 	}
 
 	if (weomTrigger.process(params[WEOM_PARAM].getValue())) {
@@ -368,7 +349,15 @@ void PILOT::process(const ProcessArgs &args) {
 
 	length = params[LENGTH_PARAM].getValue();
 
-	if ((moveNextTrigger.process(params[MOVENEXT_PARAM].getValue()+inputs[MOVENEXT_INPUT].getVoltage())) && ((waitEOM==0 && !moving) || (waitEOM>0))) {
+	if ((reset) && (moveType==0)) {
+			params[BOTTOMSCENE_PARAM].setValue(0);
+			params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()+1.0f)%(length+1));
+			params[MORPH_PARAM].setValue(0.0f);
+			forward = false;
+			reset=false;
+			moving = true;
+	}
+	else if ((moveNextTrigger.process(params[MOVENEXT_PARAM].getValue()+inputs[MOVENEXT_INPUT].getVoltage())) && ((waitEOM==0 && !moving) || (waitEOM>0))) {
 		moving = true;
 		forward = !forward;
 		changeDir = true;
@@ -476,6 +465,7 @@ void PILOT::process(const ProcessArgs &args) {
 		}
 	}
 
+
 	if (inputs[TOPSCENE_INPUT].isConnected()) {
 		topScene = clamp(floor(inputs[TOPSCENE_INPUT].getVoltage() * 1.6f), 0.0f, (float)length);
 	}
@@ -483,7 +473,8 @@ void PILOT::process(const ProcessArgs &args) {
 		if (topScenePlusTrigger.process(params[TOPSCENEPLUS_PARAM].getValue()+inputs[TOPSCENEPLUS_INPUT].getVoltage()))
 		{
 			params[TOPSCENE_PARAM].setValue(clamp((int)(params[TOPSCENE_PARAM].getValue() + 1.0f)%16, 0, length));
-		} else if (topSceneMinusTrigger.process(params[TOPSCENEMINUS_PARAM].getValue()+inputs[TOPSCENEMINUS_INPUT].getVoltage()))
+		}
+		else if (topSceneMinusTrigger.process(params[TOPSCENEMINUS_PARAM].getValue()+inputs[TOPSCENEMINUS_INPUT].getVoltage()))
 		{
 			int next = (int)(params[TOPSCENE_PARAM].getValue() - 1.0f);
 			if (next == -1) {
@@ -492,7 +483,8 @@ void PILOT::process(const ProcessArgs &args) {
 			else {
 				params[TOPSCENE_PARAM].setValue(clamp((int)(params[TOPSCENE_PARAM].getValue() - 1.0f), 0, length));
 			}
-		} else if (topSceneRndTrigger.process(params[TOPSCENERND_PARAM].getValue()+inputs[TOPSCENERND_INPUT].getVoltage()))
+		}
+		else if (topSceneRndTrigger.process(params[TOPSCENERND_PARAM].getValue()+inputs[TOPSCENERND_INPUT].getVoltage()))
 		{
 			params[TOPSCENE_PARAM].setValue(clamp(floor(random::uniform()*(length+1)), 0.0f, (float)length));
 		}
@@ -506,7 +498,8 @@ void PILOT::process(const ProcessArgs &args) {
 		if (bottomScenePlusTrigger.process(params[BOTTOMSCENEPLUS_PARAM].getValue()+inputs[BOTTOMSCENEPLUS_INPUT].getVoltage()))
 		{
 			params[BOTTOMSCENE_PARAM].setValue(clamp((int)(params[BOTTOMSCENE_PARAM].getValue() + 1.0f)%(length+1), 0, length));
-		} else if (bottomSceneMinusTrigger.process(params[BOTTOMSCENEMINUS_PARAM].getValue()+inputs[BOTTOMSCENEMINUS_INPUT].getVoltage()))
+		}
+		else if (bottomSceneMinusTrigger.process(params[BOTTOMSCENEMINUS_PARAM].getValue()+inputs[BOTTOMSCENEMINUS_INPUT].getVoltage()))
 		{
 			int next = (int)(params[BOTTOMSCENE_PARAM].getValue() - 1.0f);
 			if (next == -1) {
@@ -515,7 +508,8 @@ void PILOT::process(const ProcessArgs &args) {
 			else {
 				params[BOTTOMSCENE_PARAM].setValue(clamp((int)(params[BOTTOMSCENE_PARAM].getValue() - 1.0f), 0, length));
 			}
-		} else if (bottomSceneRndTrigger.process(params[BOTTOMSCENERND_PARAM].getValue()+inputs[BOTTOMSCENERND_INPUT].getVoltage()))
+		}
+		else if (bottomSceneRndTrigger.process(params[BOTTOMSCENERND_PARAM].getValue()+inputs[BOTTOMSCENERND_INPUT].getVoltage()))
 		{
 			params[BOTTOMSCENE_PARAM].setValue(clamp(floor(random::uniform()*(length+1)), 0.0f, (float)length));
 		}
@@ -667,14 +661,15 @@ void PILOT::process(const ProcessArgs &args) {
 
 		if (controlTypes[i] >= 3) {
 			if (controlFocused[i] || (controlTypes[i] == 4)) {
-				outputs[CV_OUTPUTS + i].setVoltage(closestVoltageInScale(params[CONTROLS_PARAMS+i].getValue()*10.0f));
+				outputs[CV_OUTPUTS + i].setVoltage(quantizer::closestVoltageInScale(params[CONTROLS_PARAMS+i].getValue()*10.0f-4.0f, controlRootNotes[i], controlScales[i]));
 			}
 			else {
 				if ((scenes[bottomScene][i]==scenes[topScene][i]) || (bottomScene==topScene)) {
-					outputs[CV_OUTPUTS + i].setVoltage(closestVoltageInScale(scenes[bottomScene][i]*10.0f));
+					outputs[CV_OUTPUTS + i].setVoltage(quantizer::closestVoltageInScale(scenes[bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i]));
 				}
 				else {
-					outputs[CV_OUTPUTS + i].setVoltage(rescale(params[CONTROLS_PARAMS+i].getValue(),scenes[bottomScene][i],scenes[topScene][i],closestVoltageInScale(scenes[bottomScene][i]*10.0f),closestVoltageInScale(scenes[topScene][i]*10.0f)));
+					outputs[CV_OUTPUTS + i].setVoltage(rescale(params[CONTROLS_PARAMS+i].getValue(),scenes[bottomScene][i],scenes[topScene][i],
+					quantizer::closestVoltageInScale(scenes[bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i]),quantizer::closestVoltageInScale(scenes[topScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i])));
 				}
 			}
 		}
@@ -762,12 +757,12 @@ struct PILOTNoteDisplay : TransparentWidget {
 	void draw(const DrawArgs &args) override {
 		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgGlobalTint(args.vg, color::WHITE);
-		if ((module) && (module->currentFocus>=0) && (module->controlTypes[module->currentFocus]==3)) {
+		if ((module) && (module->currentFocus>=0) && (module->controlTypes[module->currentFocus]>=3)) {
       nvgFontSize(args.vg, 18);
   		nvgFontFaceId(args.vg, font->handle);
   		nvgTextLetterSpacing(args.vg, -2);
   		nvgFillColor(args.vg, YELLOW_BIDOO);
-			nvgText(args.vg, 0, 12, module->noteName().c_str(), NULL);
+			nvgText(args.vg, 0, 12, quantizer::noteName(module->outputs[PILOT::CV_OUTPUTS+module->currentFocus].getVoltage()).c_str(), NULL);
     }
 	}
 };
@@ -808,7 +803,6 @@ struct PILOTCurveDisplay : TransparentWidget {
 					}
 				}
 			}
-			//nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
 			nvgStroke(args.vg);
 
 			nvgBeginPath(args.vg);
@@ -821,7 +815,6 @@ struct PILOTCurveDisplay : TransparentWidget {
 			else {
 				nvgCircle(args.vg, module->morph*box.size.x, box.size.y - module->morph*box.size.y,3);
 			}
-			//nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
 			nvgStroke(args.vg);
 			nvgFill(args.vg);
 
@@ -893,10 +886,132 @@ struct BidooLargeColoredKnob : RoundKnob {
 		}
 		RoundKnob::draw(args);
 	}
+};
 
+
+struct CtrlRampUpMenuItem : ui::MenuItem {
+	ParamQuantity* param = NULL;
+	void onAction(const ActionEvent& e) override {
+		PILOT *module = dynamic_cast<PILOT*>(param->module);
+		for (int i = 0 ; i < 16; i++) {
+			if (i==0) {
+				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
+			}
+			else if (i<=module->length) {
+				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = (float)i/(module->length);
+			}
+			else {
+				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
+			}
+		}
+	}
+};
+
+struct CtrlRampDownMenuItem : ui::MenuItem {
+	ParamQuantity* param = NULL;
+	void onAction(const ActionEvent& e) override {
+		PILOT *module = dynamic_cast<PILOT*>(param->module);
+		for (int i = 0 ; i < 16; i++) {
+			if (i==0) {
+				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 1.0f;
+			}
+			else if (i<module->length) {
+				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = (float)(module->length-i)/(module->length);
+			}
+			else {
+				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
+			}
+		}
+	}
+};
+
+struct CtrlSinMenuItem : ui::MenuItem {
+	ParamQuantity* param = NULL;
+	void onAction(const ActionEvent& e) override {
+		PILOT *module = dynamic_cast<PILOT*>(param->module);
+		for (int i = 0 ; i < 16; i++) {
+			if (i<=module->length) {
+				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = sin((float)(module->length-i)*M_PI/(module->length));
+			}
+			else {
+				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
+			}
+		}
+	}
+};
+
+struct CtrlInitMenuItem : ui::MenuItem {
+	ParamQuantity* param = NULL;
+	void onAction(const ActionEvent& e) override {
+		PILOT *module = dynamic_cast<PILOT*>(param->module);
+		for (int i = 0 ; i < 16; i++) {
+			if (i<=module->length) {
+				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
+			}
+		}
+	}
+};
+
+struct CtrlRootNoteItem : ui::MenuItem {
+	int rootNote=0;
+	ParamQuantity* param = NULL;
+
+	void onAction(const ActionEvent& e) override {
+		PILOT *module = dynamic_cast<PILOT*>(param->module);
+		module->controlRootNotes[param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = rootNote;
+	}
+};
+
+struct CtrlScaleItem : ui::MenuItem {
+	int scale=0;
+	ParamQuantity* param = NULL;
+
+	void onAction(const ActionEvent& e) override {
+		PILOT *module = dynamic_cast<PILOT*>(param->module);
+		module->controlScales[param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = scale;
+	}
+};
+
+struct CtrlRootNoteMenuItem : ui::MenuItem {
+	ParamQuantity* param = NULL;
+	ui::Menu* createChildMenu() override {
+		ui::Menu* menu = new ui::Menu;
+
+		for (int i=0; i < quantizer::numNotes; i++) {
+			CtrlRootNoteItem* rItem = new CtrlRootNoteItem;
+			rItem->text = quantizer::rootNotes[i].label;
+			rItem->rootNote = quantizer::rootNotes[i].note;
+			rItem->param = param;
+			PILOT *module = dynamic_cast<PILOT*>(param->module);
+			if (module->controlRootNotes[param->paramId - PILOT::PILOT::CONTROLS_PARAMS] == quantizer::rootNotes[i].note) rItem->rightText = CHECKMARK_STRING;
+			menu->addChild(rItem);
+		}
+
+		return menu;
+	}
+};
+
+struct CtrlScaleMenuItem : ui::MenuItem {
+	ParamQuantity* param = NULL;
+	ui::Menu* createChildMenu() override {
+		ui::Menu* menu = new ui::Menu;
+
+		for (int i=0; i < quantizer::numScales; i++) {
+			CtrlScaleItem* rItem = new CtrlScaleItem;
+			rItem->text = quantizer::scales[i].label;
+			rItem->scale = i;
+			rItem->param = param;
+			PILOT *module = dynamic_cast<PILOT*>(param->module);
+			if (module->controlScales[param->paramId - PILOT::PILOT::CONTROLS_PARAMS] == i) rItem->rightText = CHECKMARK_STRING;
+			menu->addChild(rItem);
+		}
+
+		return menu;
+	}
 };
 
 struct PILOTColoredKnob : BidooLargeColoredKnob {
+
 	void setValueNoEngine(float value) {
 		float newValue = clamp(value, fminf(this->getParamQuantity()->getMinValue(), this->getParamQuantity()->getMaxValue()), fmaxf(this->getParamQuantity()->getMinValue(), this->getParamQuantity()->getMaxValue()));
 		if (this->getParamQuantity()->getValue() != newValue) {
@@ -904,11 +1019,49 @@ struct PILOTColoredKnob : BidooLargeColoredKnob {
 		}
 	};
 
-	void onDragStart(const event::DragStart &e) override {
-		RoundKnob::onDragStart(e);
-		PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
-		module->controlFocused[this->getParamQuantity()->paramId - PILOT::PILOT::CONTROLS_PARAMS] = true;
-		module->currentFocus = this->getParamQuantity()->paramId - PILOT::PILOT::CONTROLS_PARAMS;
+	void appendContextMenu(ui::Menu *menu) override {
+		CtrlRampUpMenuItem* itemUp = new CtrlRampUpMenuItem;
+		itemUp->text = "Ramp Up";
+		itemUp->param = this->getParamQuantity();
+		menu->addChild(itemUp);
+
+		CtrlRampDownMenuItem* itemDown = new CtrlRampDownMenuItem;
+		itemDown->text = "Ramp Down";
+		itemDown->param = this->getParamQuantity();
+		menu->addChild(itemDown);
+
+		CtrlSinMenuItem* itemSin = new CtrlSinMenuItem;
+		itemSin->text = "Sinus";
+		itemSin->param = this->getParamQuantity();
+		menu->addChild(itemSin);
+
+		CtrlInitMenuItem* itemInit = new CtrlInitMenuItem;
+		itemInit->text = "Init";
+		itemInit->param = this->getParamQuantity();
+		menu->addChild(itemInit);
+
+		CtrlRootNoteMenuItem* itemRootNote = new CtrlRootNoteMenuItem;
+		itemRootNote->text = "Root note";
+		itemRootNote->rightText = RIGHT_ARROW;
+		itemRootNote->param = this->getParamQuantity();
+		menu->addChild(itemRootNote);
+
+		CtrlScaleMenuItem* itemScale = new CtrlScaleMenuItem;
+		itemScale->text = "Scale";
+		itemScale->rightText = RIGHT_ARROW;
+		itemScale->param = this->getParamQuantity();
+		menu->addChild(itemScale);
+	}
+
+	void onButton(const ButtonEvent& e) override {
+		RoundKnob::onButton(e);
+
+		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT) {
+			PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
+			module->controlFocused[this->getParamQuantity()->paramId - PILOT::PILOT::CONTROLS_PARAMS] = true;
+			module->currentFocus = this->getParamQuantity()->paramId - PILOT::PILOT::CONTROLS_PARAMS;
+		}
+
 	}
 };
 
@@ -1058,8 +1211,9 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(seqXAnchor + 2*controlsXOffest+6+4, seqYAnchor+controlsYOffest+6), module, PILOT::WEOM_LIGHT));
 	addParam(createParam<BlueCKD6>(Vec(seqXAnchor + 3*controlsXOffest, seqYAnchor), module, PILOT::MOVENEXT_PARAM));
 	addInput(createInput<TinyPJ301MPort>(Vec(seqXAnchor + 4*controlsXOffest, seqYAnchor+controlsYOffest+2), module, PILOT::MOVENEXT_INPUT));
-	addParam(createParam<BidooLEDButton>(Vec(seqXAnchor + 5*controlsXOffest+4, seqYAnchor +controlsYOffest), module, PILOT::RECORD_PARAM));
-	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(seqXAnchor + 5*controlsXOffest+6+4, seqYAnchor+controlsYOffest+6), module, PILOT::RECORD_LIGHT));
+	addInput(createInput<TinyPJ301MPort>(Vec(seqXAnchor + 5*controlsXOffest, seqYAnchor+controlsYOffest+2), module, PILOT::RESET_INPUT));
+	addParam(createParam<BidooLEDButton>(Vec(seqXAnchor + 6*controlsXOffest+4, seqYAnchor +controlsYOffest), module, PILOT::RECORD_PARAM));
+	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(seqXAnchor + 6*controlsXOffest+6+4, seqYAnchor+controlsYOffest+6), module, PILOT::RECORD_LIGHT));
 
 	PILOTMoveTypeDisplay *displayMoveType = new PILOTMoveTypeDisplay();
 	displayMoveType->box.pos = Vec(seqXAnchor+13,seqYAnchor+seqDispOffset);
