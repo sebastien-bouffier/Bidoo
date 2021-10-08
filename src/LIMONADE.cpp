@@ -280,7 +280,7 @@ struct LIMONADE : Module {
 	};
 	enum InputIds {
 		PITCH_INPUT,
-		FM_INPUT = PITCH_INPUT+4,
+		FM_INPUT,
 		SYNC_INPUT,
 		SYNCMODE_INPUT,
 		WTINDEX_INPUT,
@@ -290,7 +290,7 @@ struct LIMONADE : Module {
 	};
 	enum OutputIds {
 		OUT,
-		NUM_OUTPUTS = OUT+4
+		NUM_OUTPUTS
 	};
 	enum LightIds {
 		RECWT_LIGHT,
@@ -311,22 +311,29 @@ struct LIMONADE : Module {
 	int displayMode = 0;
 	int displayEditedFrame = 1;
 	int displayPlayedFrame = 1;
-	size_t idx = 0;
+	size_t index = 0;
 
 	wtTable table;
-	wtOscillator osc[3];
+	wtOscillator<16, 16, float_4> oscillators[4];
+	wtOscillator<16, 16, float_4> oscillatorsUp[4];
+	wtOscillator<16, 16, float_4> oscillatorsDown[4];
 
 	LIMONADE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(INDEX_PARAM, 0.0f, 1.0f, 0.0f ,"Edited frame");
 		configParam(UNISSON_PARAM, 1.0f, 3.0f, 1.0f, "Voices number");
-		configParam(UNISSONRANGE_PARAM, 0.0f, .1f, 0.0f, "Voices range");
-		configParam(FREQ_PARAM, -108.0f, 54.0f, 0.0f, "Pitch");
-    configParam(FINE_PARAM, -1.0f, 1.0f, 0.0f, "Pitch fine");
-    configParam(FM_PARAM, 0.0f, 1.0f, 0.0f, "FM");
+		configParam(UNISSONRANGE_PARAM, 0.0f, .02f, 0.0f, "Voices range");
+
+		configSwitch(SYNC_PARAM, 0.f, 1.f, 1.f, "Sync mode", {"Soft", "Hard"});
+		configParam(FREQ_PARAM, -54.f, 54.f, 0.f, "Frequency", " Hz", dsp::FREQ_SEMITONE, dsp::FREQ_C4);
+		configParam(FINE_PARAM, -1.f, 1.f, 0.f, "Fine frequency");
+		configParam(FM_PARAM, 0.f, 1.f, 0.f, "Frequency modulation", "%", 0.f, 100.f);
+		configInput(PITCH_INPUT, "1V/oct pitch");
+		configInput(FM_INPUT, "Frequency modulation");
+		configInput(SYNC_INPUT, "Sync");
+
     configParam(WTINDEX_PARAM, 0.0f, 1.0f, 0.0f, "Played frame");
     configParam(WTINDEXATT_PARAM, -1.0f, 1.0f, 1.0f, "Played frame attenuation");
-    configParam(SYNC_PARAM, 0.0f, 1.0f, 1.0f, "Sync Hard/Soft");
     configParam(RECWT_PARAM, 0.0f, 10.0f, 0.0f, "Rec. wavetable");
     configParam(RECFRAME_PARAM, 0.0f, 10.0f, 0.0f, "Rec. frame");
 		configParam(DISPLAYMODE_PARAM, 0.0f, 1.0f, 0.0f, "3D Wavetable display");
@@ -350,8 +357,10 @@ struct LIMONADE : Module {
 		configParam(ADDFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Add frame");
 		configParam(REMOVEFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Remove frame");
 
-		for(size_t i=0; i<3; i++) {
-			osc[i].table = &table;
+		for(size_t i=0; i<4; i++) {
+			oscillators[i].table = &table;
+			oscillatorsUp[i].table = &table;
+			oscillatorsDown[i].table = &table;
 		}
 		iRec=(float*)calloc(4*NF*FS,sizeof(float));
 	}
@@ -513,8 +522,6 @@ void LIMONADE::loadSample() {
 	if (path) {
 		lastPath=path;
 		tLoadSample(table, path, frameSize, true);
-		// thread t = thread(tLoadSample, std::ref(table), path, frameSize, true);
-		// t.detach();
 		free(path);
 		morphType = -1;
 	}
@@ -673,35 +680,102 @@ void LIMONADE::process(const ProcessArgs &args) {
 		}
 	}
 
-	float pitchCv = 12.0f * inputs[PITCH_INPUT].getVoltage();
-	float pitchFine = 3.0f * dsp::quadraticBipolar(params[FINE_PARAM].getValue());
-	if (inputs[FM_INPUT].active) {
-		pitchCv += dsp::quadraticBipolar(params[FM_PARAM].getValue()) * 12.0f * inputs[FM_INPUT].getVoltage();
-	}
-	idx = clamp(params[WTINDEX_PARAM].getValue() + inputs[WTINDEX_INPUT].getVoltage() * 0.1f * params[WTINDEXATT_PARAM].getValue(),0.0f,1.0f)*(float)(table.nFrames - 1);
-	outputs[OUT].setVoltage(0.f);
+	float freqParam = params[FREQ_PARAM].getValue() / 12.f;
+	freqParam += dsp::quadraticBipolar(params[FINE_PARAM].getValue()) * 3.f / 12.f;
+	float fmParam = dsp::quadraticBipolar(params[FM_PARAM].getValue());
 
-	float ur = clamp(params[UNISSONRANGE_PARAM].getValue() + inputs[UNISSONRANGE_INPUT].getVoltage() / 10.0f,0.0f,0.1f);
-	for (size_t i=0; i<(size_t)params[UNISSON_PARAM].getValue(); i++) {
-		float pFC = pitchFine;
-		if (params[UNISSON_PARAM].getValue() > 2) {
-			if (i==1) {	pFC += ur;} else if (i==2) { pFC -= ur;}
+	int channels = std::max(inputs[PITCH_INPUT].getChannels(), 1);
+	index = clamp(params[WTINDEX_PARAM].getValue() + inputs[WTINDEX_INPUT].getVoltage() * 0.1f * params[WTINDEXATT_PARAM].getValue(),0.0f,1.0f)*(float)(table.nFrames - 1);
+	float ur = clamp(params[UNISSONRANGE_PARAM].getValue() + rescale(inputs[UNISSONRANGE_INPUT].getVoltage(),0.0f,10.0f,0.0f,0.02f),0.0f,0.02f);
+
+	for (int c = 0; c < channels; c += 4) {
+		if ((size_t)params[UNISSON_PARAM].getValue()==1) {
+			auto* oscillator = &oscillators[c / 4];
+			oscillator->channels = std::min(channels - c, 4);
+			oscillator->soft = params[SYNC_PARAM].getValue() <= 0.f;
+			float_4 pitch = freqParam;
+			pitch += inputs[PITCH_INPUT].getVoltageSimd<float_4>(c);
+			if (inputs[FM_INPUT].isConnected()) {
+				pitch += fmParam * inputs[FM_INPUT].getPolyVoltageSimd<float_4>(c);
+			}
+			oscillator->setPitch(pitch);
+			oscillator->syncEnabled = inputs[SYNC_INPUT].isConnected();
+			oscillator->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c),index);
+
+			if (outputs[OUT].isConnected())
+				outputs[OUT].setVoltageSimd(5.f * oscillator->out(), c);
 		}
-		else if (params[UNISSON_PARAM].getValue() > 1) {
-			i==0 ? pFC+=ur : pFC-=ur;
+		else if ((size_t)params[UNISSON_PARAM].getValue()==2) {
+			auto* oscillator = &oscillators[c / 4];
+			oscillator->channels = std::min(channels - c, 4);
+			oscillator->soft = params[SYNC_PARAM].getValue() <= 0.f;
+			float_4 pitch = freqParam-ur;
+			pitch += inputs[PITCH_INPUT].getVoltageSimd<float_4>(c);
+			if (inputs[FM_INPUT].isConnected()) {
+				pitch += fmParam * inputs[FM_INPUT].getPolyVoltageSimd<float_4>(c);
+			}
+			oscillator->setPitch(pitch);
+			oscillator->syncEnabled = inputs[SYNC_INPUT].isConnected();
+			oscillator->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c),index);
+
+			auto* oscillatorUp = &oscillatorsUp[c / 4];
+			oscillatorUp->channels = std::min(channels - c, 4);
+			oscillatorUp->soft = params[SYNC_PARAM].getValue() <= 0.f;
+			float_4 pitchUp = freqParam+ur;
+			pitchUp += inputs[PITCH_INPUT].getVoltageSimd<float_4>(c);
+			if (inputs[FM_INPUT].isConnected()) {
+				pitchUp += fmParam * inputs[FM_INPUT].getPolyVoltageSimd<float_4>(c);
+			}
+			oscillatorUp->setPitch(pitchUp);
+			oscillatorUp->syncEnabled = inputs[SYNC_INPUT].isConnected();
+			oscillatorUp->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c),index);
+
+			if (outputs[OUT].isConnected())
+				outputs[OUT].setVoltageSimd(2.5f * (oscillator->out() + oscillatorUp->out()), c);
 		}
-		osc[i].soft = (params[SYNC_PARAM].getValue() + inputs[SYNCMODE_INPUT].getVoltage()) <= 0.0f;
-		osc[i].setPitch(params[FREQ_PARAM].getValue(), pFC + pitchCv);
-		osc[i].syncEnabled = inputs[SYNC_INPUT].isConnected();
-		osc[i].prepare(args.sampleTime, inputs[SYNC_INPUT].getVoltage());
+		else {
+			auto* oscillator = &oscillators[c / 4];
+			oscillator->channels = std::min(channels - c, 4);
+			oscillator->soft = params[SYNC_PARAM].getValue() <= 0.f;
+			float_4 pitch = freqParam;
+			pitch += inputs[PITCH_INPUT].getVoltageSimd<float_4>(c);
+			if (inputs[FM_INPUT].isConnected()) {
+				pitch += fmParam * inputs[FM_INPUT].getPolyVoltageSimd<float_4>(c);
+			}
+			oscillator->setPitch(pitch);
+			oscillator->syncEnabled = inputs[SYNC_INPUT].isConnected();
+			oscillator->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c),index);
+
+			auto* oscillatorUp = &oscillatorsUp[c / 4];
+			oscillatorUp->channels = std::min(channels - c, 4);
+			oscillatorUp->soft = params[SYNC_PARAM].getValue() <= 0.f;
+			float_4 pitchUp = freqParam+ur;
+			pitchUp += inputs[PITCH_INPUT].getVoltageSimd<float_4>(c);
+			if (inputs[FM_INPUT].isConnected()) {
+				pitchUp += fmParam * inputs[FM_INPUT].getPolyVoltageSimd<float_4>(c);
+			}
+			oscillatorUp->setPitch(pitchUp);
+			oscillatorUp->syncEnabled = inputs[SYNC_INPUT].isConnected();
+			oscillatorUp->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c),index);
+
+			auto* oscillatorDown = &oscillatorsDown[c / 4];
+			oscillatorDown->channels = std::min(channels - c, 4);
+			oscillatorDown->soft = params[SYNC_PARAM].getValue() <= 0.f;
+			float_4 pitchDown = freqParam-ur;
+			pitchDown += inputs[PITCH_INPUT].getVoltageSimd<float_4>(c);
+			if (inputs[FM_INPUT].isConnected()) {
+				pitchDown += fmParam * inputs[FM_INPUT].getPolyVoltageSimd<float_4>(c);
+			}
+			oscillatorDown->setPitch(pitchDown);
+			oscillatorDown->syncEnabled = inputs[SYNC_INPUT].isConnected();
+			oscillatorDown->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c),index);
+
+			if (outputs[OUT].isConnected())
+				outputs[OUT].setVoltageSimd(1.6666666f * (oscillator->out() + oscillatorUp->out() + oscillatorDown->out()), c);
+		}
 	}
 
-	for(size_t i=0; i<(size_t)params[UNISSON_PARAM].getValue(); i++) {
-		osc[i].updateBuffer(idx);
-		outputs[OUT].setVoltage(outputs[OUT].getVoltage() + osc[i].out());
-	}
-
-	outputs[OUT].setVoltage(outputs[OUT].getVoltage() * 3.0 / sqrt(params[UNISSON_PARAM].getValue()));
+	outputs[OUT].setChannels(channels);
 }
 
 struct LIMONADEBinsDisplay : OpaqueWidget {
@@ -788,7 +862,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
   			frame.magnitude = module->table.frames[(size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1))].magnitude;
   			frame.phase = module->table.frames[(size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1))].phase;
 				frame.sample = module->table.frames[(size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1))].sample;
-				playedFrame.sample = module->table.frames[module->idx].sample;
+				playedFrame.sample = module->table.frames[module->index].sample;
   		}
 
   		nvgSave(args.vg);
@@ -895,7 +969,8 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 				nvgStroke(args.vg);
 				nvgRestore(args.vg);
 			}
-    }
+		}
+
 	}
 };
 
@@ -1229,7 +1304,7 @@ struct LIMONADEWidget : ModuleWidget {
 
   	addParam(createParam<BidooGreenKnob>(Vec(230.0f, 208.0f), module, LIMONADE::INDEX_PARAM));
 
-  	addParam(createParam<BidooBlueKnob>(Vec(274.0f, 219.0f), module, LIMONADE::UNISSON_PARAM));
+  	addParam(createParam<BidooBlueSnapKnob>(Vec(274.0f, 219.0f), module, LIMONADE::UNISSON_PARAM));
   	addParam(createParam<BidooBlueTrimpot>(Vec(279.0f, 262.0f), module, LIMONADE::UNISSONRANGE_PARAM));
   	addParam(createParam<BidooBlueKnob>(Vec(309, 219), module, LIMONADE::FREQ_PARAM));
   	addParam(createParam<BidooBlueKnob>(Vec(344, 219), module, LIMONADE::FINE_PARAM));

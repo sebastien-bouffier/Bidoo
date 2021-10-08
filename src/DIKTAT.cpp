@@ -41,19 +41,7 @@ struct DIKTAT : Module {
 	bool globalMode = true;
 	int rootNote[16] = {0};
 	int scale[16] = {0};
-	int index1[16] = {0};
-	int index2[16] = {0};
-	int index3[16] = {0};
-	int index4[16] = {0};
-	int offset2[16] = {0};
-	int offset3[16] = {0};
-	int offset4[16] = {0};
 	float inputNote[16] = {0.0f};
-	float note1[16] = {0.0f};
-	float note2[16] = {0.0f};
-	float note3[16] = {0.0f};
-	float note4[16] = {0.0f};
-	int octaveInVolts[16] = {0};
 
 	DIKTAT() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -144,22 +132,20 @@ void DIKTAT::process(const ProcessArgs &args) {
 		int lScale = 0;
 
 		if (inputs[ROOT_NOTE_INPUT].isConnected()) {
-			lRootNote = rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,quantizer::numNotes-1);
+			lRootNote = rescale(clamp(rootNote[globalMode ? 0 : i] + inputs[ROOT_NOTE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,quantizer::numNotes-1);
 		}
 		else {
-			lRootNote = rootNote[i];
+			lRootNote = rootNote[globalMode ? 0 : i];
 		}
 
 		if (inputs[SCALE_INPUT].isConnected()) {
-			scale[i] = rescale(clamp(inputs[SCALE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,quantizer::numScales-1);
+			scale[i] = rescale(clamp(scale[globalMode ? 0 : i] + inputs[SCALE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,quantizer::numScales-1);
 		}
 		else {
-			lScale = scale[i];
+			lScale = scale[globalMode ? 0 : i];
 		}
 
 		inputNote[i] = inputs[NOTE_INPUT].getVoltage(i);
-
-		octaveInVolts[i] = clamp(octaveInVolts[i]-1,-4,6);
 
 		quantizer::Chord chord = quantizer::closestChordInScale(inputNote[i], lRootNote, lScale);
 

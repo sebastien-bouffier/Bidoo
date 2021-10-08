@@ -16,6 +16,8 @@
 
 using namespace std;
 
+using simd::float_4;
+
 struct wtFrame {
   vector<float> sample;
   vector<float> magnitude;
@@ -340,12 +342,12 @@ void wtTable::morphFrames() {
 
     for (size_t i=0; i<fs-1; i++) {
       for (size_t j=1; j<fCount+1; j++) {
-        size_t idx = i*(fCount+1) + j;
+        size_t index = i*(fCount+1) + j;
         for(size_t k=0; k<FS; k++) {
-          frames[idx].sample[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].sample[k],frames[(i+1)*(fCount+1)].sample[k]);
+          frames[index].sample[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].sample[k],frames[(i+1)*(fCount+1)].sample[k]);
         }
-        frames[idx].morphed=true;
-        frames[idx].used=true;
+        frames[index].morphed=true;
+        frames[index].used=true;
         nFrames++;
       }
     }
@@ -371,14 +373,14 @@ void wtTable::morphSpectrum() {
 
     for (size_t i=0; i<fs-1; i++) {
       for (size_t j=1; j<fCount+1; j++) {
-        size_t idx = i*(fCount+1) + j;
+        size_t index = i*(fCount+1) + j;
         for(size_t k=0; k<FS2; k++) {
-          frames[idx].magnitude[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[(i+1)*(fCount+1)].magnitude[k]);
-          frames[idx].phase[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[(i+1)*(fCount+1)].phase[k]);
+          frames[index].magnitude[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[(i+1)*(fCount+1)].magnitude[k]);
+          frames[index].phase[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[(i+1)*(fCount+1)].phase[k]);
         }
-        frames[idx].calcIFFT();
-        frames[idx].morphed=true;
-        frames[idx].used=true;
+        frames[index].calcIFFT();
+        frames[index].morphed=true;
+        frames[index].used=true;
         nFrames++;
       }
     }
@@ -408,14 +410,14 @@ void wtTable::morphSpectrumConstantPhase() {
 
     for (size_t i=0; i<fs-1; i++) {
       for (size_t j=1; j<fCount+1; j++) {
-        size_t idx = i*(fCount+1) + j;
+        size_t index = i*(fCount+1) + j;
         for(size_t k=0; k<FS2; k++) {
-          frames[idx].magnitude[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[(i+1)*(fCount+1)].magnitude[k]);
-          frames[idx].phase[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[(i+1)*(fCount+1)].phase[k]);
+          frames[index].magnitude[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[(i+1)*(fCount+1)].magnitude[k]);
+          frames[index].phase[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[(i+1)*(fCount+1)].phase[k]);
         }
-        frames[idx].calcIFFT();
-        frames[idx].morphed=true;
-        frames[idx].used=true;
+        frames[index].calcIFFT();
+        frames[index].morphed=true;
+        frames[index].used=true;
         nFrames++;
       }
     }
@@ -452,83 +454,127 @@ void wtTable::deleteMorphing() {
   nFrames-=cm;
 }
 
+template <int OVERSAMPLE, int QUALITY, typename T>
 struct wtOscillator {
   wtTable *table;
-
-  wtOscillator() {
-  }
-
 	bool soft = false;
-	float lastSyncValue = 0.0f;
-	float phase = 0.0f;
-	float freq;
-	float pitch;
 	bool syncEnabled = false;
-	bool syncDirection = false;
-	dsp::Decimator<16, 16> wavDecimator;
-	float pitchSlew = 0.0f;
-	int pitchSlewIndex = 0;
-	size_t pIndex=0;
-	float wavBuffer[16] = {};
-  float deltaPhase = 0.0f;
-  int syncIndex = -1;
+	int channels = 0;
+  T maxMorph = 2.e-2f;
+  T minMorph = 0.f;
+  T morph;
+  int playedIndex = 0;
+  int targetIndex = 0;
 
-	void setPitch(float pitchKnob, float pitchCv) {
-		pitch = pitchKnob;
-		pitch = roundf(pitch);
-		pitch += pitchCv;
-		freq = 261.626f * powf(2.0f, pitch / 12.0f);
+	T lastSyncValue = 0.f;
+  T lastOutValue = 0.f;
+	T phase = 0.f;
+	T freq;
+	T syncDirection = 1.f;
+
+	dsp::MinBlepGenerator<QUALITY, OVERSAMPLE, T> minBLEP;
+
+	T outValue = 0.f;
+
+	void setPitch(T pitch) {
+		freq = dsp::FREQ_C4 * dsp::approxExp2_taylor5(pitch + 30) / 1073741824;
 	}
 
-	void prepare(float deltaTime, float syncValue) {
-		 deltaPhase = clamp(freq * deltaTime, 1e-6, 0.5f);
-
-		syncIndex = -1; // Index in the oversample loop where sync occurs [0, OVERSAMPLE)
-		float syncCrossing = 0.0f; // Offset that sync occurs [0.0f, 1.0f)
-		if (syncEnabled) {
-			syncValue -= 0.01f;
-			if (syncValue > 0.0f && lastSyncValue <= 0.0f) {
-				float deltaSync = syncValue - lastSyncValue;
-				syncCrossing = 1.0f - syncValue / deltaSync;
-				syncCrossing *= 16;
-				syncIndex = (int)syncCrossing;
-				syncCrossing -= syncIndex;
-			}
-			lastSyncValue = syncValue;
+	void process(float deltaTime, T syncValue, size_t index) {
+		T deltaPhase = simd::clamp(freq * deltaTime, 1e-6f, 0.35f);
+		if (soft) {
+			deltaPhase *= syncDirection;
 		}
+		else {
+			syncDirection = 1.f;
+		}
+		phase += deltaPhase;
+		phase -= simd::floor(phase);
 
-		if (syncDirection)
-			deltaPhase *= -1.0f;
-	}
 
-  void updateBuffer(size_t idx) {
-    for (int i = 0; i < 16; i++) {
-			if (syncIndex == i) {
+		if (syncEnabled) {
+			T deltaSync = syncValue - lastSyncValue;
+			T syncCrossing = -lastSyncValue / deltaSync;
+			lastSyncValue = syncValue;
+			T sync = (0.f < syncCrossing) & (syncCrossing <= 1.f) & (syncValue >= 0.f);
+			int syncMask = simd::movemask(sync);
+			if (syncMask) {
 				if (soft) {
-					syncDirection = !syncDirection;
-					deltaPhase *= -1.0f;
+					syncDirection = simd::ifelse(sync, -syncDirection, syncDirection);
 				}
 				else {
-					phase = 0.0f;
+					T newPhase = simd::ifelse(sync, (1.f - syncCrossing) * deltaPhase, phase);
+					for (int i = 0; i < channels; i++) {
+						if (syncMask & (1 << i)) {
+							T mask = simd::movemaskInverse<T>(1 << i);
+							float p = syncCrossing[i] - 1.f;
+							T x;
+							x = mask & (out(deltaTime, newPhase, index) - out(deltaTime, phase, index));
+							minBLEP.insertDiscontinuity(p, x);
+						}
+					}
+					phase = newPhase;
 				}
 			}
-
-      if (pIndex != idx) {
-        wavBuffer[i] = idx<table->frames.size()? 1.66f * interpolateLinear(table->frames[idx].sample.data(), phase * 2047.f) : 0.0f;
-        float p = pIndex<table->frames.size()? 1.66f * interpolateLinear(table->frames[pIndex].sample.data(), phase * 2047.f) : 0.0f;
-        wavBuffer[i]=rescale(i,0,15,p,wavBuffer[i]);
-      }
-      else {
-        wavBuffer[i] = idx<table->frames.size()? 1.66f * interpolateLinear(table->frames[idx].sample.data(), phase * 2047.f) : 0.0f;
-      }
-
-			phase += deltaPhase / 16;
-			phase = math::eucMod(phase, 1.0f);
 		}
-    pIndex = idx;
+
+		outValue = out(deltaTime, phase, index);
+
+    T deltaOut = outValue - lastOutValue;
+    T outCrossing = -lastOutValue / deltaOut;
+    lastOutValue = outValue;
+    int outMask =  simd::movemask((0.f < outCrossing) & (outCrossing <= 1.f) & (outValue >= 0.f));
+    if (outMask) {
+      for (int i = 0; i < channels; i++) {
+        if (outMask & (1 << i)) {
+          T mask = simd::movemaskInverse<T>(1 << i);
+          float p = outCrossing[i] - 1.f;
+          T x;
+          x = mask & (out(deltaTime, phase+deltaPhase-simd::floor(phase+deltaPhase), index) - out(deltaTime, phase, index));
+          minBLEP.insertDiscontinuity(p, x);
+        }
+      }
+    }
+
+		outValue += minBLEP.process();
+    outValue = clamp(outValue,-10.0f,10.0f);
+	}
+
+  T interpolate(const float* p, T x) {
+  	T xi = floor(x);
+  	T xf = x - xi;
+    T pI = {p[(int)xi[0]],p[(int)xi[1]],p[(int)xi[2]],p[(int)xi[3]]};
+    T pII = {p[(int)xi[0]+1],p[(int)xi[1]+1],p[(int)xi[2]+1],p[(int)xi[3]+1]};
+  	return crossfade(pI, pII, xf);
   }
 
-	float out() {
-		return wavDecimator.process(wavBuffer);
+	T out(float deltaTime, T phase, size_t index) {
+		T v;
+    if (playedIndex != index) {
+      morph = maxMorph;
+      targetIndex = index;
+    }
+
+    morph-={deltaTime,deltaTime,deltaTime,deltaTime};
+
+    if (morph[0]<=0) {
+      playedIndex=targetIndex;
+    }
+
+    if (playedIndex==targetIndex) {
+      v = interpolate(table->frames[playedIndex].sample.data(), phase * 2047.f);
+    }
+    else {
+      T pVal = interpolate(table->frames[playedIndex].sample.data(), phase * 2047.f);
+      T tVal = interpolate(table->frames[targetIndex].sample.data(), phase * 2047.f);
+      v = rescale(morph,minMorph,maxMorph,pVal,tVal);
+    }
+
+		return v;
 	}
+
+	T out() {
+		return outValue;
+	}
+
 };
