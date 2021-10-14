@@ -5,6 +5,7 @@
 #include <vector>
 #include <random>
 #include <algorithm>
+#include "dep/quantizer.hpp"
 
 using namespace std;
 
@@ -290,63 +291,6 @@ struct BORDL : Module {
 		NUM_LIGHTS
 	};
 
-	//copied from http://www.grantmuller.com/MidiReference/doc/midiReference/ScaleReference.html
-	int SCALE_AEOLIAN        [7] = {0, 2, 3, 5, 7, 8, 10};
-	int SCALE_BLUES          [9] = {0, 2, 3, 4, 5, 7, 9, 10, 11};
-	int SCALE_CHROMATIC      [12]= {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-	int SCALE_DIATONIC_MINOR [7] = {0, 2, 3, 5, 7, 8, 10};
-	int SCALE_DORIAN         [7] = {0, 2, 3, 5, 7, 9, 10};
-	int SCALE_HARMONIC_MINOR [7] = {0, 2, 3, 5, 7, 8, 11};
-	int SCALE_INDIAN         [7] = {0, 1, 1, 4, 5, 8, 10};
-	int SCALE_LOCRIAN        [7] = {0, 1, 3, 5, 6, 8, 10};
-	int SCALE_LYDIAN         [7] = {0, 2, 4, 6, 7, 9, 11};
-	int SCALE_MAJOR          [7] = {0, 2, 4, 5, 7, 9, 11};
-	int SCALE_MELODIC_MINOR  [9] = {0, 2, 3, 5, 7, 8, 9, 10, 11};
-	int SCALE_MINOR          [7] = {0, 2, 3, 5, 7, 8, 10};
-	int SCALE_MIXOLYDIAN     [7] = {0, 2, 4, 5, 7, 9, 10};
-	int SCALE_NATURAL_MINOR  [7] = {0, 2, 3, 5, 7, 8, 10};
-	int SCALE_PENTATONIC     [5] = {0, 2, 4, 7, 9};
-	int SCALE_PHRYGIAN       [7] = {0, 1, 3, 5, 7, 8, 10};
-	int SCALE_TURKISH        [7] = {0, 1, 3, 5, 7, 10, 11};
-
-	enum Notes {
-		NOTE_C,
-		NOTE_C_SHARP,
-		NOTE_D,
-		NOTE_D_SHARP,
-		NOTE_E,
-		NOTE_F,
-		NOTE_F_SHARP,
-		NOTE_G,
-		NOTE_G_SHARP,
-		NOTE_A,
-		NOTE_A_SHARP,
-		NOTE_B,
-		NUM_NOTES
-	};
-
-	enum Scales {
-		AEOLIAN,
-		BLUES,
-		CHROMATIC,
-		DIATONIC_MINOR,
-		DORIAN,
-		HARMONIC_MINOR,
-		INDIAN,
-		LOCRIAN,
-		LYDIAN,
-		MAJOR,
-		MELODIC_MINOR,
-		MINOR,
-		MIXOLYDIAN,
-		NATURAL_MINOR,
-		PENTATONIC,
-		PHRYGIAN,
-		TURKISH,
-		NONE,
-		NUM_SCALES
-	};
-
 	bool running = true;
 	dsp::SchmittTrigger clockTrigger;
 	dsp::SchmittTrigger runningTrigger;
@@ -400,8 +344,8 @@ struct BORDL : Module {
 		configParam(RUN_PARAM, 0.0f, 1.0f, 0.0f, "Run");
 		configParam(RESET_PARAM, 0.0f, 1.0f, 0.0f, "Reset");
 		configParam(STEPS_PARAM, 1.0f, 16.0f, 8.0f, "Nb steps","",0,1,0);
-		configParam(ROOT_NOTE_PARAM, 0.0f, BORDL::NUM_NOTES-1.0f, 0.0f,"Root note");
-		configParam(SCALE_PARAM, 0.0f, BORDL::NUM_SCALES-1.0f, 0.0f, "Scale");
+		configParam(ROOT_NOTE_PARAM, -1.0f, quantizer::numNotes-2, 0.0f,"Root note");
+		configParam(SCALE_PARAM, 0.0f, quantizer::numScales-1, 0.0f, "Scale");
 		configParam(GATE_TIME_PARAM, 0.1f, 1.0f, 0.5f,"Gate length","%",0,100,0);
 		configParam(SLIDE_TIME_PARAM	, 0.1f, 1.0f, 0.2f,"Slide length","%",0,100,0);
 		configParam(PLAY_MODE_PARAM, 0.0f, 4.0f, 0.0f,"Play mode");
@@ -643,51 +587,6 @@ struct BORDL : Module {
 			skipState[i] = 'f';
 		}
 	}
-
-	float closestVoltageInScale(float voltsIn, int rootNote, float scaleVal){
-		curScaleVal = scaleVal;
-		int *curScaleArr;
-		int notesInScale = 0;
-		switch(curScaleVal){
-			case AEOLIAN:        curScaleArr = SCALE_AEOLIAN;       notesInScale=LENGTHOF(SCALE_AEOLIAN); break;
-			case BLUES:          curScaleArr = SCALE_BLUES;         notesInScale=LENGTHOF(SCALE_BLUES); break;
-			case CHROMATIC:      curScaleArr = SCALE_CHROMATIC;     notesInScale=LENGTHOF(SCALE_CHROMATIC); break;
-			case DIATONIC_MINOR: curScaleArr = SCALE_DIATONIC_MINOR;notesInScale=LENGTHOF(SCALE_DIATONIC_MINOR); break;
-			case DORIAN:         curScaleArr = SCALE_DORIAN;        notesInScale=LENGTHOF(SCALE_DORIAN); break;
-			case HARMONIC_MINOR: curScaleArr = SCALE_HARMONIC_MINOR;notesInScale=LENGTHOF(SCALE_HARMONIC_MINOR); break;
-			case INDIAN:         curScaleArr = SCALE_INDIAN;        notesInScale=LENGTHOF(SCALE_INDIAN); break;
-			case LOCRIAN:        curScaleArr = SCALE_LOCRIAN;       notesInScale=LENGTHOF(SCALE_LOCRIAN); break;
-			case LYDIAN:         curScaleArr = SCALE_LYDIAN;        notesInScale=LENGTHOF(SCALE_LYDIAN); break;
-			case MAJOR:          curScaleArr = SCALE_MAJOR;         notesInScale=LENGTHOF(SCALE_MAJOR); break;
-			case MELODIC_MINOR:  curScaleArr = SCALE_MELODIC_MINOR; notesInScale=LENGTHOF(SCALE_MELODIC_MINOR); break;
-			case MINOR:          curScaleArr = SCALE_MINOR;         notesInScale=LENGTHOF(SCALE_MINOR); break;
-			case MIXOLYDIAN:     curScaleArr = SCALE_MIXOLYDIAN;    notesInScale=LENGTHOF(SCALE_MIXOLYDIAN); break;
-			case NATURAL_MINOR:  curScaleArr = SCALE_NATURAL_MINOR; notesInScale=LENGTHOF(SCALE_NATURAL_MINOR); break;
-			case PENTATONIC:     curScaleArr = SCALE_PENTATONIC;    notesInScale=LENGTHOF(SCALE_PENTATONIC); break;
-			case PHRYGIAN:       curScaleArr = SCALE_PHRYGIAN;      notesInScale=LENGTHOF(SCALE_PHRYGIAN); break;
-			case TURKISH:        curScaleArr = SCALE_TURKISH;       notesInScale=LENGTHOF(SCALE_TURKISH); break;
-			case NONE:           return voltsIn;
-		}
-		float closestVal = 0.0f;
-		float closestDist = 1.0f;
-		int octaveInVolts = 0;
-		if ((voltsIn >= 0.0f) || (voltsIn == (int)voltsIn)) {
-			octaveInVolts = int(voltsIn);
-		}
-		else {
-			octaveInVolts = int(voltsIn)-1;
-		}
-		for (int i = 0; i < notesInScale; i++) {
-			float scaleNoteInVolts = octaveInVolts + curScaleArr[i] / 12.0f;
-			float distAway = fabs(voltsIn - scaleNoteInVolts);
-			if(distAway < closestDist) {
-				closestVal = scaleNoteInVolts;
-				closestDist = distAway;
-			}
-		}
-		float transposeVoltage = inputs[TRANSPOSE_INPUT].isConnected() ? ((((int)rescale(clamp(inputs[TRANSPOSE_INPUT].getVoltage(),-10.0f,10.0f),-10.0f,10.0f,-48.0f,48.0f)) / 12.0f)) : 0.0f;
-		return clamp(closestVal + (rootNote / 12.0f) + transposeVoltage,-4.0f,6.0f);
-	}
 };
 
 void BORDL::UpdatePattern() {
@@ -925,7 +824,8 @@ void BORDL::process(const ProcessArgs &args) {
 	// Steps && Pulses Management
 	if (nextStep) {
 		// Advance step
-		candidateForPreviousPitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity + (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f),
+		candidateForPreviousPitch = quantizer::closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity
+			+ (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + inputs[TRANSPOSE_INPUT].getVoltage(),
 			clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f,11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
 
 		prevIndex = index;
@@ -989,7 +889,8 @@ void BORDL::process(const ProcessArgs &args) {
 		}
 	}
 	//pitch management
-	pitch = closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity + (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f),
+	pitch = quantizer::closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity
+		+ (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + inputs[TRANSPOSE_INPUT].getVoltage(),
 		clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
@@ -1039,45 +940,11 @@ struct BORDLDisplay : TransparentWidget {
 	}
 
 	std::string displayRootNote(int value) {
-		switch(value){
-			case BORDL::NOTE_C:       return "C";
-			case BORDL::NOTE_C_SHARP: return "C#";
-			case BORDL::NOTE_D:       return "D";
-			case BORDL::NOTE_D_SHARP: return "D#";
-			case BORDL::NOTE_E:       return "E";
-			case BORDL::NOTE_F:       return "F";
-			case BORDL::NOTE_F_SHARP: return "F#";
-			case BORDL::NOTE_G:       return "G";
-			case BORDL::NOTE_G_SHARP: return "G#";
-			case BORDL::NOTE_A:       return "A";
-			case BORDL::NOTE_A_SHARP: return "A#";
-			case BORDL::NOTE_B:       return "B";
-			default: return "";
-		}
+		return quantizer::rootNotes[value+1].label.c_str();
 	}
 
 	std::string displayScale(int value) {
-		switch(value){
-			case BORDL::AEOLIAN:        return "Aeolian";
-			case BORDL::BLUES:          return "Blues";
-			case BORDL::CHROMATIC:      return "Chromatic";
-			case BORDL::DIATONIC_MINOR: return "Diatonic Minor";
-			case BORDL::DORIAN:         return "Dorian";
-			case BORDL::HARMONIC_MINOR: return "Harmonic Minor";
-			case BORDL::INDIAN:         return "Indian";
-			case BORDL::LOCRIAN:        return "Locrian";
-			case BORDL::LYDIAN:         return "Lydian";
-			case BORDL::MAJOR:          return "Major";
-			case BORDL::MELODIC_MINOR:  return "Melodic Minor";
-			case BORDL::MINOR:          return "Minor";
-			case BORDL::MIXOLYDIAN:     return "Mixolydian";
-			case BORDL::NATURAL_MINOR:  return "Natural Minor";
-			case BORDL::PENTATONIC:     return "Pentatonic";
-			case BORDL::PHRYGIAN:       return "Phrygian";
-			case BORDL::TURKISH:        return "Turkish";
-			case BORDL::NONE:           return "None";
-			default: return "";
-		}
+		return quantizer::scales[value].label.c_str();
 	}
 
 	std::string displayPlayMode(int value) {
@@ -1242,7 +1109,8 @@ struct BORDLPitchDisplay : TransparentWidget {
 			nvgFillColor(args.vg, YELLOW_BIDOO);
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 			nvgFontSize(args.vg, 16.0f);
-			nvgText(args.vg, pos.x, pos.y-9.0f, displayNote(module->closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].getValue() * clamp(module->patterns[module->playedPattern].sensitivity + (module->inputs[BORDL::SENSITIVITY_INPUT].isConnected() ? rescale(module->inputs[BORDL::SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) ,
+			nvgText(args.vg, pos.x, pos.y-9.0f, quantizer::noteName(quantizer::closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].getValue() * clamp(module->patterns[module->playedPattern].sensitivity 
+				+ (module->inputs[BORDL::SENSITIVITY_INPUT].isConnected() ? rescale(module->inputs[BORDL::SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + module->inputs[BORDL::TRANSPOSE_INPUT].getVoltage(),
 				clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f),
 				module->patterns[module->selectedPattern].scale)).c_str(), NULL);
 		}

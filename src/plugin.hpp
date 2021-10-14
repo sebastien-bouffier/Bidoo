@@ -2,10 +2,6 @@
 
 using namespace rack;
 
-const int ACNE_NB_TRACKS = 16;
-const int ACNE_NB_OUTS = 8;
-const int ACNE_NB_SNAPSHOTS = 16;
-
 const NVGcolor BLUE_BIDOO = nvgRGBA(42, 87, 117, 255);
 const NVGcolor LIGHTBLUE_BIDOO = nvgRGBA(45, 114, 143, 255);
 const NVGcolor RED_BIDOO = nvgRGBA(205, 31, 0, 255);
@@ -34,9 +30,9 @@ extern Model *modelEMILE;
 extern Model *modelFORK;
 extern Model *modelGARCON;
 extern Model *modelTIARE;
-extern Model *modelCLACOS;
+//extern Model *modelCLACOS;
 extern Model *modelANTN;
-extern Model *modelPENEQUE;
+//extern Model *modelPENEQUE;
 extern Model *modelLIMONADE;
 extern Model *modelLIMBO;
 extern Model *modelPERCO;

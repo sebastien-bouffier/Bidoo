@@ -1,6 +1,5 @@
 #include "plugin.hpp"
 
-
 Plugin *pluginInstance;
 
 void init(rack::Plugin *p) {
@@ -29,9 +28,9 @@ void init(rack::Plugin *p) {
 	p->addModel(modelEMILE);
 	p->addModel(modelFORK);
 	p->addModel(modelTIARE);
-	p->addModel(modelCLACOS);
+	//p->addModel(modelCLACOS);
 	p->addModel(modelANTN);
-	p->addModel(modelPENEQUE);
+	//p->addModel(modelPENEQUE);
 	p->addModel(modelLIMONADE);
 	p->addModel(modelLIMBO);
 	p->addModel(modelPERCO);

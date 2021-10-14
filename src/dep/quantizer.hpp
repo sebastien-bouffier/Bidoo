@@ -13,7 +13,7 @@ namespace quantizer {
   static constexpr int numNotes = 13;
 
   static const RootNote rootNotes[numNotes] = {
-  	{-1,  "None"},
+  	{-1, "No"},
   	{0,  "C"},
   	{1,  "C#"},
   	{2,  "D"},
@@ -38,7 +38,7 @@ namespace quantizer {
   static constexpr int numScales = 27;
 
   static const Scale scales[numScales] = {
-  	{0,  "None", 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
+  	{0,  "No", 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
   	{1,  "Ionian", 7, {0, 2, 4, 5, 7, 9, 11, 0, 0, 0, 0, 0}},
   	{2,  "Dorian", 7, {0, 2, 3,	5, 7,	9, 10, 0, 0, 0, 0, 0}},
   	{3,  "Phrygian", 7, {0,	1, 3,	5, 7,	8, 10, 0, 0, 0, 0, 0}},

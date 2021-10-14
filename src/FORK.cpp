@@ -46,12 +46,14 @@ float formant(float p,float i)
 {
   i=i<0?0:i>I_MAX-2?I_MAX-2:i;    // width limitation
  float P=(L_TABLE-1)*(p+1)*0.5f; // phase normalisation
- int P0=(int)P;  float fP=P-P0;  // Integer and fractional
- int I0=(int)i;  float fI=i-I0;  // parts of the phase (p) and width (i).
- int i00=P0+L_TABLE*I0;  int i10=i00+L_TABLE;
+ int P0=(int)P;
+ float fP=P-P0;  // Integer and fractional
+ int I0=(int)i;
+ float fI=i-I0;  // parts of the phase (p) and width (i).
+ int i00=P0+L_TABLE*I0;
+ int i10=i00+L_TABLE;
  //bilinear interpolation.
- return (1-fI)*(TF[i00] + fP*(TF[i00+1]-TF[i00]))
-        +    fI*(TF[i10] + fP*(TF[i10+1]-TF[i10]));
+ return (1-fI)*(TF[i00] + fP*(TF[i00+1]-TF[i00])) + fI*(TF[i10] + fP*(TF[i10+1]-TF[i10]));
 }
 
 // Double carrier.
@@ -65,7 +67,8 @@ float porteuse(const float h,const float p)
   float phi0=fmodf(p* h0   +1+1000,2.0f)-1.0f;
   float phi1=fmodf(p*(h0+1)+1+1000,2.0f)-1.0f;
   // two carriers.
-  float Porteuse0=fast_cos(phi0);  float Porteuse1=fast_cos(phi1);
+  float Porteuse0=fast_cos(phi0);
+  float Porteuse1=fast_cos(phi1);
   // crossfade between the two carriers.
   return Porteuse0+hf*(Porteuse1-Porteuse0);
 }
@@ -158,9 +161,8 @@ void FORK::process(const ProcessArgs &args) {
 		a4+=r*(clamp(params[A_PARAM+3].getValue() + rescale(inputs[A_INPUT+3].getVoltage(),0.0f,10.0f,0.0f,0.3f),0.0f,0.3f)-a4);
 	}
 
-	float out=
-				 a1*(f0/f1)*formant(p0,100.0f*un_f0)*porteuse(f1*un_f0,p0)
-	 +0.7f*a2*(f0/f2)*formant(p0,120.0f*un_f0)*porteuse(f2*un_f0,p0)
+	float out= a1*(f0/f1)*formant(p0,100.0f*un_f0)*porteuse(f1*un_f0,p0)
+	 + 0.7f*a2*(f0/f2)*formant(p0,120.0f*un_f0)*porteuse(f2*un_f0,p0)
 	 +     a3*(f0/f3)*formant(p0,150.0f*un_f0)*porteuse(f3*un_f0,p0)
 	 +     a4*(f0/f4)*formant(p0,300.0f*un_f0)*porteuse(f4*un_f0,p0);
 	outputs[SIGNAL_OUTPUT].setVoltage(5.0f*out);

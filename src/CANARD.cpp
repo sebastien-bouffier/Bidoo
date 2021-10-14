@@ -98,7 +98,7 @@ struct CANARD : Module {
 		configParam(SLICE_PARAM, 0.0f, 10.0f, 0.0f);
 		configParam(CLEAR_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(THRESHOLD_PARAM, 0.01f, 10.0f, 1.0f);
-		configParam(MODE_PARAM, 0.0f, 1.0f, 0.0f);
+		configSwitch(MODE_PARAM, 0, 1, 0, "Slice mode", {"Off", "On"});
 
 		playBuffer.resize(0);
 		recordBuffer.resize(0);

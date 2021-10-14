@@ -108,24 +108,6 @@
       ]
     },
     {
-      "slug": "clACos",
-      "name": "clACos",
-      "description": "Phase distortion 4 segments oscillator",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#clacos",
-      "tags": [
-        "Oscillator"
-      ]
-    },
-    {
-      "slug": "PeNEqUe",
-      "name": "PeNEqUe",
-      "description": "Additive osicllator",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#peneque",
-      "tags": [
-        "Oscillator"
-      ]
-    },
-    {
       "slug": "liMonADe",
       "name": "liMonADe",
       "description": "Wavetable oscillator station & additive synth",
