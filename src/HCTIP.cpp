@@ -4,7 +4,7 @@
 #include "dsp/ringbuffer.hpp"
 #include "dep/filters/pitchshifter.h"
 
-#define BUFF_SIZE 2048
+#define BUFF_SIZE 256
 
 using namespace std;
 

@@ -28,25 +28,21 @@ void init(rack::Plugin *p) {
 	p->addModel(modelEMILE);
 	p->addModel(modelFORK);
 	p->addModel(modelTIARE);
-	//p->addModel(modelCLACOS);
 	p->addModel(modelANTN);
-	//p->addModel(modelPENEQUE);
 	p->addModel(modelLIMONADE);
 	p->addModel(modelLIMBO);
 	p->addModel(modelPERCO);
 	p->addModel(modelBAFIS);
-	p->addModel(modelFFILTR);
 	p->addModel(modelBAR);
 	p->addModel(modelMINIBAR);
 	p->addModel(modelZINC);
 	p->addModel(modelFREIN);
 	p->addModel(modelHCTIP);
-	//p->addModel(modelCURT);
 	p->addModel(modelDFUZE);
 	p->addModel(modelREI);
 	p->addModel(modelRABBIT);
 	p->addModel(modelBISTROT);
 	p->addModel(modelSIGMA);
-	p->addModel(modelGARCON);
+	p->addModel(modelFLAME);
 	p->addModel(modelVOID);
 }

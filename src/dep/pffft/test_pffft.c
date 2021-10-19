@@ -1,7 +1,7 @@
 // /*
 //   Copyright (c) 2013 Julien Pommier.
 //
-//   Small test & bench for PFFFT, comparing its performance with the scalar FFTPACK, FFTW, and Apple vDSP
+//   Small test & bench for PFFFT, comparing its performance with the scalar FFTPACK, FFTW, Intel MKL, and Apple vDSP
 //
 //   How to build:
 //
@@ -13,6 +13,9 @@
 //
 //   on macos, with fftw3:
 //   clang -o test_pffft -DHAVE_FFTW -DHAVE_VECLIB -O3 -Wall -W pffft.c test_pffft.c fftpack.c -L/usr/local/lib -I/usr/local/include/ -lfftw3f -framework Accelerate
+//
+//   on macos, with fftw3 and Intel MKL:
+//   clang -o test_pffft -I /opt/intel/mkl/include -DHAVE_FFTW -DHAVE_VECLIB -DHAVE_MKL  -O3 -Wall -W pffft.c test_pffft.c fftpack.c -L/usr/local/lib -I/usr/local/include/ -lfftw3f -framework Accelerate /opt/intel/mkl/lib/libmkl_{intel_lp64,sequential,core}.a
 //
 //   on windows, with visual c++:
 //   cl /Ox -D_USE_MATH_DEFINES /arch:SSE test_pffft.c pffft.c fftpack.c
@@ -45,7 +48,11 @@
 // #  include <fftw3.h>
 // #endif
 //
-// #define MAX(x,y) ((x)>(y)?(x):(y))
+// #ifdef HAVE_MKL
+// #  include <mkl_dfti.h>
+// #endif
+//
+// #define MAX_OF(x,y) ((x)>(y)?(x):(y))
 //
 // double frand() {
 //   return rand()/(double)RAND_MAX;
@@ -105,7 +112,7 @@
 //       free(wrk);
 //     }
 //
-//     for (k = 0; k < Nfloat; ++k) ref_max = MAX(ref_max, fabs(ref[k]));
+//     for (k = 0; k < Nfloat; ++k) ref_max = MAX_OF(ref_max, fabs(ref[k]));
 //
 //
 //     // pass 0 : non canonical ordering of transform coefficients
@@ -216,7 +223,7 @@
 //   }
 // }
 //
-// int array_output_format = 0;
+// int array_output_format = 1;
 //
 // void show_output(const char *name, int N, int cplx, float flops, float t0, float t1, int max_iter) {
 //   float mflops = flops/1e6/(t1 - t0 + 1e-16);
@@ -303,6 +310,30 @@
 //   }
 // #endif
 //
+// #ifdef HAVE_MKL
+//   {
+//     DFTI_DESCRIPTOR_HANDLE fft_handle;
+//     if (DftiCreateDescriptor(&fft_handle, DFTI_SINGLE, (cplx ? DFTI_COMPLEX : DFTI_REAL), 1, N) == 0) {
+//       assert(DftiSetValue(fft_handle, DFTI_PLACEMENT, DFTI_INPLACE) == 0);
+//       assert(DftiCommitDescriptor(fft_handle) == 0);
+//
+//       t0 = uclock_sec();
+//       for (iter = 0; iter < max_iter; ++iter) {
+//         DftiComputeForward(fft_handle, &X[0]);
+//         DftiComputeBackward(fft_handle, &X[0]);
+//       }
+//       t1 = uclock_sec();
+//
+//
+//       DftiFreeDescriptor(&fft_handle);
+//       flops = (max_iter*2) * ((cplx ? 5 : 2.5)*N*log((double)N)/M_LN2); // see http://www.fftw.org/speed/method.html
+//       show_output("MKL ", N, cplx, flops, t0, t1, max_iter);
+//     } else {
+//       show_output(" MKL", N, cplx, -1, -1, -1, -1);
+//     }
+//   }
+// #endif
+//
 // #ifdef HAVE_FFTW
 //   {
 //     fftwf_plan planf, planb;
@@ -369,8 +400,8 @@
 //   int Nvalues[] = { 64, 96, 128, 160, 192, 256, 384, 5*96, 512, 5*128, 3*256, 800, 1024, 2048, 2400, 4096, 8192, 9*1024, 16384, 32768, 256*1024, 1024*1024, -1 };
 //   int i;
 //
-//   if (argc > 1 && strcmp(argv[1], "--array-format") == 0) {
-//     array_output_format = 1;
+//   if (argc > 1 && strcmp(argv[1], "--no-array-format") == 0) {
+//     array_output_format = 0;
 //   }
 //
 // #ifndef PFFFT_SIMD_DISABLE
@@ -379,6 +410,7 @@
 //   pffft_validate(1);
 //   pffft_validate(0);
 //   if (!array_output_format) {
+//     // display a nice markdown array
 //     for (i=0; Nvalues[i] > 0; ++i) {
 //       benchmark_ffts(Nvalues[i], 0 /* real fft */);
 //     }
@@ -386,28 +418,40 @@
 //       benchmark_ffts(Nvalues[i], 1 /* cplx fft */);
 //     }
 //   } else {
-//     printf("| input len ");
-//     printf("|real FFTPack");
+//     int columns = 0;
+//     printf("| input len  "); ++columns;
+//     printf("|real FFTPack"); ++columns;
 // #ifdef HAVE_VECLIB
-//     printf("|  real vDSP ");
+//     printf("|  real vDSP "); ++columns;
+// #endif
+// #ifdef HAVE_MKL
+//     printf("|  real MKL  "); ++columns;
 // #endif
 // #ifdef HAVE_FFTW
-//     printf("|  real FFTW ");
+//     printf("|  real FFTW "); ++columns;
 // #endif
-//     printf("| real PFFFT | ");
+//     printf("| real PFFFT "); ++columns;
 //
-//     printf("|cplx FFTPack");
+//     printf("|cplx FFTPack"); ++columns;
 // #ifdef HAVE_VECLIB
-//     printf("|  cplx vDSP ");
+//     printf("|  cplx vDSP "); ++columns;
+// #endif
+// #ifdef HAVE_MKL
+//     printf("|  cplx MKL  "); ++columns;
 // #endif
 // #ifdef HAVE_FFTW
-//     printf("|  cplx FFTW ");
+//     printf("|  cplx FFTW "); ++columns;
 // #endif
-//     printf("| cplx PFFFT |\n");
+//     printf("| cplx PFFFT |\n"); ++columns;
+//     for (i=0; i < columns; ++i) {
+//       printf("|-----------:");
+//     }
+//     printf("|\n");
+//
 //     for (i=0; Nvalues[i] > 0; ++i) {
-//       printf("|%9d  ", Nvalues[i]);
+//       printf("|%9d   ", Nvalues[i]);
 //       benchmark_ffts(Nvalues[i], 0);
-//       printf("| ");
+//       //printf("| ");
 //       benchmark_ffts(Nvalues[i], 1);
 //       printf("|\n");
 //     }

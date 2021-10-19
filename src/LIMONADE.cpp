@@ -855,6 +855,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgGlobalTint(args.vg, color::WHITE);
     if (module) {
+			nvgSave(args.vg);
       wtFrame frame, playedFrame;
   		size_t tag=1;
 
@@ -865,7 +866,6 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 				playedFrame.sample = module->table.frames[module->index].sample;
   		}
 
-  		nvgSave(args.vg);
   		Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, heightMagn + graphGap + heightPhas));
   		nvgScissor(args.vg, 0, b.pos.y, width, heightMagn + graphGap + heightPhas+12);
 
@@ -922,11 +922,9 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
   		}
 
   		nvgResetScissor(args.vg);
-  		nvgRestore(args.vg);
 
 			if ((module->displayPlayedFrame == 0) && (playedFrame.sample.size()>0)) {
 				nvgStrokeColor(args.vg, RED_BIDOO);
-				nvgSave(args.vg);
 				float invNbSample = 1.f / (float)playedFrame.sample.size();
 				nvgBeginPath(args.vg);
 				for (size_t i = 0; i < playedFrame.sample.size(); i++) {
@@ -944,12 +942,10 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 				nvgStrokeWidth(args.vg, 1);
 				nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
 				nvgStroke(args.vg);
-				nvgRestore(args.vg);
 			}
 
 			if ((module->displayEditedFrame == 0) && (frame.sample.size()>0)) {
 				nvgStrokeColor(args.vg, GREEN_BIDOO);
-				nvgSave(args.vg);
 				float invNbSample = 1.f / (float)frame.sample.size();
 				nvgBeginPath(args.vg);
 				for (size_t i = 0; i < frame.sample.size(); i++) {
@@ -967,8 +963,8 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 				nvgStrokeWidth(args.vg, 1);
 				nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
 				nvgStroke(args.vg);
-				nvgRestore(args.vg);
 			}
+			nvgRestore(args.vg);
 		}
 
 	}
@@ -1040,15 +1036,17 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 
   		nvgFontSize(args.vg, 8.0f);
   		nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgStrokeWidth(args.vg, 1.0f);
 
   		nvgText(args.vg, width+2, height-10, ("V=" + to_string((int)module->params[LIMONADE::UNISSON_PARAM].getValue())).c_str(), NULL);
 
   		for (size_t n=0; n<fs; n++) {
-  			nvgBeginPath(args.vg);
-  			for (size_t i=0; i<FS; i++) {
-  				y3D = 10.0f * (fs-n-1)/fs-5.0f;
-  				x3D = 10.0f * i * IFS -5.0f;
-  				z3D = (-1.f)*module->table.frames[fs-1-n].sample[i];
+				size_t fid = fs-n-1;
+				y3D = 10.0f * fid/fs-5.0f;
+				nvgBeginPath(args.vg);
+  			for (size_t i=0; i<FS2; i+=2) {
+  				x3D = 20.0f * i * IFS -5.0f;
+  				z3D = (-1.f)*module->table.frames[fid].sample[2*i];
   				y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
   				x2D = ca2*x3D+sa2*y3D+7.5f;
   				if (i == 0) {
@@ -1058,22 +1056,15 @@ struct LIMONADEWavDisplay : OpaqueWidget {
   					nvgLineTo(args.vg, 10.0f * x2D, 10.0f * y2D);
   				}
   			}
-  			if (module->table.frames[fs-1-n].morphed) {
-  				nvgStrokeColor(args.vg, nvgRGBA(255, 233, 0, 15));
-  				nvgStrokeWidth(args.vg, 1.0f);
-  			}
-  			else {
-  				nvgStrokeColor(args.vg, nvgRGBA(255, 233, 0, 50));
-  				nvgStrokeWidth(args.vg, 1.0f);
-  			}
+
+  			nvgStrokeColor(args.vg, nvgRGBA(255, 233, 0, module->table.frames[fid].morphed ? 15 : 50));
   			nvgStroke(args.vg);
   		}
 
   		if (fs>0) {
   			nvgBeginPath(args.vg);
+				y3D = 10.0f * idx/fs -5.0f;
   			for (size_t i=0; i<FS; i++) {
-  				float x3D, y3D, z3D, x2D, y2D;
-  				y3D = 10.0f * idx/fs -5.0f;
   				x3D = 10.0f * i * IFS -5.0f;
   				z3D = (-1.f)*module->table.frames[idx].sample[i];
   				y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
@@ -1086,13 +1077,11 @@ struct LIMONADEWavDisplay : OpaqueWidget {
   				}
   			}
   			nvgStrokeColor(args.vg, GREEN_BIDOO);
-  			nvgStrokeWidth(args.vg, 1.0f);
   			nvgStroke(args.vg);
 
   			nvgBeginPath(args.vg);
+				y3D = 10.0f * wtidx/fs -5.0f;
   			for (size_t i=0; i<FS; i++) {
-  				float x3D, y3D, z3D, x2D, y2D;
-  				y3D = 10.0f * wtidx/fs -5.0f;
   				x3D = 10.0f * i * IFS -5.0f;
   				z3D = (-1.f)*module->table.frames[wtidx].sample[i];
   				y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
@@ -1105,7 +1094,6 @@ struct LIMONADEWavDisplay : OpaqueWidget {
   				}
   			}
   			nvgStrokeColor(args.vg, RED_BIDOO);
-  			nvgStrokeWidth(args.vg, 1.0f);
   			nvgStroke(args.vg);
   		}
 

@@ -239,16 +239,6 @@
       ]
     },
     {
-      "slug": "FFilTr",
-      "name": "FFilTr",
-      "description": "LP Filter",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#ffiltr",
-      "tags": [
-        "VCF",
-        "Effect"
-      ]
-    },
-    {
       "slug": "ziNC",
       "name": "ziNC",
       "description": "Vocoder",
@@ -383,12 +373,13 @@
       ]
     },
     {
-      "slug": "Garcon",
-      "name": "Garçon",
+      "slug": "fLAME",
+      "name": "fLAME",
       "description": "FFT display",
       "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#garçon",
       "tags": [
-        "Visual"
+        "Visual",
+        "Controller"
       ]
     },
     {
