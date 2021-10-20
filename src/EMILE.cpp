@@ -9,8 +9,14 @@
 #include "dsp/ringbuffer.hpp"
 #include <algorithm>
 
-#define FFT_SIZE 8192
-#define STEPS 8
+const int FS = 4096;
+const int N = 4;
+const int FS2 = FS / 2;
+const float IFS = 1.0f / FS;
+const int STS = FS/N;
+const float IFS2 = 1.0f/FS2;
+
+
 using namespace std;
 
 inline double fastPow(double a, double b) {
@@ -25,14 +31,21 @@ inline double fastPow(double a, double b) {
 
 struct EMILE : Module {
 	enum ParamIds {
-		SPEED_PARAM,
 		CURVE_PARAM,
     GAIN_PARAM,
+    R_PARAM,
+    G_PARAM,
+    B_PARAM,
+    A_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
-		GATE_INPUT,
-		CURVE_INPUT,
+		POS_INPUT,
+    CURVE_INPUT,
+    R_INPUT,
+    G_INPUT,
+    B_INPUT,
+    A_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -40,39 +53,51 @@ struct EMILE : Module {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
+    R_LIGTH,
+    G_LIGTH,
+    B_LIGTH,
+    A_LIGTH,
 		NUM_LIGHTS
 	};
 
-  FftSynth *synth;
 	std::string lastPath;
 	bool loading = false;
 	std::vector<unsigned char> image;
   unsigned width = 0;
 	unsigned height = 0;
 	unsigned samplePos = 0;
-	int delay = 0;
-  bool play = false;
-  dsp::SchmittTrigger playTrigger;
   float *magn;
-  float *phas;
-  dsp::DoubleRingBuffer<float,FFT_SIZE/STEPS> outBuffer;
-  long fftSize2 = FFT_SIZE / 2;
+  float *out;
+  float *acc;
+  int rIdx = 0;
+  PFFFT_Setup *pffftSetup;
+  float *fftIn;
+  float *fftOut;
+  bool r, g, b, a;
+  dsp::SchmittTrigger rTrigger, gTrigger, bTrigger, aTrigger;
+  float curve=0.0f;
 
 	EMILE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(GAIN_PARAM, 0.1f, 10.0f, 1.0f);
-		configParam(CURVE_PARAM, 0.5f, 8.0f, 1.0f);
-		configParam(SPEED_PARAM, 200.0f, 1.0f, 50.0f);
+		configParam(CURVE_PARAM, 0.01f, 0.1f, 0.05f);
 
-    synth = new FftSynth(FFT_SIZE, STEPS, APP->engine->getSampleRate());
-    magn = (float*)calloc(fftSize2,sizeof(float));
-    phas = (float*)calloc(fftSize2,sizeof(float));
+    magn = (float*) pffft_aligned_malloc(FS2*sizeof(float));
+    out = (float*) pffft_aligned_malloc(STS*sizeof(float));
+    acc = (float*) pffft_aligned_malloc(2*FS*sizeof(float));
+    memset(acc, 0, 2*FS*sizeof(float));
+    memset(out, 0, STS*sizeof(float));
+    pffftSetup = pffft_new_setup(FS, PFFFT_REAL);
+    fftIn = (float*)pffft_aligned_malloc(FS*sizeof(float));
+    fftOut =  (float*)pffft_aligned_malloc(FS*sizeof(float));
 	}
 
   ~EMILE() {
-		delete synth;
-    free(magn);
-		free(phas);
+    pffft_aligned_free(magn);
+    pffft_aligned_free(acc);
+    pffft_destroy_setup(pffftSetup);
+    pffft_aligned_free(fftIn);
+    pffft_aligned_free(fftOut);
 	}
 
 	void process(const ProcessArgs &args) override;
@@ -98,7 +123,7 @@ struct EMILE : Module {
 void EMILE::loadSample(std::string path) {
 	loading = true;
   image.clear();
-	unsigned error = lodepng::decode(image, width, height, path, LCT_RGB);
+	unsigned error = lodepng::decode(image, width, height, path, LCT_RGBA, 16);
 	if(error != 0)
   {
     std::cout << "error " << error << ": " << lodepng_error_text(error) << std::endl;
@@ -112,61 +137,84 @@ void EMILE::loadSample(std::string path) {
 }
 
 void EMILE::process(const ProcessArgs &args) {
-
-  if (playTrigger.process(inputs[GATE_INPUT].value)) {
-    play = true;
-    samplePos = 0;
+  if (rTrigger.process(params[R_PARAM].getValue()+inputs[R_INPUT].getVoltage())) {
+    r=!r;
   }
-  memset(phas, 0, fftSize2*sizeof(float));
-  memset(magn, 0, fftSize2*sizeof(float));
+  lights[R_LIGTH].setBrightness(r?1:0);
+  if (gTrigger.process(params[G_PARAM].getValue()+inputs[G_INPUT].getVoltage())) {
+    g=!g;
+  }
+  lights[G_LIGTH].setBrightness(g?1:0);
+  if (bTrigger.process(params[B_PARAM].getValue()+inputs[B_INPUT].getVoltage())) {
+    b=!b;
+  }
+  lights[B_LIGTH].setBrightness(b?1:0);
+  if (aTrigger.process(params[A_PARAM].getValue()+inputs[A_INPUT].getVoltage())) {
+    a=!a;
+  }
+  lights[A_LIGTH].setBrightness(a?1:0);
 
-	if (play && !loading && (lastPath != "")) {
-    if (outBuffer.size() == 0) {
-      float iHeight = 1.0f/height;
-      for (unsigned i = 0; i < height; i++) {
-        float volume = (0.33f * image[samplePos * 3 + (height - i - 1) * width * 3] + 0.5f * image[samplePos * 3 + (height - i - 1) * width * 3 + 1] +  0.16f * image[samplePos * 3 + (height - i - 1) * width * 3 + 2]) / 255.0f;
-  			if (volume > 0.0f) {
-          float fact = fastPow(10.0f,i*params[CURVE_PARAM].value/height)*0.1f;
-          size_t index = clamp((int)(i * fact * fftSize2 * iHeight * 0.5f),0,fftSize2/2);
-          magn[index] = clamp(volume,0.0f,1.0f);
-  			}
-  		}
+  curve = params[CURVE_PARAM].getValue() + rescale(inputs[CURVE_INPUT].getVoltage(),0.0f,10.0f,0.01f, 0.1f);
 
-      synth->process(magn,phas,outBuffer.endData());
-      outBuffer.endIncr(FFT_SIZE/STEPS);
+
+
+	if (!loading && (lastPath != "")) {
+    samplePos = rescale(clamp(inputs[POS_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,height-1);
+
+    if (rIdx == STS) {
+
+    	memset(fftIn, 0, FS*sizeof(float));
+    	memset(fftOut, 0, FS*sizeof(float));
+      memset(magn, 0, FS2*sizeof(float));
+
+      float iWidth = 1.0f/width;
+      for(unsigned x = 0; x < width; x++) {
+        unsigned short red = 256 * image[samplePos * 8 * width + x * 8 + 0] + image[samplePos * 8 * width + x * 8 + 1];
+        unsigned short green = 256 * image[samplePos * 8 * width + x * 8 + 2] + image[samplePos * 8 * width + x * 8 + 3];
+        unsigned short blue = 256 * image[samplePos * 8 * width + x * 8 + 4] + image[samplePos * 8 * width + x * 8 + 5];
+        unsigned short alpha = 256 * image[samplePos * 8 * width + x * 8 + 6] + image[samplePos * 8 * width + x * 8 + 7];
+        float mix = 1e-7f*((r?red:0)+(g?green:0)+(b?blue:0)+(a?alpha:0))/max(1,r+g+b+a);
+        float index = (1.0f-pow(1.0f-x*iWidth,curve))*(FS2);
+        magn[(size_t)index] += mix*(1-index+(size_t)index);
+        if (x<width-1) {
+          magn[(size_t)index+1] += mix*(index-(size_t)index);
+        }
+      }
+
+    	for (size_t i = 0; i < FS2; i++) {
+    		fftIn[2*i] = magn[i];
+    	}
+
+    	pffft_transform_ordered(pffftSetup, fftIn, fftOut, NULL, PFFFT_BACKWARD);
+
+
+    	for (size_t i = 0; i < FS; i++) {
+        float window = -0.5f * cos(2.0f * M_PI * (double)i * IFS) + 0.5f;
+        acc[i] += 2.0f*fftOut[i]*window;
+    	}
+
+      for (size_t i = 0; i < STS; i++) {
+    		out[i] = acc[i];
+    	}
+
+      memmove(acc, acc+STS, FS*sizeof(float));
+      rIdx = 0;
     }
 
-		outputs[OUT].setVoltage(params[GAIN_PARAM].value * clamp(*outBuffer.startData() * 10.0f,-10.0f,10.0f));
-    outBuffer.startIncr(1);
-
-		delay++;
-
-		if (samplePos >= width) {
-      samplePos = 0;
-      play = false;
-    }
-		else {
-			if (delay>params[SPEED_PARAM].value)
-			{
-				samplePos++;
-				delay = 0;
-			}
-		}
-
+		outputs[OUT].setVoltage(tanh(params[GAIN_PARAM].value * (out[rIdx]))*5.0f);
+    rIdx++;
 	}
 }
 
 struct EMILEDisplay : OpaqueWidget {
 	EMILE *module;
-	shared_ptr<Font> font;
 	const float width = 125.0f;
 	const float height = 130.0f;
 	std::string path = "";
-	bool first = true;
 	int img = 0;
 
 	EMILEDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void draw(const DrawArgs &args) override {
@@ -175,7 +223,7 @@ struct EMILEDisplay : OpaqueWidget {
 				img = nvgCreateImage(args.vg, module->lastPath.c_str(), 0);
 				path = module->lastPath;
 			}
-
+      nvgSave(args.vg);
 			nvgBeginPath(args.vg);
 			if (module->width>0 && module->height>0)
 				nvgScale(args.vg, width/module->width, height/module->height);
@@ -184,43 +232,25 @@ struct EMILEDisplay : OpaqueWidget {
 		 	nvgFillPaint(args.vg, imgPaint);
 		 	nvgFill(args.vg);
 			nvgClosePath(args.vg);
-		}
-	}
-};
 
-struct EMILEPositionDisplay : OpaqueWidget {
-	EMILE *module;
-	shared_ptr<Font> font;
-	const float width = 125.0f;
-	const float height = 130.0f;
-	std::string path = "";
-	bool first = true;
-	int img = 0;
-
-	EMILEPositionDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
-	}
-
-	void draw(const DrawArgs &args) override {
-		if (module && !module->loading) {
-			nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
-			{
-				nvgBeginPath(args.vg);
-				nvgStrokeWidth(args.vg, 2);
+      nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
+			nvgBeginPath(args.vg);
+			nvgStrokeWidth(args.vg, 5);
 				if (module->image.size()>0) {
-					nvgMoveTo(args.vg, (float)module->samplePos * width / module->width, 0);
-					nvgLineTo(args.vg, (float)module->samplePos * width / module->width, height);
+					nvgMoveTo(args.vg, 0, (float)module->samplePos);
+					nvgLineTo(args.vg, (float)module->width, (float)module->samplePos);
 				}
 				else {
 					nvgMoveTo(args.vg, 0, 0);
 					nvgLineTo(args.vg, 0, height);
 				}
-				nvgClosePath(args.vg);
-			}
+			nvgClosePath(args.vg);
 			nvgStroke(args.vg);
+      nvgRestore(args.vg);
 		}
 	}
 };
+
 
 struct EMILEWidget : ModuleWidget {
 	EMILEWidget(EMILE *module) {
@@ -240,22 +270,33 @@ struct EMILEWidget : ModuleWidget {
 			addChild(display);
 		}
 
-		{
-			EMILEPositionDisplay *display = new EMILEPositionDisplay();
-			display->module = module;
-			display->box.pos = Vec(5, 30);
-			display->box.size = Vec(125, 130);
-			addChild(display);
-		}
+    const int xlightsAnchor = 8;
+    const int ylightsAnchor = 170;
+    const float xlightsOffset = 33.5;
+    const int olights = 6;
+    const int inputYOffset = 25;
 
-		static const float portX0[4] = {34, 67, 101};
+    addParam(createParam<LEDButton>(Vec(xlightsAnchor, ylightsAnchor), module, EMILE::R_PARAM));
+		addChild(createLight<SmallLight<RedLight>>(Vec(xlightsAnchor+olights, ylightsAnchor+olights), module, EMILE::R_LIGTH));
+    addParam(createParam<LEDButton>(Vec(xlightsAnchor+xlightsOffset, ylightsAnchor), module, EMILE::G_PARAM));
+		addChild(createLight<SmallLight<GreenLight>>(Vec(xlightsAnchor+xlightsOffset+olights, ylightsAnchor+olights), module, EMILE::G_LIGTH));
+    addParam(createParam<LEDButton>(Vec(xlightsAnchor+2*xlightsOffset, ylightsAnchor), module, EMILE::B_PARAM));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(xlightsAnchor+2*xlightsOffset+olights, ylightsAnchor+olights), module, EMILE::B_LIGTH));
+    addParam(createParam<LEDButton>(Vec(xlightsAnchor+3*xlightsOffset, ylightsAnchor), module, EMILE::A_PARAM));
+		addChild(createLight<SmallLight<WhiteLight>>(Vec(xlightsAnchor+3*xlightsOffset+olights, ylightsAnchor+olights), module, EMILE::A_LIGTH));
 
-    addParam(createParam<BidooBlueKnob>(Vec(portX0[1]-15, 180), module, EMILE::GAIN_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[1]-15, 235), module, EMILE::CURVE_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[1]-15, 290), module, EMILE::SPEED_PARAM));
-		addInput(createInput<PJ301MPort>(Vec(portX0[0]-27, 330), module, EMILE::GATE_INPUT));
+    addInput(createInput<TinyPJ301MPort>(Vec(xlightsAnchor+1, ylightsAnchor+inputYOffset), module, EMILE::R_INPUT));
+    addInput(createInput<TinyPJ301MPort>(Vec(xlightsAnchor+xlightsOffset+1, ylightsAnchor+inputYOffset), module, EMILE::G_INPUT));
+    addInput(createInput<TinyPJ301MPort>(Vec(xlightsAnchor+2*xlightsOffset+1, ylightsAnchor+inputYOffset), module, EMILE::B_INPUT));
+    addInput(createInput<TinyPJ301MPort>(Vec(xlightsAnchor+3*xlightsOffset+1, ylightsAnchor+inputYOffset), module, EMILE::A_INPUT));
 
-		addOutput(createOutput<PJ301MPort>(Vec(portX0[2]+2.5f, 330), module, EMILE::OUT));
+		static const float portX0[4] = {7, 56, 104};
+
+    addParam(createParam<BidooBlueKnob>(Vec(portX0[1]-4, 235), module, EMILE::GAIN_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(portX0[1]-4, 290), module, EMILE::CURVE_PARAM));
+    addInput(createInput<PJ301MPort>(Vec(portX0[1], 330), module, EMILE::CURVE_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(portX0[0], 330), module, EMILE::POS_INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(portX0[2], 330), module, EMILE::OUT));
 	}
 
   struct EMILEItem : MenuItem {

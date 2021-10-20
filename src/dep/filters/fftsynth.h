@@ -8,17 +8,11 @@ using namespace std;
 struct FftSynth {
 	float *gFFTworksp;
 	float *gFFTworkspOut;
-	float *gLastPhase;
-	float *gSumPhase;
 	float *gOutputAccum;
-	float *gAnaFreq;
-	float *gAnaMagn;
-	float *gSynFreq;
-	float *gSynMagn;
 	float sampleRate;
 	PFFFT_Setup *pffftSetup;
 	long gRover = false;
-	double magn, phase, tmp, window, real, imag;
+	double window;
 	double freqPerBin, expct, invOsamp, invFftFrameSize, invFftFrameSize2, invPi;
 	long fftFrameSize, osamp, i,k, qpd, index, inFifoLatency, stepSize, fftFrameSize2;
 
@@ -26,7 +20,7 @@ struct FftSynth {
 		this->fftFrameSize = fftFrameSize;
 		this->osamp = osamp;
 		this->sampleRate = sampleRate;
-		pffftSetup = pffft_new_setup(fftFrameSize, PFFFT_COMPLEX);
+		pffftSetup = pffft_new_setup(fftFrameSize, PFFFT_REAL);
 		fftFrameSize2 = fftFrameSize/2;
 		stepSize = fftFrameSize/osamp;
 		freqPerBin = sampleRate/(double)fftFrameSize;
@@ -37,8 +31,8 @@ struct FftSynth {
 		invPi = 1.0f/M_PI;
 		invOsamp = 1.0f/osamp;
 
-		gFFTworksp = (float*)pffft_aligned_malloc(2*fftFrameSize*sizeof(float));
-		gFFTworkspOut =  (float*)pffft_aligned_malloc(2*fftFrameSize*sizeof(float));
+		gFFTworksp = (float*)pffft_aligned_malloc(fftFrameSize*sizeof(float));
+		gFFTworkspOut =  (float*)pffft_aligned_malloc(fftFrameSize*sizeof(float));
 		gOutputAccum = (float*)calloc(2*fftFrameSize,sizeof(float));
 	}
 
@@ -49,27 +43,25 @@ struct FftSynth {
 		pffft_aligned_free(gFFTworkspOut);
 	}
 
-	void process(const float * magn, const float *phase, float *output) {
+	void process(const float * magn, float *output) {
 
-		memset(gFFTworksp, 0, 2*fftFrameSize*sizeof(float));
-		memset(gFFTworkspOut, 0, 2*fftFrameSize*sizeof(float));
+		memset(gFFTworksp, 0, fftFrameSize*sizeof(float));
+		memset(gFFTworkspOut, 0, fftFrameSize*sizeof(float));
 
 		for (k = 0; k <= fftFrameSize2; k++) {
-			/* get real and imag part and re-interleave */
-			gFFTworksp[2*k] = magn[k]*cos(phase[k]);
-			gFFTworksp[2*k+1] = magn[k]*sin(phase[k]);
+			gFFTworksp[2*k] = magn[k];
+			gFFTworksp[2*k+1] = 0;
 		}
 
-		for (k = fftFrameSize+2; k < 2*fftFrameSize; k++) gFFTworksp[k] = 0.0f;
 
-		pffft_transform_ordered(pffftSetup, gFFTworksp, gFFTworkspOut , NULL, PFFFT_BACKWARD);
+		pffft_transform_ordered(pffftSetup, gFFTworksp, gFFTworkspOut , 0, PFFFT_BACKWARD);
 
 		for(k=0; k < fftFrameSize; k++) {
 			window = -0.5f * cos(2.0f * M_PI *(double)k * invFftFrameSize) + 0.5f;
-			gOutputAccum[k] += 2.0f * window * gFFTworkspOut[2*k] * invFftFrameSize2;
+			gOutputAccum[k] += window * gFFTworkspOut[k] * invFftFrameSize;
 		}
 
-		for (k = 0; k < stepSize; k++) output[k] = gOutputAccum[k];
+		for (k = 0; k < fftFrameSize; k++) output[k] = gFFTworkspOut[k];
 
 		memmove(gOutputAccum, gOutputAccum+stepSize, fftFrameSize*sizeof(float));
 	}
