@@ -496,6 +496,15 @@ struct MAGMAWidget : ModuleWidget {
   	}
   };
 
+	void onPathDrop(const PathDropEvent& e) override {
+		Widget::onPathDrop(e);
+		MAGMA *module = dynamic_cast<MAGMA*>(this->module);
+		module->mylock.lock();
+		module->lastPath = e.paths[0];
+		module->loading = true;
+		module->mylock.unlock();
+	}
+
   void appendContextMenu(ui::Menu *menu) override {
 		MAGMA *module = dynamic_cast<MAGMA*>(this->module);
 		assert(module);

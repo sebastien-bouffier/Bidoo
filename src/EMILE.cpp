@@ -3,11 +3,8 @@
 #include "BidooComponents.hpp"
 #include "osdialog.h"
 #include <vector>
-#include "cmath"
 #include "dep/lodepng/lodepng.h"
-#include "dep/filters/fftsynth.h"
-#include "dsp/ringbuffer.hpp"
-#include <algorithm>
+
 
 const int FS = 4096;
 const int N = 4;
@@ -73,14 +70,21 @@ struct EMILE : Module {
   PFFFT_Setup *pffftSetup;
   float *fftIn;
   float *fftOut;
-  bool r, g, b, a;
+  bool r = false;
+  bool g = false;
+  bool b = false;
+  bool a = false;
   dsp::SchmittTrigger rTrigger, gTrigger, bTrigger, aTrigger;
   float curve=0.0f;
 
 	EMILE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(GAIN_PARAM, 0.1f, 10.0f, 1.0f);
-		configParam(CURVE_PARAM, 0.01f, 0.1f, 0.05f);
+		configParam(GAIN_PARAM, 0.1f, 10.0f, 1.0f, "Gain");
+		configParam(CURVE_PARAM, 0.01f, 0.1f, 0.05f, "Frequency curve");
+    configSwitch(R_PARAM, 0, 1, 0, "Red");
+    configSwitch(G_PARAM, 0, 1, 0, "Green");
+    configSwitch(B_PARAM, 0, 1, 0, "Blue");
+    configSwitch(A_PARAM, 0, 1, 0, "Alpha");
 
     magn = (float*) pffft_aligned_malloc(FS2*sizeof(float));
     out = (float*) pffft_aligned_malloc(STS*sizeof(float));

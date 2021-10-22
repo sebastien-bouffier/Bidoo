@@ -511,6 +511,15 @@ struct OUAIVEWidget : ModuleWidget {
 		menu->addChild(construct<MenuLabel>());
 		menu->addChild(construct<OUAIVEItem>(&MenuItem::text, "Load sample", &OUAIVEItem::module, module));
 	}
+
+	void onPathDrop(const PathDropEvent& e) override {
+		Widget::onPathDrop(e);
+		OUAIVE *module = dynamic_cast<OUAIVE*>(this->module);
+		module->samplePos = 0;
+		module->lastPath = e.paths[0];
+		module->sliceIndex = -1;
+		module->loading=true;
+	}
 };
 
 Model *modelOUAIVE = createModel<OUAIVE, OUAIVEWidget>("OUAIve");

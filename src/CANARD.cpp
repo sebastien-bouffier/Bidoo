@@ -814,6 +814,13 @@ struct CANARDWidget : ModuleWidget {
 		}
 	};
 
+	void onPathDrop(const PathDropEvent& e) override {
+		Widget::onPathDrop(e);
+		CANARD *module = dynamic_cast<CANARD*>(this->module);
+		module->lastPath = e.paths[0];
+		module->loading=true;
+	}
+
 	struct CANARDSaveSample : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {

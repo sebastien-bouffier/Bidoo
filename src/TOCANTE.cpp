@@ -218,11 +218,11 @@ struct TOCANTEWidget : ModuleWidget {
 		addChild(mDisplay);
 
 		addParam(createParam<LEDBezel>(Vec(41, 160), module, TOCANTE::RESET_PARAM));
-		addChild(createLight<TocanteLight<BlueLight>>(Vec(43, 162), module, TOCANTE::RESET_LIGHT));
+		addChild(createLight<TocanteLight<BlueLight>>(Vec(42.8f, 161.8f), module, TOCANTE::RESET_LIGHT));
 		addOutput(createOutput<TinyPJ301MPort>(Vec(45, 190), module, TOCANTE::OUT_RESET));
 
 		addParam(createParam<LEDBezel>(Vec(76, 160), module, TOCANTE::RUN_PARAM));
-		addChild(createLight<TocanteLight<BlueLight>>(Vec(78, 162), module, TOCANTE::RUNNING_LIGHT));
+		addChild(createLight<TocanteLight<BlueLight>>(Vec(77.8f, 161.8f), module, TOCANTE::RUNNING_LIGHT));
 		addOutput(createOutput<TinyPJ301MPort>(Vec(80.0f, 190), module, TOCANTE::OUT_RUN));
 
 		addParam(createParam<BidooBlueKnob>(Vec(3.0f,90.0f), module, TOCANTE::BPM_PARAM));

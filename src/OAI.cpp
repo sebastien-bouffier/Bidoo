@@ -451,6 +451,15 @@ struct OAIWidget : ModuleWidget {
   	}
   };
 
+	void onPathDrop(const PathDropEvent& e) override {
+		Widget::onPathDrop(e);
+		OAI *module = dynamic_cast<OAI*>(this->module);
+		module->mylock.lock();
+		module->channels[module->currentChannel].lastPath = e.paths[0];
+		module->loading = true;
+		module->mylock.unlock();
+	}
+
   void appendContextMenu(ui::Menu *menu) override {
 		OAI *module = dynamic_cast<OAI*>(this->module);
 		assert(module);

@@ -325,6 +325,15 @@ struct POUPREWidget : ModuleWidget {
   	}
   };
 
+	void onPathDrop(const PathDropEvent& e) override {
+		Widget::onPathDrop(e);
+		POUPRE *module = dynamic_cast<POUPRE*>(this->module);
+		module->mylock.lock();
+		module->lastPath = e.paths[0];
+		module->loading = true;
+		module->mylock.unlock();
+	}
+
   void appendContextMenu(ui::Menu *menu) override {
 		POUPRE *module = dynamic_cast<POUPRE*>(this->module);
 		assert(module);

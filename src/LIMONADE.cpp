@@ -1345,6 +1345,15 @@ struct LIMONADEWidget : ModuleWidget {
 		playedFrameItem->module = m;
 		menu->addChild(playedFrameItem);
 	}
+
+
+	void onPathDrop(const PathDropEvent& e) override {
+		Widget::onPathDrop(e);
+		LIMONADE *module = dynamic_cast<LIMONADE*>(this->module);
+		module->lastPath=e.paths[0];
+		tLoadSample(module->table, e.paths[0], module->frameSize, true);
+		module->morphType = -1;
+	}
 };
 
 Model *modelLIMONADE = createModel<LIMONADE, LIMONADEWidget>("liMonADe");

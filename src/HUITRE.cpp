@@ -139,7 +139,7 @@ HUITREWidget::HUITREWidget(HUITRE *module) {
 
 	for (int i = 0; i < 8; i++) {
 		addParam(createParam<LEDBezel>(Vec(11.0f, 50 + i*33), module, HUITRE::TRIG_PARAM + i));
-		addChild(createLight<HUITRELight<RedGreenBlueLight>>(Vec(13.0f, 52 + i*33), module, HUITRE::PATTERN_LIGHT + i*3));
+		addChild(createLight<HUITRELight<RedGreenBlueLight>>(Vec(12.8f, 51.8f + i*33), module, HUITRE::PATTERN_LIGHT + i*3));
 		addParam(createParam<BidooBlueTrimpot>(Vec(45,52 + i*33), module, HUITRE::PATTERN_PARAM+i));
 		addParam(createParam<BidooBlueTrimpot>(Vec(72,52 + i*33), module, HUITRE::CV1_PARAM+i));
 		addParam(createParam<BidooBlueTrimpot>(Vec(99,52 + i*33), module, HUITRE::CV2_PARAM+i));
