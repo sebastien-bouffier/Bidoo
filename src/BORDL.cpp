@@ -913,13 +913,14 @@ struct BORDLDisplay : TransparentWidget {
 	int frame = 0;
 
 	std::string note, scale, steps, playMode, selectedPattern, playedPattern;
+	std::string fontPath = "res/DejaVuSansMono.ttf";
 
 	BORDLDisplay() {
 
 	}
 
 	void drawMessage(NVGcontext *vg, Vec pos, std::string note, std::string playMode, std::string selectedPattern, std::string playedPattern, std::string steps, std::string scale) {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		nvgFontSize(vg, 18.0f);
 		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgText(vg, pos.x + 3.0f, pos.y + 8.0f, playMode.c_str(), NULL);
@@ -976,13 +977,14 @@ struct BORDLGateDisplay : TransparentWidget {
 	BORDL *module;
 
 	int index;
+	std::string fontPath = "res/DejaVuSansMono.ttf";
 
 	BORDLGateDisplay() {
 
 	}
 
 	void drawGate(const DrawArgs &args, Vec pos) {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		if (module) {
 			int gateType = (int)module->params[BORDL::TRIG_TYPE_PARAM+index].getValue();
 			nvgStrokeWidth(args.vg, 1.0f);
@@ -1044,13 +1046,14 @@ struct BORDLPulseDisplay : TransparentWidget {
 	BORDL *module;
 
 	int index;
+	std::string fontPath = "res/DejaVuSansMono.ttf";
 
 	BORDLPulseDisplay() {
 
 	}
 
 	void drawPulse(const DrawArgs &args, Vec pos) {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		if (module) {
 			nvgStrokeWidth(args.vg, 1.0f);
 			nvgStrokeColor(args.vg, YELLOW_BIDOO);
@@ -1075,6 +1078,7 @@ struct BORDLPitchDisplay : TransparentWidget {
 	BORDL *module;
 
 	int index;
+	std::string fontPath = "res/DejaVuSansMono.ttf";
 
 	BORDLPitchDisplay() {
 
@@ -1102,7 +1106,7 @@ struct BORDLPitchDisplay : TransparentWidget {
 	}
 
 	void drawPitch(const DrawArgs &args, Vec pos) {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		if (module) {
 			nvgStrokeWidth(args.vg, 3.0f);
 			nvgStrokeColor(args.vg, YELLOW_BIDOO);

@@ -252,12 +252,14 @@ struct BARDisplay : TransparentWidget {
 	float spacer2 = spacer/2;
 	float widthSpacer =  width + spacer;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	BARDisplay() {
 
 	}
 
 void draw(const DrawArgs &args) override {
-	std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+	std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 	nvgGlobalTint(args.vg, color::WHITE);
 	float vuL = rescale(module->vu_L,-97.0f,0.0f,0.0f,height);
 	float rmsL = rescale(module->rms_L,-97.0f,0.0f,0.0f,height);

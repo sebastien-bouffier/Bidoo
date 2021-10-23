@@ -816,13 +816,14 @@ struct DTROYDisplay : TransparentWidget {
 	int frame = 0;
 
 	std::string note, scale, steps, playMode, selectedPattern, playedPattern;
+	std::string fontPath = "res/DejaVuSansMono.ttf";
 
 	DTROYDisplay() {
 
 	}
 
 	void drawMessage(NVGcontext *vg, Vec pos, std::string note, std::string playMode, std::string selectedPattern, std::string playedPattern, std::string steps, std::string scale) {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		nvgFontSize(vg, 18.0f);
 		// nvgFontFaceId(vg, font->handle);
 		// nvgTextLetterSpacing(vg, -2.0f);

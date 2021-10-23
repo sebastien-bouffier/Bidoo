@@ -303,9 +303,11 @@ void ANTN::process(const ProcessArgs &args) {
 struct ANTNTextField : LedDisplayTextField {
   ANTN *module;
 
+  std::string fontPath = "res/DejaVuSansMono.ttf";
+
   ANTNTextField(ANTN *mod) {
     module = mod;
-    std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+    std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
   	color = GREEN_BIDOO;
   	textOffset = Vec(3, 3);
     if (module != NULL) text = module->url;
@@ -325,13 +327,15 @@ struct ANTNTextField : LedDisplayTextField {
 struct ANTNDisplay : TransparentWidget {
 	ANTN *module;
 
+  std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	ANTNDisplay() {
 
 	}
 
 void draw(NVGcontext *vg) override {
   if (module) {
-    std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+    std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
     nvgSave(vg);
   	nvgStrokeWidth(vg, 1.0f);
     nvgStrokeColor(vg, BLUE_BIDOO);

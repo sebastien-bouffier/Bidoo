@@ -695,6 +695,8 @@ struct PILOTWidget : ModuleWidget {
 struct PILOTMoveTypeDisplay : TransparentWidget {
 	int *value;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	PILOTMoveTypeDisplay() {
 
 	}
@@ -712,7 +714,7 @@ struct PILOTMoveTypeDisplay : TransparentWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		nvgGlobalTint(args.vg, color::WHITE);
 		nvgFontSize(args.vg, 18.0f);
 		nvgFillColor(args.vg, YELLOW_BIDOO);
@@ -727,12 +729,14 @@ struct PILOTMoveTypeDisplay : TransparentWidget {
 struct PILOTDisplay : TransparentWidget {
 	int *value;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	PILOTDisplay() {
 
 	}
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		nvgGlobalTint(args.vg, color::WHITE);
 		if (value) {
       nvgFontSize(args.vg, 18);
@@ -750,12 +754,14 @@ struct PILOTDisplay : TransparentWidget {
 struct PILOTNoteDisplay : TransparentWidget {
 	PILOT *module;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	PILOTNoteDisplay() {
 
 	}
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		nvgGlobalTint(args.vg, color::WHITE);
 		if ((module) && (module->currentFocus>=0) && (module->controlTypes[module->currentFocus]>=3)) {
       nvgFontSize(args.vg, 18);

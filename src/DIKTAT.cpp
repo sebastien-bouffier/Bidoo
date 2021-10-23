@@ -166,8 +166,10 @@ struct DIKTATWidget : ModuleWidget {
 struct ChannelDisplay : OpaqueWidget {
 	DIKTAT *module;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		if (module != NULL) {
 			nvgGlobalTint(args.vg, color::WHITE);
 			nvgFillColor(args.vg, YELLOW_BIDOO);
@@ -181,8 +183,10 @@ struct ChannelDisplay : OpaqueWidget {
 struct RootNoteDisplay : OpaqueWidget {
 	DIKTAT *module;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		if (module != NULL) {
 			nvgGlobalTint(args.vg, color::WHITE);
 			nvgFillColor(args.vg, YELLOW_BIDOO);

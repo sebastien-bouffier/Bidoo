@@ -220,13 +220,15 @@ struct LabelMICROWidget : TransparentWidget {
 	const char *format = NULL;
 	const char *header = "Have fun !!!";
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
   LabelMICROWidget() {
 
   };
 
   void draw(const DrawArgs &args) override
   {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		nvgFontFaceId(args.vg, font->handle);
 		nvgTextLetterSpacing(args.vg, -2.0f);
 		nvgFillColor(args.vg, YELLOW_BIDOO);

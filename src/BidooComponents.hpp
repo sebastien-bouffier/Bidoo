@@ -128,6 +128,7 @@ struct BlueCKD6 : app::SvgSwitch {
 
 struct BlueBtn : app::SvgSwitch {
 	std::string caption;
+	std::string fontPath = "res/DejaVuSansMono.ttf";
 
 	BlueBtn() {
 		momentary = true;
@@ -138,7 +139,7 @@ struct BlueBtn : app::SvgSwitch {
 
 	void draw(const DrawArgs &args) override {
 		SvgSwitch::draw(args);
-		shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance,"res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance,fontPath));
 		nvgFontSize(args.vg, 12.0f);
 		nvgFontFaceId(args.vg, font->handle);
 		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
@@ -148,6 +149,7 @@ struct BlueBtn : app::SvgSwitch {
 
 struct RedBtn : app::SvgSwitch {
 	std::string caption;
+	std::string fontPath = "res/DejaVuSansMono.ttf";
 
 	RedBtn() {
 		momentary = true;
@@ -158,7 +160,7 @@ struct RedBtn : app::SvgSwitch {
 
 	void draw(const DrawArgs &args) override {
 		SvgSwitch::draw(args);
-		shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance,"res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance,fontPath));
 		nvgFontSize(args.vg, 12.0f);
 		nvgFontFaceId(args.vg, font->handle);
 		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);

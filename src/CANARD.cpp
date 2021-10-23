@@ -497,6 +497,8 @@ struct CANARDDisplay : OpaqueWidget {
 	int refIdx = 0;
 	float refX = 0.0f;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	CANARDDisplay() {
 
 	}
@@ -545,7 +547,7 @@ struct CANARDDisplay : OpaqueWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		nvgGlobalTint(args.vg, color::WHITE);
 		if (module && (module->playBuffer.size()>0)) {
 			module->mylock.lock();
@@ -813,13 +815,6 @@ struct CANARDWidget : ModuleWidget {
 			}
 		}
 	};
-
-	void onPathDrop(const PathDropEvent& e) override {
-		Widget::onPathDrop(e);
-		CANARD *module = dynamic_cast<CANARD*>(this->module);
-		module->lastPath = e.paths[0];
-		module->loading=true;
-	}
 
 	struct CANARDSaveSample : MenuItem {
 		CANARD *module;

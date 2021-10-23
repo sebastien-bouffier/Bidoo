@@ -109,13 +109,14 @@ struct CHUTEDisplay : TransparentWidget {
 	CHUTE *module;
 	int frame = 0;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
 
 	CHUTEDisplay() {
 
 	}
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		nvgGlobalTint(args.vg, color::WHITE);
 		frame = 0;
 		//nvgSave(args.vg);

@@ -254,6 +254,8 @@ struct OUAIVEDisplay : OpaqueWidget {
 	int refIdx = 0;
 	float refX = 0.0f;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	OUAIVEDisplay() {
 
 	}
@@ -282,7 +284,7 @@ struct OUAIVEDisplay : OpaqueWidget {
   }
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		nvgGlobalTint(args.vg, color::WHITE);
     if (module && (module->playBuffer.size()>0)) {
       module->mylock.lock();
@@ -510,15 +512,6 @@ struct OUAIVEWidget : ModuleWidget {
 
 		menu->addChild(construct<MenuLabel>());
 		menu->addChild(construct<OUAIVEItem>(&MenuItem::text, "Load sample", &OUAIVEItem::module, module));
-	}
-
-	void onPathDrop(const PathDropEvent& e) override {
-		Widget::onPathDrop(e);
-		OUAIVE *module = dynamic_cast<OUAIVE*>(this->module);
-		module->samplePos = 0;
-		module->lastPath = e.paths[0];
-		module->sliceIndex = -1;
-		module->loading=true;
 	}
 };
 

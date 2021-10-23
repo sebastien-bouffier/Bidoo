@@ -302,7 +302,7 @@ struct ZOUMAI : Module {
 	enum LightIds {
 		STEPS_LIGHTS,
 		FILL_LIGHT = STEPS_LIGHTS + 16*3,
-		COPYTRACK_LIGHT,
+		COPYTRACK_LIGHT = FILL_LIGHT,
 		COPYPATTERN_LIGHT,
 		COPYTRIG_LIGHT,
 		PASTETRACK_LIGHT,
@@ -366,9 +366,6 @@ struct ZOUMAI : Module {
 	float currentIncomingVO = -100.0f;
 	bool globalReset = false;
 	bool clockTrigged = false;
-	bool copyTrigArmed = false;
-	bool copyTrackArmed = false;
-	bool copyPatternArmed = false;
 
 	TrigAttibutes nTrigsAttibutes[8][8][64];
 	TrackAttibutes nTracksAttibutes[8][8];
@@ -778,9 +775,7 @@ struct ZOUMAI : Module {
 	}
 
 	void copyTrig(const int fromPattern, const int fromTrack, const int fromTrig, const int toPattern, const int toTrack, const int toTrig) {
-		int index = nTrigsAttibutes[toPattern][toTrack][toTrig].getTrigIndex();
 		nTrigsAttibutes[toPattern][toTrack][toTrig].setMainAttributes(nTrigsAttibutes[fromPattern][fromTrack][fromTrig].getMainAttributes());
-		nTrigsAttibutes[toPattern][toTrack][toTrig].setTrigIndex(index);
 		nTrigsAttibutes[toPattern][toTrack][toTrig].setProbAttributes(nTrigsAttibutes[fromPattern][fromTrack][fromTrig].getProbAttributes());
 		trigSlide[toPattern][toTrack][toTrig] = trigSlide[fromPattern][fromTrack][fromTrig];
 		trigTrim[toPattern][toTrack][toTrig] = trigTrim[fromPattern][fromTrack][fromTrig];
@@ -846,13 +841,10 @@ struct ZOUMAI : Module {
 
 		if (copyPatternTrigger.process(params[COPYPATTERN_PARAM].getValue())) {
 				copyPatternId = currentPattern;
-				copyPatternArmed = true;
-				copyTrackArmed = false;
-				copyTrigArmed = false;
 				lights[COPYPATTERN_LIGHT].setBrightness(1.0f);
 		}
 
-		if (pastePatternTrigger.process(params[PASTEPATTERN_PARAM].getValue()) && (copyPatternId>=0) && copyPatternArmed) {
+		if (pastePatternTrigger.process(params[PASTEPATTERN_PARAM].getValue()) && (copyPatternId>=0)) {
 			copyPattern();
 			lights[PASTEPATTERN_LIGHT].setBrightness(1.0f);
 			updateTrackToParams();
@@ -861,15 +853,11 @@ struct ZOUMAI : Module {
 
 		if (copyTrackTrigger.process(params[COPYTRACK_PARAM].getValue())) {
 				copyTrackId = currentTrack;
-				copyPatternId = currentPattern;
-				copyPatternArmed = false;
-				copyTrackArmed = true;
-				copyTrigArmed = false;
 				lights[COPYTRACK_LIGHT].setBrightness(1.0f);
 		}
 
-		if (pasteTrackTrigger.process(params[PASTETRACK_PARAM].getValue()) && (copyTrackId>=0) && copyTrackArmed) {
-			copyTrack(copyPatternId,copyTrackId,currentPattern,currentTrack);
+		if (pasteTrackTrigger.process(params[PASTETRACK_PARAM].getValue()) && (copyTrackId>=0)) {
+			copyTrack(currentPattern,copyTrackId,currentPattern,currentTrack);
 			lights[PASTETRACK_LIGHT].setBrightness(1.0f);
 			updateTrackToParams();
 			updateTrigToParams();
@@ -877,16 +865,11 @@ struct ZOUMAI : Module {
 
 		if (copyTrigTrigger.process(params[COPYTRIG_PARAM].getValue())) {
 				copyTrigId = currentTrig;
-				copyTrackId = currentTrack;
-				copyPatternId = currentPattern;
-				copyPatternArmed = false;
-				copyTrackArmed = false;
-				copyTrigArmed = true;
 				lights[COPYTRIG_LIGHT].setBrightness(1.0f);
 		}
 
-		if (pasteTrigTrigger.process(params[PASTETRIG_PARAM].getValue()) && (copyTrigId>=0) && copyTrigArmed) {
-			copyTrig(copyPatternId,copyTrackId,copyTrigId,currentPattern,currentTrack,currentTrig);
+		if (pasteTrigTrigger.process(params[PASTETRIG_PARAM].getValue()) && (copyTrigId>=0)) {
+			copyTrig(currentPattern,currentTrack,copyTrigId,currentPattern,currentTrack,currentTrig);
 			lights[PASTETRIG_LIGHT].setBrightness(1.0f);
 			updateTrackToParams();
 			updateTrigToParams();
@@ -1692,12 +1675,14 @@ struct stepBtn : SvgSwitch {
 struct ZOUMAIDisplay : TransparentWidget {
 	ZOUMAI *module;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	ZOUMAIDisplay() {
 
 	}
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		nvgGlobalTint(args.vg, color::WHITE);
 		stringstream sPatternHeader, sSteps, sSpeed, sRead;
 		stringstream sTrigHeader, sLen, sPuls, sDist, sType, sTrim, sSlide, sVO, sCV1, sCV2, sProb, sProbBase;

@@ -214,12 +214,14 @@ struct MOIRECKD6 : BlueCKD6 {
 struct MOIREDisplay : TransparentWidget {
 	int *value;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	MOIREDisplay() {
 
 	}
 
 	void drawMessage(NVGcontext *vg, Vec pos) {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
     if (value) {
       nvgFontSize(vg, 18);
   		nvgFontFaceId(vg, font->handle);

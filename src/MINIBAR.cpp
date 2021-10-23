@@ -194,12 +194,15 @@ struct MINIBARDisplay : TransparentWidget {
 	float height = 230.0f;
 	float width = 10.0f;
 	float spacer = 2.0f;
+
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	MINIBARDisplay() {
 
 	}
 
 void draw(const DrawArgs &args) override {
-	std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+	std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 	nvgGlobalTint(args.vg, color::WHITE);
 	float vuL = rescale(module->vu_L,-97.0f,0.0f,0.0f,height);
 	float rmsL = rescale(module->rms_L,-97.0f,0.0f,0.0f,height);
@@ -336,12 +339,14 @@ struct LabelMICROBARWidget : TransparentWidget {
 	const char *header = "Ready";
 	const char *tail = NULL;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	LabelMICROBARWidget() {
 
 	};
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		nvgGlobalTint(args.vg, color::WHITE);
 		nvgFillColor(args.vg, YELLOW_BIDOO);
 		nvgTextAlign(args.vg, NVG_ALIGN_LEFT);

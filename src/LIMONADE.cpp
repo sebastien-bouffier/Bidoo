@@ -793,6 +793,8 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 	float scrollLeftAnchor = 0.0f;
 	bool scroll = false;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	LIMONADEBinsDisplay() {
 
 	}
@@ -852,7 +854,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
   }
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		nvgGlobalTint(args.vg, color::WHITE);
     if (module) {
 			nvgSave(args.vg);
@@ -985,6 +987,8 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 	float sa2 = sin(a2);
 	float x3D, y3D, z3D, x2D, y2D;
 
+	std::string fontPath = "res/DejaVuSansMono.ttf";
+
 	LIMONADEWavDisplay() {
 
 	}
@@ -1021,7 +1025,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, fontPath));
 		nvgGlobalTint(args.vg, color::WHITE);
     if (module && (module->displayMode == 0)) {
       size_t fs = module->table.nFrames;
@@ -1344,15 +1348,6 @@ struct LIMONADEWidget : ModuleWidget {
 		playedFrameItem->rightText = (m->displayPlayedFrame == 0) ? "ON✔ OFF" : "ON  OFF✔";
 		playedFrameItem->module = m;
 		menu->addChild(playedFrameItem);
-	}
-
-
-	void onPathDrop(const PathDropEvent& e) override {
-		Widget::onPathDrop(e);
-		LIMONADE *module = dynamic_cast<LIMONADE*>(this->module);
-		module->lastPath=e.paths[0];
-		tLoadSample(module->table, e.paths[0], module->frameSize, true);
-		module->morphType = -1;
 	}
 };
 
