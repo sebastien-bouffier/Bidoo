@@ -337,6 +337,39 @@
       ]
     },
     {
+      "slug": "DilEMO",
+      "name": "DilEMO",
+      "description": "Logic",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#dilemo",
+      "tags": [
+        "Logic"
+      ]
+    },
+    {
+      "slug": "lambda",
+      "name": "lambda",
+      "description": "Logic",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#lambda",
+      "tags": [
+        "Logic",
+        "Sample and hold",
+        "S&H",
+        "Sample & hold"
+      ]
+    },
+    {
+      "slug": "TEGumEnt",
+      "name": "TEGumEnt",
+      "description": "Envelope tool",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#bidule",
+      "tags": [
+        "Envelope",
+        "Oscillator",
+        "LFO",
+        "Waveshaper"
+      ]
+    },
+    {
       "slug": "MOiRE",
       "name": "MOiRE",
       "description": "Controller with snapshots and morphing",

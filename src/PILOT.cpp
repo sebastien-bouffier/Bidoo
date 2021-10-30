@@ -37,6 +37,7 @@ struct PILOT : Module {
 		BY_PARAM,
 		CURVE_PARAM,
 		RECORD_PARAM,
+		BANK_PARAM,
 		TYPE_PARAMS,
 		CONTROLS_PARAMS = TYPE_PARAMS + 16,
 		VOLTAGE_PARAMS = CONTROLS_PARAMS + 16,
@@ -56,6 +57,7 @@ struct PILOT : Module {
 		AY_INPUT,
 		BX_INPUT,
 		BY_INPUT,
+		BANK_INPUT,
 		SPEED_INPUT,
 		GOBOTTOM_INPUT,
 		GOTOP_INPUT,
@@ -76,7 +78,7 @@ struct PILOT : Module {
 		NUM_LIGHTS = VOLTAGE_LIGHTS + 16*3
 	};
 
-	float scenes[16][16] = {{0.0f}};
+	float scenes[16][16][16] = {{0.0f}};
 	int controlTypes[16] = {0};
 	int voltageTypes[16] = {0};
 	int controlRootNotes[16] = {0};
@@ -86,6 +88,7 @@ struct PILOT : Module {
 	bool morphFocused = false;
 	int topScene = 0;
 	int bottomScene = 0;
+	int bank = 0;
 	float morph = 0.0f;
 	bool pulses[16] = {false};
 	float speed = 1e-3f;
@@ -155,6 +158,8 @@ struct PILOT : Module {
 		configParam(RNDBOTTOM_PARAM, 0.0f, 10.0f, 0.0f);
 		configParam(FRNDBOTTOM_PARAM, 0.0f, 10.0f, 0.0f);
 
+		configParam(BANK_PARAM, 0.0f, 15.0f, 0.0f);
+
 		configParam(AX_PARAM, -1.0f, 2.0f, 0.5f);
 		configParam(AY_PARAM, -5.0f, 5.0f, 0.5f);
 		configParam(BX_PARAM, -1.0f, 2.0f, 0.5f);
@@ -186,7 +191,9 @@ struct PILOT : Module {
 	void onReset() override {
 		for (int i=0; i<16; i++) {
 			for (int j=0; j<16; j++) {
-				scenes[i][j]=0.0f;
+				for (int k=0; k<16; k++) {
+					scenes[i][j][k]=0.0f;
+				}
 			}
 			controlTypes[i] = 0.0f;
 		}
@@ -195,13 +202,13 @@ struct PILOT : Module {
 
 	void randomizeScene(int scene) {
 		for (int i = 0; i < 16; i++) {
-				scenes[scene][i]=random::uniform();
+				scenes[bank][scene][i]=random::uniform();
 		}
 	}
 
 	void frandomizeScene(int scene) {
 		for (int i = 0; i < 16; i++) {
-				scenes[scene][i]=random::uniform();
+				scenes[bank][scene][i]=random::uniform();
 				controlTypes[i] = clamp(floor(random::uniform()*3.0f), 0.0f,2.0f);
 		}
 	}
@@ -230,30 +237,33 @@ struct PILOT : Module {
 		json_object_set_new(rootJ, "WEOM", json_integer(waitEOM));
 		json_object_set_new(rootJ, "CURVE", json_boolean(curve));
 
-		json_t *scenesJ = json_array();
+		json_t *banksJ = json_array();
 		json_t *typesJ = json_array();
 		json_t *voltagesJ = json_array();
 		json_t *rootNotesJ = json_array();
 		json_t *scalesJ = json_array();
 
-		for (int i = 0; i < 16; i++) {
-			json_t *sceneJ = json_array();
-			for (int j = 0; j < 16; j++) {
-				json_t *controlJ = json_real(scenes[i][j]);
-				json_array_append_new(sceneJ, controlJ);
+		for(int b=0; b<16; b++) {
+			json_t *bankJ = json_array();
+			for (int i = 0; i < 16; i++) {
+				json_t *sceneJ = json_array();
+				for (int j = 0; j < 16; j++) {
+					json_t *controlJ = json_real(scenes[b][i][j]);
+					json_array_append_new(sceneJ, controlJ);
+				}
+				json_array_append_new(bankJ, sceneJ);
 			}
-			json_array_append_new(scenesJ, sceneJ);
-
-			json_t *typeJ = json_integer(controlTypes[i]);
+			json_array_append_new(banksJ, bankJ);
+			json_t *typeJ = json_integer(controlTypes[b]);
 			json_array_append_new(typesJ, typeJ);
-			json_t *voltageJ = json_integer(voltageTypes[i]);
+			json_t *voltageJ = json_integer(voltageTypes[b]);
 			json_array_append_new(voltagesJ, voltageJ);
-			json_t *rootNoteJ = json_integer(controlRootNotes[i]);
+			json_t *rootNoteJ = json_integer(controlRootNotes[b]);
 			json_array_append_new(rootNotesJ, rootNoteJ);
-			json_t *scaleJ = json_integer(controlScales[i]);
+			json_t *scaleJ = json_integer(controlScales[b]);
 			json_array_append_new(scalesJ, scaleJ);
 		}
-		json_object_set_new(rootJ, "scenes", scenesJ);
+		json_object_set_new(rootJ, "banks", banksJ);
 		json_object_set_new(rootJ, "types", typesJ);
 		json_object_set_new(rootJ, "voltages", voltagesJ);
 		json_object_set_new(rootJ, "roots", rootNotesJ);
@@ -275,20 +285,23 @@ struct PILOT : Module {
 		if (curveJ)
 			curve = json_boolean_value(curveJ);
 
-		json_t *scenesJ = json_object_get(rootJ, "scenes");
+		json_t *banksJ = json_object_get(rootJ, "banks");
 		json_t *typesJ = json_object_get(rootJ, "types");
 		json_t *voltagesJ = json_object_get(rootJ, "voltages");
 		json_t *rootsJ = json_object_get(rootJ, "roots");
 		json_t *scalesJ = json_object_get(rootJ, "scales");
 
-		if (scenesJ && typesJ) {
+		if (banksJ && typesJ) {
 			for (int i = 0; i < 16; i++) {
-				json_t *sceneJ = json_array_get(scenesJ, i);
-				if (sceneJ) {
+				json_t *bankJ = json_array_get(banksJ, i);
+				if (bankJ) {
 					for (int j = 0; j < 16; j++) {
-						json_t *controlJ = json_array_get(sceneJ, j);
-						if (controlJ) {
-							scenes[i][j] = json_number_value(controlJ);
+						json_t *sceneJ = json_array_get(bankJ, j);
+						for (int k=0;k<16; k++) {
+							json_t *controlJ = json_array_get(sceneJ, k);
+							if (controlJ) {
+								scenes[i][j][k] = json_number_value(controlJ);
+							}
 						}
 					}
 				}
@@ -316,6 +329,8 @@ struct PILOT : Module {
 
 void PILOT::process(const ProcessArgs &args) {
 	changeDir =false;
+
+	bank = params[BANK_PARAM].getValue()+rescale(inputs[BANK_INPUT].getVoltage(),0.f,10.0f,0.0f,15.0f);
 
 	if (moveTypeTrigger.process(params[MOVETYPE_PARAM].getValue())) {
 		moveType = (moveType+1)%6;
@@ -534,7 +549,7 @@ void PILOT::process(const ProcessArgs &args) {
 
 	if (topSceneSaveTrigger.process(params[SAVETOP_PARAM].getValue())) {
 		for (int i = 0; i < 16; i++) {
-			scenes[topScene][i] = params[CONTROLS_PARAMS+i].getValue();
+			scenes[bank][topScene][i] = params[CONTROLS_PARAMS+i].getValue();
 			controlFocused[i]=false;
 		}
 		currentFocus = -1;
@@ -542,7 +557,7 @@ void PILOT::process(const ProcessArgs &args) {
 
 	if (bottomSceneSaveTrigger.process(params[SAVEBOTTOM_PARAM].getValue())) {
 		for (int i = 0; i < 16; i++) {
-			scenes[bottomScene][i] = params[CONTROLS_PARAMS+i].getValue();
+			scenes[bank][bottomScene][i] = params[CONTROLS_PARAMS+i].getValue();
 			controlFocused[i]=false;
 		}
 		currentFocus = -1;
@@ -602,10 +617,10 @@ void PILOT::process(const ProcessArgs &args) {
 	for (int i = 0; i < 16; i++) {
 		if (recordingStatus==3 && i==currentFocus) {
 			if (params[MORPH_PARAM].getValue() == 0.0f) {
-				scenes[bottomScene][i]=params[CONTROLS_PARAMS+i].getValue();
+				scenes[bank][bottomScene][i]=params[CONTROLS_PARAMS+i].getValue();
 			}
 			else if (params[MORPH_PARAM].getValue() == 1.0f) {
-				scenes[topScene][i]=params[CONTROLS_PARAMS+i].getValue();
+				scenes[bank][topScene][i]=params[CONTROLS_PARAMS+i].getValue();
 			}
 		}
 
@@ -626,28 +641,28 @@ void PILOT::process(const ProcessArgs &args) {
 		if (!controlFocused[i]) {
 			if ((controlTypes[i] != 1) && (controlTypes[i] != 4)) {
 				if (!curve) {
-					if (scenes[bottomScene][i] != scenes[topScene][i]) {
-						params[CONTROLS_PARAMS+i].setValue(clamp(rescale(morph,0.0f,1.0f,scenes[bottomScene][i],scenes[topScene][i]),0.0f,1.0f));
+					if (scenes[bank][bottomScene][i] != scenes[bank][topScene][i]) {
+						params[CONTROLS_PARAMS+i].setValue(clamp(rescale(morph,0.0f,1.0f,scenes[bank][bottomScene][i],scenes[bank][topScene][i]),0.0f,1.0f));
 					}
 					else {
-						params[CONTROLS_PARAMS+i].setValue(scenes[bottomScene][i]);
+						params[CONTROLS_PARAMS+i].setValue(scenes[bank][bottomScene][i]);
 					}
 				}
 				else {
-					if (scenes[bottomScene][i] != scenes[topScene][i]) {
-						params[CONTROLS_PARAMS+i].setValue(rescale(getYBez(morph),0.0f,1.0f,scenes[bottomScene][i],scenes[topScene][i]));
+					if (scenes[bank][bottomScene][i] != scenes[bank][topScene][i]) {
+						params[CONTROLS_PARAMS+i].setValue(rescale(getYBez(morph),0.0f,1.0f,scenes[bank][bottomScene][i],scenes[bank][topScene][i]));
 					}
 					else {
-						params[CONTROLS_PARAMS+i].setValue(scenes[bottomScene][i]);
+						params[CONTROLS_PARAMS+i].setValue(scenes[bank][bottomScene][i]);
 					}
 				}
 			}
 			else {
 				if (morph == 1.0f || (changeDir && (waitEOM==1) && forward)) {
-					params[CONTROLS_PARAMS+i].setValue(scenes[topScene][i]);
+					params[CONTROLS_PARAMS+i].setValue(scenes[bank][topScene][i]);
 				}
 				else if (morph == 0.0f || (changeDir && (waitEOM==1) && !forward)) {
-					params[CONTROLS_PARAMS+i].setValue(scenes[bottomScene][i]);
+					params[CONTROLS_PARAMS+i].setValue(scenes[bank][bottomScene][i]);
 				}
 			}
 		}
@@ -664,12 +679,12 @@ void PILOT::process(const ProcessArgs &args) {
 				outputs[CV_OUTPUTS + i].setVoltage(quantizer::closestVoltageInScale(params[CONTROLS_PARAMS+i].getValue()*10.0f-4.0f, controlRootNotes[i], controlScales[i]));
 			}
 			else {
-				if ((scenes[bottomScene][i]==scenes[topScene][i]) || (bottomScene==topScene)) {
-					outputs[CV_OUTPUTS + i].setVoltage(quantizer::closestVoltageInScale(scenes[bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i]));
+				if ((scenes[bank][bottomScene][i]==scenes[bank][topScene][i]) || (bottomScene==topScene)) {
+					outputs[CV_OUTPUTS + i].setVoltage(quantizer::closestVoltageInScale(scenes[bank][bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i]));
 				}
 				else {
-					outputs[CV_OUTPUTS + i].setVoltage(rescale(params[CONTROLS_PARAMS+i].getValue(),scenes[bottomScene][i],scenes[topScene][i],
-					quantizer::closestVoltageInScale(scenes[bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i]),quantizer::closestVoltageInScale(scenes[topScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i])));
+					outputs[CV_OUTPUTS + i].setVoltage(rescale(params[CONTROLS_PARAMS+i].getValue(),scenes[bank][bottomScene][i],scenes[bank][topScene][i],
+					quantizer::closestVoltageInScale(scenes[bank][bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i]),quantizer::closestVoltageInScale(scenes[bank][topScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i])));
 				}
 			}
 		}
@@ -718,7 +733,12 @@ struct PILOTMoveTypeDisplay : TransparentWidget {
 		nvgFillColor(args.vg, YELLOW_BIDOO);
 		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 		if (value) {
-			nvgText(args.vg, 0.0f, 14, displayPlayMode().c_str(), NULL);
+			if (*value>2) {
+				nvgText(args.vg, 0.0f, 14, displayPlayMode().c_str(), NULL);
+			}
+			else {
+				nvgText(args.vg, 0.0f, 12, displayPlayMode().c_str(), NULL);
+			}
 		}
 	}
 };
@@ -888,6 +908,16 @@ struct BidooLargeColoredKnob : RoundKnob {
 	}
 };
 
+struct CtrlRandMenuItem : ui::MenuItem {
+	ParamQuantity* param = NULL;
+	void onAction(const ActionEvent& e) override {
+		PILOT *module = dynamic_cast<PILOT*>(param->module);
+		for (int i = 0 ; i < 16; i++) {
+			module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = random::uniform();;
+		}
+	}
+};
+
 
 struct CtrlRampUpMenuItem : ui::MenuItem {
 	ParamQuantity* param = NULL;
@@ -895,13 +925,13 @@ struct CtrlRampUpMenuItem : ui::MenuItem {
 		PILOT *module = dynamic_cast<PILOT*>(param->module);
 		for (int i = 0 ; i < 16; i++) {
 			if (i==0) {
-				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
+				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
 			}
 			else if (i<=module->length) {
-				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = (float)i/(module->length);
+				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = (float)i/(module->length);
 			}
 			else {
-				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
+				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
 			}
 		}
 	}
@@ -913,13 +943,13 @@ struct CtrlRampDownMenuItem : ui::MenuItem {
 		PILOT *module = dynamic_cast<PILOT*>(param->module);
 		for (int i = 0 ; i < 16; i++) {
 			if (i==0) {
-				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 1.0f;
+				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 1.0f;
 			}
 			else if (i<module->length) {
-				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = (float)(module->length-i)/(module->length);
+				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = (float)(module->length-i)/(module->length);
 			}
 			else {
-				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
+				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
 			}
 		}
 	}
@@ -931,10 +961,10 @@ struct CtrlSinMenuItem : ui::MenuItem {
 		PILOT *module = dynamic_cast<PILOT*>(param->module);
 		for (int i = 0 ; i < 16; i++) {
 			if (i<=module->length) {
-				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = sin((float)(module->length-i)*M_PI/(module->length));
+				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = sin((float)(module->length-i)*M_PI/(module->length));
 			}
 			else {
-				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
+				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
 			}
 		}
 	}
@@ -946,7 +976,7 @@ struct CtrlInitMenuItem : ui::MenuItem {
 		PILOT *module = dynamic_cast<PILOT*>(param->module);
 		for (int i = 0 ; i < 16; i++) {
 			if (i<=module->length) {
-				module->scenes[i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
+				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
 			}
 		}
 	}
@@ -1034,6 +1064,11 @@ struct PILOTColoredKnob : BidooLargeColoredKnob {
 		itemSin->text = "Sinus";
 		itemSin->param = this->getParamQuantity();
 		menu->addChild(itemSin);
+
+		CtrlRandMenuItem* itemRnd = new CtrlRandMenuItem;
+		itemRnd->text = "Randomize";
+		itemRnd->param = this->getParamQuantity();
+		menu->addChild(itemRnd);
 
 		CtrlInitMenuItem* itemInit = new CtrlInitMenuItem;
 		itemInit->text = "Init";
@@ -1216,7 +1251,7 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(seqXAnchor + 6*controlsXOffest+6+4, seqYAnchor+controlsYOffest+6), module, PILOT::RECORD_LIGHT));
 
 	PILOTMoveTypeDisplay *displayMoveType = new PILOTMoveTypeDisplay();
-	displayMoveType->box.pos = Vec(seqXAnchor+13,seqYAnchor+seqDispOffset);
+	displayMoveType->box.pos = Vec(seqXAnchor+14,seqYAnchor+seqDispOffset);
 	displayMoveType->box.size = Vec(20, 20);
 	displayMoveType->value = module ? &module->moveType : NULL;
 	addChild(displayMoveType);
@@ -1232,6 +1267,14 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	displayNote->box.size = Vec(20, 20);
 	displayNote->module = module ? module : NULL;
 	addChild(displayNote);
+
+	PILOTDisplay *displayBank = new PILOTDisplay();
+	displayBank->box.pos = Vec(seqXAnchor-1.5f,257);
+	displayBank->box.size = Vec(20, 20);
+	displayBank->value = module ? &module->bank : NULL;
+	addChild(displayBank);
+	addParam(createParam<BidooBlueSnapKnob>(Vec(seqXAnchor + controlsXOffest-9, 250), module, PILOT::BANK_PARAM));
+	addInput(createInput<TinyPJ301MPort>(Vec(curveCtrlXAnchor + 3*curveCtrlXOffset+curveInputXOffset, 257), module, PILOT::BANK_INPUT));
 }
 
 struct PILOTItem : MenuItem {
