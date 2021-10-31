@@ -358,10 +358,10 @@
       ]
     },
     {
-      "slug": "TEGumEnt",
-      "name": "TEGumEnt",
+      "slug": "BanCau",
+      "name": "BanCau",
       "description": "Envelope tool",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#bidule",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#bancau",
       "tags": [
         "Envelope",
         "Oscillator",

@@ -3,7 +3,7 @@
 
 using namespace std;
 
-struct TEGUMENT : Module {
+struct BANCAU : Module {
 	enum ParamIds {
 		RISE1_PARAM,
 		RISECV1_PARAM,
@@ -74,7 +74,7 @@ struct TEGUMENT : Module {
 	float bp2 = 0.0f;
 	float end2 = 0.0f;
 
-	TEGUMENT() {
+	BANCAU() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 
 		configParam(RISE1_PARAM, 0.f, 1.f, 0.f, "Rise");
@@ -204,60 +204,60 @@ struct TEGUMENT : Module {
 	}
 };
 
-struct TEGUMENTWidget : ModuleWidget {
-	TEGUMENTWidget(TEGUMENT *module) {
+struct BANCAUWidget : ModuleWidget {
+	BANCAUWidget(BANCAU *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/TEGUMENT.svg")));
+		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/BANCAU.svg")));
 
 		const float xPilars[6] = {10-2.5f,45-2.5f,80-2.5f,120-2.5f,155-2.5f,190-2.5f};
 		const int yPilars[6] = {60,110,160,208,260,320};
 		const int portOffset = 3;
 		const int ckssOffset = 8;
 
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[0], yPilars[0]), module, TEGUMENT::RISE1_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[2], yPilars[0]), module, TEGUMENT::FALL1_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(xPilars[0], yPilars[0]), module, BANCAU::RISE1_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(xPilars[2], yPilars[0]), module, BANCAU::FALL1_PARAM));
 
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[0], yPilars[1]), module, TEGUMENT::RISECV1_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[2], yPilars[1]), module, TEGUMENT::FALLCV1_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(xPilars[0], yPilars[1]), module, BANCAU::RISECV1_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(xPilars[2], yPilars[1]), module, BANCAU::FALLCV1_PARAM));
 
-		addInput(createInput<PJ301MPort>(Vec(xPilars[0]+portOffset, yPilars[2]+portOffset), module, TEGUMENT::RISECV1_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[1]+portOffset, yPilars[2]+portOffset), module, TEGUMENT::BOTHCV1_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[2]+portOffset, yPilars[2]+portOffset), module, TEGUMENT::FALLCV1_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(xPilars[0]+portOffset, yPilars[2]+portOffset), module, BANCAU::RISECV1_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(xPilars[1]+portOffset, yPilars[2]+portOffset), module, BANCAU::BOTHCV1_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(xPilars[2]+portOffset, yPilars[2]+portOffset), module, BANCAU::FALLCV1_INPUT));
 
-		addParam(createParam<CKSS>(Vec(xPilars[0]+ckssOffset, yPilars[3]+5), module, TEGUMENT::RISEEXP1_PARAM));
-		addParam(createParam<CKSS>(Vec(xPilars[1]+ckssOffset, yPilars[3]+5), module, TEGUMENT::CYCLE1_PARAM));
-		addParam(createParam<CKSS>(Vec(xPilars[2]+ckssOffset, yPilars[3]+5), module, TEGUMENT::FALLEXP1_PARAM));
+		addParam(createParam<CKSS>(Vec(xPilars[0]+ckssOffset, yPilars[3]+5), module, BANCAU::RISEEXP1_PARAM));
+		addParam(createParam<CKSS>(Vec(xPilars[1]+ckssOffset, yPilars[3]+5), module, BANCAU::CYCLE1_PARAM));
+		addParam(createParam<CKSS>(Vec(xPilars[2]+ckssOffset, yPilars[3]+5), module, BANCAU::FALLEXP1_PARAM));
 
-		addInput(createInput<PJ301MPort>(Vec(xPilars[0]+portOffset, yPilars[4]+portOffset), module, TEGUMENT::VOCT1_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[1]+portOffset, yPilars[4]+portOffset), module, TEGUMENT::IN1_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[2]+portOffset, yPilars[4]+portOffset), module, TEGUMENT::TRIG1_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(xPilars[0]+portOffset, yPilars[4]+portOffset), module, BANCAU::VOCT1_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(xPilars[1]+portOffset, yPilars[4]+portOffset), module, BANCAU::IN1_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(xPilars[2]+portOffset, yPilars[4]+portOffset), module, BANCAU::TRIG1_INPUT));
 
-		addOutput(createOutput<PJ301MPort>(Vec(xPilars[0]+portOffset, yPilars[5]+portOffset), module, TEGUMENT::OUT1_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(xPilars[1]+portOffset, yPilars[5]+portOffset), module, TEGUMENT::PULSE1_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(xPilars[2]+portOffset, yPilars[5]+portOffset), module, TEGUMENT::END1_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(xPilars[0]+portOffset, yPilars[5]+portOffset), module, BANCAU::OUT1_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(xPilars[1]+portOffset, yPilars[5]+portOffset), module, BANCAU::PULSE1_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(xPilars[2]+portOffset, yPilars[5]+portOffset), module, BANCAU::END1_OUTPUT));
 
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[3], yPilars[0]), module, TEGUMENT::RISE2_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[5], yPilars[0]), module, TEGUMENT::FALL2_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(xPilars[3], yPilars[0]), module, BANCAU::RISE2_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(xPilars[5], yPilars[0]), module, BANCAU::FALL2_PARAM));
 
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[3], yPilars[1]), module, TEGUMENT::RISECV2_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[5], yPilars[1]), module, TEGUMENT::FALLCV2_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(xPilars[3], yPilars[1]), module, BANCAU::RISECV2_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(xPilars[5], yPilars[1]), module, BANCAU::FALLCV2_PARAM));
 
-		addInput(createInput<PJ301MPort>(Vec(xPilars[3]+portOffset, yPilars[2]+portOffset), module, TEGUMENT::RISECV2_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[4]+portOffset, yPilars[2]+portOffset), module, TEGUMENT::BOTHCV2_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[5]+portOffset, yPilars[2]+portOffset), module, TEGUMENT::FALLCV2_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(xPilars[3]+portOffset, yPilars[2]+portOffset), module, BANCAU::RISECV2_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(xPilars[4]+portOffset, yPilars[2]+portOffset), module, BANCAU::BOTHCV2_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(xPilars[5]+portOffset, yPilars[2]+portOffset), module, BANCAU::FALLCV2_INPUT));
 
-		addParam(createParam<CKSS>(Vec(xPilars[3]+ckssOffset, yPilars[3]+5), module, TEGUMENT::RISEEXP2_PARAM));
-		addParam(createParam<CKSS>(Vec(xPilars[4]+ckssOffset, yPilars[3]+5), module, TEGUMENT::CYCLE2_PARAM));
-		addParam(createParam<CKSS>(Vec(xPilars[5]+ckssOffset, yPilars[3]+5), module, TEGUMENT::FALLEXP2_PARAM));
+		addParam(createParam<CKSS>(Vec(xPilars[3]+ckssOffset, yPilars[3]+5), module, BANCAU::RISEEXP2_PARAM));
+		addParam(createParam<CKSS>(Vec(xPilars[4]+ckssOffset, yPilars[3]+5), module, BANCAU::CYCLE2_PARAM));
+		addParam(createParam<CKSS>(Vec(xPilars[5]+ckssOffset, yPilars[3]+5), module, BANCAU::FALLEXP2_PARAM));
 
-		addInput(createInput<PJ301MPort>(Vec(xPilars[3]+portOffset, yPilars[4]+portOffset), module, TEGUMENT::VOCT2_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[4]+portOffset, yPilars[4]+portOffset), module, TEGUMENT::IN2_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[5]+portOffset, yPilars[4]+portOffset), module, TEGUMENT::TRIG2_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(xPilars[3]+portOffset, yPilars[4]+portOffset), module, BANCAU::VOCT2_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(xPilars[4]+portOffset, yPilars[4]+portOffset), module, BANCAU::IN2_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(xPilars[5]+portOffset, yPilars[4]+portOffset), module, BANCAU::TRIG2_INPUT));
 
-		addOutput(createOutput<PJ301MPort>(Vec(xPilars[3]+portOffset, yPilars[5]+portOffset), module, TEGUMENT::OUT2_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(xPilars[4]+portOffset, yPilars[5]+portOffset), module, TEGUMENT::BP2_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(xPilars[5]+portOffset, yPilars[5]+portOffset), module, TEGUMENT::END2_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(xPilars[3]+portOffset, yPilars[5]+portOffset), module, BANCAU::OUT2_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(xPilars[4]+portOffset, yPilars[5]+portOffset), module, BANCAU::BP2_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(xPilars[5]+portOffset, yPilars[5]+portOffset), module, BANCAU::END2_OUTPUT));
 	}
 };
 
-Model *modelTEGUMENT = createModel<TEGUMENT, TEGUMENTWidget>("TEGumEnt");
+Model *modelBANCAU = createModel<BANCAU, BANCAUWidget>("BanCau");

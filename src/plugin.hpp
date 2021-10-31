@@ -47,7 +47,7 @@ extern Model *modelFREIN;
 extern Model *modelLOURDE;
 extern Model *modelDILEMO;
 extern Model *modelLAMBDA;
-extern Model *modelTEGUMENT;
+extern Model *modelBANCAU;
 extern Model *modelHCTIP;
 extern Model *modelDFUZE;
 extern Model *modelREI;

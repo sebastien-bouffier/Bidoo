@@ -16,7 +16,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelLOURDE);
 	p->addModel(modelDILEMO);
 	p->addModel(modelLAMBDA);
-	p->addModel(modelTEGUMENT);
+	p->addModel(modelBANCAU);
 	p->addModel(modelACNE);
 	p->addModel(modelMS);
 	p->addModel(modelDUKE);
