@@ -16,6 +16,9 @@ struct LAMBDA : Module {
 		ONE_OUTPUT,
 		TWO_OUTPUT,
 		THREE_OUTPUT,
+		FOUR_OUTPUT,
+		FIVE_OUTPUT,
+		SIX_OUTPUT,
 		NUM_OUTPUTS
 	};
 	enum LightIds {
@@ -23,14 +26,14 @@ struct LAMBDA : Module {
 	};
 
 	dsp::SchmittTrigger sampleTrigger;
-	float one=0.f;
-	float two=0.f;
-	float three=0.f;
 
 	LAMBDA() { config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS); }
 
 	void process(const ProcessArgs &args) override {
 		if (sampleTrigger.process(inputs[CLOCK_INPUT].getVoltage())) {
+			outputs[SIX_OUTPUT].setVoltage(outputs[FIVE_OUTPUT].getVoltage());
+			outputs[FIVE_OUTPUT].setVoltage(outputs[FOUR_OUTPUT].getVoltage());
+			outputs[FOUR_OUTPUT].setVoltage(outputs[THREE_OUTPUT].getVoltage());
 			outputs[THREE_OUTPUT].setVoltage(outputs[TWO_OUTPUT].getVoltage());
 			outputs[TWO_OUTPUT].setVoltage(outputs[ONE_OUTPUT].getVoltage());
 			outputs[ONE_OUTPUT].setVoltage(inputs[CV_INPUT].getVoltage());
@@ -43,12 +46,15 @@ struct LAMBDAWidget : ModuleWidget {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/LAMBDA.svg")));
 
-		addInput(createInput<PJ301MPort>(Vec(10.5f, 57), module, LAMBDA::CLOCK_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10.5f, 114), module, LAMBDA::CV_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10.5f, 31), module, LAMBDA::CLOCK_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10.5f, 74), module, LAMBDA::CV_INPUT));
 
-		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 202.5f), module, LAMBDA::ONE_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 257), module, LAMBDA::TWO_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 311.5f), module, LAMBDA::THREE_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 116.0f), module, LAMBDA::ONE_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 161.0f), module, LAMBDA::TWO_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 205.0f), module, LAMBDA::THREE_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 249.0f), module, LAMBDA::FOUR_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 293.0f), module, LAMBDA::FIVE_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 336.0f), module, LAMBDA::SIX_OUTPUT));
 	}
 };
 

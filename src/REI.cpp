@@ -31,6 +31,8 @@ struct REI : Module {
 		WIDTH_INPUT,
 		SHIMM_INPUT,
 		SHIMMPITCH_INPUT,
+		DRY_INPUT,
+		WET_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -39,6 +41,7 @@ struct REI : Module {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
+		FREEZE_LIGHT,
 		NUM_LIGHTS
 	};
 
@@ -53,15 +56,15 @@ struct REI : Module {
 
 	REI() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(SIZE_PARAM, 0.f, 1.f, .5f, "Room Size", "m", 0.f, 100.f);
+		configParam(SIZE_PARAM, 0.f, 2.f, .5f, "Room Size", "m", 0.f, 100.f);
 		configParam(DAMP_PARAM, 0.f, 1.f, .5f, "Damping", "%", 0.f, 70.f);
 		configParam(WIDTH_PARAM, 0.f, 1.f, .5f, "Width", "%", 0.f, 100.f);
 		configParam(DRY_PARAM, 0.f, 1.f, .5f, "Dry", "%", 0.f, 100.f);
 		configParam(WET_PARAM, 0.f, 1.f, .5f, "Wet", "%", 0.f, 100.f);
 		configParam(SHIMM_PARAM, 0.f, 1.f, 0.f, "Feedback", "%", 0.f, 100.f);
-		configParam(SHIMMPITCH_PARAM, .5f, 4.f, 2.f, "Pitch shift", " Hz"); //Could use sdt::pow TODO find out what pitch it is, to make calibration
-		configParam(FREEZE_PARAM, 0.f, 10.f, 0.f, "Freeze");//non momentary might work better? if using on/off
-		configParam(CLIPPING_PARAM, 0.f, 1.f, 1.f, "Clipping");//Unsure which is on/off
+		configParam(SHIMMPITCH_PARAM, .5f, 4.f, 1.f, "Pitch shift", "x");
+		configParam(FREEZE_PARAM, 0.f, 1.f, 0.f, "Freeze");
+		configSwitch(CLIPPING_PARAM, 0, 1, 0, "Clipping", {"Tanh", "Digi"});
 
 		pShifter = new PitchShifter();
 	}
@@ -82,18 +85,19 @@ struct REI : Module {
 
 		revprocessor.setdamp(clamp(params[DAMP_PARAM].getValue() + inputs[DAMP_INPUT].getVoltage(), 0.0f, 1.0f));
 		revprocessor.setroomsize(clamp(params[SIZE_PARAM].getValue() + inputs[SIZE_INPUT].getVoltage(), 0.0f, 1.0f));
-		revprocessor.setwet(clamp(params[WET_PARAM].getValue(), 0.0f, 1.0f));
-		revprocessor.setdry(clamp(params[DRY_PARAM].getValue(), 0.0f, 1.0f));
+		revprocessor.setwet(clamp(params[WET_PARAM].getValue()+rescale(inputs[WET_INPUT].getVoltage(),0.0f,10.0f,0.0f,1.0f), 0.0f, 1.0f));
+		revprocessor.setdry(clamp(params[DRY_PARAM].getValue()+rescale(inputs[DRY_INPUT].getVoltage(),0.0f,10.0f,0.0f,1.0f), 0.0f, 1.0f));
 		revprocessor.setwidth(clamp(params[WIDTH_PARAM].getValue() + inputs[WIDTH_INPUT].getVoltage(), 0.0f, 1.0f));
 
 		if (freezeTrigger.process(params[FREEZE_PARAM].getValue() + inputs[FREEZE_INPUT].getVoltage())) freeze = !freeze;
+		lights[FREEZE_LIGHT].setBrightness(freeze ? 10 : 0);
 
 		revprocessor.setmode(freeze ? 1.0 : 0.0);
 
-		inL = inputs[IN_L_INPUT].getVoltage();
-		inR = inputs[IN_R_INPUT].getVoltage();
+		inL = inputs[IN_L_INPUT].getVoltage()/10.0f;
+		inR = inputs[IN_R_INPUT].getVoltage()/10.0f;
 
-		float fact = clamp(params[SHIMM_PARAM].getValue() + rescale(inputs[SHIMM_INPUT].getVoltage(), 0.0f, 10.0f, 0.0f, 1.0f), 0.0f, 1.0f)*0.2f;
+		float fact = clamp(params[SHIMM_PARAM].getValue() + rescale(inputs[SHIMM_INPUT].getVoltage(), 0.0f, 10.0f, 0.0f, 1.0f), 0.0f, 1.0f)*3.0f;
 
 		if (pin_Buffer.size() > REIBUFF_SIZE) {
 			revprocessor.process(inL, inR, fact*(*pin_Buffer.startData()), outL, outR, wOutL, wOutR);
@@ -110,7 +114,7 @@ struct REI : Module {
 			outR = tanh(outR / 5.0f)*7.0f;
 		}
 
-		in_Buffer.push((outL + outR) / 2.0f);
+		in_Buffer.push((outL + outR) / 20.0f);
 
 		if (in_Buffer.full()) {
 			pShifter->process(clamp(params[SHIMMPITCH_PARAM].getValue() + inputs[SHIMMPITCH_INPUT].getVoltage(), 0.5f, 4.0f), in_Buffer.startData(), pin_Buffer.endData());
@@ -124,31 +128,49 @@ struct REI : Module {
 
 };
 
+template <typename BASE>
+struct REILight : BASE {
+	REILight() {
+		this->box.size = mm2px(Vec(6.f, 6.f));
+	}
+};
+
 struct REIWidget : ModuleWidget {
 	REIWidget(REI *module) {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/REI.svg")));
 
-		addParam(createParam<BidooBlueKnob>(Vec(13, 45), module, REI::SIZE_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 85), module, REI::DAMP_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 125), module, REI::WIDTH_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 165), module, REI::DRY_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(63, 165), module, REI::WET_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 205), module, REI::SHIMM_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 245), module, REI::SHIMMPITCH_PARAM));
-		addParam(createParam<BlueCKD6>(Vec(13, 285), module, REI::FREEZE_PARAM));
+		const float yAnchor = 38.0f;
+		const float inputsOffset = 32.0f;
+		const float groupsOffset = 64.0f;
+		const float xInputsAnchor = 33.0f;
+		const float xInputsOffset = 24.0f;
 
-		addParam(createParam<CKSS>(Vec(75.0f, 15.0f), module, REI::CLIPPING_PARAM));
-		//Innies
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 47.0f), module, REI::SIZE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 87.0f), module, REI::DAMP_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 127.0f), module, REI::WIDTH_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 207.0f), module, REI::SHIMM_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 247.0f), module, REI::SHIMMPITCH_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 287.0f), module, REI::FREEZE_INPUT));
+		addParam(createParam<BidooBlueKnob>(Vec(13, yAnchor), module, REI::SIZE_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(63, yAnchor), module, REI::DAMP_PARAM));
+		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor, yAnchor+inputsOffset), module, REI::SIZE_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor+xInputsOffset, yAnchor+inputsOffset), module, REI::DAMP_INPUT));
+
+		addParam(createParam<BidooBlueKnob>(Vec(13, yAnchor+groupsOffset), module, REI::WIDTH_PARAM));
+		addParam(createParam<LEDBezel>(Vec(67, yAnchor+groupsOffset+4), module, REI::FREEZE_PARAM));
+		addChild(createLight<REILight<BlueLight>>(Vec(68.8f, yAnchor+groupsOffset+5.8f), module, REI::FREEZE_LIGHT));
+		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor, yAnchor+groupsOffset+inputsOffset), module, REI::WIDTH_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor+xInputsOffset, yAnchor+groupsOffset+inputsOffset), module, REI::FREEZE_INPUT));
+
+		addParam(createParam<BidooBlueKnob>(Vec(13, yAnchor+2*groupsOffset), module, REI::SHIMM_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(63, yAnchor+2*groupsOffset), module, REI::SHIMMPITCH_PARAM));
+		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor, yAnchor+2*groupsOffset+inputsOffset), module, REI::SHIMM_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor+xInputsOffset, yAnchor+2*groupsOffset+inputsOffset), module, REI::SHIMMPITCH_INPUT));
+
+		addParam(createParam<BidooBlueKnob>(Vec(13, yAnchor+3*groupsOffset), module, REI::DRY_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(63, yAnchor+3*groupsOffset), module, REI::WET_PARAM));
+		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor, yAnchor+3*groupsOffset+inputsOffset), module, REI::DRY_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor+xInputsOffset, yAnchor+3*groupsOffset+inputsOffset), module, REI::WET_INPUT));
+
+		addParam(createParam<CKSS>(Vec(21.0f, 289.0f), module, REI::CLIPPING_PARAM));
+
 		addInput(createInput<TinyPJ301MPort>(Vec(8.0f, 340.0f), module, REI::IN_L_INPUT));
 		addInput(createInput<TinyPJ301MPort>(Vec(8.0f+22.0f, 340.0f), module, REI::IN_R_INPUT));
-		//Outies
 		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f, 340.0f), module, REI::OUT_L_OUTPUT));
 		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f+22.0f, 340.0f), module, REI::OUT_R_OUTPUT));
 	}

@@ -185,7 +185,8 @@ struct ANTN : Module {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
-		NUM_LIGHTS
+    ON_LIGHT,
+		NUM_LIGHTS = ON_LIGHT+3
 	};
 
   std::string url;
@@ -256,33 +257,36 @@ void ANTN::onSampleRateChange() {
 
 void ANTN::process(const ProcessArgs &args) {
 	if (trigTrigger.process(params[TRIG_PARAM].value)) {
-    tDc.store(false);
-    while(!tdFree) {
-    }
+    if (read) {
+      tDc.store(false);
+      while(!tdFree) {
+      }
 
-    tDl.store(false);
-    while(!trFree) {
-    }
-    read = false;
-    dataToDecodeRingBuffer.clear();
-    dataAudioRingBuffer.clear();
-
-    tDl.store(true);
-    rData.url = url;
-    rData.sr = args.sampleRate;
-    if ((rack::system::getExtension(rData.url) == ".m3u") || (rack::system::getExtension(rData.url) == ".pls")) {
-      rThread = thread(urlTask, std::ref(rData));
+      tDl.store(false);
+      while(!trFree) {
+      }
+      read = false;
+      dataToDecodeRingBuffer.clear();
+      dataAudioRingBuffer.clear();
     }
     else {
-      rThread = thread(threadReadTask, std::ref(rData));
-    }
-    rThread.detach();
+      tDl.store(true);
+      rData.url = url;
+      rData.sr = args.sampleRate;
+      if ((rack::system::getExtension(rData.url) == ".m3u") || (rack::system::getExtension(rData.url) == ".pls")) {
+        rThread = thread(urlTask, std::ref(rData));
+      }
+      else {
+        rThread = thread(threadReadTask, std::ref(rData));
+      }
+      rThread.detach();
 
-    tDc.store(true);
-    dData.sr = args.sampleRate;
-    mp3dec_init(&dData.mp3d);
-    dThread = thread(threadDecodeTask, std::ref(dData));
-    dThread.detach();
+      tDc.store(true);
+      dData.sr = args.sampleRate;
+      mp3dec_init(&dData.mp3d);
+      dThread = thread(threadDecodeTask, std::ref(dData));
+      dThread.detach();
+    }
 	}
 
   if ((dataAudioRingBuffer.size()>64000) && (args.sampleRate<96000)) {
@@ -291,6 +295,10 @@ void ANTN::process(const ProcessArgs &args) {
   if ((dataAudioRingBuffer.size()>128000) && (args.sampleRate>=96000)) {
     read = true;
   }
+
+  lights[ON_LIGHT].setBrightness(read ? 0.0f : 1.0f);
+  lights[ON_LIGHT+1].setBrightness(read ? (dataAudioRingBuffer.size()<64000 ? 1.0f : 0.0f) : 0.0f);
+  lights[ON_LIGHT+2].setBrightness(read ? 1.0f : 0.0f);
 
   if (read) {
     dsp::Frame<2> currentFrame = *dataAudioRingBuffer.startData();
@@ -338,13 +346,20 @@ void draw(NVGcontext *vg) override {
     nvgFillColor(vg, BLUE_BIDOO);
   	nvgBeginPath(vg);
     nvgRoundedRect(vg,0,0,115.f * module->dataToDecodeRingBuffer.size()/262144.f,5.f,0.0f);
-    nvgRoundedRect(vg,0,10.f,115.f * module->dataAudioRingBuffer.size()/2097152.f,5.f,0.0f);
+    nvgRoundedRect(vg,0,15.f,115.f * module->dataAudioRingBuffer.size()/2097152.f,5.f,0.0f);
   	nvgClosePath(vg);
     nvgStroke(vg);
   	nvgFill(vg);
   	nvgRestore(vg);
   }
 }
+};
+
+template <typename BASE>
+struct ANTNLight : BASE {
+	ANTNLight() {
+		this->box.size = mm2px(Vec(6.f, 6.f));
+	}
 };
 
 struct ANTNWidget : ModuleWidget {
@@ -373,8 +388,10 @@ struct ANTNWidget : ModuleWidget {
   	textField->multiline = true;
   	addChild(textField);
 
-    addParam(createParam<BidooBlueKnob>(Vec(54, 183), module, ANTN::GAIN_PARAM));
-  	addParam(createParam<BlueCKD6>(Vec(54, 245), module, ANTN::TRIG_PARAM));
+    addParam(createParam<BidooBlueKnob>(Vec(52.5f, 183), module, ANTN::GAIN_PARAM));
+
+    addParam(createParam<LEDBezel>(Vec(56.5f, 246), module, ANTN::TRIG_PARAM));
+		addChild(createLight<ANTNLight<RedGreenBlueLight>>(Vec(58.3f, 247.8f), module, ANTN::ON_LIGHT));
 
   	static const float portX0[4] = {34, 67, 101};
 
