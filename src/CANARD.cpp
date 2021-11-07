@@ -545,7 +545,6 @@ struct CANARDDisplay : OpaqueWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgGlobalTint(args.vg, color::WHITE);
 		if (module && (module->playBuffer.size()>0)) {
 			module->mylock.lock();

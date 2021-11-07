@@ -257,7 +257,6 @@ struct BARDisplay : TransparentWidget {
 	}
 
 void draw(const DrawArgs &args) override {
-	std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 	nvgGlobalTint(args.vg, color::WHITE);
 	float vuL = rescale(module->vu_L,-97.0f,0.0f,0.0f,height);
 	float rmsL = rescale(module->rms_L,-97.0f,0.0f,0.0f,height);
@@ -423,6 +422,14 @@ void draw(const DrawArgs &args) override {
 	nvgFill(args.vg);
 
 	char tTresh[128],tRatio[128],tAtt[128],tRel[128],tKnee[128],tMakeUp[128],tMix[128],tLookAhead[128];
+	std::string sTresh,sRat,sAtt,sKnee,sMu,sMix,sLa;
+	sTresh = "TdB";
+	sRat = "R";
+	sAtt = "A/Rms";
+	sKnee = "K";
+	sMu = "GdB";
+	sMix = "M";
+	sLa = "L%";
 	snprintf(tTresh, sizeof(tTresh), "%2.1f", module->threshold);
 	snprintf(tRatio, sizeof(tTresh), "%2.0f:1", module->ratio);
 	snprintf(tAtt, sizeof(tTresh), "%1.0f/%1.0f", module->attackTime,module->releaseTime);
@@ -432,10 +439,16 @@ void draw(const DrawArgs &args) override {
 	snprintf(tMix, sizeof(tTresh), "%1.0f/%1.0f", (1-module->mix)*100,module->mix*100);
 	snprintf(tLookAhead, sizeof(tTresh), "%3i", module->lookAhead);
 	nvgFontSize(args.vg, 14.0f);
-	// nvgFontFaceId(args.vg, font->handle);
-	// nvgTextLetterSpacing(args.vg, -2.0f);
 	nvgFillColor(args.vg, YELLOW_BIDOO);
 	nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+	nvgText(args.vg, 8.0f, height+20.0f, sTresh.c_str(), NULL);
+	nvgText(args.vg, 50.0f, height+20.0f, sRat.c_str(), NULL);
+	nvgText(args.vg, 96.0f, height+20.0f, sAtt.c_str(), NULL);
+	nvgText(args.vg, 8.0f, height+52.0f, sKnee.c_str(), NULL);
+	nvgText(args.vg, 40.0f, height+52.0f, sMu.c_str(), NULL);
+	nvgText(args.vg, 75.0f, height+52.0f, sMix.c_str(), NULL);
+	nvgText(args.vg, 107.0f, height+52.0f, sLa.c_str(), NULL);
+
 	nvgText(args.vg, 8.0f, height+31.0f, tTresh, NULL);
 	nvgText(args.vg, 50.0f, height+31.0f, tRatio, NULL);
 	nvgText(args.vg, 96.0f, height+31.0f, tAtt, NULL);

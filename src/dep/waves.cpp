@@ -54,7 +54,8 @@ namespace waves {
 
     if ((sampleRate != currentSampleRate) && (sampleCount>0)) {
       rack::dsp::SampleRateConverter<1> conv;
-      conv.setRates(currentSampleRate, sampleRate);
+      conv.setRates(sampleRate, currentSampleRate);
+      conv.setQuality(SPEEX_RESAMPLER_QUALITY_DESKTOP);
       int outCount = sampleCount;
       std::vector<rack::dsp::Frame<1>> subResult;
       for (int i=0;i<sampleCount;i++) {

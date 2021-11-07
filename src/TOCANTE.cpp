@@ -158,7 +158,6 @@ struct TOCANTEDisplay : TransparentWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgGlobalTint(args.vg, color::WHITE);
 		if (module != NULL) {
 			char tBPM[128],tBeats[128];
@@ -174,10 +173,9 @@ struct TOCANTEDisplay : TransparentWidget {
 
 struct TOCANTEMeasureDisplay : TransparentWidget {
 	TOCANTE *module;
-	std::shared_ptr<Font> font;
 
 	TOCANTEMeasureDisplay() {
-		font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
+
 	}
 
 	void draw(const DrawArgs &args) override {

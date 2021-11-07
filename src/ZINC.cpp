@@ -99,7 +99,6 @@ struct ZINCDisplay : TransparentWidget {
 	}
 
 	void draw(NVGcontext *vg) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgFontSize(vg, 12);
 		nvgStrokeWidth(vg, 2);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER);

@@ -138,9 +138,7 @@ struct BlueBtn : app::SvgSwitch {
 
 	void draw(const DrawArgs &args) override {
 		SvgSwitch::draw(args);
-		shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance,"res/DejaVuSansMono.ttf"));
 		nvgFontSize(args.vg, 12.0f);
-		nvgFontFaceId(args.vg, font->handle);
 		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 		nvgText(args.vg, 8.0f, 12.0f, (caption).c_str(), NULL);
 	}
@@ -158,9 +156,7 @@ struct RedBtn : app::SvgSwitch {
 
 	void draw(const DrawArgs &args) override {
 		SvgSwitch::draw(args);
-		shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance,"res/DejaVuSansMono.ttf"));
 		nvgFontSize(args.vg, 12.0f);
-		nvgFontFaceId(args.vg, font->handle);
 		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 		nvgText(args.vg, 8.0f, 12.0f, (caption).c_str(), NULL);
 		//nvgStroke(args.vg);

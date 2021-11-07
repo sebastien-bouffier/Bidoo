@@ -24,6 +24,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelPILOT);
 	p->addModel(modelHUITRE);
 	p->addModel(modelOUAIVE);
+	p->addModel(modelEDSAROS);
 	p->addModel(modelPOUPRE);
 	p->addModel(modelMAGMA);
 	p->addModel(modelOAI);

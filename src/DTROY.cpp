@@ -822,21 +822,18 @@ struct DTROYDisplay : TransparentWidget {
 	}
 
 	void drawMessage(NVGcontext *vg, Vec pos, std::string note, std::string playMode, std::string selectedPattern, std::string playedPattern, std::string steps, std::string scale) {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgFontSize(vg, 18.0f);
-		// nvgFontFaceId(vg, font->handle);
-		// nvgTextLetterSpacing(vg, -2.0f);
 		nvgFillColor(vg, YELLOW_BIDOO);
 		nvgText(vg, pos.x + 3.0f, pos.y + 8.0f, playMode.c_str(), NULL);
 		nvgFontSize(vg, 14.0f);
-		nvgText(vg, pos.x + 118.0f, pos.y + 7.0f, selectedPattern.c_str(), NULL);
+		nvgText(vg, pos.x + 114.0f, pos.y + 7.0f, selectedPattern.c_str(), NULL);
 
 		nvgText(vg, pos.x + 30.0f, pos.y + 7.0f, steps.c_str(), NULL);
 		nvgText(vg, pos.x + 3.0f, pos.y + 21.0f, note.c_str(), NULL);
 		nvgText(vg, pos.x + 25.0f, pos.y + 21.0f, scale.c_str(), NULL);
 
 		if (++frame <= 30) {
-			nvgText(vg, pos.x + 89.0f, pos.y + 7.0f, playedPattern.c_str(), NULL);
+			nvgText(vg, pos.x + 90.0f, pos.y + 7.0f, playedPattern.c_str(), NULL);
 		}
 		else if (++frame>60) {
 			frame = 0;

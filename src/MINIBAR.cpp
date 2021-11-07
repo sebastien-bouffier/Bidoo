@@ -199,7 +199,6 @@ struct MINIBARDisplay : TransparentWidget {
 	}
 
 void draw(const DrawArgs &args) override {
-	std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 	nvgGlobalTint(args.vg, color::WHITE);
 	float vuL = rescale(module->vu_L,-97.0f,0.0f,0.0f,height);
 	float rmsL = rescale(module->rms_L,-97.0f,0.0f,0.0f,height);
@@ -341,7 +340,6 @@ struct LabelMICROBARWidget : TransparentWidget {
 	};
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgGlobalTint(args.vg, color::WHITE);
 		nvgFillColor(args.vg, YELLOW_BIDOO);
 		nvgTextAlign(args.vg, NVG_ALIGN_LEFT);

@@ -226,8 +226,6 @@ struct LabelMICROWidget : TransparentWidget {
 
   void draw(const DrawArgs &args) override
   {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
-		nvgFontFaceId(args.vg, font->handle);
 		nvgTextLetterSpacing(args.vg, -2.0f);
 		nvgFillColor(args.vg, YELLOW_BIDOO);
 		nvgTextAlign(args.vg, NVG_ALIGN_LEFT);

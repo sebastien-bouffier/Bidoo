@@ -981,103 +981,103 @@ unsigned showFileInfo(const std::string& filename, const Options& options)
   return 0;
 }
 
-int main(int argc, char *argv[])
-{
-  Options options;
-  bool options_chosen = false;
-
-  std::vector<std::string> filenames;
-  for (int i = 1; i < argc; i++)
-  {
-    std::string s = argv[i];
-    if(s[0] == '-' && s.size() > 1)
-    {
-      if(s != "-x") options_chosen = true; //only selecting hexadecimal is no choice, keep the defaults
-      for(size_t j = 1; j < s.size(); j++)
-      {
-        char c = s[j];
-        if(c == 'h')
-        {
-          showHelp();
-          return 0;
-        }
-        else if(c == 's') options.show_png_summary = true;
-        else if(c == 'p') options.show_png_info = true;
-        else if(c == 'P')
-        {
-          options.show_png_info = true;
-          options.show_extra_png_info = true;
-        }
-        else if(c == 'l') options.show_palette = true;
-        else if(c == 'L') options.show_palette_pixels = true;
-        else if(c == 'a') options.show_ascii_art = true;
-        else if(c == 'A')
-        {
-          options.show_ascii_art = true;
-          options.ascii_art_size += 40;
-        }
-        else if(c == '#') options.show_colors_hex = true;
-        else if(c == '@') options.show_colors_hex_16 = true;
-        else if(c == 'c') options.show_chunks = true;
-        else if(c == 'C') options.show_chunks2 = true;
-        else if(c == 'f') options.show_filters = true;
-        else if(c == 'z') options.zlib_info = true;
-        else if(c == 'b') options.zlib_blocks = true;
-        else if(c == 'B')
-        {
-          options.zlib_blocks = true;
-          options.zlib_counts = true;
-        }
-        else if(c == '7')
-        {
-          options.zlib_blocks = true;
-          options.zlib_full = true;
-        }
-        else if(c == 'x')
-        {
-          options.use_hex = true;
-          std::cout << std::hex;
-        }
-        else if(c == '-')
-        {
-          if(s != "--help") std::cout << "Unknown flag: " << s << ". Use -h for help" << std::endl;
-          showHelp();
-          return 0;
-        }
-        else
-        {
-          std::cout << "Unknown flag: " << c << ". Use -h for help" << std::endl;
-          showHelp();
-          return 0;
-        }
-
-      }
-    }
-    else filenames.push_back(s);
-  }
-
-  if(filenames.empty())
-  {
-    std::cout << "Please provide a filename to preview" << std::endl;
-    showHelp();
-    return 0;
-  }
-
-  if(!options_chosen)
-  {
-    //fill in defaults
-    options.show_png_info = true;
-    options.show_chunks = true;
-    options.show_filters = true;
-    options.zlib_info = true;
-  }
-
-  for(size_t i = 0; i < filenames.size(); i++)
-  {
-    if(filenames.size() > 1) {
-      if(i > 0) std::cout << std::endl;
-      std::cout << filenames[i] << ":" << std::endl;
-    }
-    showFileInfo(filenames[i], options);
-  }
-}
+// int main(int argc, char *argv[])
+// {
+//   Options options;
+//   bool options_chosen = false;
+//
+//   std::vector<std::string> filenames;
+//   for (int i = 1; i < argc; i++)
+//   {
+//     std::string s = argv[i];
+//     if(s[0] == '-' && s.size() > 1)
+//     {
+//       if(s != "-x") options_chosen = true; //only selecting hexadecimal is no choice, keep the defaults
+//       for(size_t j = 1; j < s.size(); j++)
+//       {
+//         char c = s[j];
+//         if(c == 'h')
+//         {
+//           showHelp();
+//           return 0;
+//         }
+//         else if(c == 's') options.show_png_summary = true;
+//         else if(c == 'p') options.show_png_info = true;
+//         else if(c == 'P')
+//         {
+//           options.show_png_info = true;
+//           options.show_extra_png_info = true;
+//         }
+//         else if(c == 'l') options.show_palette = true;
+//         else if(c == 'L') options.show_palette_pixels = true;
+//         else if(c == 'a') options.show_ascii_art = true;
+//         else if(c == 'A')
+//         {
+//           options.show_ascii_art = true;
+//           options.ascii_art_size += 40;
+//         }
+//         else if(c == '#') options.show_colors_hex = true;
+//         else if(c == '@') options.show_colors_hex_16 = true;
+//         else if(c == 'c') options.show_chunks = true;
+//         else if(c == 'C') options.show_chunks2 = true;
+//         else if(c == 'f') options.show_filters = true;
+//         else if(c == 'z') options.zlib_info = true;
+//         else if(c == 'b') options.zlib_blocks = true;
+//         else if(c == 'B')
+//         {
+//           options.zlib_blocks = true;
+//           options.zlib_counts = true;
+//         }
+//         else if(c == '7')
+//         {
+//           options.zlib_blocks = true;
+//           options.zlib_full = true;
+//         }
+//         else if(c == 'x')
+//         {
+//           options.use_hex = true;
+//           std::cout << std::hex;
+//         }
+//         else if(c == '-')
+//         {
+//           if(s != "--help") std::cout << "Unknown flag: " << s << ". Use -h for help" << std::endl;
+//           showHelp();
+//           return 0;
+//         }
+//         else
+//         {
+//           std::cout << "Unknown flag: " << c << ". Use -h for help" << std::endl;
+//           showHelp();
+//           return 0;
+//         }
+//
+//       }
+//     }
+//     else filenames.push_back(s);
+//   }
+//
+//   if(filenames.empty())
+//   {
+//     std::cout << "Please provide a filename to preview" << std::endl;
+//     showHelp();
+//     return 0;
+//   }
+//
+//   if(!options_chosen)
+//   {
+//     //fill in defaults
+//     options.show_png_info = true;
+//     options.show_chunks = true;
+//     options.show_filters = true;
+//     options.zlib_info = true;
+//   }
+//
+//   for(size_t i = 0; i < filenames.size(); i++)
+//   {
+//     if(filenames.size() > 1) {
+//       if(i > 0) std::cout << std::endl;
+//       std::cout << filenames[i] << ":" << std::endl;
+//     }
+//     showFileInfo(filenames[i], options);
+//   }
+// }

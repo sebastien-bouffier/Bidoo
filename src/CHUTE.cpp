@@ -109,18 +109,15 @@ struct CHUTEDisplay : TransparentWidget {
 	CHUTE *module;
 	int frame = 0;
 
-
 	CHUTEDisplay() {
 
 	}
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgGlobalTint(args.vg, color::WHITE);
 		frame = 0;
-		//nvgSave(args.vg);
+		nvgSave(args.vg);
 		nvgFontSize(args.vg, 18.0f);
-		nvgFontFaceId(args.vg, font->handle);
 		nvgTextLetterSpacing(args.vg, -2.0f);
 		nvgFillColor(args.vg, nvgRGBA(0x00, 0x00, 0x00, 0xff));
 		float altRatio = 0.f;
@@ -129,7 +126,7 @@ struct CHUTEDisplay : TransparentWidget {
 		}
 		float pos = box.size.y + altRatio * (9.0f - box.size.y);
 		nvgText(args.vg, 6.0f, pos, "☻", NULL);
-		//nvgRestore(args.vg);
+		nvgRestore(args.vg);
 	}
 };
 

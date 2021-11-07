@@ -727,7 +727,6 @@ struct PILOTMoveTypeDisplay : TransparentWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgGlobalTint(args.vg, color::WHITE);
 		nvgFontSize(args.vg, 18.0f);
 		nvgFillColor(args.vg, YELLOW_BIDOO);
@@ -752,11 +751,9 @@ struct PILOTDisplay : TransparentWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgGlobalTint(args.vg, color::WHITE);
 		if (value) {
       nvgFontSize(args.vg, 18);
-  		nvgFontFaceId(args.vg, font->handle);
   		nvgTextLetterSpacing(args.vg, -2);
   		nvgFillColor(args.vg, YELLOW_BIDOO);
   		std::stringstream ss;
@@ -775,11 +772,9 @@ struct PILOTNoteDisplay : TransparentWidget {
 	}
 
 	void draw(const DrawArgs &args) override {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgGlobalTint(args.vg, color::WHITE);
 		if ((module) && (module->currentFocus>=0) && (module->controlTypes[module->currentFocus]>=3)) {
       nvgFontSize(args.vg, 18);
-  		nvgFontFaceId(args.vg, font->handle);
   		nvgTextLetterSpacing(args.vg, -2);
   		nvgFillColor(args.vg, YELLOW_BIDOO);
 			nvgText(args.vg, 0, 12, quantizer::noteName(module->outputs[PILOT::CV_OUTPUTS+module->currentFocus].getVoltage()).c_str(), NULL);
@@ -805,10 +800,10 @@ struct PILOTCurveDisplay : TransparentWidget {
 			nvgStrokeWidth(args.vg, 2);
 			nvgSave(args.vg);
 			nvgBeginPath(args.vg);
-			for( float i = 0 ; i <= 1 ; i =i+0.01 ) {
+			for(float i=0 ; i<=1; i=i+0.01) {
 				if (i == 0) {
 					if (module->curve) {
-						nvgMoveTo(args.vg, module->getXBez(i)*box.size.x,box.size.x - module->getYBez(i)*box.size.x);
+						nvgMoveTo(args.vg, module->getXBez(i)*box.size.x,box.size.y - module->getYBez(i)*box.size.y);
 					}
 					else {
 						nvgMoveTo(args.vg, i*box.size.x,box.size.x - i*box.size.x);
@@ -1140,7 +1135,7 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	const int inputSquBtnDrift = 4;
 	const int sqBtnYDrift = 2;
 	const int sqBtnDrift = 3;
-	const int dispOffset = 2;
+	const int dispOffset = 1.7f;
 
 	PILOTDisplay *displayTop = new PILOTDisplay();
 	displayTop->box.pos = Vec(sceneXAnchor+dispOffset,topSceneYAnchor);
@@ -1257,7 +1252,7 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	addChild(displayMoveType);
 
 	PILOTDisplay *displayLength = new PILOTDisplay();
-	displayLength->box.pos = Vec(seqXAnchor+ controlsXOffest+6,seqYAnchor+seqDispOffset);
+	displayLength->box.pos = Vec(seqXAnchor+ controlsXOffest+5,seqYAnchor+seqDispOffset);
 	displayLength->box.size = Vec(20, 20);
 	displayLength->value = module ? &module->length : NULL;
 	addChild(displayLength);
@@ -1269,7 +1264,7 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	addChild(displayNote);
 
 	PILOTDisplay *displayBank = new PILOTDisplay();
-	displayBank->box.pos = Vec(seqXAnchor-1.5f,257);
+	displayBank->box.pos = Vec(seqXAnchor-2.0f,256.5f);
 	displayBank->box.size = Vec(20, 20);
 	displayBank->value = module ? &module->bank : NULL;
 	addChild(displayBank);

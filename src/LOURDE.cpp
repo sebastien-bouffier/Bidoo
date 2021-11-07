@@ -58,7 +58,6 @@ struct LabelDisplayWidget : TransparentWidget {
 
   void draw(const DrawArgs &args) override
   {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
 		nvgGlobalTint(args.vg, color::WHITE);
     if (value) {
       char display[128];

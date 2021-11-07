@@ -135,6 +135,15 @@
       ]
     },
     {
+      "slug": "eDsaroS",
+      "name": "eDsaroS",
+      "description": "Sample player base on Laurent De Soras resampler",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#edsaros",
+      "tags": [
+        "Sampler"
+      ]
+    },
+    {
       "slug": "POUPRE",
       "name": "póUPrè",
       "description": "Sample player",

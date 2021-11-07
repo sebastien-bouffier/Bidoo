@@ -219,10 +219,8 @@ struct MOIREDisplay : TransparentWidget {
 	}
 
 	void drawMessage(NVGcontext *vg, Vec pos) {
-		std::shared_ptr<Font> font = APP->window->loadFont(asset::plugin(pluginInstance, "res/DejaVuSansMono.ttf"));
     if (value) {
       nvgFontSize(vg, 18);
-  		nvgFontFaceId(vg, font->handle);
   		nvgTextLetterSpacing(vg, -2);
   		nvgFillColor(vg, YELLOW_BIDOO);
   		std::stringstream ss;
