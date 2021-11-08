@@ -336,21 +336,25 @@ struct ANTNDisplay : TransparentWidget {
 
 	}
 
-void draw(NVGcontext *vg) override {
-  if (module) {
-    nvgSave(vg);
-  	nvgStrokeWidth(vg, 1.0f);
-    nvgStrokeColor(vg, BLUE_BIDOO);
-    nvgFillColor(vg, BLUE_BIDOO);
-  	nvgBeginPath(vg);
-    nvgRoundedRect(vg,0,0,115.f * module->dataToDecodeRingBuffer.size()/262144.f,5.f,0.0f);
-    nvgRoundedRect(vg,0,15.f,115.f * module->dataAudioRingBuffer.size()/2097152.f,5.f,0.0f);
-  	nvgClosePath(vg);
-    nvgStroke(vg);
-  	nvgFill(vg);
-  	nvgRestore(vg);
+  void drawLayer(const DrawArgs& args, int layer) override {
+  	if (layer == 1) {
+      if (module) {
+        nvgSave(args.vg);
+      	nvgStrokeWidth(args.vg, 1.0f);
+        nvgStrokeColor(args.vg, BLUE_BIDOO);
+        nvgFillColor(args.vg, BLUE_BIDOO);
+      	nvgBeginPath(args.vg);
+        nvgRoundedRect(args.vg,0,0,115.f * module->dataToDecodeRingBuffer.size()/262144.f,5.f,0.0f);
+        nvgRoundedRect(args.vg,0,15.f,115.f * module->dataAudioRingBuffer.size()/2097152.f,5.f,0.0f);
+      	nvgClosePath(args.vg);
+        nvgStroke(args.vg);
+      	nvgFill(args.vg);
+      	nvgRestore(args.vg);
+      }
+  	}
+  	Widget::drawLayer(args, layer);
   }
-}
+
 };
 
 template <typename BASE>

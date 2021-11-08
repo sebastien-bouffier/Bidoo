@@ -133,14 +133,12 @@ struct RABBITWidget : ModuleWidget {
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/RABBIT.svg")));
 
 		for (int i = 0; i < 8; i++) {
-			addParam(createParam<LEDBezel>(Vec(27.0f, 50.0f + 32.0f * i), module, RABBIT::BITOFF_PARAM + i));
-			addChild(createLight<RabbitLight<RedLight>>(Vec(29.0f, 52.0f + 32.0f * i), module, RABBIT::BITOFF_LIGHTS + i));
+			addParam(createLightParam<LEDLightBezel<RedLight>>(Vec(27.0f, 50.0f + 32.0f * i), module, RABBIT::BITOFF_PARAM + i, RABBIT::BITOFF_LIGHTS + i));
 
 			addInput(createInput<TinyPJ301MPort>(Vec(8.0f, 54.0f + 32.0f * i), module, RABBIT::BITOFF_INPUT + i));
 			addInput(createInput<TinyPJ301MPort>(Vec(83.0f, 54.0f + 32.0f * i), module, RABBIT::BITREV_INPUT + i));
 
-			addParam(createParam<LEDBezel>(Vec(57.0f, 50.0f + 32.0f * i), module, RABBIT::BITREV_PARAM + i));
-			addChild(createLight<RabbitLight<BlueLight>>(Vec(59.0f, 52.0f + 32.0f * i), module, RABBIT::BITREV_LIGHTS + i));
+			addParam(createLightParam<LEDLightBezel<BlueLight>>(Vec(57.0f, 50.0f + 32.0f * i), module, RABBIT::BITREV_PARAM + i, RABBIT::BITREV_LIGHTS + i));
 		}
 
 		addInput(createInput<TinyPJ301MPort>(Vec(8.0f, 340.0f), module, RABBIT::L_INPUT));

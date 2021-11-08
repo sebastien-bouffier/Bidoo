@@ -119,49 +119,52 @@ struct FLAMEDisplay : OpaqueWidget {
 		OpaqueWidget::onDragEnd(e);
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		if (module) {
-			float iWidth =  1.0f/width;
-			nvgSave(args.vg);
-			nvgScissor(args.vg,0,0,width,H);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (module) {
+				float iWidth =  1.0f/width;
+				nvgSave(args.vg);
+				nvgScissor(args.vg,0,0,width,H);
 
-			for (size_t j=module->fft.size()-1; j>0; j--) {
-				nvgBeginPath(args.vg);
-				nvgMoveTo(args.vg, 0, H-j);
-				for (size_t i = 0; i < width; i++) {
-					float magn = interpolateLinear(&module->fft[j][0], (1.0f-pow(1.0f-i*iWidth,0.1f))*N2)*5e-4f;
-					nvgLineTo(args.vg, i, H-(magn*H) - j);
+				for (size_t j=module->fft.size()-1; j>0; j--) {
+					nvgBeginPath(args.vg);
+					nvgMoveTo(args.vg, 0, H-j);
+					for (size_t i = 0; i < width; i++) {
+						float magn = interpolateLinear(&module->fft[j][0], (1.0f-pow(1.0f-i*iWidth,0.1f))*N2)*5e-4f;
+						nvgLineTo(args.vg, i, H-(magn*H) - j);
+					}
+					nvgLineTo(args.vg, width, H - j);
+					nvgClosePath(args.vg);
+					nvgStrokeWidth(args.vg, 1);
+					nvgStrokeColor(args.vg, nvgRGBA(min(255+j,size_t(255)), min(233+j,size_t(255)), min(0+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
+					nvgFillColor(args.vg, nvgRGBA(min(228+j,size_t(255)), min(87+j,size_t(255)), min(46+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
+					nvgStroke(args.vg);
+					nvgFill(args.vg);
 				}
-				nvgLineTo(args.vg, width, H - j);
+
+				nvgBeginPath(args.vg);
+				nvgMoveTo(args.vg, width, 0);
+				for (size_t j=module->fft.size()-1; j>0; j--) {
+					nvgLineTo(args.vg, width - module->windowSum[j]*5e-3f, H - j);
+				}
+				nvgLineTo(args.vg, width, H);
 				nvgClosePath(args.vg);
-				nvgStrokeWidth(args.vg, 1);
-				nvgStrokeColor(args.vg, nvgRGBA(min(255+j,size_t(255)), min(233+j,size_t(255)), min(0+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
-				nvgFillColor(args.vg, nvgRGBA(min(228+j,size_t(255)), min(87+j,size_t(255)), min(46+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
-				nvgStroke(args.vg);
+				nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 120));
 				nvgFill(args.vg);
+
+				nvgBeginPath(args.vg);
+				nvgRect(args.vg, module->xBox, module->yBox, module->wBox, module->hBox);
+				nvgClosePath(args.vg);
+				nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 80));
+				nvgFill(args.vg);
+
+				nvgResetScissor(args.vg);
+				nvgRestore(args.vg);
 			}
-
-			nvgBeginPath(args.vg);
-			nvgMoveTo(args.vg, width, 0);
-			for (size_t j=module->fft.size()-1; j>0; j--) {
-				nvgLineTo(args.vg, width - module->windowSum[j]*5e-3f, H - j);
-			}
-			nvgLineTo(args.vg, width, H);
-			nvgClosePath(args.vg);
-			nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 120));
-			nvgFill(args.vg);
-
-			nvgBeginPath(args.vg);
-			nvgRect(args.vg, module->xBox, module->yBox, module->wBox, module->hBox);
-			nvgClosePath(args.vg);
-			nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 80));
-			nvgFill(args.vg);
-
-			nvgResetScissor(args.vg);
-			nvgRestore(args.vg);
 		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 

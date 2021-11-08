@@ -166,58 +166,72 @@ struct DIKTATWidget : ModuleWidget {
 struct ChannelDisplay : OpaqueWidget {
 	DIKTAT *module;
 
-	void draw(const DrawArgs &args) override {
-		if (module != NULL) {
-			nvgGlobalTint(args.vg, color::WHITE);
-			nvgFillColor(args.vg, YELLOW_BIDOO);
-			nvgFontSize(args.vg, 12.0f);
-			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
-			nvgText(args.vg, 0, 0, std::to_string(module->currentChannel+1).c_str(), NULL);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (module != NULL) {
+				nvgGlobalTint(args.vg, color::WHITE);
+				nvgFillColor(args.vg, YELLOW_BIDOO);
+				nvgFontSize(args.vg, 12.0f);
+				nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+				nvgText(args.vg, 0, 0, std::to_string(module->currentChannel+1).c_str(), NULL);
+			}
 		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct RootNoteDisplay : OpaqueWidget {
 	DIKTAT *module;
 
-	void draw(const DrawArgs &args) override {
-		if (module != NULL) {
-			nvgGlobalTint(args.vg, color::WHITE);
-			nvgFillColor(args.vg, YELLOW_BIDOO);
-			nvgFontSize(args.vg, 12.0f);
-			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
-			nvgText(args.vg, 0, 0, quantizer::rootNotes[module->rootNote[module->currentChannel]+1].label.c_str(), NULL);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (module != NULL) {
+				nvgGlobalTint(args.vg, color::WHITE);
+				nvgFillColor(args.vg, YELLOW_BIDOO);
+				nvgFontSize(args.vg, 12.0f);
+				nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+				nvgText(args.vg, 0, 0, quantizer::rootNotes[module->rootNote[module->currentChannel]+1].label.c_str(), NULL);
+			}
 		}
+		Widget::drawLayer(args, layer);
 	}
 };
 
 struct ScaleDisplay : OpaqueWidget {
 	DIKTAT *module;
 
-	void draw(const DrawArgs &args) override {
-		if (module != NULL) {
-			nvgGlobalTint(args.vg, color::WHITE);
-			nvgFillColor(args.vg, YELLOW_BIDOO);
-			nvgFontSize(args.vg, 12.0f);
-			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
-			nvgText(args.vg, 0, 0, quantizer::scales[module->scale[module->currentChannel]].label.c_str(), NULL);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (module != NULL) {
+				nvgGlobalTint(args.vg, color::WHITE);
+				nvgFillColor(args.vg, YELLOW_BIDOO);
+				nvgFontSize(args.vg, 12.0f);
+				nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+				nvgText(args.vg, 0, 0, quantizer::scales[module->scale[module->currentChannel]].label.c_str(), NULL);
+			}
 		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct DiktatPJ301MPort : PJ301MPort {
 
-	void draw(const DrawArgs& args) override {
-		if (getPort() && (module != NULL)) {
-			nvgGlobalTint(args.vg, color::WHITE);
-			nvgFillColor(args.vg, SCHEME_WHITE);
-			nvgFontSize(args.vg, 10.0f);
-			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
-			DIKTAT *mod = dynamic_cast<DIKTAT*>(module);
-			nvgText(args.vg, 12, -4, quantizer::noteName(getPort()->getVoltage(mod->currentChannel)).c_str(), NULL);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (getPort() && (module != NULL)) {
+				nvgGlobalTint(args.vg, color::WHITE);
+				nvgFillColor(args.vg, SCHEME_WHITE);
+				nvgFontSize(args.vg, 10.0f);
+				nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+				DIKTAT *mod = dynamic_cast<DIKTAT*>(module);
+				nvgText(args.vg, 12, -4, quantizer::noteName(getPort()->getVoltage(mod->currentChannel)).c_str(), NULL);
+			}
 		}
-		PJ301MPort::draw(args);
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 

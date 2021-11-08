@@ -851,122 +851,124 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
     OpaqueWidget::onDragEnd(e);
   }
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-    if (module) {
-			nvgSave(args.vg);
-      wtFrame frame, playedFrame;
-  		size_t tag=1;
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (module) {
+				nvgSave(args.vg);
+				wtFrame frame, playedFrame;
+				size_t tag=1;
 
-  		if (module->table.nFrames>0) {
-  			frame.magnitude = module->table.frames[(size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1))].magnitude;
-  			frame.phase = module->table.frames[(size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1))].phase;
-				frame.sample = module->table.frames[(size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1))].sample;
-				playedFrame.sample = module->table.frames[module->index].sample;
-  		}
+				if (module->table.nFrames>0) {
+					frame.magnitude = module->table.frames[(size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1))].magnitude;
+					frame.phase = module->table.frames[(size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1))].phase;
+					frame.sample = module->table.frames[(size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1))].sample;
+					playedFrame.sample = module->table.frames[module->index].sample;
+				}
 
-  		Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, heightMagn + graphGap + heightPhas));
-  		nvgScissor(args.vg, 0, b.pos.y, width, heightMagn + graphGap + heightPhas+12);
+				Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, heightMagn + graphGap + heightPhas));
+				nvgScissor(args.vg, 0, b.pos.y, width, heightMagn + graphGap + heightPhas+12);
 
-  		nvgBeginPath(args.vg);
-  		nvgRoundedRect(args.vg, 0, heightMagn + heightPhas + graphGap + 4, width, 8, 2);
-  		nvgFillColor(args.vg, nvgRGBA(220,220,220,80));
-  		nvgFill(args.vg);
-
-  		nvgBeginPath(args.vg);
-  		nvgRoundedRect(args.vg, scrollLeftAnchor, heightMagn + heightPhas + graphGap + 4, 20, 8, 2);
-  		nvgFillColor(args.vg, nvgRGBA(220,220,220,255));
-  		nvgFill(args.vg);
-
-  		nvgFontSize(args.vg, 16.0f);
-  		nvgFillColor(args.vg, YELLOW_BIDOO);
-
-  		nvgText(args.vg, 130.0f, heightMagn + graphGap/2+4, "▲ Magnitude ▼ Phase", NULL);
-
-  		if (module->table.nFrames>0) {
-  			nvgText(args.vg, 0.0f, heightMagn + graphGap/2+4, ("Frame " + to_string((int)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames-1) + 1)) + " / " + to_string(module->table.nFrames)).c_str(), NULL);
-  			for (size_t i = 0; i < FS2/2; i++) {
-  				float x, y;
-  				x = (float)i * IFS2;
-  				y = frame.magnitude[i];
-  				Vec p;
-  				p.x = b.pos.x + b.size.x * x;
-  				p.y = heightMagn * y;
-
-  				if (i==tag){
-  					nvgBeginPath(args.vg);
-  					nvgFillColor(args.vg, nvgRGBA(45, 114, 143, 100));
-  					nvgRect(args.vg, p.x, 0, b.size.x * IFS2, heightMagn);
-  					nvgRect(args.vg, p.x, heightMagn + graphGap, b.size.x * IFS2, heightPhas);
-  					nvgLineCap(args.vg, NVG_MITER);
-  					nvgStrokeWidth(args.vg, 0);
-  					nvgFill(args.vg);
-  					tag *=2;
-  				}
-
-  				if (p.x < width) {
-  					nvgStrokeColor(args.vg, nvgRGBA(45, 114, 143, 100));
-  					nvgFillColor(args.vg, YELLOW_BIDOO);
-  					nvgLineCap(args.vg, NVG_MITER);
-  					nvgStrokeWidth(args.vg, 2);
-  					nvgBeginPath(args.vg);
-  					nvgRect(args.vg, p.x+1, heightMagn - p.y, b.size.x * IFS2 - 2, p.y);
-  					y = frame.phase[i]*IM_PI;
-  					p.y = heightPhas * 0.5f * y;
-  					nvgRect(args.vg, p.x+1, heightMagn + graphGap + heightPhas * 0.5f - p.y, b.size.x * IFS2-2, p.y);
-  					nvgStroke(args.vg);
-  					nvgFill(args.vg);
-  				}
-  			}
-  		}
-
-  		nvgResetScissor(args.vg);
-
-			if ((module->displayPlayedFrame == 0) && (playedFrame.sample.size()>0)) {
-				nvgStrokeColor(args.vg, RED_BIDOO);
-				float invNbSample = 1.f / (float)playedFrame.sample.size();
 				nvgBeginPath(args.vg);
-				for (size_t i = 0; i < playedFrame.sample.size(); i++) {
-					float x, y;
-					x = (float)i * invNbSample  * 420.f;
-					y = (-1.f)*playedFrame.sample[i] * 18.f + 35.f;
-					if (i == 0) {
-						nvgMoveTo(args.vg, x, y);
-					}
-					else {
-						nvgLineTo(args.vg, x, y);
+				nvgRoundedRect(args.vg, 0, heightMagn + heightPhas + graphGap + 4, width, 8, 2);
+				nvgFillColor(args.vg, nvgRGBA(220,220,220,80));
+				nvgFill(args.vg);
+
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg, scrollLeftAnchor, heightMagn + heightPhas + graphGap + 4, 20, 8, 2);
+				nvgFillColor(args.vg, nvgRGBA(220,220,220,255));
+				nvgFill(args.vg);
+
+				nvgFontSize(args.vg, 16.0f);
+				nvgFillColor(args.vg, YELLOW_BIDOO);
+
+				nvgText(args.vg, 130.0f, heightMagn + graphGap/2+4, "▲ Magnitude ▼ Phase", NULL);
+
+				if (module->table.nFrames>0) {
+					nvgText(args.vg, 0.0f, heightMagn + graphGap/2+4, ("Frame " + to_string((int)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames-1) + 1)) + " / " + to_string(module->table.nFrames)).c_str(), NULL);
+					for (size_t i = 0; i < FS2/2; i++) {
+						float x, y;
+						x = (float)i * IFS2;
+						y = frame.magnitude[i];
+						Vec p;
+						p.x = b.pos.x + b.size.x * x;
+						p.y = heightMagn * y;
+
+						if (i==tag){
+							nvgBeginPath(args.vg);
+							nvgFillColor(args.vg, nvgRGBA(45, 114, 143, 100));
+							nvgRect(args.vg, p.x, 0, b.size.x * IFS2, heightMagn);
+							nvgRect(args.vg, p.x, heightMagn + graphGap, b.size.x * IFS2, heightPhas);
+							nvgLineCap(args.vg, NVG_MITER);
+							nvgStrokeWidth(args.vg, 0);
+							nvgFill(args.vg);
+							tag *=2;
+						}
+
+						if (p.x < width) {
+							nvgStrokeColor(args.vg, nvgRGBA(45, 114, 143, 100));
+							nvgFillColor(args.vg, YELLOW_BIDOO);
+							nvgLineCap(args.vg, NVG_MITER);
+							nvgStrokeWidth(args.vg, 2);
+							nvgBeginPath(args.vg);
+							nvgRect(args.vg, p.x+1, heightMagn - p.y, b.size.x * IFS2 - 2, p.y);
+							y = frame.phase[i]*IM_PI;
+							p.y = heightPhas * 0.5f * y;
+							nvgRect(args.vg, p.x+1, heightMagn + graphGap + heightPhas * 0.5f - p.y, b.size.x * IFS2-2, p.y);
+							nvgStroke(args.vg);
+							nvgFill(args.vg);
+						}
 					}
 				}
-				nvgLineCap(args.vg, NVG_MITER);
-				nvgStrokeWidth(args.vg, 1);
-				nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-				nvgStroke(args.vg);
-			}
 
-			if ((module->displayEditedFrame == 0) && (frame.sample.size()>0)) {
-				nvgStrokeColor(args.vg, GREEN_BIDOO);
-				float invNbSample = 1.f / (float)frame.sample.size();
-				nvgBeginPath(args.vg);
-				for (size_t i = 0; i < frame.sample.size(); i++) {
-					float x, y;
-					x = (float)i * invNbSample * 420.f;
-					y = (-1.f)*frame.sample[i] * 18.f + 35.f;
-					if (i == 0) {
-						nvgMoveTo(args.vg, x, y);
+				nvgResetScissor(args.vg);
+
+				if ((module->displayPlayedFrame == 0) && (playedFrame.sample.size()>0)) {
+					nvgStrokeColor(args.vg, RED_BIDOO);
+					float invNbSample = 1.f / (float)playedFrame.sample.size();
+					nvgBeginPath(args.vg);
+					for (size_t i = 0; i < playedFrame.sample.size(); i++) {
+						float x, y;
+						x = (float)i * invNbSample  * 420.f;
+						y = (-1.f)*playedFrame.sample[i] * 18.f + 35.f;
+						if (i == 0) {
+							nvgMoveTo(args.vg, x, y);
+						}
+						else {
+							nvgLineTo(args.vg, x, y);
+						}
 					}
-					else {
-						nvgLineTo(args.vg, x, y);
-					}
+					nvgLineCap(args.vg, NVG_MITER);
+					nvgStrokeWidth(args.vg, 1);
+					nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+					nvgStroke(args.vg);
 				}
-				nvgLineCap(args.vg, NVG_MITER);
-				nvgStrokeWidth(args.vg, 1);
-				nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-				nvgStroke(args.vg);
+
+				if ((module->displayEditedFrame == 0) && (frame.sample.size()>0)) {
+					nvgStrokeColor(args.vg, GREEN_BIDOO);
+					float invNbSample = 1.f / (float)frame.sample.size();
+					nvgBeginPath(args.vg);
+					for (size_t i = 0; i < frame.sample.size(); i++) {
+						float x, y;
+						x = (float)i * invNbSample * 420.f;
+						y = (-1.f)*frame.sample[i] * 18.f + 35.f;
+						if (i == 0) {
+							nvgMoveTo(args.vg, x, y);
+						}
+						else {
+							nvgLineTo(args.vg, x, y);
+						}
+					}
+					nvgLineCap(args.vg, NVG_MITER);
+					nvgStrokeWidth(args.vg, 1);
+					nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+					nvgStroke(args.vg);
+				}
+				nvgRestore(args.vg);
 			}
-			nvgRestore(args.vg);
 		}
-
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct LIMONADEWavDisplay : OpaqueWidget {
@@ -1019,85 +1021,88 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 		OpaqueWidget::onDragEnd(e);
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-    if (module && (module->displayMode == 0)) {
-      size_t fs = module->table.nFrames;
-  		size_t idx = 0;
-  		size_t wtidx = 0;
-  		if (fs>0) {
-  			idx = module->params[LIMONADE::INDEX_PARAM].getValue()*(fs-1);
-  			wtidx = clamp(module->params[LIMONADE::WTINDEX_PARAM].getValue()+module->inputs[LIMONADE::WTINDEX_INPUT].getVoltage()*0.1f*module->params[LIMONADE::WTINDEXATT_PARAM].getValue(),0.0f,1.0f)*(fs-1);
-  		}
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (module && (module->displayMode == 0)) {
+				size_t fs = module->table.nFrames;
+				size_t idx = 0;
+				size_t wtidx = 0;
+				if (fs>0) {
+					idx = module->params[LIMONADE::INDEX_PARAM].getValue()*(fs-1);
+					wtidx = clamp(module->params[LIMONADE::WTINDEX_PARAM].getValue()+module->inputs[LIMONADE::WTINDEX_INPUT].getVoltage()*0.1f*module->params[LIMONADE::WTINDEXATT_PARAM].getValue(),0.0f,1.0f)*(fs-1);
+				}
 
-  		nvgSave(args.vg);
+				nvgSave(args.vg);
 
-  		nvgFontSize(args.vg, 8.0f);
-  		nvgFillColor(args.vg, YELLOW_BIDOO);
-			nvgStrokeWidth(args.vg, 1.0f);
+				nvgFontSize(args.vg, 8.0f);
+				nvgFillColor(args.vg, YELLOW_BIDOO);
+				nvgStrokeWidth(args.vg, 1.0f);
 
-  		nvgText(args.vg, width+2, height-10, ("V=" + to_string((int)module->params[LIMONADE::UNISSON_PARAM].getValue())).c_str(), NULL);
+				nvgText(args.vg, width+2, height-10, ("V=" + to_string((int)module->params[LIMONADE::UNISSON_PARAM].getValue())).c_str(), NULL);
 
-  		for (size_t n=0; n<fs; n++) {
-				size_t fid = fs-n-1;
-				y3D = 10.0f * fid/fs-5.0f;
-				nvgBeginPath(args.vg);
-  			for (size_t i=0; i<FS2; i+=2) {
-  				x3D = 20.0f * i * IFS -5.0f;
-  				z3D = (-1.f)*module->table.frames[fid].sample[2*i];
-  				y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
-  				x2D = ca2*x3D+sa2*y3D+7.5f;
-  				if (i == 0) {
-  					nvgMoveTo(args.vg, 10.0f * x2D, 10.0f * y2D);
-  				}
-  				else {
-  					nvgLineTo(args.vg, 10.0f * x2D, 10.0f * y2D);
-  				}
-  			}
+				for (size_t n=0; n<fs; n++) {
+					size_t fid = fs-n-1;
+					y3D = 10.0f * fid/fs-5.0f;
+					nvgBeginPath(args.vg);
+					for (size_t i=0; i<FS2; i+=2) {
+						x3D = 20.0f * i * IFS -5.0f;
+						z3D = (-1.f)*module->table.frames[fid].sample[2*i];
+						y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
+						x2D = ca2*x3D+sa2*y3D+7.5f;
+						if (i == 0) {
+							nvgMoveTo(args.vg, 10.0f * x2D, 10.0f * y2D);
+						}
+						else {
+							nvgLineTo(args.vg, 10.0f * x2D, 10.0f * y2D);
+						}
+					}
 
-  			nvgStrokeColor(args.vg, nvgRGBA(255, 233, 0, module->table.frames[fid].morphed ? 15 : 50));
-  			nvgStroke(args.vg);
-  		}
+					nvgStrokeColor(args.vg, nvgRGBA(255, 233, 0, module->table.frames[fid].morphed ? 15 : 50));
+					nvgStroke(args.vg);
+				}
 
-  		if (fs>0) {
-  			nvgBeginPath(args.vg);
-				y3D = 10.0f * idx/fs -5.0f;
-  			for (size_t i=0; i<FS; i++) {
-  				x3D = 10.0f * i * IFS -5.0f;
-  				z3D = (-1.f)*module->table.frames[idx].sample[i];
-  				y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
-  				x2D = ca2*x3D+sa2*y3D+7.5f;
-  				if (i == 0) {
-  					nvgMoveTo(args.vg, 10.0f * x2D, 10.0f * y2D);
-  				}
-  				else {
-  					nvgLineTo(args.vg, 10.0f * x2D, 10.0f * y2D);
-  				}
-  			}
-  			nvgStrokeColor(args.vg, GREEN_BIDOO);
-  			nvgStroke(args.vg);
+				if (fs>0) {
+					nvgBeginPath(args.vg);
+					y3D = 10.0f * idx/fs -5.0f;
+					for (size_t i=0; i<FS; i++) {
+						x3D = 10.0f * i * IFS -5.0f;
+						z3D = (-1.f)*module->table.frames[idx].sample[i];
+						y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
+						x2D = ca2*x3D+sa2*y3D+7.5f;
+						if (i == 0) {
+							nvgMoveTo(args.vg, 10.0f * x2D, 10.0f * y2D);
+						}
+						else {
+							nvgLineTo(args.vg, 10.0f * x2D, 10.0f * y2D);
+						}
+					}
+					nvgStrokeColor(args.vg, GREEN_BIDOO);
+					nvgStroke(args.vg);
 
-  			nvgBeginPath(args.vg);
-				y3D = 10.0f * wtidx/fs -5.0f;
-  			for (size_t i=0; i<FS; i++) {
-  				x3D = 10.0f * i * IFS -5.0f;
-  				z3D = (-1.f)*module->table.frames[wtidx].sample[i];
-  				y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
-  				x2D = ca2*x3D+sa2*y3D+7.5f;
-  				if (i == 0) {
-  					nvgMoveTo(args.vg, 10.0f * x2D, 10.0f * y2D);
-  				}
-  				else {
-  					nvgLineTo(args.vg, 10.0f * x2D, 10.0f * y2D);
-  				}
-  			}
-  			nvgStrokeColor(args.vg, RED_BIDOO);
-  			nvgStroke(args.vg);
-  		}
+					nvgBeginPath(args.vg);
+					y3D = 10.0f * wtidx/fs -5.0f;
+					for (size_t i=0; i<FS; i++) {
+						x3D = 10.0f * i * IFS -5.0f;
+						z3D = (-1.f)*module->table.frames[wtidx].sample[i];
+						y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
+						x2D = ca2*x3D+sa2*y3D+7.5f;
+						if (i == 0) {
+							nvgMoveTo(args.vg, 10.0f * x2D, 10.0f * y2D);
+						}
+						else {
+							nvgLineTo(args.vg, 10.0f * x2D, 10.0f * y2D);
+						}
+					}
+					nvgStrokeColor(args.vg, RED_BIDOO);
+					nvgStroke(args.vg);
+				}
 
-  		nvgRestore(args.vg);
-    }
- 	}
+				nvgRestore(args.vg);
+			}
+		}
+		Widget::drawLayer(args, layer);
+	}
+
 };
 
 struct LIMONADETextField : LedDisplayTextField {
@@ -1127,6 +1132,7 @@ struct LIMONADETextField : LedDisplayTextField {
 		}
 		LedDisplayTextField::draw(args);
 	}
+
 };
 
 

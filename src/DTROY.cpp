@@ -859,18 +859,21 @@ struct DTROYDisplay : TransparentWidget {
 		}
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-    if (module) {
-      note = displayRootNote(module->patterns[module->selectedPattern].rootNote);
-  		steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);
-  		playMode = displayPlayMode(module->patterns[module->selectedPattern].playMode);
-  		scale = displayScale(module->patterns[module->selectedPattern].scale);
-  		selectedPattern = "P" + to_string(module->selectedPattern + 1);
-  		playedPattern = "P" + to_string(module->playedPattern + 1);
-  		drawMessage(args.vg, Vec(0, 20), note, playMode, selectedPattern, playedPattern, steps, scale);
-    }
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (module) {
+	      note = displayRootNote(module->patterns[module->selectedPattern].rootNote);
+	  		steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);
+	  		playMode = displayPlayMode(module->patterns[module->selectedPattern].playMode);
+	  		scale = displayScale(module->patterns[module->selectedPattern].scale);
+	  		selectedPattern = "P" + to_string(module->selectedPattern + 1);
+	  		playedPattern = "P" + to_string(module->playedPattern + 1);
+	  		drawMessage(args.vg, Vec(0, 20), note, playMode, selectedPattern, playedPattern, steps, scale);
+	    }
+		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct DTROYWidget : ModuleWidget {

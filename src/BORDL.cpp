@@ -957,18 +957,21 @@ struct BORDLDisplay : TransparentWidget {
 		}
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		if (module) {
-			note = displayRootNote(clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,11.0f),0.0f, 11.0f));
-			steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);
-			playMode = displayPlayMode(module->patterns[module->selectedPattern].playMode);
-			scale = displayScale(module->patterns[module->selectedPattern].scale);
-			selectedPattern = "P" + to_string(module->selectedPattern + 1);
-			playedPattern = "P" + to_string(module->playedPattern + 1);
-			drawMessage(args.vg, Vec(0.0f, 20.0f), note, playMode, selectedPattern, playedPattern, steps, scale);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (module) {
+				note = displayRootNote(clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,11.0f),0.0f, 11.0f));
+				steps = (module->patterns[module->selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->patterns[module->selectedPattern].numberOfStepsParam);
+				playMode = displayPlayMode(module->patterns[module->selectedPattern].playMode);
+				scale = displayScale(module->patterns[module->selectedPattern].scale);
+				selectedPattern = "P" + to_string(module->selectedPattern + 1);
+				playedPattern = "P" + to_string(module->playedPattern + 1);
+				drawMessage(args.vg, Vec(0.0f, 20.0f), note, playMode, selectedPattern, playedPattern, steps, scale);
+			}
 		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct BORDLGateDisplay : TransparentWidget {
@@ -1031,10 +1034,13 @@ struct BORDLGateDisplay : TransparentWidget {
 		}
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		drawGate(args, Vec(0.0f, 0.0f));
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			drawGate(args, Vec(0.0f, 0.0f));
+		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct BORDLPulseDisplay : TransparentWidget {
@@ -1060,10 +1066,13 @@ struct BORDLPulseDisplay : TransparentWidget {
 		}
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		drawPulse(args, Vec(0.0f, 0.0f));
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			drawPulse(args, Vec(0.0f, 0.0f));
+		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct BORDLPitchDisplay : TransparentWidget {
@@ -1110,10 +1119,13 @@ struct BORDLPitchDisplay : TransparentWidget {
 		}
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		drawPitch(args, Vec(0.0f, 0.0f));
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			drawPitch(args, Vec(0.0f, 0.0f));
+		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct BORDLWidget : ModuleWidget {

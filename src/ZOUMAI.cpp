@@ -301,7 +301,12 @@ struct ZOUMAI : Module {
 
 	enum LightIds {
 		STEPS_LIGHTS,
-		FILL_LIGHT = STEPS_LIGHTS + 16*3,
+		NOTE_LIGHTS = STEPS_LIGHTS + 16*3,
+		TRACKSONOFF_LIGHTS = NOTE_LIGHTS + 12*3,
+		TRACKSELECT_LIGHTS = TRACKSONOFF_LIGHTS + 8*3,
+		TRIGPAGE_LIGHTS = TRACKSELECT_LIGHTS + 8*3,
+		OCTAVE_LIGHTS = TRIGPAGE_LIGHTS + 4*3,
+		FILL_LIGHT = OCTAVE_LIGHTS + 7*3,
 		COPYTRACK_LIGHT,
 		COPYPATTERN_LIGHT,
 		COPYTRIG_LIGHT,
@@ -485,10 +490,14 @@ struct ZOUMAI : Module {
 		for (int i=0;i<12;i++) {
 			bool focused = nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigSemiTones() == i;
 			if ((i!=1)&&(i!=3)&&(i!=6)&&(i!=8)&&(i!=10)) {
-				params[NOTE_PARAMS+i].setValue(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 2.0f : 3.0f) : 1.0f);
+				lights[NOTE_LIGHTS+3*i].setBrightness(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 0.0f : 0.0f) : 1.0f);
+				lights[NOTE_LIGHTS+3*i+1].setBrightness(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 1.0f : 0.5f) : 1.0f);
+				lights[NOTE_LIGHTS+3*i+2].setBrightness(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 0.0f : 0.0f) : 1.0f);
 			}
 			else {
-				params[NOTE_PARAMS+i].setValue(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 2.0f : 3.0f) : 0.0f);
+				lights[NOTE_LIGHTS+3*i].setBrightness(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 0.0f : 0.0f) : 0.0f);
+				lights[NOTE_LIGHTS+3*i+1].setBrightness(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 1.0f : 0.5f) : 0.0f);
+				lights[NOTE_LIGHTS+3*i+2].setBrightness(focused ? (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigActive() ? 0.0f : 0.0f) : 0.0f);
 			}
 		}
 	}
@@ -1284,36 +1293,102 @@ void ZOUMAI::process(const ProcessArgs &args) {
 
 	for (int i = 0; i<4; i++) {
 		if (i == trigPage) {
-			params[TRIGPAGE_PARAM+i].setValue(2.0f);
+			lights[TRIGPAGE_LIGHTS+3*i].setBrightness(0.0f);
+			lights[TRIGPAGE_LIGHTS+3*i+1].setBrightness(0.0f);
+			lights[TRIGPAGE_LIGHTS+3*i+2].setBrightness(1.0f);
+			//params[TRIGPAGE_PARAM+i].setValue(2.0f);
 		}
 		else if ((nTracksAttibutes[currentPattern][currentTrack].getTrackCurrentTrig() >= (i*16)) && (nTracksAttibutes[currentPattern][currentTrack].getTrackCurrentTrig()<(16*(i+1)-1))) {
-			params[TRIGPAGE_PARAM+i].setValue(1.0f);
+			lights[TRIGPAGE_LIGHTS+3*i].setBrightness(1.0f);
+			lights[TRIGPAGE_LIGHTS+3*i+1].setBrightness(0.0f);
+			lights[TRIGPAGE_LIGHTS+3*i+2].setBrightness(0.0f);
+			//params[TRIGPAGE_PARAM+i].setValue(1.0f);
 		}
 		else {
-			params[TRIGPAGE_PARAM+i].setValue(0.0f);
+			lights[TRIGPAGE_LIGHTS+3*i].setBrightness(0.0f);
+			lights[TRIGPAGE_LIGHTS+3*i+1].setBrightness(0.0f);
+			lights[TRIGPAGE_LIGHTS+3*i+2].setBrightness(0.0f);
+			//params[TRIGPAGE_PARAM+i].setValue(0.0f);
 		}
 	}
 
 	int pageOffset = trigPage*16;
-	for (size_t i = 0; i<16; i++) {
+	for (int i = 0; i<16; i++) {
 		int shiftedIndex = i + pageOffset;
 		if (nTracksAttibutes[currentPattern][currentTrack].getTrackCurrentTrig() == shiftedIndex) {
-			params[STEPS_PARAMS+i].setValue(4.0f);
+			lights[STEPS_LIGHTS+3*i].setBrightness(1.0f);
+			lights[STEPS_LIGHTS+3*i+1].setBrightness(0.0f);
+			lights[STEPS_LIGHTS+3*i+2].setBrightness(0.0f);
 		}
 		else if (nTrigsAttibutes[currentPattern][currentTrack][shiftedIndex].getTrigActive()) {
 			if (shiftedIndex == currentTrig) {
-				params[STEPS_PARAMS+i].setValue(1.0f);
+				lights[STEPS_LIGHTS+3*i].setBrightness(0.0f);
+				lights[STEPS_LIGHTS+3*i+1].setBrightness(0.0f);
+				lights[STEPS_LIGHTS+3*i+2].setBrightness(1.0f);
 			}
 			else {
-				params[STEPS_PARAMS+i].setValue(3.0f);
+				lights[STEPS_LIGHTS+3*i].setBrightness(0.0f);
+				lights[STEPS_LIGHTS+3*i+1].setBrightness(1.0f);
+				lights[STEPS_LIGHTS+3*i+2].setBrightness(0.0f);
 			}
 		}
 		else if (currentTrig == shiftedIndex) {
-			params[STEPS_PARAMS+i].setValue(2.0f);
+			lights[STEPS_LIGHTS+3*i].setBrightness(0.0f);
+			lights[STEPS_LIGHTS+3*i+1].setBrightness(0.0f);
+			lights[STEPS_LIGHTS+3*i+2].setBrightness(0.5f);
 		}
 		else {
-			params[STEPS_PARAMS+i].setValue(0.0f);
+			lights[STEPS_LIGHTS+3*i].setBrightness(0.1f);
+			lights[STEPS_LIGHTS+3*i+1].setBrightness(0.1f);
+			lights[STEPS_LIGHTS+3*i+2].setBrightness(0.1f);
 		}
+
+		if (i<7) {
+				if (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigOctave()==i) {
+					lights[OCTAVE_LIGHTS+3*i].setBrightness(0.0f);
+					lights[OCTAVE_LIGHTS+3*i+1].setBrightness(0.0f);
+					lights[OCTAVE_LIGHTS+3*i+2].setBrightness(1.0f);
+				}
+				else {
+					lights[OCTAVE_LIGHTS+3*i].setBrightness(0.0f);
+					lights[OCTAVE_LIGHTS+3*i+1].setBrightness(0.0f);
+					lights[OCTAVE_LIGHTS+3*i+2].setBrightness(0.0f);
+				}
+		}
+
+		if (i<8) {
+			if (trackActiveTriggers[i].process(inputs[TRACKACTIVE_INPUTS+i].getVoltage())) {
+				nTracksAttibutes[currentPattern][i].toggleTrackActive();
+			}
+
+			if (currentTrack==i) {
+				lights[TRACKSELECT_LIGHTS+i*3].setBrightness(0.0f);
+				lights[TRACKSELECT_LIGHTS+i*3+1].setBrightness(0.0f);
+				lights[TRACKSELECT_LIGHTS+i*3+2].setBrightness(1.0f);
+			}
+			else {
+				lights[TRACKSELECT_LIGHTS+i*3].setBrightness(0.0f);
+				lights[TRACKSELECT_LIGHTS+i*3+1].setBrightness(0.0f);
+				lights[TRACKSELECT_LIGHTS+i*3+2].setBrightness(0.0f);
+			}
+
+			if (!solo && nTracksAttibutes[currentPattern][i].getTrackActive()) {
+				lights[TRACKSONOFF_LIGHTS+i*3].setBrightness(0.0f);
+				lights[TRACKSONOFF_LIGHTS+i*3+1].setBrightness(1.0f);
+				lights[TRACKSONOFF_LIGHTS+i*3+2].setBrightness(0.0f);
+			}
+			else if (solo && nTracksAttibutes[currentPattern][i].getTrackSolo()) {
+				lights[TRACKSONOFF_LIGHTS+i*3].setBrightness(0.0f);
+				lights[TRACKSONOFF_LIGHTS+i*3+1].setBrightness(0.0f);
+				lights[TRACKSONOFF_LIGHTS+i*3+2].setBrightness(1.0f);
+			}
+			else {
+				lights[TRACKSONOFF_LIGHTS+i*3].setBrightness(0.0f);
+				lights[TRACKSONOFF_LIGHTS+i*3+1].setBrightness(0.0f);
+				lights[TRACKSONOFF_LIGHTS+i*3+2].setBrightness(0.0f);
+			}
+		}
+
 	}
 
 	if (runTrigger.process(inputs[RUN_INPUT].getVoltage())) {
@@ -1355,21 +1430,6 @@ void ZOUMAI::process(const ProcessArgs &args) {
 
 
 		for (int i=0; i<8;i++) {
-			if (trackActiveTriggers[i].process(inputs[TRACKACTIVE_INPUTS+i].getVoltage())) {
-				nTracksAttibutes[currentPattern][i].toggleTrackActive();
-			}
-
-			if (!solo && nTracksAttibutes[currentPattern][i].getTrackActive()) {
-				params[TRACKSONOFF_PARAMS+i].setValue(1.0f);
-			}
-			else if (solo && nTracksAttibutes[currentPattern][i].getTrackSolo()) {
-				params[TRACKSONOFF_PARAMS+i].setValue(2.0f);
-			}
-			else {
-				params[TRACKSONOFF_PARAMS+i].setValue(0.0f);
-			}
-
-
 			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage()) || (!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset)) {
 				trackReset(i, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
 				trackMoveNext(i, true, fill, i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre());
@@ -1480,214 +1540,173 @@ struct quantizeBtn : SvgSwitch {
 
 };
 
-struct octaveBtn : SvgSwitch {
-	Param *octaveParams;
-	ZOUMAI *module;
+struct octaveBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 
 	octaveBtn() {
-		momentary = false;
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledgrey.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledblue.svg")));
-		sw->wrap();
-		shadow->opacity = 0.0f;
+
 	}
 
 	void onButton(const event::Button &e) override {
+		ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
 			for (int i = 0; i < 7; i++) {
 				if (i != getParamQuantity()->paramId - ZOUMAI::OCTAVE_PARAMS) {
-					octaveParams[i].setValue(0.0f);
+					mod->params[ZOUMAI::OCTAVE_PARAMS+i].setValue(0.0f);
 				}
 				else {
-					module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].setTrigOctave(i);
+					mod->nTrigsAttibutes[mod->currentPattern][mod->currentTrack][mod->currentTrig].setTrigOctave(i);
 				}
 			}
 			e.consume(this);
 			return;
 		}
-		SvgSwitch::onButton(e);
+		SmallLEDLightBezel::onButton(e);
 	}
 };
 
-struct trigPageBtn : SvgSwitch {
-	Param *trigPageParams;
-	ZOUMAI *module;
+struct trigPageBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 
 	trigPageBtn() {
-		momentary = false;
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledgrey.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledorange.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledblue.svg")));
-		sw->wrap();
-		shadow->opacity = 0.0f;
+
 	}
 
 	void onButton(const event::Button &e) override {
+		ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
-			module->trigPage = getParamQuantity()->paramId - ZOUMAI::TRIGPAGE_PARAM;
-			if (module->currentTrig>48) module->currentTrig = module->currentTrig - 48;
-			if (module->currentTrig>32) module->currentTrig = module->currentTrig - 32;
-			if (module->currentTrig>16) module->currentTrig = module->currentTrig - 16;
-			module->currentTrig = module->trigPage*16 + module->currentTrig;
-			module->updateTrigToParams();
+			mod->trigPage = getParamQuantity()->paramId - ZOUMAI::TRIGPAGE_PARAM;
+			if (mod->currentTrig>48) mod->currentTrig = mod->currentTrig - 48;
+			if (mod->currentTrig>32) mod->currentTrig = mod->currentTrig - 32;
+			if (mod->currentTrig>16) mod->currentTrig = mod->currentTrig - 16;
+			mod->currentTrig = mod->trigPage*16 + mod->currentTrig;
+			mod->updateTrigToParams();
 			e.consume(this);
-			return;
 		}
-		SvgSwitch::onButton(e);
+		SmallLEDLightBezel::onButton(e);
 	}
 };
 
-struct trackSelectBtn : SvgSwitch {
-	Param *trackSelectParams;
-	ZOUMAI *module;
+struct trackSelectBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 
 	trackSelectBtn() {
-		momentary = false;
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledgrey.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledblue.svg")));
-		sw->wrap();
-		shadow->opacity = 0.0f;
+
 	}
 
 	void onButton(const event::Button &e) override {
-		//SvgSwitch::onButton(e);
+		ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
 			for (int i = 0; i < 8; i++) {
 				if (i != (getParamQuantity()->paramId - ZOUMAI::TRACKSELECT_PARAMS)) {
-					trackSelectParams[i].setValue(0.0f);
+					mod->params[ZOUMAI::TRACKSELECT_PARAMS+i].setValue(0.0f);
 				}
 				else {
-					trackSelectParams[i].setValue(1.0f);
-					module->currentTrack=i;
-					module->updateTrackToParams();
-					module->updateTrigToParams();
+					mod->params[ZOUMAI::TRACKSELECT_PARAMS+i].setValue(1.0f);
+					mod->currentTrack=i;
+					mod->updateTrackToParams();
+					mod->updateTrigToParams();
 				}
 			}
-			//e.consume(this);
-			//return;
+			e.consume(this);
 		}
-		//SvgSwitch::onButton(e);
+		SmallLEDLightBezel::onButton(e);
 	}
 };
 
-struct trackOnOffBtn : SvgSwitch {
-	Param *trackOnOffParams;
-	Param *trackSelectParams;
-	ZOUMAI *module;
+struct trackOnOffBtn : LEDLightBezel<RedGreenBlueLight> {
 
 	trackOnOffBtn() {
-		momentary = false;
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btngrey.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btngreen.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btnred.svg")));
-		sw->wrap();
-		shadow->opacity = 0.0f;
+
 	}
 
 	void onButton(const event::Button &e) override {
-		SvgSwitch::onButton(e);
+		ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
 
 		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
 			for (int i = 0; i < 8; i++) {
 				if (i != (getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS)) {
-					if (trackSelectParams[i].getValue() == 1.0f) {
-						trackSelectParams[i].setValue(0.0f);
+					if (mod->params[ZOUMAI::TRACKSELECT_PARAMS+i].getValue() == 1.0f) {
+						mod->params[ZOUMAI::TRACKSELECT_PARAMS+i].setValue(0.0f);
 					}
 				}
 				else {
-					module->nTracksAttibutes[module->currentPattern][i].toggleTrackSolo();
-					trackOnOffParams[i].setValue(module->nTracksAttibutes[module->currentPattern][getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].getTrackSolo() ? 2.0f : 0.0f);
-					trackSelectParams[i].setValue(1.0f);
-					module->currentTrack=i;
-					module->updateTrackToParams();
-					module->updateTrigToParams();
+					mod->nTracksAttibutes[mod->currentPattern][i].toggleTrackSolo();
+					mod->params[ZOUMAI::TRACKSONOFF_PARAMS+i].setValue(mod->nTracksAttibutes[mod->currentPattern][getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].getTrackSolo() ? 2.0f : 0.0f);
+					mod->params[ZOUMAI::TRACKSELECT_PARAMS+i].setValue(1.0f);
+					mod->currentTrack=i;
+					mod->updateTrackToParams();
+					mod->updateTrigToParams();
 				}
 			}
 			e.consume(this);
 			return;
 		}
 		else if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
-			if (!module->patternIsSoloed()) {
-				module->nTracksAttibutes[module->currentPattern][getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].toggleTrackActive();
-				if (module->nTracksAttibutes[module->currentPattern][getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].getTrackActive()) {
-					trackOnOffParams[getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].setValue(1.0f);
+			if (!mod->patternIsSoloed()) {
+				mod->nTracksAttibutes[mod->currentPattern][getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].toggleTrackActive();
+				if (mod->nTracksAttibutes[mod->currentPattern][getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].getTrackActive()) {
+					mod->params[getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].setValue(1.0f);
 				} else {
-					trackOnOffParams[getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].setValue(0.0f);
+					mod->params[getParamQuantity()->paramId - ZOUMAI::TRACKSONOFF_PARAMS].setValue(0.0f);
 				}
 			}
 			e.consume(this);
 			return;
 		}
-
+		LEDLightBezel::onButton(e);
 	}
 
 };
 
-struct noteBtn : SvgSwitch {
-	Param *noteParams;
-	ZOUMAI *module;
+struct noteBtn : LEDLightBezel<RedGreenBlueLight> {
 
 	noteBtn() {
-		momentary = false;
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btngrey.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btnwhite.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btngreen.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btndimmedgreen.svg")));
-		sw->wrap();
-		shadow->opacity = 0.0f;
+
 	}
 
 	void onButton(const event::Button &e) override {
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
-			bool focused = module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigSemiTones() == getParamQuantity()->paramId - ZOUMAI::NOTE_PARAMS;
+			ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
+			bool focused = mod->nTrigsAttibutes[mod->currentPattern][mod->currentTrack][mod->currentTrig].getTrigSemiTones() == getParamQuantity()->paramId - ZOUMAI::NOTE_PARAMS;
 			if (focused) {
-				module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].toggleTrigActive();
+				mod->nTrigsAttibutes[mod->currentPattern][mod->currentTrack][mod->currentTrig].toggleTrigActive();
 			}
 			else {
-				module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].setTrigSemiTones(getParamQuantity()->paramId - ZOUMAI::NOTE_PARAMS);
-				module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].setTrigActive(true);
+				mod->nTrigsAttibutes[mod->currentPattern][mod->currentTrack][mod->currentTrig].setTrigSemiTones(getParamQuantity()->paramId - ZOUMAI::NOTE_PARAMS);
+				mod->nTrigsAttibutes[mod->currentPattern][mod->currentTrack][mod->currentTrig].setTrigActive(true);
 			}
 			e.consume(this);
 			return;
 		}
-		SvgSwitch::onButton(e);
+		LEDLightBezel::onButton(e);
 	}
 };
 
-struct stepBtn : SvgSwitch {
-	Param *stepParams;
-	ZOUMAI *module;
+
+struct stepBtn : LEDLightBezel<RedGreenBlueLight> {
 
 	stepBtn() {
-		momentary = false;
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btngrey.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btnblue.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btndimmedblue.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btngreen.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/btnorange.svg")));
-		sw->wrap();
-		shadow->opacity = 0.0f;
+
 	}
 
 	void onButton(const event::Button &e) override {
 		if (getParamQuantity() && getParamQuantity()->module && e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
-			module->nTrigsAttibutes[module->currentPattern][module->currentTrack][getParamQuantity()->paramId - ZOUMAI::STEPS_PARAMS + module->trigPage*16].toggleTrigActive();
-			module->currentTrig = getParamQuantity()->paramId - ZOUMAI::STEPS_PARAMS + module->trigPage*16;
-			module->updateTrigToParams();
+			ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
+			mod->nTrigsAttibutes[mod->currentPattern][mod->currentTrack][getParamQuantity()->paramId - ZOUMAI::STEPS_PARAMS + mod->trigPage*16].toggleTrigActive();
+			mod->currentTrig = getParamQuantity()->paramId - ZOUMAI::STEPS_PARAMS + mod->trigPage*16;
+			mod->updateTrigToParams();
 			e.consume(this);
 			return;
 		}
 		else if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
-			module->currentTrig = getParamQuantity()->paramId - ZOUMAI::STEPS_PARAMS + module->trigPage*16;
-			module->updateTrigToParams();
+			ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
+			mod->currentTrig = getParamQuantity()->paramId - ZOUMAI::STEPS_PARAMS + mod->trigPage*16;
+			mod->updateTrigToParams();
 			e.consume(this);
 			return;
 		}
 
-		SvgSwitch::onButton(e);
+		LEDLightBezel::onButton(e);
 	}
 };
-
 
 struct ZOUMAIDisplay : TransparentWidget {
 	ZOUMAI *module;
@@ -1696,106 +1715,108 @@ struct ZOUMAIDisplay : TransparentWidget {
 
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		stringstream sPatternHeader, sSteps, sSpeed, sRead;
-		stringstream sTrigHeader, sLen, sPuls, sDist, sType, sTrim, sSlide, sVO, sCV1, sCV2, sProb, sProbBase;
-		nvgBeginPath(args.vg);
-		nvgRect(args.vg, 25.0f, 0.0f, 175.0f, 37.0f);
-		nvgRect(args.vg, 0.0f, 77.0f, 225.0f, 63.0f);
-		nvgClosePath(args.vg);
-		nvgLineCap(args.vg, NVG_MITER);
-		nvgStrokeWidth(args.vg, 4.0f);
-		nvgStrokeColor(args.vg, nvgRGBA(180, 180, 180, 255));
-		nvgStroke(args.vg);
-		nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 255));
-		nvgFill(args.vg);
-		static const float portX0[3] = {45.0f, 112.5f, 180.0f};
-		static const float portX1[6] = {20.0f, 57.0f, 94.0f, 131.0F, 168.0f, 205.0f};
-		static const float portY0[8] = {11.0f, 22.0f, 32.0f, 89.0f, 100.0f, 110.0f, 122.0f, 134.0f};
-		nvgFillColor(args.vg, YELLOW_BIDOO);
-		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			stringstream sPatternHeader, sSteps, sSpeed, sRead;
+			stringstream sTrigHeader, sLen, sPuls, sDist, sType, sTrim, sSlide, sVO, sCV1, sCV2, sProb, sProbBase;
+			nvgBeginPath(args.vg);
+			nvgRect(args.vg, 25.0f, 0.0f, 175.0f, 37.0f);
+			nvgRect(args.vg, 0.0f, 77.0f, 225.0f, 63.0f);
+			nvgClosePath(args.vg);
+			nvgLineCap(args.vg, NVG_MITER);
+			nvgStrokeWidth(args.vg, 4.0f);
+			nvgStrokeColor(args.vg, nvgRGBA(180, 180, 180, 255));
+			nvgStroke(args.vg);
+			nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 255));
+			nvgFill(args.vg);
+			static const float portX0[3] = {45.0f, 112.5f, 180.0f};
+			static const float portX1[6] = {20.0f, 57.0f, 94.0f, 131.0F, 168.0f, 205.0f};
+			static const float portY0[8] = {11.0f, 22.0f, 32.0f, 89.0f, 100.0f, 110.0f, 122.0f, 134.0f};
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 
-		if (module) {
-			sPatternHeader << "Pattern " + to_string(module->currentPattern + 1) + " : Track " + to_string(module->currentTrack + 1);
-			sSteps << module->nTracksAttibutes[module->currentPattern][module->currentTrack].getTrackLength();
-			sSpeed << fixed << setprecision(2) << module->nTracksAttibutes[module->currentPattern][module->currentTrack].getTrackSpeed();
-			sRead << displayReadMode(module->nTracksAttibutes[module->currentPattern][module->currentTrack].getTrackReadMode());
-			sTrigHeader << "Trig " + to_string(module->currentTrig + 1);
-			sLen << fixed << setprecision(2) << (float)module->trigLength[module->currentPattern][module->currentTrack][module->currentTrig];
-			sPuls << to_string(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigPulseCount()).c_str();
-			sDist << fixed << setprecision(2) << (float)module->trigPulseDistance[module->currentPattern][module->currentTrack][module->currentTrig];
-			sType << displayTrigType(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigType()).c_str();
-			sTrim << fixed << setprecision(2) << module->trigTrim[module->currentPattern][module->currentTrack][module->currentTrig];
-			sSlide << fixed << setprecision(2) << module->trigSlide[module->currentPattern][module->currentTrack][module->currentTrig];
-			sVO << displayNote(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigSemiTones(), module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigOctave());
-			sCV1 << fixed << setprecision(2) << module->trigCV1[module->currentPattern][module->currentTrack][module->currentTrig];
-			sCV2 << fixed << setprecision(2) << module->trigCV2[module->currentPattern][module->currentTrack][module->currentTrig];
-			sProb << displayProba(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigProba());
+			if (module) {
+				sPatternHeader << "Pattern " + to_string(module->currentPattern + 1) + " : Track " + to_string(module->currentTrack + 1);
+				sSteps << module->nTracksAttibutes[module->currentPattern][module->currentTrack].getTrackLength();
+				sSpeed << fixed << setprecision(2) << module->nTracksAttibutes[module->currentPattern][module->currentTrack].getTrackSpeed();
+				sRead << displayReadMode(module->nTracksAttibutes[module->currentPattern][module->currentTrack].getTrackReadMode());
+				sTrigHeader << "Trig " + to_string(module->currentTrig + 1);
+				sLen << fixed << setprecision(2) << (float)module->trigLength[module->currentPattern][module->currentTrack][module->currentTrig];
+				sPuls << to_string(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigPulseCount()).c_str();
+				sDist << fixed << setprecision(2) << (float)module->trigPulseDistance[module->currentPattern][module->currentTrack][module->currentTrig];
+				sType << displayTrigType(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigType()).c_str();
+				sTrim << fixed << setprecision(2) << module->trigTrim[module->currentPattern][module->currentTrack][module->currentTrig];
+				sSlide << fixed << setprecision(2) << module->trigSlide[module->currentPattern][module->currentTrack][module->currentTrig];
+				sVO << displayNote(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigSemiTones(), module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigOctave());
+				sCV1 << fixed << setprecision(2) << module->trigCV1[module->currentPattern][module->currentTrack][module->currentTrig];
+				sCV2 << fixed << setprecision(2) << module->trigCV2[module->currentPattern][module->currentTrack][module->currentTrig];
+				sProb << displayProba(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigProba());
+				nvgFontSize(args.vg, 10.0f);
+				if (module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigProba() < 2)
+				{
+					nvgText(args.vg, portX1[3], portY0[6], "Val.", NULL);
+					nvgText(args.vg, portX1[3], portY0[7], to_string(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigCount()).c_str(), NULL);
+				}
+				if (module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigProba() == 1)
+				{
+					nvgText(args.vg, portX1[4], portY0[6], "Base", NULL);
+					nvgText(args.vg, portX1[4], portY0[7], to_string(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigCountReset()).c_str(), NULL);
+				}
+			}
+			else {
+				sPatternHeader << "Pattern 0 : Track 0";
+				sSteps << 16;
+				sSpeed << fixed << setprecision(2) << 1;
+				sRead << "►";
+				sTrigHeader << "Trig " + to_string(1);
+				sLen << fixed << setprecision(2) << 0.99f;
+				sPuls << to_string(1).c_str();
+				sDist << fixed << setprecision(2) << 1.0f;
+				sType << "INT.";
+				sTrim << 0;
+				sSlide << fixed << setprecision(2) << 0.0f;
+				sVO << "C4";
+				sCV1 << fixed << setprecision(2) << 0.0f;
+				sCV2 << fixed << setprecision(2) << 0.0f;
+				sProb << "DICE";
+			}
+
+			nvgFontSize(args.vg, 12.0f);
+			nvgText(args.vg, 112.5f, portY0[0], sPatternHeader.str().c_str(), NULL);
 			nvgFontSize(args.vg, 10.0f);
-			if (module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigProba() < 2)
-			{
-				nvgText(args.vg, portX1[3], portY0[6], "Val.", NULL);
-				nvgText(args.vg, portX1[3], portY0[7], to_string(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigCount()).c_str(), NULL);
-			}
-			if (module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigProba() == 1)
-			{
-				nvgText(args.vg, portX1[4], portY0[6], "Base", NULL);
-				nvgText(args.vg, portX1[4], portY0[7], to_string(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigCountReset()).c_str(), NULL);
-			}
-		}
-		else {
-			sPatternHeader << "Pattern 0 : Track 0";
-			sSteps << 16;
-			sSpeed << fixed << setprecision(2) << 1;
-			sRead << "►";
-			sTrigHeader << "Trig " + to_string(1);
-			sLen << fixed << setprecision(2) << 0.99f;
-			sPuls << to_string(1).c_str();
-			sDist << fixed << setprecision(2) << 1.0f;
-			sType << "INT.";
-			sTrim << 0;
-			sSlide << fixed << setprecision(2) << 0.0f;
-			sVO << "C4";
-			sCV1 << fixed << setprecision(2) << 0.0f;
-			sCV2 << fixed << setprecision(2) << 0.0f;
-			sProb << "DICE";
-		}
+			nvgText(args.vg, portX0[0], portY0[1], "Steps", NULL);
+			nvgText(args.vg, portX0[0], portY0[2], sSteps.str().c_str(), NULL);
+			nvgText(args.vg, portX0[1], portY0[1], "Speed", NULL);
+			nvgText(args.vg, portX0[1], portY0[2], ("x" + sSpeed.str()).c_str(), NULL);
+			nvgText(args.vg, portX0[2], portY0[1], "Read", NULL);
+			nvgText(args.vg, portX0[2], portY0[2], sRead.str().c_str(), NULL);
 
-		nvgFontSize(args.vg, 12.0f);
-		nvgText(args.vg, 112.5f, portY0[0], sPatternHeader.str().c_str(), NULL);
-		nvgFontSize(args.vg, 10.0f);
-		nvgText(args.vg, portX0[0], portY0[1], "Steps", NULL);
-		nvgText(args.vg, portX0[0], portY0[2], sSteps.str().c_str(), NULL);
-		nvgText(args.vg, portX0[1], portY0[1], "Speed", NULL);
-		nvgText(args.vg, portX0[1], portY0[2], ("x" + sSpeed.str()).c_str(), NULL);
-		nvgText(args.vg, portX0[2], portY0[1], "Read", NULL);
-		nvgText(args.vg, portX0[2], portY0[2], sRead.str().c_str(), NULL);
-
-		nvgFontSize(args.vg, 12.0f);
-		nvgText(args.vg, 112.5f, portY0[3], sTrigHeader.str().c_str(), NULL);
-		nvgFontSize(args.vg, 10.0f);
-		nvgText(args.vg, portX1[0], portY0[4], "Len.", NULL);
-		nvgText(args.vg, portX1[0], portY0[5], sLen.str().c_str(), NULL);
-		nvgText(args.vg, portX1[1], portY0[4], "Puls.", NULL);
-		nvgText(args.vg, portX1[1], portY0[5], sPuls.str().c_str(), NULL);
-		nvgText(args.vg, portX1[2], portY0[4], "Dist.", NULL);
-		nvgText(args.vg, portX1[2], portY0[5], sDist.str().c_str(), NULL);
-		nvgText(args.vg, portX1[3], portY0[4], "Type", NULL);
-		nvgText(args.vg, portX1[3], portY0[5], sType.str().c_str(), NULL);
-		nvgText(args.vg, portX1[4], portY0[4], "Trim", NULL);
-		nvgText(args.vg, portX1[4], portY0[5], sTrim.str().c_str(), NULL);
-		nvgText(args.vg, portX1[5], portY0[4], "Slide", NULL);
-		nvgText(args.vg, portX1[5], portY0[5], sSlide.str().c_str(), NULL);
-		nvgText(args.vg, portX1[0], portY0[6], "CV1", NULL);
-		nvgText(args.vg, portX1[0], portY0[7], sCV1.str().c_str(), NULL);
-		nvgText(args.vg, portX1[1], portY0[6], "CV2", NULL);
-		nvgText(args.vg, portX1[1], portY0[7], sCV2.str().c_str(), NULL);
-		nvgText(args.vg, portX1[2], portY0[6], "Prob.", NULL);
-		nvgText(args.vg, portX1[2], portY0[7], sProb.str().c_str(), NULL);
-		nvgFillColor(args.vg, nvgRGBA(255, 255, 255, 255));
-		nvgText(args.vg, portX1[5], portY0[6], "V/Oct", NULL);
-		nvgText(args.vg, portX1[5], portY0[7], sVO.str().c_str(), NULL);
+			nvgFontSize(args.vg, 12.0f);
+			nvgText(args.vg, 112.5f, portY0[3], sTrigHeader.str().c_str(), NULL);
+			nvgFontSize(args.vg, 10.0f);
+			nvgText(args.vg, portX1[0], portY0[4], "Len.", NULL);
+			nvgText(args.vg, portX1[0], portY0[5], sLen.str().c_str(), NULL);
+			nvgText(args.vg, portX1[1], portY0[4], "Puls.", NULL);
+			nvgText(args.vg, portX1[1], portY0[5], sPuls.str().c_str(), NULL);
+			nvgText(args.vg, portX1[2], portY0[4], "Dist.", NULL);
+			nvgText(args.vg, portX1[2], portY0[5], sDist.str().c_str(), NULL);
+			nvgText(args.vg, portX1[3], portY0[4], "Type", NULL);
+			nvgText(args.vg, portX1[3], portY0[5], sType.str().c_str(), NULL);
+			nvgText(args.vg, portX1[4], portY0[4], "Trim", NULL);
+			nvgText(args.vg, portX1[4], portY0[5], sTrim.str().c_str(), NULL);
+			nvgText(args.vg, portX1[5], portY0[4], "Slide", NULL);
+			nvgText(args.vg, portX1[5], portY0[5], sSlide.str().c_str(), NULL);
+			nvgText(args.vg, portX1[0], portY0[6], "CV1", NULL);
+			nvgText(args.vg, portX1[0], portY0[7], sCV1.str().c_str(), NULL);
+			nvgText(args.vg, portX1[1], portY0[6], "CV2", NULL);
+			nvgText(args.vg, portX1[1], portY0[7], sCV2.str().c_str(), NULL);
+			nvgText(args.vg, portX1[2], portY0[6], "Prob.", NULL);
+			nvgText(args.vg, portX1[2], portY0[7], sProb.str().c_str(), NULL);
+			nvgFillColor(args.vg, nvgRGBA(255, 255, 255, 255));
+			nvgText(args.vg, portX1[5], portY0[6], "V/Oct", NULL);
+			nvgText(args.vg, portX1[5], portY0[7], sVO.str().c_str(), NULL);
+		}
+		Widget::drawLayer(args, layer);
 	}
 
 	std::string displayReadMode(int value) {
@@ -1883,21 +1904,25 @@ struct ZOUMAILight : BASE {
 
 struct BidooProbBlueKnob : BidooBlueSnapKnob {
 	Widget *ref, *refReset;
-	void draw(const DrawArgs &args) override {
-		if (ref && this->getParamQuantity() && (this->getParamQuantity()->getValue() < 1.0f)) {
-			ref->visible = true;
-			refReset->visible = false;
+
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (ref && this->getParamQuantity() && (this->getParamQuantity()->getValue() < 1.0f)) {
+				ref->visible = true;
+				refReset->visible = false;
+			}
+			else if (ref && this->getParamQuantity() && (this->getParamQuantity()->getValue() < 2.0f)) {
+				ref->visible = true;
+				refReset->visible = true;
+			}
+			else {
+				ref->visible = false;
+				refReset->visible = false;
+			}
 		}
-		else if (ref && this->getParamQuantity() && (this->getParamQuantity()->getValue() < 2.0f)) {
-			ref->visible = true;
-			refReset->visible = true;
-		}
-		else {
-			ref->visible = false;
-			refReset->visible = false;
-		}
-		BidooBlueSnapKnob::draw(args);
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct ZOUMAIWidget : ModuleWidget {
@@ -1956,17 +1981,14 @@ struct ZOUMAIWidget : ModuleWidget {
 
 		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[6]+3.0f), module, ZOUMAI::FILL_INPUT));
 		addParam(createParam<BlueCKD6>(Vec(40.0f, portY0[6]-1.0f+3.0f), module, ZOUMAI::FILL_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(50.5f, portY0[6]-8.0f), module, ZOUMAI::FILL_LIGHT));
+		addChild(createLight<SmallLight<BlueLight>>(Vec(51.5f, portY0[6]-8.0f), module, ZOUMAI::FILL_LIGHT));
 
 		addInput(createInput<PJ301MPort>(Vec(80.0f, portY0[6]+3.0f), module, ZOUMAI::RUN_INPUT));
 
 		static const float portX0[5] = {374.0f, 389.0f, 404.0f, 419.0f, 434.0f};
 
 		for (size_t i=0;i<4;i++) {
-			trigPageBtn* tpBtn;
-			addParam(tpBtn = createParam<trigPageBtn>(Vec(380+19*i-6, 317.0f-6), module, ZOUMAI::TRIGPAGE_PARAM+i));
-			tpBtn->trigPageParams =  module ? &module->params[ZOUMAI::TRIGPAGE_PARAM] : NULL;
-			tpBtn->module = module ? module : NULL;
+			addParam(createLightParam<trigPageBtn>(Vec(380+19*i-1.5f, 317.0f-2.5f), module, ZOUMAI::TRIGPAGE_PARAM+i, ZOUMAI::TRIGPAGE_LIGHTS+3*i));
 		}
 
 		static const float portYFunctions[4] = {244.0f, 256.0f, 268.0f, 280.0f};
@@ -2017,16 +2039,10 @@ struct ZOUMAIWidget : ModuleWidget {
 			addInput(createInput<TinyPJ301MPort>(Vec(50.0f, 67.0f + i*28.0f), module, ZOUMAI::TRACKRESET_INPUTS + i));
 			addInput(createInput<TinyPJ301MPort>(Vec(70.0f, 67.0f + i*28.0f), module, ZOUMAI::TRACKACTIVE_INPUTS + i));
 
-			trackOnOffBtn* tofBtn;
-			addParam(tofBtn = createParam<trackOnOffBtn>(Vec(90.0f , 64.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_PARAMS+i));
-			tofBtn->trackOnOffParams =  module ? &module->params[ZOUMAI::TRACKSONOFF_PARAMS] : NULL;
-			tofBtn->trackSelectParams =  module ? &module->params[ZOUMAI::TRACKSELECT_PARAMS] : NULL;
-			tofBtn->module = module ? module : NULL;
+			addParam(createLightParam<trackOnOffBtn>(Vec(90.0f , 64.0f + i*28.0f), module, ZOUMAI::TRACKSONOFF_PARAMS+i, ZOUMAI::TRACKSONOFF_LIGHTS+3*i));
 
-			trackSelectBtn* tsBtn;
-			addParam(tsBtn = createParam<trackSelectBtn>(Vec(120.0f - 6, 72.0f - 6 + i*28.0f), module, ZOUMAI::TRACKSELECT_PARAMS+i));
-			tsBtn->trackSelectParams =  module ? &module->params[ZOUMAI::TRACKSELECT_PARAMS] : NULL;
-			tsBtn->module = module ? module : NULL;
+
+			addParam(createLightParam<trackSelectBtn>(Vec(120.0f -2.5f, 72.0f -2.5f + i*28.0f), module, ZOUMAI::TRACKSELECT_PARAMS+i, ZOUMAI::TRACKSELECT_LIGHTS+3*i));
 
 			addOutput(createOutput<TinyPJ301MPort>(Vec(375.0f, 65.0f + i * 20.0f), module, ZOUMAI::GATE_OUTPUTS + i));
 			addOutput(createOutput<TinyPJ301MPort>(Vec(395.0f, 65.0f + i * 20.0f),  module, ZOUMAI::VO_OUTPUTS + i));
@@ -2035,81 +2051,29 @@ struct ZOUMAIWidget : ModuleWidget {
 		}
 
 		for (size_t i=0;i<16;i++) {
-			stepBtn* sBtn;
-			addParam(sBtn = createParam<stepBtn>(Vec(12.0f+ 28.0f*i, 330.0f), module, ZOUMAI::STEPS_PARAMS+i));
-			sBtn->stepParams =  module ? &module->params[ZOUMAI::STEPS_PARAMS] : NULL;
-			sBtn->module = module ? module : NULL;
+			addParam(createLightParam<stepBtn>(Vec(12.0f+ 28.0f*i, 330.0f), module, ZOUMAI::STEPS_PARAMS + i, ZOUMAI::STEPS_LIGHTS + i*3));
 		}
 
 		float xKeyboardAnchor = 140.0f;
 		float yKeyboardAnchor = 255.0f;
 
 		for (size_t i=0;i<7;i++) {
-			octaveBtn* oBtn;
-			addParam(oBtn = createParam<octaveBtn>(Vec(xKeyboardAnchor + 36.0f  + i * 19.0f, yKeyboardAnchor - 1.0f), module, ZOUMAI::OCTAVE_PARAMS+i));
-			oBtn->octaveParams =  module ? &module->params[ZOUMAI::OCTAVE_PARAMS] : NULL;
-			oBtn->module = module ? module : NULL;
+			addParam(createLightParam<octaveBtn>(Vec(xKeyboardAnchor + 39.5f  + i * 19.0f, yKeyboardAnchor +1.5f), module, ZOUMAI::OCTAVE_PARAMS + i, ZOUMAI::OCTAVE_LIGHTS + i*3));
 		}
 
-		noteBtn* nBtn;
-		addParam(nBtn = createParam<noteBtn>(Vec(xKeyboardAnchor, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS));
-		nBtn->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
-		nBtn->module = module ? module : NULL;
+		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS, ZOUMAI::NOTE_LIGHTS));
+		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+15.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+1, ZOUMAI::NOTE_LIGHTS+3));
+		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+30.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+2, ZOUMAI::NOTE_LIGHTS+3*2));
+		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+45.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+3, ZOUMAI::NOTE_LIGHTS+3*3));
+		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+60.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+4, ZOUMAI::NOTE_LIGHTS+3*4));
+		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+90.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+5, ZOUMAI::NOTE_LIGHTS+3*5));
+		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+105.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+6, ZOUMAI::NOTE_LIGHTS+3*6));
+		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+120.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+7, ZOUMAI::NOTE_LIGHTS+3*7));
+		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+135.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+8, ZOUMAI::NOTE_LIGHTS+3*8));
+		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+150.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+9, ZOUMAI::NOTE_LIGHTS+3*9));
+		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+165.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+10, ZOUMAI::NOTE_LIGHTS+3*10));
+		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+180.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+11, ZOUMAI::NOTE_LIGHTS+3*11));
 
-		noteBtn* nBtn1;
-		addParam(nBtn1 = createParam<noteBtn>(Vec(xKeyboardAnchor+15.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+1));
-		nBtn1->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
-		nBtn1->module = module ? module : NULL;
-
-		noteBtn* nBtn2;
-		addParam(nBtn2 = createParam<noteBtn>(Vec(xKeyboardAnchor+30.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+2));
-		nBtn2->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
-		nBtn2->module = module ? module : NULL;
-
-		noteBtn* nBtn3;
-		addParam(nBtn3 = createParam<noteBtn>(Vec(xKeyboardAnchor+45.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+3));
-		nBtn3->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
-		nBtn3->module = module ? module : NULL;
-
-		noteBtn* nBtn4;
-		addParam(nBtn4 = createParam<noteBtn>(Vec(xKeyboardAnchor+60.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+4));
-		nBtn4->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
-		nBtn4->module = module ? module : NULL;
-
-		noteBtn* nBtn5;
-		addParam(nBtn5 = createParam<noteBtn>(Vec(xKeyboardAnchor+90.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+5));
-		nBtn5->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
-		nBtn5->module = module ? module : NULL;
-
-		noteBtn* nBtn6;
-		addParam(nBtn6 = createParam<noteBtn>(Vec(xKeyboardAnchor+105.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+6));
-		nBtn6->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
-		nBtn6->module = module ? module : NULL;
-
-		noteBtn* nBtn7;
-		addParam(nBtn7 = createParam<noteBtn>(Vec(xKeyboardAnchor+120.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+7));
-		nBtn7->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
-		nBtn7->module = module ? module : NULL;
-
-		noteBtn* nBtn8;
-		addParam(nBtn8 = createParam<noteBtn>(Vec(xKeyboardAnchor+135.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+8));
-		nBtn8->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
-		nBtn8->module = module ? module : NULL;
-
-		noteBtn* nBtn9;
-		addParam(nBtn9 = createParam<noteBtn>(Vec(xKeyboardAnchor+150.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+9));
-		nBtn9->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
-		nBtn9->module = module ? module : NULL;
-
-		noteBtn* nBtn10;
-		addParam(nBtn10 = createParam<noteBtn>(Vec(xKeyboardAnchor+165.0f, yKeyboardAnchor+20.0f), module, ZOUMAI::NOTE_PARAMS+10));
-		nBtn10->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
-		nBtn10->module = module ? module : NULL;
-
-		noteBtn* nBtn11;
-		addParam(nBtn11 = createParam<noteBtn>(Vec(xKeyboardAnchor+180.0f, yKeyboardAnchor+40.0f), module, ZOUMAI::NOTE_PARAMS+11));
-		nBtn11->noteParams =  module ? &module->params[ZOUMAI::NOTE_PARAMS] : NULL;
-		nBtn11->module = module ? module : NULL;
 
 		recordBtn* rBtn;
 		addParam(rBtn = createParam<recordBtn>(Vec(297.0f, 358.0f), module, ZOUMAI::RECORD_PARAM));

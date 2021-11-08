@@ -281,168 +281,171 @@ struct OUAIVEDisplay : OpaqueWidget {
     OpaqueWidget::onDragEnd(e);
   }
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-    if (module && (module->playBuffer.size()>0)) {
-      module->mylock.lock();
-  		std::vector<float> vL;
-  		std::vector<float> vR;
-			for (int i=0;i<module->totalSampleCount;i++) {
-				vL.push_back(module->playBuffer[i].samples[0]);
-				vR.push_back(module->playBuffer[i].samples[1]);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (module && (module->playBuffer.size()>0)) {
+				module->mylock.lock();
+				std::vector<float> vL;
+				std::vector<float> vR;
+				for (int i=0;i<module->totalSampleCount;i++) {
+					vL.push_back(module->playBuffer[i].samples[0]);
+					vR.push_back(module->playBuffer[i].samples[1]);
+				}
+				module->mylock.unlock();
+				size_t nbSample = vL.size();
+
+				nvgFontSize(args.vg, 14);
+				nvgFillColor(args.vg, YELLOW_BIDOO);
+
+				std::string trigMode = "";
+				std::string slices = "";
+				if (module->trigMode == 0) {
+					trigMode = "TRIG ";
+				}
+				else if (module->trigMode==1)	{
+					trigMode = "GATE ";
+				}
+				else {
+					trigMode = "SLICE ";
+					slices = "|" + to_string(module->nbSlices) + "|";
+				}
+
+				nvgTextBox(args.vg, 3, -15, 40, trigMode.c_str(), NULL);
+				nvgTextBox(args.vg, 59, -15, 40, slices.c_str(), NULL);
+
+				std::string readMode = "";
+				if (module->readMode == 0) {
+					readMode = "►";
+				}
+				else if (module->readMode == 2) {
+					readMode = "►►";
+				}
+				else {
+					readMode = "◄";
+				}
+
+				nvgTextBox(args.vg, 40, -15, 40, readMode.c_str(), NULL);
+
+				stringstream stream;
+				stream << fixed << setprecision(1) << module->speed;
+				std::string s = stream.str();
+				std::string speed = "x" + s;
+
+				nvgTextBox(args.vg, 90, -15, 40, speed.c_str(), NULL);
+
+				//Draw play line
+				if ((module->play) && (nbSample>0)) {
+					nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
+					{
+						nvgBeginPath(args.vg);
+						nvgStrokeWidth(args.vg, 2);
+						if (module->totalSampleCount>0) {
+							nvgMoveTo(args.vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 0);
+							nvgLineTo(args.vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 2 * height+10);
+						}
+						else {
+							nvgMoveTo(args.vg, 0, 0);
+							nvgLineTo(args.vg, 0, 2 * height+10);
+						}
+						nvgClosePath(args.vg);
+					}
+					nvgStroke(args.vg);
+				}
+
+				//Draw ref line
+				nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
+				nvgStrokeWidth(args.vg, 1);
+				{
+					nvgBeginPath(args.vg);
+					nvgMoveTo(args.vg, 0, height * 0.5f);
+					nvgLineTo(args.vg, width, height * 0.5f);
+					nvgClosePath(args.vg);
+				}
+				nvgStroke(args.vg);
+
+				nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
+				nvgStrokeWidth(args.vg, 1);
+				{
+					nvgBeginPath(args.vg);
+					nvgMoveTo(args.vg, 0, 3*height * 0.5f + 10);
+					nvgLineTo(args.vg, width, 3*height * 0.5f + 10);
+					nvgClosePath(args.vg);
+				}
+				nvgStroke(args.vg);
+
+				if ((!module->loading) && (nbSample>0)) {
+					//Draw waveform
+					nvgStrokeColor(args.vg, PINK_BIDOO);
+					nvgSave(args.vg);
+					Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, height));
+					size_t inc = std::max(vL.size()/zoomWidth/4,1.f);
+					nvgScissor(args.vg, 0, b.pos.y, width, height);
+					nvgBeginPath(args.vg);
+					for (size_t i = 0; i < vL.size(); i+=inc) {
+						float x, y;
+						x = (float)i/vL.size();
+						y = (-1.f)*vL[i] / 2.0f + 0.5f;
+						Vec p;
+						p.x = b.pos.x + b.size.x * x;
+						p.y = b.pos.y + b.size.y * (1.0f - y);
+						if (i == 0) {
+							nvgMoveTo(args.vg, p.x, p.y);
+						}
+						else {
+							nvgLineTo(args.vg, p.x, p.y);
+						}
+					}
+					nvgLineCap(args.vg, NVG_MITER);
+					nvgStrokeWidth(args.vg, 1);
+					nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+					nvgStroke(args.vg);
+
+					b = Rect(Vec(zoomLeftAnchor, height+10), Vec(zoomWidth, height));
+					nvgScissor(args.vg, 0, b.pos.y, width, height);
+					nvgBeginPath(args.vg);
+					for (size_t i = 0; i < vR.size(); i+=inc) {
+						float x, y;
+						x = (float)i/vR.size();
+						y = (-1.f)*vR[i] / 2.0f + 0.5f;
+						Vec p;
+						p.x = b.pos.x + b.size.x * x;
+						p.y = b.pos.y + b.size.y * (1.0f - y);
+						if (i == 0)
+							nvgMoveTo(args.vg, p.x, p.y);
+						else
+							nvgLineTo(args.vg, p.x, p.y);
+					}
+					nvgLineCap(args.vg, NVG_MITER);
+					nvgStrokeWidth(args.vg, 1);
+					nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+					nvgStroke(args.vg);
+					nvgResetScissor(args.vg);
+
+					//draw slices
+
+					if (module->trigMode == 2) {
+						nvgScissor(args.vg, 0, 0, width, 2*height+10);
+						for (int i = 1; i < module->nbSlices; i++) {
+							nvgStrokeColor(args.vg, YELLOW_BIDOO);
+							nvgStrokeWidth(args.vg, 1);
+							{
+								nvgBeginPath(args.vg);
+								nvgMoveTo(args.vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 0);
+								nvgLineTo(args.vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 2*height+10);
+								nvgClosePath(args.vg);
+							}
+							nvgStroke(args.vg);
+						}
+						nvgResetScissor(args.vg);
+					}
+
+					nvgRestore(args.vg);
+				}
 			}
-  		module->mylock.unlock();
-  		size_t nbSample = vL.size();
-
-  		nvgFontSize(args.vg, 14);
-  		nvgFillColor(args.vg, YELLOW_BIDOO);
-
-  		std::string trigMode = "";
-  		std::string slices = "";
-  		if (module->trigMode == 0) {
-  			trigMode = "TRIG ";
-  		}
-  		else if (module->trigMode==1)	{
-  			trigMode = "GATE ";
-  		}
-  		else {
-  			trigMode = "SLICE ";
-  			slices = "|" + to_string(module->nbSlices) + "|";
-  		}
-
-  		nvgTextBox(args.vg, 3, -15, 40, trigMode.c_str(), NULL);
-  		nvgTextBox(args.vg, 59, -15, 40, slices.c_str(), NULL);
-
-  		std::string readMode = "";
-  		if (module->readMode == 0) {
-  			readMode = "►";
-  		}
-  		else if (module->readMode == 2) {
-  			readMode = "►►";
-  		}
-  		else {
-  			readMode = "◄";
-  		}
-
-  		nvgTextBox(args.vg, 40, -15, 40, readMode.c_str(), NULL);
-
-  		stringstream stream;
-  		stream << fixed << setprecision(1) << module->speed;
-  		std::string s = stream.str();
-  		std::string speed = "x" + s;
-
-  		nvgTextBox(args.vg, 90, -15, 40, speed.c_str(), NULL);
-
-  		//Draw play line
-  		if ((module->play) && (nbSample>0)) {
-  			nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
-  			{
-  				nvgBeginPath(args.vg);
-  				nvgStrokeWidth(args.vg, 2);
-  				if (module->totalSampleCount>0) {
-  					nvgMoveTo(args.vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 0);
-  					nvgLineTo(args.vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 2 * height+10);
-  				}
-  				else {
-  					nvgMoveTo(args.vg, 0, 0);
-  					nvgLineTo(args.vg, 0, 2 * height+10);
-  				}
-  				nvgClosePath(args.vg);
-  			}
-  			nvgStroke(args.vg);
-  		}
-
-  		//Draw ref line
-  		nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
-  		nvgStrokeWidth(args.vg, 1);
-  		{
-  			nvgBeginPath(args.vg);
-  			nvgMoveTo(args.vg, 0, height * 0.5f);
-  			nvgLineTo(args.vg, width, height * 0.5f);
-  			nvgClosePath(args.vg);
-  		}
-  		nvgStroke(args.vg);
-
-  		nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
-  		nvgStrokeWidth(args.vg, 1);
-  		{
-  			nvgBeginPath(args.vg);
-  			nvgMoveTo(args.vg, 0, 3*height * 0.5f + 10);
-  			nvgLineTo(args.vg, width, 3*height * 0.5f + 10);
-  			nvgClosePath(args.vg);
-  		}
-  		nvgStroke(args.vg);
-
-  		if ((!module->loading) && (nbSample>0)) {
-  			//Draw waveform
-  			nvgStrokeColor(args.vg, PINK_BIDOO);
-  			nvgSave(args.vg);
-  			Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, height));
-				size_t inc = std::max(vL.size()/zoomWidth/4,1.f);
-  			nvgScissor(args.vg, 0, b.pos.y, width, height);
-  			nvgBeginPath(args.vg);
-  			for (size_t i = 0; i < vL.size(); i+=inc) {
-  				float x, y;
-  				x = (float)i/vL.size();
-  				y = (-1.f)*vL[i] / 2.0f + 0.5f;
-  				Vec p;
-  				p.x = b.pos.x + b.size.x * x;
-  				p.y = b.pos.y + b.size.y * (1.0f - y);
-  				if (i == 0) {
-  					nvgMoveTo(args.vg, p.x, p.y);
-  				}
-  				else {
-  					nvgLineTo(args.vg, p.x, p.y);
-  				}
-  			}
-  			nvgLineCap(args.vg, NVG_MITER);
-  			nvgStrokeWidth(args.vg, 1);
-  			nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-  			nvgStroke(args.vg);
-
-  			b = Rect(Vec(zoomLeftAnchor, height+10), Vec(zoomWidth, height));
-  			nvgScissor(args.vg, 0, b.pos.y, width, height);
-  			nvgBeginPath(args.vg);
-  			for (size_t i = 0; i < vR.size(); i+=inc) {
-  				float x, y;
-  				x = (float)i/vR.size();
-  				y = (-1.f)*vR[i] / 2.0f + 0.5f;
-  				Vec p;
-  				p.x = b.pos.x + b.size.x * x;
-  				p.y = b.pos.y + b.size.y * (1.0f - y);
-  				if (i == 0)
-  					nvgMoveTo(args.vg, p.x, p.y);
-  				else
-  					nvgLineTo(args.vg, p.x, p.y);
-  			}
-  			nvgLineCap(args.vg, NVG_MITER);
-  			nvgStrokeWidth(args.vg, 1);
-  			nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-  			nvgStroke(args.vg);
-  			nvgResetScissor(args.vg);
-
-  			//draw slices
-
-  			if (module->trigMode == 2) {
-  				nvgScissor(args.vg, 0, 0, width, 2*height+10);
-  				for (int i = 1; i < module->nbSlices; i++) {
-  					nvgStrokeColor(args.vg, YELLOW_BIDOO);
-  					nvgStrokeWidth(args.vg, 1);
-  					{
-  						nvgBeginPath(args.vg);
-  						nvgMoveTo(args.vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 0);
-  						nvgLineTo(args.vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 2*height+10);
-  						nvgClosePath(args.vg);
-  					}
-  					nvgStroke(args.vg);
-  				}
-  				nvgResetScissor(args.vg);
-  			}
-
-  			nvgRestore(args.vg);
-  		}
-    }
+		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct OUAIVEWidget : ModuleWidget {

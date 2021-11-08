@@ -113,21 +113,35 @@ struct CHUTEDisplay : TransparentWidget {
 
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		frame = 0;
-		nvgSave(args.vg);
-		nvgFontSize(args.vg, 18.0f);
-		nvgTextLetterSpacing(args.vg, -2.0f);
-		nvgFillColor(args.vg, nvgRGBA(0x00, 0x00, 0x00, 0xff));
-		float altRatio = 0.f;
-		if (module != NULL) {
-			 altRatio = clamp(module->altitude / module->altitudeInit, 0.0f, 1.0f);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			nvgSave(args.vg);
+			nvgScissor(args.vg,-1,-1,box.size.x+2,box.size.y+1);
+			nvgFillColor(args.vg, BLUE_BIDOO);
+			nvgStrokeColor(args.vg, BLUE_BIDOO);
+			nvgStrokeWidth(args.vg, 1);
+			nvgBeginPath(args.vg);
+			nvgRoundedRect(args.vg,0,0,box.size.x+2,box.size.y,0.0f);
+			nvgClosePath(args.vg);
+			nvgStroke(args.vg);
+			nvgFill(args.vg);
+
+			nvgFontSize(args.vg, 18.0f);
+
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgStrokeColor(args.vg, YELLOW_BIDOO);
+			float altRatio = 0.f;
+			if (module != NULL) {
+				 altRatio = clamp(module->altitude / module->altitudeInit, 0.0f, 1.0f);
+			}
+			float pos = box.size.y * (1-altRatio);
+			nvgText(args.vg, -0.3f, pos, "☻", NULL);
+			nvgResetScissor(args.vg);
+			nvgRestore(args.vg);
 		}
-		float pos = box.size.y + altRatio * (9.0f - box.size.y);
-		nvgText(args.vg, 6.0f, pos, "☻", NULL);
-		nvgRestore(args.vg);
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct CHUTEWidget : ModuleWidget {
@@ -143,8 +157,8 @@ struct CHUTEWidget : ModuleWidget {
 		{
 			CHUTEDisplay *display = new CHUTEDisplay();
 			display->module = module;
-			display->box.pos = Vec(110.0f, 30.0f);
-			display->box.size = Vec(40.0f, 180.0f);
+			display->box.pos = Vec(111.0f, 30.0f);
+			display->box.size = Vec(15.0f, 180.0f);
 			addChild(display);
 		}
 

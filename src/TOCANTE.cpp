@@ -157,18 +157,21 @@ struct TOCANTEDisplay : TransparentWidget {
 
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		if (module != NULL) {
-			char tBPM[128],tBeats[128];
-			snprintf(tBPM, sizeof(tBPM), "%1.2f BPM", module->bpm);
-			snprintf(tBeats, sizeof(tBeats), "%1i/%1i", module->beats, module->ref);
-			nvgFontSize(args.vg, 16.0f);
-			nvgFillColor(args.vg, YELLOW_BIDOO);
-			nvgText(args.vg, 0.0f, 0.0f, tBPM, NULL);
-			nvgText(args.vg, 0.0f, 15.0f, tBeats, NULL);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (module != NULL) {
+				char tBPM[128],tBeats[128];
+				snprintf(tBPM, sizeof(tBPM), "%1.2f BPM", module->bpm);
+				snprintf(tBeats, sizeof(tBeats), "%1i/%1i", module->beats, module->ref);
+				nvgFontSize(args.vg, 16.0f);
+				nvgFillColor(args.vg, YELLOW_BIDOO);
+				nvgText(args.vg, 0.0f, 0.0f, tBPM, NULL);
+				nvgText(args.vg, 0.0f, 15.0f, tBeats, NULL);
+			}
 		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct TOCANTEMeasureDisplay : TransparentWidget {
@@ -178,17 +181,21 @@ struct TOCANTEMeasureDisplay : TransparentWidget {
 
 	}
 
-	void draw(const DrawArgs &args) override {
-		if (module != NULL) {
-			char tSteps[128];
-			snprintf(tSteps, sizeof(tSteps), "%1i", module->count);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (module != NULL) {
+				char tSteps[128];
+				snprintf(tSteps, sizeof(tSteps), "%1i", module->count);
 
-			nvgFontSize(args.vg, 16.0f);
-			nvgFillColor(args.vg, YELLOW_BIDOO);
-			nvgTextAlign(args.vg, NVG_ALIGN_RIGHT);
-			nvgText(args.vg, 0.0f, 0.0f, tSteps, NULL);
+				nvgFontSize(args.vg, 16.0f);
+				nvgFillColor(args.vg, YELLOW_BIDOO);
+				nvgTextAlign(args.vg, NVG_ALIGN_RIGHT);
+				nvgText(args.vg, 0.0f, 0.0f, tSteps, NULL);
+			}
 		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 template <typename BASE>

@@ -221,38 +221,42 @@ struct EMILEDisplay : OpaqueWidget {
 
 	}
 
-	void draw(const DrawArgs &args) override {
-		if (module && !module->loading) {
-			if (path != module->lastPath) {
-				img = nvgCreateImage(args.vg, module->lastPath.c_str(), 0);
-				path = module->lastPath;
-			}
-      nvgSave(args.vg);
-			nvgBeginPath(args.vg);
-			if (module->width>0 && module->height>0)
-				nvgScale(args.vg, width/module->width, height/module->height);
-		 	NVGpaint imgPaint = nvgImagePattern(args.vg, 0, 0, module->width,module->height, 0, img, 1.0f);
-		 	nvgRect(args.vg, 0, 0, module->width, module->height);
-		 	nvgFillPaint(args.vg, imgPaint);
-		 	nvgFill(args.vg);
-			nvgClosePath(args.vg);
+  void drawLayer(const DrawArgs& args, int layer) override {
+  	if (layer == 1) {
+      if (module && !module->loading) {
+        if (path != module->lastPath) {
+          img = nvgCreateImage(args.vg, module->lastPath.c_str(), 0);
+          path = module->lastPath;
+        }
+        nvgSave(args.vg);
+        nvgBeginPath(args.vg);
+        if (module->width>0 && module->height>0)
+          nvgScale(args.vg, width/module->width, height/module->height);
+        NVGpaint imgPaint = nvgImagePattern(args.vg, 0, 0, module->width,module->height, 0, img, 1.0f);
+        nvgRect(args.vg, 0, 0, module->width, module->height);
+        nvgFillPaint(args.vg, imgPaint);
+        nvgFill(args.vg);
+        nvgClosePath(args.vg);
 
-      nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
-			nvgBeginPath(args.vg);
-			nvgStrokeWidth(args.vg, 5);
-				if (module->image.size()>0) {
-					nvgMoveTo(args.vg, 0, (float)module->samplePos);
-					nvgLineTo(args.vg, (float)module->width, (float)module->samplePos);
-				}
-				else {
-					nvgMoveTo(args.vg, 0, 0);
-					nvgLineTo(args.vg, 0, height);
-				}
-			nvgClosePath(args.vg);
-			nvgStroke(args.vg);
-      nvgRestore(args.vg);
-		}
-	}
+        nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
+        nvgBeginPath(args.vg);
+        nvgStrokeWidth(args.vg, 5);
+          if (module->image.size()>0) {
+            nvgMoveTo(args.vg, 0, (float)module->samplePos);
+            nvgLineTo(args.vg, (float)module->width, (float)module->samplePos);
+          }
+          else {
+            nvgMoveTo(args.vg, 0, 0);
+            nvgLineTo(args.vg, 0, height);
+          }
+        nvgClosePath(args.vg);
+        nvgStroke(args.vg);
+        nvgRestore(args.vg);
+      }
+  	}
+  	Widget::drawLayer(args, layer);
+  }
+
 };
 
 

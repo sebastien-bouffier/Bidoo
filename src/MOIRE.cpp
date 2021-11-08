@@ -230,10 +230,13 @@ struct MOIREDisplay : TransparentWidget {
     }
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		drawMessage(args.vg, Vec(0, 20));
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			drawMessage(args.vg, Vec(0, 20));
+		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct MOIREColoredKnob : BidooColoredKnob {

@@ -56,19 +56,21 @@ struct LabelDisplayWidget : TransparentWidget {
 
   };
 
-  void draw(const DrawArgs &args) override
-  {
-		nvgGlobalTint(args.vg, color::WHITE);
-    if (value) {
-      char display[128];
-  		snprintf(display, sizeof(display), "%2.2f", value->getValue());
-  		nvgFontSize(args.vg, 14.0f);
-  		nvgFillColor(args.vg, YELLOW_BIDOO);
-  		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
-  		nvgRotate(args.vg,-1.0f * M_PI_2);
-  		nvgText(args.vg, 0.0f, 0.0f, display, NULL);
-    }
-  }
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (value) {
+	      char display[128];
+	  		snprintf(display, sizeof(display), "%2.2f", value->getValue());
+	  		nvgFontSize(args.vg, 14.0f);
+	  		nvgFillColor(args.vg, YELLOW_BIDOO);
+	  		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+	  		nvgRotate(args.vg,-1.0f * M_PI_2);
+	  		nvgText(args.vg, 0.0f, 0.0f, display, NULL);
+	    }
+		}
+		Widget::drawLayer(args, layer);
+	}
+
 };
 
 struct LOURDEWidget : ModuleWidget {

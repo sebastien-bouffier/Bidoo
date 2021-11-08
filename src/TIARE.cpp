@@ -517,31 +517,34 @@ struct TIAREDisplay : TransparentWidget {
 		}
 	}
 
-	void draw(const DrawArgs &args) override {
-		// Draw ref lines
-		nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x80));
-		{
-			nvgBeginPath(args.vg);
-			nvgMoveTo(args.vg, 0, 70);
-			nvgLineTo(args.vg, 140, 70);
-			nvgMoveTo(args.vg, 70, 0);
-			nvgLineTo(args.vg, 70, 140);
-			nvgClosePath(args.vg);
-		}
-		nvgStroke(args.vg);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x80));
+			{
+				nvgBeginPath(args.vg);
+				nvgMoveTo(args.vg, 0, 70);
+				nvgLineTo(args.vg, 140, 70);
+				nvgMoveTo(args.vg, 70, 0);
+				nvgLineTo(args.vg, 70, 140);
+				nvgClosePath(args.vg);
+			}
+			nvgStroke(args.vg);
 
-		// Draw phase distortion
-		nvgStrokeColor(args.vg, nvgRGBA(42, 87, 117, 255));
-		{
-			nvgBeginPath(args.vg);
-			nvgMoveTo(args.vg, 0, 140);
-			nvgLineTo(args.vg, (int)(rescale(module->phaseDistX, 0, 1, 0, 140)), 140 - (int)(rescale(module->phaseDistY, 0, 1, 0.01, 140)));
-			nvgMoveTo(args.vg, (int)(rescale(module->phaseDistX, 0, 1, 0, 140)), 140 - (int)(rescale(module->phaseDistY, 0, 1, 0.01, 140)));
-			nvgLineTo(args.vg, 140, 0);
-			nvgClosePath(args.vg);
+			// Draw phase distortion
+			nvgStrokeColor(args.vg, nvgRGBA(42, 87, 117, 255));
+			{
+				nvgBeginPath(args.vg);
+				nvgMoveTo(args.vg, 0, 140);
+				nvgLineTo(args.vg, (int)(rescale(module->phaseDistX, 0, 1, 0, 140)), 140 - (int)(rescale(module->phaseDistY, 0, 1, 0.01, 140)));
+				nvgMoveTo(args.vg, (int)(rescale(module->phaseDistX, 0, 1, 0, 140)), 140 - (int)(rescale(module->phaseDistY, 0, 1, 0.01, 140)));
+				nvgLineTo(args.vg, 140, 0);
+				nvgClosePath(args.vg);
+			}
+			nvgStroke(args.vg);
 		}
-		nvgStroke(args.vg);
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct moduleModeItem : MenuItem {

@@ -198,135 +198,138 @@ struct MINIBARDisplay : TransparentWidget {
 
 	}
 
-void draw(const DrawArgs &args) override {
-	nvgGlobalTint(args.vg, color::WHITE);
-	float vuL = rescale(module->vu_L,-97.0f,0.0f,0.0f,height);
-	float rmsL = rescale(module->rms_L,-97.0f,0.0f,0.0f,height);
-	float peakL = clamp(rescale(module->peakL,0.0f,-97.0f,0.0f,height),0.f,height);
-	float inL = rescale(module->in_L_dBFS,-97.0f,0.0f,0.0f,height);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			float vuL = rescale(module->vu_L,-97.0f,0.0f,0.0f,height);
+			float rmsL = rescale(module->rms_L,-97.0f,0.0f,0.0f,height);
+			float peakL = clamp(rescale(module->peakL,0.0f,-97.0f,0.0f,height),0.f,height);
+			float inL = rescale(module->in_L_dBFS,-97.0f,0.0f,0.0f,height);
 
-	float SC_vuL = rescale(module->SC_vu_L,-97.0f,0.0f,0.0f,height);
-	float SC_rmsL = rescale(module->SC_rms_L,-97.0f,0.0f,0.0f,height);
-	float SC_peakL = clamp(rescale(module->SC_peakL,0.0f,-97.0f,0.0f,height),0.f,height);
-	float SC_inL = rescale(module->SC_in_L_dBFS,-97.0f,0.0f,0.0f,height);
+			float SC_vuL = rescale(module->SC_vu_L,-97.0f,0.0f,0.0f,height);
+			float SC_rmsL = rescale(module->SC_rms_L,-97.0f,0.0f,0.0f,height);
+			float SC_peakL = clamp(rescale(module->SC_peakL,0.0f,-97.0f,0.0f,height),0.f,height);
+			float SC_inL = rescale(module->SC_in_L_dBFS,-97.0f,0.0f,0.0f,height);
 
-	float threshold = rescale(module->threshold,0.0f,-97.0f,0.0f,height);
-	float gain = rescale(1-(module->gaindB-module->makeup),-97.0f,0.0f,97.0f,0.0f);
-	float makeup = rescale(module->makeup,0.0f,60.0f,0.0f,60.0f);
+			float threshold = rescale(module->threshold,0.0f,-97.0f,0.0f,height);
+			float gain = rescale(1-(module->gaindB-module->makeup),-97.0f,0.0f,97.0f,0.0f);
+			float makeup = rescale(module->makeup,0.0f,60.0f,0.0f,60.0f);
 
-	bool sc = module->inputs[MINIBAR::SC_L_INPUT].isConnected();
+			bool sc = module->inputs[MINIBAR::SC_L_INPUT].isConnected();
 
-	if (sc) {
-		nvgSave(args.vg);
-		nvgStrokeWidth(args.vg, 0.0f);
-		nvgFillColor(args.vg, BLUE_BIDOO);
-		nvgBeginPath(args.vg);
-		nvgRoundedRect(args.vg,0.0f,height-vuL,width/2,vuL,0.0f);
-		nvgFill(args.vg);
-		nvgClosePath(args.vg);
+			if (sc) {
+				nvgSave(args.vg);
+				nvgStrokeWidth(args.vg, 0.0f);
+				nvgFillColor(args.vg, BLUE_BIDOO);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,0.0f,height-vuL,width/2,vuL,0.0f);
+				nvgFill(args.vg);
+				nvgClosePath(args.vg);
 
-		nvgFillColor(args.vg, RED_BIDOO);
-		nvgBeginPath(args.vg);
-		nvgRoundedRect(args.vg,width/2+spacer/2,peakL,width/2,2.0f,0.0f);
-		nvgFill(args.vg);
-		nvgClosePath(args.vg);
+				nvgFillColor(args.vg, RED_BIDOO);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,width/2+spacer/2,peakL,width/2,2.0f,0.0f);
+				nvgFill(args.vg);
+				nvgClosePath(args.vg);
 
-		nvgFillColor(args.vg, ORANGE_BIDOO);
-		nvgBeginPath(args.vg);
-		if (inL>rmsL+3.0f)
-			nvgRoundedRect(args.vg,width/2+spacer/2,max(height-inL+1.0f,0.f),width/2,inL-rmsL-2.0f,0.0f);
-		nvgFill(args.vg);
-		nvgClosePath(args.vg);
+				nvgFillColor(args.vg, ORANGE_BIDOO);
+				nvgBeginPath(args.vg);
+				if (inL>rmsL+3.0f)
+					nvgRoundedRect(args.vg,width/2+spacer/2,max(height-inL+1.0f,0.f),width/2,inL-rmsL-2.0f,0.0f);
+				nvgFill(args.vg);
+				nvgClosePath(args.vg);
 
-		nvgFillColor(args.vg, LIGHTBLUE_BIDOO);
-		nvgBeginPath(args.vg);
-		nvgRoundedRect(args.vg,width/2+spacer/2,height-rmsL,width/2,rmsL,0.0f);
-		nvgFill(args.vg);
-		nvgClosePath(args.vg);
+				nvgFillColor(args.vg, LIGHTBLUE_BIDOO);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,width/2+spacer/2,height-rmsL,width/2,rmsL,0.0f);
+				nvgFill(args.vg);
+				nvgClosePath(args.vg);
 
-		nvgStrokeWidth(args.vg, 0.0f);
-		nvgFillColor(args.vg, BLUE_BIDOO);
-		nvgBeginPath(args.vg);
-		nvgRoundedRect(args.vg,width+spacer,height-SC_vuL,width/2,SC_vuL,0.0f);
-		nvgFill(args.vg);
-		nvgClosePath(args.vg);
+				nvgStrokeWidth(args.vg, 0.0f);
+				nvgFillColor(args.vg, BLUE_BIDOO);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,width+spacer,height-SC_vuL,width/2,SC_vuL,0.0f);
+				nvgFill(args.vg);
+				nvgClosePath(args.vg);
 
-		nvgFillColor(args.vg, RED_BIDOO);
-		nvgBeginPath(args.vg);
-		nvgRoundedRect(args.vg,1.5f*(width+spacer),SC_peakL,width/2,2.0f,0.0f);
-		nvgFill(args.vg);
-		nvgClosePath(args.vg);
+				nvgFillColor(args.vg, RED_BIDOO);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,1.5f*(width+spacer),SC_peakL,width/2,2.0f,0.0f);
+				nvgFill(args.vg);
+				nvgClosePath(args.vg);
 
-		nvgFillColor(args.vg, ORANGE_BIDOO);
-		nvgBeginPath(args.vg);
-		if (inL>rmsL+3.0f)
-			nvgRoundedRect(args.vg,1.5f*(width+spacer),max(height-SC_inL+1.0f,0.f),width/2,SC_inL-SC_rmsL-2.0f,0.0f);
-		nvgFill(args.vg);
-		nvgClosePath(args.vg);
+				nvgFillColor(args.vg, ORANGE_BIDOO);
+				nvgBeginPath(args.vg);
+				if (inL>rmsL+3.0f)
+					nvgRoundedRect(args.vg,1.5f*(width+spacer),max(height-SC_inL+1.0f,0.f),width/2,SC_inL-SC_rmsL-2.0f,0.0f);
+				nvgFill(args.vg);
+				nvgClosePath(args.vg);
 
-		nvgFillColor(args.vg, LIGHTBLUE_BIDOO);
-		nvgBeginPath(args.vg);
-		nvgRoundedRect(args.vg,1.5f*(width+spacer),height-SC_rmsL,width/2,SC_rmsL,0.0f);
-		nvgFill(args.vg);
-		nvgClosePath(args.vg);
+				nvgFillColor(args.vg, LIGHTBLUE_BIDOO);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,1.5f*(width+spacer),height-SC_rmsL,width/2,SC_rmsL,0.0f);
+				nvgFill(args.vg);
+				nvgClosePath(args.vg);
+			}
+			else {
+				nvgSave(args.vg);
+				nvgStrokeWidth(args.vg, 0.0f);
+				nvgFillColor(args.vg, BLUE_BIDOO);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,0.0f,height-vuL,width,vuL,0.0f);
+				nvgFill(args.vg);
+				nvgClosePath(args.vg);
+
+				nvgFillColor(args.vg, RED_BIDOO);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,width+spacer,peakL,width,2.0f,0.0f);
+				nvgFill(args.vg);
+				nvgClosePath(args.vg);
+
+				nvgFillColor(args.vg, ORANGE_BIDOO);
+				nvgBeginPath(args.vg);
+				if (inL>rmsL+3.0f)
+					nvgRoundedRect(args.vg,width+spacer,max(height-inL+1.0f,0.f),width,inL-rmsL-2.0f,0.0f);
+				nvgFill(args.vg);
+				nvgClosePath(args.vg);
+
+				nvgFillColor(args.vg, LIGHTBLUE_BIDOO);
+				nvgBeginPath(args.vg);
+				nvgRoundedRect(args.vg,width+spacer,height-rmsL,width,rmsL,0.0f);
+				nvgFill(args.vg);
+				nvgClosePath(args.vg);
+			}
+
+
+
+			nvgStrokeWidth(args.vg, 2.0f);
+			nvgFillColor(args.vg, nvgRGBA(255, 255, 255, 255));
+			nvgStrokeColor(args.vg, nvgRGBA(255, 255, 255, 255));
+			nvgBeginPath(args.vg);
+			nvgMoveTo(args.vg, width+spacer, threshold);
+			if (sc) {
+				nvgLineTo(args.vg, 2*width+1.5f*spacer, threshold);
+			}
+			else {
+				nvgLineTo(args.vg, 2*width+spacer, threshold);
+			}
+			nvgClosePath(args.vg);
+			nvgStroke(args.vg);
+			nvgFill(args.vg);
+
+			float offset = 1.0f;
+			nvgStrokeWidth(args.vg, 0.5f);
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgStrokeColor(args.vg, YELLOW_BIDOO);
+			nvgBeginPath(args.vg);
+			nvgRoundedRect(args.vg,2.0f*(width+spacer)+offset,70.0f,width,-gain-makeup,0.0f);
+			nvgClosePath(args.vg);
+			nvgStroke(args.vg);
+			nvgFill(args.vg);
+			nvgRestore(args.vg);
+		}
+		Widget::drawLayer(args, layer);
 	}
-	else {
-		nvgSave(args.vg);
-		nvgStrokeWidth(args.vg, 0.0f);
-		nvgFillColor(args.vg, BLUE_BIDOO);
-		nvgBeginPath(args.vg);
-		nvgRoundedRect(args.vg,0.0f,height-vuL,width,vuL,0.0f);
-		nvgFill(args.vg);
-		nvgClosePath(args.vg);
 
-		nvgFillColor(args.vg, RED_BIDOO);
-		nvgBeginPath(args.vg);
-		nvgRoundedRect(args.vg,width+spacer,peakL,width,2.0f,0.0f);
-		nvgFill(args.vg);
-		nvgClosePath(args.vg);
-
-		nvgFillColor(args.vg, ORANGE_BIDOO);
-		nvgBeginPath(args.vg);
-		if (inL>rmsL+3.0f)
-			nvgRoundedRect(args.vg,width+spacer,max(height-inL+1.0f,0.f),width,inL-rmsL-2.0f,0.0f);
-		nvgFill(args.vg);
-		nvgClosePath(args.vg);
-
-		nvgFillColor(args.vg, LIGHTBLUE_BIDOO);
-		nvgBeginPath(args.vg);
-		nvgRoundedRect(args.vg,width+spacer,height-rmsL,width,rmsL,0.0f);
-		nvgFill(args.vg);
-		nvgClosePath(args.vg);
-	}
-
-
-
-	nvgStrokeWidth(args.vg, 2.0f);
-	nvgFillColor(args.vg, nvgRGBA(255, 255, 255, 255));
-	nvgStrokeColor(args.vg, nvgRGBA(255, 255, 255, 255));
-	nvgBeginPath(args.vg);
-	nvgMoveTo(args.vg, width+spacer, threshold);
-	if (sc) {
-		nvgLineTo(args.vg, 2*width+1.5f*spacer, threshold);
-	}
-	else {
-		nvgLineTo(args.vg, 2*width+spacer, threshold);
-	}
-	nvgClosePath(args.vg);
-	nvgStroke(args.vg);
-	nvgFill(args.vg);
-
-	float offset = 1.0f;
-	nvgStrokeWidth(args.vg, 0.5f);
-	nvgFillColor(args.vg, YELLOW_BIDOO);
-	nvgStrokeColor(args.vg, YELLOW_BIDOO);
-	nvgBeginPath(args.vg);
-	nvgRoundedRect(args.vg,2.0f*(width+spacer)+offset,70.0f,width,-gain-makeup,0.0f);
-	nvgClosePath(args.vg);
-	nvgStroke(args.vg);
-	nvgFill(args.vg);
-	nvgRestore(args.vg);
-}
 };
 
 struct LabelMICROBARWidget : TransparentWidget {
@@ -339,21 +342,24 @@ struct LabelMICROBARWidget : TransparentWidget {
 
 	};
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		nvgFillColor(args.vg, YELLOW_BIDOO);
-		nvgTextAlign(args.vg, NVG_ALIGN_LEFT);
-		if (header) {
-			nvgFontSize(args.vg, 12.0f);
-			nvgText(args.vg, 0.0f, 0.0f, header, NULL);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgTextAlign(args.vg, NVG_ALIGN_LEFT);
+			if (header) {
+				nvgFontSize(args.vg, 12.0f);
+				nvgText(args.vg, 0.0f, 0.0f, header, NULL);
+			}
+			if (value && format && tail) {
+				char display[64];
+				snprintf(display, sizeof(display), format, *value);
+				nvgFontSize(args.vg, 12.0f);
+				nvgText(args.vg, 0.0f, 10.0f, strcat(display,tail), NULL);
+			}
 		}
-		if (value && format && tail) {
-			char display[64];
-			snprintf(display, sizeof(display), format, *value);
-			nvgFontSize(args.vg, 12.0f);
-			nvgText(args.vg, 0.0f, 10.0f, strcat(display,tail), NULL);
-		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct MicrobarTrimpotWithDisplay : BidooBlueTrimpot {

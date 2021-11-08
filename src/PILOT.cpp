@@ -726,20 +726,23 @@ struct PILOTMoveTypeDisplay : TransparentWidget {
 		}
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		nvgFontSize(args.vg, 18.0f);
-		nvgFillColor(args.vg, YELLOW_BIDOO);
-		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
-		if (value) {
-			if (*value>2) {
-				nvgText(args.vg, 0.0f, 14, displayPlayMode().c_str(), NULL);
-			}
-			else {
-				nvgText(args.vg, 0.0f, 12, displayPlayMode().c_str(), NULL);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			nvgFontSize(args.vg, 18.0f);
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+			if (value) {
+				if (*value>2) {
+					nvgText(args.vg, 0.0f, 14, displayPlayMode().c_str(), NULL);
+				}
+				else {
+					nvgText(args.vg, 0.0f, 12, displayPlayMode().c_str(), NULL);
+				}
 			}
 		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 
@@ -750,18 +753,21 @@ struct PILOTDisplay : TransparentWidget {
 
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		if (value) {
-      nvgFontSize(args.vg, 18);
-  		nvgTextLetterSpacing(args.vg, -2);
-  		nvgFillColor(args.vg, YELLOW_BIDOO);
-  		std::stringstream ss;
-  		ss << std::setw(2) << std::setfill('0') << *value + 1;
-  		std::string s = ss.str();
-  		nvgText(args.vg, 0, 14, s.c_str(), NULL);
-    }
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (value) {
+	      nvgFontSize(args.vg, 18);
+	  		nvgTextLetterSpacing(args.vg, -2);
+	  		nvgFillColor(args.vg, YELLOW_BIDOO);
+	  		std::stringstream ss;
+	  		ss << std::setw(2) << std::setfill('0') << *value + 1;
+	  		std::string s = ss.str();
+	  		nvgText(args.vg, 0, 14, s.c_str(), NULL);
+	    }
+		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct PILOTNoteDisplay : TransparentWidget {
@@ -771,15 +777,18 @@ struct PILOTNoteDisplay : TransparentWidget {
 
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		if ((module) && (module->currentFocus>=0) && (module->controlTypes[module->currentFocus]>=3)) {
-      nvgFontSize(args.vg, 18);
-  		nvgTextLetterSpacing(args.vg, -2);
-  		nvgFillColor(args.vg, YELLOW_BIDOO);
-			nvgText(args.vg, 0, 12, quantizer::noteName(module->outputs[PILOT::CV_OUTPUTS+module->currentFocus].getVoltage()).c_str(), NULL);
-    }
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if ((module) && (module->currentFocus>=0) && (module->controlTypes[module->currentFocus]>=3)) {
+	      nvgFontSize(args.vg, 18);
+	  		nvgTextLetterSpacing(args.vg, -2);
+	  		nvgFillColor(args.vg, YELLOW_BIDOO);
+				nvgText(args.vg, 0, 12, quantizer::noteName(module->outputs[PILOT::CV_OUTPUTS+module->currentFocus].getVoltage()).c_str(), NULL);
+	    }
+		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct PILOTCurveDisplay : TransparentWidget {
@@ -788,54 +797,57 @@ struct PILOTCurveDisplay : TransparentWidget {
 	PILOTCurveDisplay() {
 	}
 
-	void draw(const DrawArgs &args) override {
-		nvgGlobalTint(args.vg, color::WHITE);
-		if (module) {
-			if (module->curve) {
-				nvgStrokeColor(args.vg, SCHEME_BLUE);
-			}
-			else {
-				nvgStrokeColor(args.vg, YELLOW_BIDOO);
-			}
-			nvgStrokeWidth(args.vg, 2);
-			nvgSave(args.vg);
-			nvgBeginPath(args.vg);
-			for(float i=0 ; i<=1; i=i+0.01) {
-				if (i == 0) {
-					if (module->curve) {
-						nvgMoveTo(args.vg, module->getXBez(i)*box.size.x,box.size.y - module->getYBez(i)*box.size.y);
-					}
-					else {
-						nvgMoveTo(args.vg, i*box.size.x,box.size.x - i*box.size.x);
-					}
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (module) {
+				if (module->curve) {
+					nvgStrokeColor(args.vg, SCHEME_BLUE);
 				}
 				else {
-					if (module->curve) {
-						nvgLineTo(args.vg, module->getXBez(i)*box.size.y,box.size.y - module->getYBez(i)*box.size.y);
+					nvgStrokeColor(args.vg, YELLOW_BIDOO);
+				}
+				nvgStrokeWidth(args.vg, 2);
+				nvgSave(args.vg);
+				nvgBeginPath(args.vg);
+				for(float i=0 ; i<=1; i=i+0.01) {
+					if (i == 0) {
+						if (module->curve) {
+							nvgMoveTo(args.vg, module->getXBez(i)*box.size.x,box.size.y - module->getYBez(i)*box.size.y);
+						}
+						else {
+							nvgMoveTo(args.vg, i*box.size.x,box.size.x - i*box.size.x);
+						}
 					}
 					else {
-						nvgLineTo(args.vg, i*box.size.x,box.size.x - i*box.size.x);
+						if (module->curve) {
+							nvgLineTo(args.vg, module->getXBez(i)*box.size.y,box.size.y - module->getYBez(i)*box.size.y);
+						}
+						else {
+							nvgLineTo(args.vg, i*box.size.x,box.size.x - i*box.size.x);
+						}
 					}
 				}
-			}
-			nvgStroke(args.vg);
+				nvgStroke(args.vg);
 
-			nvgBeginPath(args.vg);
-			nvgStrokeColor(args.vg, RED_BIDOO);
-			nvgFillColor(args.vg, RED_BIDOO);
-			nvgStrokeWidth(args.vg, 2);
-			if (module->curve) {
-				nvgCircle(args.vg, module->getXBez(module->morph)*box.size.x, box.size.y - module->getYBez(module->morph)*box.size.y,3);
-			}
-			else {
-				nvgCircle(args.vg, module->morph*box.size.x, box.size.y - module->morph*box.size.y,3);
-			}
-			nvgStroke(args.vg);
-			nvgFill(args.vg);
+				nvgBeginPath(args.vg);
+				nvgStrokeColor(args.vg, RED_BIDOO);
+				nvgFillColor(args.vg, RED_BIDOO);
+				nvgStrokeWidth(args.vg, 2);
+				if (module->curve) {
+					nvgCircle(args.vg, module->getXBez(module->morph)*box.size.x, box.size.y - module->getYBez(module->morph)*box.size.y,3);
+				}
+				else {
+					nvgCircle(args.vg, module->morph*box.size.x, box.size.y - module->morph*box.size.y,3);
+				}
+				nvgStroke(args.vg);
+				nvgFill(args.vg);
 
-			nvgRestore(args.vg);
+				nvgRestore(args.vg);
+			}
 		}
+		Widget::drawLayer(args, layer);
 	}
+
 };
 
 struct PILOTMorphKnob : BidooHugeRedKnob {
