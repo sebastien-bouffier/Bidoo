@@ -224,22 +224,25 @@ struct LabelMICROWidget : TransparentWidget {
 
   };
 
-  void draw(const DrawArgs &args) override
-  {
-		nvgTextLetterSpacing(args.vg, -2.0f);
-		nvgFillColor(args.vg, YELLOW_BIDOO);
-		nvgTextAlign(args.vg, NVG_ALIGN_LEFT);
-		if (header) {
-			nvgFontSize(args.vg, 12.0f);
-			nvgText(args.vg, 0.0f, 0.0f, header, NULL);
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			nvgTextLetterSpacing(args.vg, -2.0f);
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgTextAlign(args.vg, NVG_ALIGN_LEFT);
+			if (header) {
+				nvgFontSize(args.vg, 12.0f);
+				nvgText(args.vg, 0.0f, 0.0f, header, NULL);
+			}
+			if (value && format) {
+				char display[128];
+				snprintf(display, sizeof(display), format, *value);
+				nvgFontSize(args.vg, 16.0f);
+				nvgText(args.vg, 0.0f, 15.0f, display, NULL);
+			}
 		}
-		if (value && format) {
-			char display[128];
-			snprintf(display, sizeof(display), format, *value);
-			nvgFontSize(args.vg, 16.0f);
-			nvgText(args.vg, 0.0f, 15.0f, display, NULL);
-		}
-  }
+		Widget::drawLayer(args, layer);
+	}
+
 };
 
 struct BidooBlueTrimpotWithDisplay : BidooBlueTrimpot {

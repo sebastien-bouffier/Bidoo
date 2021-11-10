@@ -6,7 +6,7 @@
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
 <p align="center">
-   <img src="https://github.com/sebastien-bouffier/Bidoo/blob/v1.0/images/pack.png"/>
+   <img src="https://github.com/sebastien-bouffier/Bidoo/blob/v1.0/images/bidooV2github.png"/>
 </p>
 
 ## How to
