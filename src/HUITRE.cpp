@@ -142,7 +142,6 @@ HUITREWidget::HUITREWidget(HUITRE *module) {
 	addChild(createWidget<ScrewSilver>(Vec(15, 365)));
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
-	//addParam(createParam<CKSS>(Vec(15.0f, 22.5f), module, HUITRE::MODE_PARAM));
 	addParam(createParam<LEDButton>(Vec(13.0f, 24.f), module, HUITRE::MODE_PARAM));
 	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(13.0f+6.0f, 24.f+6.0f), module, HUITRE::MODE_LIGHT));
 

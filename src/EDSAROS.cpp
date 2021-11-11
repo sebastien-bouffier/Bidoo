@@ -60,6 +60,7 @@ struct EDSAROS : Module {
 		RELEASESLOPE_PARAM,
 		LINKTYPE_PARAM,
     GAIN_PARAM,
+    ZEROCROSSING_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -88,6 +89,7 @@ struct EDSAROS : Module {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
+    ZEROCROSSING_LIGHT,
 		NUM_LIGHTS
 	};
 
@@ -138,6 +140,8 @@ struct EDSAROS : Module {
 	bool rel[16] = {false};
 	float gain[16] = {0.0f};
 	int direction[16] = {1};
+  bool zeroCrossing = false;
+  dsp::SchmittTrigger zeroCrossingTrigger;
 
 	EDSAROS() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -162,6 +166,7 @@ struct EDSAROS : Module {
 		configParam(RELEASESLOPE_PARAM, 0.0f, 1.0f, 0.5f, "Release slope");
 
     configParam(GAIN_PARAM, 1.0f, 10.0f, 1.0f, "Sample gain");
+    configParam(ZEROCROSSING_PARAM, 0.0f, 1.0f, 0.0f, "Zero crossing");
 	}
 
 	~EDSAROS() {
@@ -176,6 +181,7 @@ struct EDSAROS : Module {
 	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
 		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
+    json_object_set_new(rootJ, "zeroCrossing", json_boolean(zeroCrossing));
 		return rootJ;
 	}
 
@@ -185,7 +191,8 @@ struct EDSAROS : Module {
 			lastPath = json_string_value(lastPathJ);
 			if (!lastPath.empty()) loadSample();
 		}
-
+    json_t *zeroCrossingJ = json_object_get(rootJ, "zeroCrossing");
+		if (zeroCrossingJ) zeroCrossing = json_is_true(zeroCrossingJ);
 	}
 
 	float getXBez(const float t, const float x1, const float x2, const float x3) {
@@ -230,8 +237,9 @@ struct EDSAROS : Module {
 		if (!lastPath.empty()) loadSample();
 	}
 
-	int getSnappedIndex(float p, bool forward) {
+	int getSnappedIndex(float p, bool forward, bool zercoCross) {
 		int idx = p*(totalSampleCount-1)*0.1f;
+    if (!zeroCrossing) return idx;
 		if (forward) {
 			while ((sample[idx]*sample[idx+1])>0 && (idx<totalSampleCount-1)) {
 				idx=idx+1;
@@ -251,35 +259,35 @@ struct EDSAROS : Module {
 
 	void updatePoints() {
     if (totalSampleCount>0) {
-      sampleStart = getSnappedIndex(clamp(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), true);
-      if (params[LINKTYPE_PARAM].getValue()==0.0f) {
-        sampleEnd = std::max(getSnappedIndex(clamp(params[SAMPLEEND_PARAM].getValue()+inputs[SAMPLEEND_INPUT].getVoltage(),0.0f,10.0f), false), sampleStart);
-        loopStart = std::min(std::max(getSnappedIndex(clamp(params[LOOPSTART_PARAM].getValue()+inputs[LOOPSTART_INPUT].getVoltage(),0.0f,10.0f), true), sampleStart), sampleEnd);
-        loopEnd = std::min(std::max(getSnappedIndex(clamp(params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage(),0.0f,10.0f), false), loopStart), sampleEnd);
-        releaseStart = std::min(std::max(getSnappedIndex(clamp(params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage(),0.0f,10.0f), true), sampleStart), sampleEnd);
-      }
-      else if (params[LINKTYPE_PARAM].getValue()==1.0f) {
-        sampleEnd = std::max(getSnappedIndex(clamp(params[SAMPLEEND_PARAM].getValue()+inputs[SAMPLEEND_INPUT].getVoltage()+params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), false), sampleStart);
-        loopStart = std::min(std::max(getSnappedIndex(clamp(params[LOOPSTART_PARAM].getValue()+inputs[LOOPSTART_INPUT].getVoltage()+params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), true), sampleStart), sampleEnd);
-        loopEnd = std::min(std::max(getSnappedIndex(clamp(params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage()+params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), false), loopStart), sampleEnd);
-        releaseStart = std::min(std::max(getSnappedIndex(clamp(params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage()+params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), true), sampleStart), sampleEnd);
-      }
-      else if (params[LINKTYPE_PARAM].getValue()==2.0f) {
-        float coef = 1+(float)sampleStart/(float)totalSampleCount;
-        sampleEnd = std::max(getSnappedIndex(clamp(params[SAMPLEEND_PARAM].getValue()+inputs[SAMPLEEND_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), false), sampleStart);
-        loopStart = std::min(std::max(getSnappedIndex(clamp(params[LOOPSTART_PARAM].getValue()+inputs[LOOPSTART_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), true), sampleStart), sampleEnd);
-        loopEnd = std::min(std::max(getSnappedIndex(clamp(params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), false), loopStart), sampleEnd);
-        releaseStart = std::min(std::max(getSnappedIndex(clamp(params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), true), sampleStart), sampleEnd);
-      }
-      else {
-        float coef = 1-(float)sampleStart/(float)totalSampleCount;
-        sampleEnd = std::max(getSnappedIndex(clamp(params[SAMPLEEND_PARAM].getValue()+inputs[SAMPLEEND_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), false), sampleStart);
-        loopStart = std::min(std::max(getSnappedIndex(clamp(params[LOOPSTART_PARAM].getValue()+inputs[LOOPSTART_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), true), sampleStart), sampleEnd);
-        loopEnd = std::min(std::max(getSnappedIndex(clamp(params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), false), loopStart), sampleEnd);
-        releaseStart = std::min(std::max(getSnappedIndex(clamp(params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), true), sampleStart), sampleEnd);
+        sampleStart = getSnappedIndex(clamp(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), true, zeroCrossing);
+        if (params[LINKTYPE_PARAM].getValue()==0.0f) {
+          sampleEnd = std::max(getSnappedIndex(clamp(params[SAMPLEEND_PARAM].getValue()+inputs[SAMPLEEND_INPUT].getVoltage(),0.0f,10.0f), false, zeroCrossing), sampleStart);
+          loopStart = std::min(std::max(getSnappedIndex(clamp(params[LOOPSTART_PARAM].getValue()+inputs[LOOPSTART_INPUT].getVoltage(),0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
+          loopEnd = std::min(std::max(getSnappedIndex(clamp(params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage(),0.0f,10.0f), false, zeroCrossing), loopStart), sampleEnd);
+          releaseStart = std::min(std::max(getSnappedIndex(clamp(params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage(),0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
+        }
+        else if (params[LINKTYPE_PARAM].getValue()==1.0f) {
+          sampleEnd = std::max(getSnappedIndex(clamp(params[SAMPLEEND_PARAM].getValue()+inputs[SAMPLEEND_INPUT].getVoltage()+params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), false, zeroCrossing), sampleStart);
+          loopStart = std::min(std::max(getSnappedIndex(clamp(params[LOOPSTART_PARAM].getValue()+inputs[LOOPSTART_INPUT].getVoltage()+params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
+          loopEnd = std::min(std::max(getSnappedIndex(clamp(params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage()+params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), false, zeroCrossing), loopStart), sampleEnd);
+          releaseStart = std::min(std::max(getSnappedIndex(clamp(params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage()+params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
+        }
+        else if (params[LINKTYPE_PARAM].getValue()==2.0f) {
+          float coef = 1+(float)sampleStart/(float)totalSampleCount;
+          sampleEnd = std::max(getSnappedIndex(clamp(params[SAMPLEEND_PARAM].getValue()+inputs[SAMPLEEND_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), false, zeroCrossing), sampleStart);
+          loopStart = std::min(std::max(getSnappedIndex(clamp(params[LOOPSTART_PARAM].getValue()+inputs[LOOPSTART_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
+          loopEnd = std::min(std::max(getSnappedIndex(clamp(params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), false, zeroCrossing), loopStart), sampleEnd);
+          releaseStart = std::min(std::max(getSnappedIndex(clamp(params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
+        }
+        else {
+          float coef = 1-(float)sampleStart/(float)totalSampleCount;
+          sampleEnd = std::max(getSnappedIndex(clamp(params[SAMPLEEND_PARAM].getValue()+inputs[SAMPLEEND_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), false, zeroCrossing), sampleStart);
+          loopStart = std::min(std::max(getSnappedIndex(clamp(params[LOOPSTART_PARAM].getValue()+inputs[LOOPSTART_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
+          loopEnd = std::min(std::max(getSnappedIndex(clamp(params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), false, zeroCrossing), loopStart), sampleEnd);
+          releaseStart = std::min(std::max(getSnappedIndex(clamp(params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
+        }
       }
     }
-	}
 
 };
 
@@ -339,6 +347,12 @@ void EDSAROS::process(const ProcessArgs &args) {
 	if (loading) {
 		loadSample();
 	}
+
+  if (zeroCrossingTrigger.process(params[ZEROCROSSING_PARAM].getValue())) {
+    zeroCrossing=!zeroCrossing;
+  }
+
+  lights[ZEROCROSSING_LIGHT].setBrightness(zeroCrossing?1:0);
 
 	attack = clamp(params[ATTACK_PARAM].getValue()+rescale(inputs[ATTACK_INPUT].getVoltage(),0.0f,10.0f,0.0f,20.0f),0.0f,20.0f);
 	decay = clamp(params[DECAY_PARAM].getValue()+rescale(inputs[DECAY_INPUT].getVoltage(),0.0f,10.0f,0.0f,60.0f),0.0f,60.0f);
@@ -1007,6 +1021,8 @@ struct EDSAROSWidget : ModuleWidget {
 		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+controlsXOffset+inputsXOffset, controlsYAnchor+7*controlsYOffset), module, EDSAROS::PEAK_INPUT));
 		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+2*controlsXOffset+inputsXOffset, controlsYAnchor+7*controlsYOffset), module, EDSAROS::SUSTAIN_INPUT));
 
+    addParam(createParam<LEDButton>(Vec(75.0f, 333.f), module, EDSAROS::ZEROCROSSING_PARAM));
+  	addChild(createLight<SmallLight<GreenLight>>(Vec(75.0f+6.0f, 333.f+6.0f), module, EDSAROS::ZEROCROSSING_LIGHT));
 
 		addInput(createInput<PJ301MPort>(Vec(7, 330), module, EDSAROS::TRIG_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(40, 330), module, EDSAROS::PITCH_INPUT));
