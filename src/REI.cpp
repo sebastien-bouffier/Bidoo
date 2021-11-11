@@ -5,7 +5,7 @@
 #include "dep/filters/pitchshifter.h"
 #include "dsp/digital.hpp"
 
-#define REIBUFF_SIZE 1024
+#define REIBUFF_SIZE 512
 
 using namespace std;
 
@@ -75,7 +75,7 @@ struct REI : Module {
 
 	void process(const ProcessArgs &args) override {
 		if (first) {
-			pShifter->init(REIBUFF_SIZE, 8, args.sampleRate);
+			pShifter->init(REIBUFF_SIZE, 4, args.sampleRate);
 			first = false;
 		}
 
@@ -94,8 +94,8 @@ struct REI : Module {
 
 		revprocessor.setmode(freeze ? 1.0 : 0.0);
 
-		inL = inputs[IN_L_INPUT].getVoltage()/10.0f;
-		inR = inputs[IN_R_INPUT].getVoltage()/10.0f;
+		inL = inputs[IN_L_INPUT].getVoltage()*0.1f;
+		inR = inputs[IN_R_INPUT].getVoltage()*0.1f;
 
 		float fact = clamp(params[SHIMM_PARAM].getValue() + rescale(inputs[SHIMM_INPUT].getVoltage(), 0.0f, 10.0f, 0.0f, 1.0f), 0.0f, 1.0f)*3.0f;
 
@@ -114,7 +114,7 @@ struct REI : Module {
 			outR = tanh(outR / 5.0f)*7.0f;
 		}
 
-		in_Buffer.push((outL + outR) / 20.0f);
+		in_Buffer.push((outL + outR)*0.05f);
 
 		if (in_Buffer.full()) {
 			pShifter->process(clamp(params[SHIMMPITCH_PARAM].getValue() + inputs[SHIMMPITCH_INPUT].getVoltage(), 0.5f, 4.0f), in_Buffer.startData(), pin_Buffer.endData());
