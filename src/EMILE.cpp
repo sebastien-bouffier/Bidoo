@@ -111,6 +111,12 @@ struct EMILE : Module {
 	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
 		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
+
+    json_object_set_new(rootJ, "r", json_boolean(r));
+    json_object_set_new(rootJ, "g", json_boolean(g));
+    json_object_set_new(rootJ, "b", json_boolean(b));
+    json_object_set_new(rootJ, "a", json_boolean(a));
+
 		return rootJ;
 	}
 
@@ -120,6 +126,15 @@ struct EMILE : Module {
 			lastPath = json_string_value(lastPathJ);
 			loadSample(lastPath);
 		}
+
+    json_t *rJ = json_object_get(rootJ, "r");
+		if (rJ) r = json_is_true(rJ);
+    json_t *gJ = json_object_get(rootJ, "g");
+		if (gJ) g = json_is_true(gJ);
+    json_t *bJ = json_object_get(rootJ, "b");
+		if (bJ) b = json_is_true(bJ);
+    json_t *aJ = json_object_get(rootJ, "a");
+		if (aJ) a = json_is_true(aJ);
 	}
 
 };
@@ -307,10 +322,15 @@ struct EMILEWidget : ModuleWidget {
 		addOutput(createOutput<PJ301MPort>(Vec(portX0[2], 330), module, EMILE::OUT));
 	}
 
+  void onPathDrop(const PathDropEvent& e) override {
+    Widget::onPathDrop(e);
+    EMILE *module = dynamic_cast<EMILE*>(this->module);
+    module->loadSample(e.paths[0]);
+  }
+
   struct EMILEItem : MenuItem {
   	EMILE *module;
   	void onAction(const event::Action &e) override {
-
   		std::string dir = module->lastPath.empty() ?  asset::user("") : rack::system::getDirectory(module->lastPath);
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
