@@ -50,6 +50,26 @@ struct FLAME : Module {
 		delete processor;
 	}
 
+	json_t *dataToJson() override {
+		json_t *rootJ = json_object();
+		json_object_set_new(rootJ, "xBox", json_real(xBox));
+		json_object_set_new(rootJ, "yBox", json_real(yBox));
+		json_object_set_new(rootJ, "wBox", json_real(wBox));
+		json_object_set_new(rootJ, "hBox", json_real(hBox));
+		return rootJ;
+	}
+
+	void dataFromJson(json_t *rootJ) override {
+		json_t *xBoxJ = json_object_get(rootJ, "xBox");
+		if (xBoxJ) xBox = json_real_value(xBoxJ);
+		json_t *yBoxJ = json_object_get(rootJ, "yBox");
+		if (yBoxJ) yBox = json_real_value(yBoxJ);
+		json_t *wBoxJ = json_object_get(rootJ, "wBox");
+		if (wBoxJ) wBox = json_real_value(wBoxJ);
+		json_t *hBoxJ = json_object_get(rootJ, "hBox");
+		if (hBoxJ) hBox = json_real_value(hBoxJ);
+	}
+
 	void process(const ProcessArgs &args) override;
 };
 
