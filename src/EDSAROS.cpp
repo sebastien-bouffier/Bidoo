@@ -59,6 +59,7 @@ struct EDSAROS : Module {
 		DECAYSLOPE_PARAM,
 		RELEASESLOPE_PARAM,
 		LINKTYPE_PARAM,
+    GAIN_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -159,6 +160,8 @@ struct EDSAROS : Module {
 		configParam(ATTACKSLOPE_PARAM, 0.0f, 1.0f, 0.5f, "Attack slope");
 		configParam(DECAYSLOPE_PARAM, 0.0f, 1.0f, 0.5f, "Decay slope");
 		configParam(RELEASESLOPE_PARAM, 0.0f, 1.0f, 0.5f, "Release slope");
+
+    configParam(GAIN_PARAM, 1.0f, 10.0f, 1.0f, "Sample gain");
 	}
 
 	~EDSAROS() {
@@ -498,7 +501,7 @@ void EDSAROS::process(const ProcessArgs &args) {
 					audio[i].startIncr(1);
 				}
 				else {
-					outputs[OUT].setVoltage(*audio[i].startData()*5.0f*gain[i],i);
+					outputs[OUT].setVoltage(*audio[i].startData()*5.0f*gain[i]*params[GAIN_PARAM].getValue(),i);
 					audio[i].startIncr(1);
 				}
 			}
@@ -685,7 +688,7 @@ struct EDSAROSDisplay : OpaqueWidget {
 			module->mylock.lock();
   		std::vector<float> vL;
 			for (int i=0;i<module->totalSampleCount;i++) {
-				vL.push_back(module->loadingBuffer[i].samples[0]);
+				vL.push_back(module->loadingBuffer[i].samples[0]*module->params[EDSAROS::GAIN_PARAM].getValue());
 			}
   		module->mylock.unlock();
   		size_t nbSample = vL.size();
@@ -837,34 +840,7 @@ struct EDSAROSDisplay : OpaqueWidget {
 				nvgLineTo(args.vg, i, y);
 			}
 		}
-		// if (module->attack>0.0f) nvgMoveTo(args.vg,0,height*(1-module->init));
-		// for(float i=0 ; i<=0.26f; i=i+0.01f) {
-		// 	float x = i*4.0f;
-		// 	nvgLineTo(args.vg, module->getXBez(x,0,module->attack/2.0f,module->attack)*width/160.0f, height*(1.0f - module->getEnv(x*module->attack, false)));
-		// }
-		// nvgStroke(args.vg);
-		// nvgBeginPath(args.vg);
-		// nvgStrokeColor(args.vg, BLUE_BIDOO);
-		// if (module->decay>0.0f) nvgMoveTo(args.vg,module->attack*width/160.0f,height*(1-module->peak));
-		// for(float i=0.26f ; i<=0.5f; i=i+0.01f) {
-		// 	float x = (i-0.25f)*4.0f*module->decay + module->attack;
-		// 	nvgLineTo(args.vg, module->getXBez((x-module->attack)/module->decay,module->attack,module->attack+module->decay/2.0f,module->decay+module->attack)*width/160.0f, height*(1.0f - module->getEnv(x, false)));
-		// }
-		// nvgStroke(args.vg);
-		// nvgBeginPath(args.vg);
-		// nvgStrokeColor(args.vg, PINK_BIDOO);
-		// nvgMoveTo(args.vg,(module->decay + module->attack)*width/160.0f,height*(1-module->sustain));
-		// for(float i=0.51f ; i<=0.75f; i=i+0.01f) {
-		// 	float x = (i-0.5f)*4.0f*(160.0f-module->release-module->decay-module->attack)+module->attack+module->decay;
-		// 	nvgLineTo(args.vg, x*width/160.0f, height*(1.0f - module->getEnv(x, false)));
-		// }
-		// nvgStroke(args.vg);
-		// nvgBeginPath(args.vg);
-		// nvgStrokeColor(args.vg, GREEN_BIDOO);
-		// nvgMoveTo(args.vg,(160.0f-module->release)*width/160.0f,height*(1-module->sustain));
-		// for(float i=0.76f ; i<=1.0f; i=i+0.01f) {
-		// 		nvgLineTo(args.vg, module->getXBez((i-0.75f)*4.0f*module->release/module->release,160.0f-module->release,160.0f-module->release/2.0f,160.0f)*width/160.0f, height*(1.0f - module->getEnv((i-0.75f)*4.0f*module->release, true)));
-		// }
+
 		nvgStroke(args.vg);
 		nvgRestore(args.vg);
 	}
@@ -1012,6 +988,9 @@ struct EDSAROSWidget : ModuleWidget {
 		EDSAROSBidooSmallBlueKnob *btnSustainParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor+2*controlsXOffset, controlsYAnchor+6*controlsYOffset), module, EDSAROS::SUSTAIN_PARAM);
 		btnSustainParam->showSample = false;
 		addParam(btnSustainParam);
+    EDSAROSBidooSmallBlueKnob *btnGainParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor+3*controlsXOffset, controlsYAnchor+6*controlsYOffset), module, EDSAROS::GAIN_PARAM);
+		btnGainParam->showSample = true;
+		addParam(btnGainParam);
 		EDSAROSBidooSmallSnapBlueKnob *btnLinkModeParam = createParam<EDSAROSBidooSmallSnapBlueKnob>(Vec(controlsXAnchor+4*controlsXOffset, controlsYAnchor+6*controlsYOffset), module, EDSAROS::LINKTYPE_PARAM);
 		btnLinkModeParam->showSample = true;
 		addParam(btnLinkModeParam);

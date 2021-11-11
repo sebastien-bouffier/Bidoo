@@ -28,15 +28,18 @@ struct HUITRE : Module {
 	};
 	enum LightIds {
 		PATTERN_LIGHT,
-		NUM_LIGHTS = PATTERN_LIGHT+16*3
+		MODE_LIGHT = PATTERN_LIGHT+16*3,
+		NUM_LIGHTS =  MODE_LIGHT + 3
 	};
 
 	dsp::SchmittTrigger patTriggers[8];
 	dsp::SchmittTrigger syncTrigger;
+	dsp::SchmittTrigger modeTrigger;
 	int currentPattern = 0;
 	int nextPattern = 0;
 	dsp::PulseGenerator gatePulse;
 	bool pulse=false;
+	bool mode = false;
 
 	HUITRE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -54,12 +57,13 @@ struct HUITRE : Module {
 
 	json_t *dataToJson() override {
 		json_t *rootJ = json_object();
-
+		json_object_set_new(rootJ, "mode", json_boolean(mode));
 		return rootJ;
 	}
 
 	void dataFromJson(json_t *rootJ) override {
-
+		json_t *modeJ = json_object_get(rootJ, "mode");
+		if (modeJ) mode = json_is_true(modeJ);
 	}
 };
 
@@ -69,6 +73,14 @@ void HUITRE::process(const ProcessArgs &args) {
 			nextPattern = i;
 		}
 	}
+
+	if (modeTrigger.process(params[MODE_PARAM].getValue())) {
+		mode=!mode;
+	}
+
+	lights[MODE_LIGHT].setBrightness(0);
+	lights[MODE_LIGHT + 1].setBrightness(mode ? 1 : 0);
+	lights[MODE_LIGHT + 2].setBrightness(mode ? 0 : 1);
 
 	if ((syncTrigger.process(inputs[MEASURE_INPUT].getVoltage())) && (currentPattern != nextPattern)) {
 		currentPattern = nextPattern;
@@ -82,7 +94,7 @@ void HUITRE::process(const ProcessArgs &args) {
 			lights[PATTERN_LIGHT+(i*3)+1].setBrightness(1.0f);
 			lights[PATTERN_LIGHT+(i*3)+2].setBrightness(0.0f);
 
-			if (params[MODE_PARAM].getValue()==0.0f) {
+			if (mode) {
 				outputs[PATTERNTRIG_OUTPUT+currentPattern].setVoltage(10.0f);
 			}
 			else if (pulse) {
@@ -130,7 +142,9 @@ HUITREWidget::HUITREWidget(HUITRE *module) {
 	addChild(createWidget<ScrewSilver>(Vec(15, 365)));
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
-	addParam(createParam<CKSS>(Vec(15.0f, 22.5f), module, HUITRE::MODE_PARAM));
+	//addParam(createParam<CKSS>(Vec(15.0f, 22.5f), module, HUITRE::MODE_PARAM));
+	addParam(createParam<LEDButton>(Vec(13.0f, 24.f), module, HUITRE::MODE_PARAM));
+	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(13.0f+6.0f, 24.f+6.0f), module, HUITRE::MODE_LIGHT));
 
 	addInput(createInput<PJ301MPort>(Vec(7, 330), module, HUITRE::MEASURE_INPUT));
 	addOutput(createOutput<PJ301MPort>(Vec(44.0f, 330), module, HUITRE::PATTERN_OUTPUT));
