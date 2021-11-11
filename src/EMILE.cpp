@@ -9,6 +9,7 @@
 const int FS = 4096;
 const int N = 4;
 const int FS2 = FS / 2;
+const int FS4 = FS2 / 2;
 const float IFS = 1.0f / FS;
 const int STS = FS/N;
 const float IFS2 = 1.0f/FS2;
@@ -30,6 +31,8 @@ struct EMILE : Module {
 	enum ParamIds {
 		CURVE_PARAM,
     GAIN_PARAM,
+    TUNE_PARAM,
+    POS_PARAM,
     R_PARAM,
     G_PARAM,
     B_PARAM,
@@ -39,6 +42,7 @@ struct EMILE : Module {
 	enum InputIds {
 		POS_INPUT,
     CURVE_INPUT,
+    TUNE_INPUT,
     R_INPUT,
     G_INPUT,
     B_INPUT,
@@ -80,6 +84,8 @@ struct EMILE : Module {
 	EMILE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(GAIN_PARAM, 0.1f, 10.0f, 1.0f, "Gain");
+    configParam(POS_PARAM, 0.0f, 1.0f, 0.0f, "Position");
+    configParam(TUNE_PARAM, -4.0f, 6.0f, 0.0f, "Tune");
 		configParam(CURVE_PARAM, 0.01f, 0.1f, 0.05f, "Frequency curve");
     configSwitch(R_PARAM, 0, 1, 0, "Red");
     configSwitch(G_PARAM, 0, 1, 0, "Green");
@@ -173,12 +179,12 @@ void EMILE::process(const ProcessArgs &args) {
   }
   lights[A_LIGTH].setBrightness(a?1:0);
 
-  curve = params[CURVE_PARAM].getValue() + rescale(inputs[CURVE_INPUT].getVoltage(),0.0f,10.0f,0.01f, 0.1f);
+  curve = params[CURVE_PARAM].getValue() + rescale(clamp(inputs[CURVE_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.01f, 0.1f);
 
 
 
 	if (!loading && (lastPath != "")) {
-    samplePos = rescale(clamp(inputs[POS_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,height-1);
+    samplePos = clamp(params[POS_PARAM].getValue()+rescale(clamp(inputs[POS_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,1.0f),0.0f,1.0f)*(height-1);
 
     if (rIdx == STS) {
 
@@ -193,7 +199,7 @@ void EMILE::process(const ProcessArgs &args) {
         unsigned short blue = 256 * image[samplePos * 8 * width + x * 8 + 4] + image[samplePos * 8 * width + x * 8 + 5];
         unsigned short alpha = 256 * image[samplePos * 8 * width + x * 8 + 6] + image[samplePos * 8 * width + x * 8 + 7];
         float mix = 1e-7f*((r?red:0)+(g?green:0)+(b?blue:0)+(a?alpha:0))/max(1,r+g+b+a);
-        float index = (1.0f-pow(1.0f-x*iWidth,curve))*(FS2);
+        float index = (params[TUNE_PARAM].getValue()+inputs[TUNE_INPUT].getVoltage()+5.0f)*(1.0f-pow(1.0f-x*iWidth,curve))*FS2;
         magn[(size_t)index] += mix*(1-index+(size_t)index);
         if (x<width-1) {
           magn[(size_t)index+1] += mix*(index-(size_t)index);
@@ -313,13 +319,23 @@ struct EMILEWidget : ModuleWidget {
     addInput(createInput<TinyPJ301MPort>(Vec(xlightsAnchor+2*xlightsOffset+1, ylightsAnchor+inputYOffset), module, EMILE::B_INPUT));
     addInput(createInput<TinyPJ301MPort>(Vec(xlightsAnchor+3*xlightsOffset+1, ylightsAnchor+inputYOffset), module, EMILE::A_INPUT));
 
-		static const float portX0[4] = {7, 56, 104};
+    const float xPort = 7.5f;
+    const float xPortOffset = 32.2f;
+    const float yPort = 330.0f;
 
-    addParam(createParam<BidooBlueKnob>(Vec(portX0[1]-4, 235), module, EMILE::GAIN_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[1]-4, 290), module, EMILE::CURVE_PARAM));
-    addInput(createInput<PJ301MPort>(Vec(portX0[1], 330), module, EMILE::CURVE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[0], 330), module, EMILE::POS_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(portX0[2], 330), module, EMILE::OUT));
+    const float xControl = 5.0f;
+    const float xControlOffset = 31.3f;
+    const float yControl = 280.0f;
+
+    addParam(createParam<BidooBlueKnob>(Vec(xControl, yControl), module, EMILE::TUNE_PARAM));
+    addParam(createParam<BidooBlueKnob>(Vec(xControl+xControlOffset, yControl), module, EMILE::POS_PARAM));
+    addParam(createParam<BidooBlueKnob>(Vec(xControl+2*xControlOffset, yControl), module, EMILE::CURVE_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(xControl+3*xControlOffset, yControl), module, EMILE::GAIN_PARAM));
+
+    addInput(createInput<PJ301MPort>(Vec(xPort, yPort), module, EMILE::TUNE_INPUT));
+    addInput(createInput<PJ301MPort>(Vec(xPort+xPortOffset, yPort), module, EMILE::POS_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(xPort+2*xPortOffset, yPort), module, EMILE::CURVE_INPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(xPort+3*xPortOffset, yPort), module, EMILE::OUT));
 	}
 
   void onPathDrop(const PathDropEvent& e) override {
