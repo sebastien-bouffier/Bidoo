@@ -800,7 +800,7 @@ void DTROY::process(const ProcessArgs &args) {
 
 	// Update Outputs
 	outputs[GATE_OUTPUT].setVoltage(gateOn ? gateValue : 0.0f);
-	outputs[PITCH_OUTPUT].setVoltage(gateOn ? pitch : 0.0f);
+	outputs[PITCH_OUTPUT].setVoltage(pitch);
 }
 
 struct DTROYDisplay : TransparentWidget {

@@ -901,7 +901,7 @@ void BORDL::process(const ProcessArgs &args) {
 
 	// Update Outputs
 	outputs[GATE_OUTPUT].setVoltage(gateOn ? (probGate ? gateValue : 0.0f) : 0.0f);
-	outputs[PITCH_OUTPUT].setVoltage(gateOn ? pitch : 0.0f);
+	outputs[PITCH_OUTPUT].setVoltage(pitch);
 	outputs[ACC_OUTPUT].setVoltage(accent);
 }
 
