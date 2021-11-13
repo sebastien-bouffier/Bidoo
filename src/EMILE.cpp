@@ -199,7 +199,7 @@ void EMILE::process(const ProcessArgs &args) {
         unsigned short blue = 256 * image[samplePos * 8 * width + x * 8 + 4] + image[samplePos * 8 * width + x * 8 + 5];
         unsigned short alpha = 256 * image[samplePos * 8 * width + x * 8 + 6] + image[samplePos * 8 * width + x * 8 + 7];
         float mix = 1e-7f*((r?red:0)+(g?green:0)+(b?blue:0)+(a?alpha:0))/max(1,r+g+b+a);
-        float index = (params[TUNE_PARAM].getValue()+inputs[TUNE_INPUT].getVoltage()+5.0f)*(1.0f-pow(1.0f-x*iWidth,curve))*FS2;
+        float index = (params[TUNE_PARAM].getValue()+inputs[TUNE_INPUT].getVoltage()+5.0f)*(1.0f-pow(1.0f-x*iWidth,curve))*FS2+3;
         magn[(size_t)index] += mix*(1-index+(size_t)index);
         if (x<width-1) {
           magn[(size_t)index+1] += mix*(index-(size_t)index);

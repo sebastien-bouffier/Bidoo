@@ -312,7 +312,6 @@ struct BORDL : Module {
 	int curScaleVal = 0;
 	float pitch = 0.0f;
 	float previousPitch = 0.0f;
-	float candidateForPreviousPitch = 0.0f;
 	float tCurrent;
 	float tLastTrig;
 	std::vector<char> slideState = {'f','f','f','f','f','f','f','f'};
@@ -824,9 +823,7 @@ void BORDL::process(const ProcessArgs &args) {
 	// Steps && Pulses Management
 	if (nextStep) {
 		// Advance step
-		candidateForPreviousPitch = quantizer::closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity
-			+ (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + inputs[TRANSPOSE_INPUT].getVoltage(),
-			clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f,11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
+		previousPitch = pitch;
 
 		prevIndex = index;
 		auto nextT = patterns[playedPattern].GetNextStep(reStart);
@@ -888,10 +885,13 @@ void BORDL::process(const ProcessArgs &args) {
 			gateValue = 0.0f;
 		}
 	}
-	//pitch management
-	pitch = quantizer::closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity
-		+ (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + inputs[TRANSPOSE_INPUT].getVoltage(),
-		clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
+
+	if (gateOn) {
+		pitch = quantizer::closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity
+			+ (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + inputs[TRANSPOSE_INPUT].getVoltage(),
+			clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
+	}
+
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
 			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].getVoltage() * 0.1f, -0.1f, 0.99f);
@@ -901,11 +901,8 @@ void BORDL::process(const ProcessArgs &args) {
 
 	// Update Outputs
 	outputs[GATE_OUTPUT].setVoltage(gateOn ? (probGate ? gateValue : 0.0f) : 0.0f);
-	outputs[PITCH_OUTPUT].setVoltage(pitch);
+	outputs[PITCH_OUTPUT].setVoltage(gateOn ? pitch : 0.0f);
 	outputs[ACC_OUTPUT].setVoltage(accent);
-
-	if (nextStep && gateOn)
-		previousPitch = candidateForPreviousPitch;
 }
 
 struct BORDLDisplay : TransparentWidget {

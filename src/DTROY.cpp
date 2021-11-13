@@ -275,7 +275,6 @@ struct DTROY : Module {
 	int curScaleVal = 0;
 	float pitch = 0.0f;
 	float previousPitch = 0.0f;
-	float candidateForPreviousPitch = 0.0f;
 	float tCurrent = 0.0f;
 	float tLastTrig = 0.0f;
 	std::vector<char> slideState = {'f','f','f','f','f','f','f','f'};
@@ -537,9 +536,6 @@ void DTROY::UpdatePattern() {
 }
 
 void DTROY::process(const ProcessArgs &args) {
-
-	float invESR = 1 / args.sampleRate;
-
 	// Run
 	if (runningTrigger.process(params[RUN_PARAM].getValue())) {
 		running = !running;
@@ -550,13 +546,13 @@ void DTROY::process(const ProcessArgs &args) {
 	// Phase calculation
 	if (running) {
 		if (inputs[EXT_CLOCK_INPUT].isConnected()) {
-			tCurrent += invESR;
+			tCurrent += args.sampleTime;
 			if (tLastTrig > 0.0f) {
 				phase = tCurrent / tLastTrig;
 			}
 			else {
 				float clockTime = powf(2.0f, params[CLOCK_PARAM].getValue() + inputs[CLOCK_INPUT].getVoltage());
-				phase += clockTime * invESR;
+				phase += clockTime * args.sampleTime;
 			}
 			// External clock
 			if (clockTrigger.process(inputs[EXT_CLOCK_INPUT].getVoltage())) {
@@ -569,7 +565,7 @@ void DTROY::process(const ProcessArgs &args) {
 		else {
 			// Internal clock
 			float clockTime = powf(2.0f, params[CLOCK_PARAM].getValue() + inputs[CLOCK_INPUT].getVoltage());
-			phase += clockTime * invESR;
+			phase += clockTime * args.sampleTime;
 			if (phase >= 1.0f) {
 				phase--;
 				nextStep = true;
@@ -732,10 +728,7 @@ void DTROY::process(const ProcessArgs &args) {
 
 	// Steps && Pulses Management
 	if (nextStep) {
-		candidateForPreviousPitch = quantizer::closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity
-			+ (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + inputs[TRANSPOSE_INPUT].getVoltage(),
-		 clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f,11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
-
+		previousPitch = pitch;
 
 		auto nextT = patterns[playedPattern].GetNextStep(reStart);
 		index = std::get<0>(nextT);
@@ -745,19 +738,19 @@ void DTROY::process(const ProcessArgs &args) {
 			reStart = false;
 
 		if (((!stepOutputsMode) && (pulse == 0)) || (stepOutputsMode))
-			stepPulse[patterns[playedPattern].CurrentStep().index].trigger(10 * invESR);
+			stepPulse[patterns[playedPattern].CurrentStep().index].trigger(10 * args.sampleTime);
 
 		lights[STEPS_LIGHTS+patterns[playedPattern].CurrentStep().index].setBrightness(1.0f);
 	}
 
 	// Lights & steps outputs
 	for (int i = 0; i < 8; i++) {
-		lights[STEPS_LIGHTS + i].setBrightness(lights[STEPS_LIGHTS + i].getBrightness() - lights[STEPS_LIGHTS + i].getBrightness() * invLightLambda * invESR);
+		lights[STEPS_LIGHTS + i].setBrightness(lights[STEPS_LIGHTS + i].getBrightness() - lights[STEPS_LIGHTS + i].getBrightness() * invLightLambda * args.sampleTime);
 		lights[SLIDES_LIGHTS + i].setBrightness(slideState[i] == 't' ? 1.0f - lights[STEPS_LIGHTS + i].getBrightness() : lights[STEPS_LIGHTS + i].getBrightness());
 		lights[SKIPS_LIGHTS + i].setBrightness(skipState[i]== 't' ? 1.0f - lights[STEPS_LIGHTS + i].getBrightness() : lights[STEPS_LIGHTS + i].getBrightness());
-		outputs[STEP_OUTPUT+i].setVoltage(stepPulse[i].process(invESR) ? 10.0f : 0.0f);
+		outputs[STEP_OUTPUT+i].setVoltage(stepPulse[i].process(args.sampleTime) ? 10.0f : 0.0f);
 	}
-	lights[RESET_LIGHT].setBrightness(lights[RESET_LIGHT].getBrightness() -  lights[RESET_LIGHT].getBrightness() * invLightLambda * invESR);
+	lights[RESET_LIGHT].setBrightness(lights[RESET_LIGHT].getBrightness() -  lights[RESET_LIGHT].getBrightness() * invLightLambda * args.sampleTime);
 	lights[COPY_LIGHT].setBrightness(copyPattern >= 0 ? 1 : 0);
 
 	// Caclulate Outputs
@@ -792,10 +785,12 @@ void DTROY::process(const ProcessArgs &args) {
 		}
 	}
 
-	//pitch management
-	pitch = quantizer::closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity
-		+ (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + inputs[TRANSPOSE_INPUT].getVoltage(),
-	clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
+	if (gateOn) {
+		pitch = quantizer::closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity
+			+ (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + inputs[TRANSPOSE_INPUT].getVoltage(),
+		clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
+	}
+
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
 			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].getVoltage() * 0.1f, -0.1f, 0.99f);
@@ -805,10 +800,7 @@ void DTROY::process(const ProcessArgs &args) {
 
 	// Update Outputs
 	outputs[GATE_OUTPUT].setVoltage(gateOn ? gateValue : 0.0f);
-	outputs[PITCH_OUTPUT].setVoltage(pitch);
-
-	if (nextStep && gateOn)
-		previousPitch = candidateForPreviousPitch;
+	outputs[PITCH_OUTPUT].setVoltage(gateOn ? pitch : 0.0f);
 }
 
 struct DTROYDisplay : TransparentWidget {
