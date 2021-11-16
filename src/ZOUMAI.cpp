@@ -1560,7 +1560,7 @@ struct octaveBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 			e.consume(this);
 			return;
 		}
-		SmallLEDLightBezel::onButton(e);
+		SmallLEDLightBezel<RedGreenBlueLight>::onButton(e);
 	}
 };
 
@@ -1581,7 +1581,7 @@ struct trigPageBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 			mod->updateTrigToParams();
 			e.consume(this);
 		}
-		SmallLEDLightBezel::onButton(e);
+		SmallLEDLightBezel<RedGreenBlueLight>::onButton(e);
 	}
 };
 
@@ -1607,7 +1607,7 @@ struct trackSelectBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 			}
 			e.consume(this);
 		}
-		SmallLEDLightBezel::onButton(e);
+		SmallLEDLightBezel<RedGreenBlueLight>::onButton(e);
 	}
 };
 
@@ -1651,7 +1651,7 @@ struct trackOnOffBtn : LEDLightBezel<RedGreenBlueLight> {
 			e.consume(this);
 			return;
 		}
-		LEDLightBezel::onButton(e);
+		LEDLightBezel<RedGreenBlueLight>::onButton(e);
 	}
 
 };
@@ -1676,7 +1676,7 @@ struct noteBtn : LEDLightBezel<RedGreenBlueLight> {
 			e.consume(this);
 			return;
 		}
-		LEDLightBezel::onButton(e);
+		LEDLightBezel<RedGreenBlueLight>::onButton(e);
 	}
 };
 
@@ -1704,7 +1704,7 @@ struct stepBtn : LEDLightBezel<RedGreenBlueLight> {
 			return;
 		}
 
-		LEDLightBezel::onButton(e);
+		LEDLightBezel<RedGreenBlueLight>::onButton(e);
 	}
 };
 
