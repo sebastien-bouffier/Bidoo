@@ -101,46 +101,46 @@ struct Oscillator {
 
 		if (lfoFactor == 1) {
 
-			T wrapPhase = (syncDirection == -1.f) & 1.f;
-			T wrapCrossing = (wrapPhase - (phase - deltaPhase)) / deltaPhase;
-			int wrapMask = simd::movemask((0 < wrapCrossing) & (wrapCrossing <= 1.f));
-			if (wrapMask) {
-				for (int i = 0; i < channels; i++) {
-					if (wrapMask & (1 << i)) {
-						T mask = simd::movemaskInverse<T>(1 << i);
-						float p = wrapCrossing[i] - 1.0f;
-						T x = mask & (2.f * syncDirection);
-						sqrMinBlep.insertDiscontinuity(p, x);
-					}
-				}
-			}
-
-			T pulseCrossing = (0.5f - (phaseDist - deltaPhase)) / deltaPhase;
-			int pulseMask = simd::movemask((0 < pulseCrossing) & (pulseCrossing <= 1.f));
-			if (pulseMask) {
-				for (int i = 0; i < channels; i++) {
-					if (pulseMask & (1 << i)) {
-						T mask = simd::movemaskInverse<T>(1 << i);
-						float p = pulseCrossing[i] - 0.5f;
-						T x = mask & (-2.f * syncDirection);
-						sqrMinBlep.insertDiscontinuity(p, x);
-					}
-				}
-			}
-
-			T halfCrossing = (0.5f - (phaseDist - deltaPhase)) / deltaPhase;
-			int halfMask = simd::movemask((0 < halfCrossing) & (halfCrossing <= 1.f));
-			if (halfMask) {
-				for (int i = 0; i < channels; i++) {
-					if (halfMask & (1 << i)) {
-						T mask = simd::movemaskInverse<T>(1 << i);
-						float p = halfCrossing[i] - 0.5f;
-						T x = mask & (-2.f * syncDirection);
-						sawMinBlep.insertDiscontinuity(p, x);
-					}
-				}
-			}
-
+		// 	T wrapPhase = (syncDirection == -1.f) & 1.f;
+		// 	T wrapCrossing = (wrapPhase - (phase - deltaPhase)) / deltaPhase;
+		// 	int wrapMask = simd::movemask((0 < wrapCrossing) & (wrapCrossing <= 1.f));
+		// 	if (wrapMask) {
+		// 		for (int i = 0; i < channels; i++) {
+		// 			if (wrapMask & (1 << i)) {
+		// 				T mask = simd::movemaskInverse<T>(1 << i);
+		// 				float p = wrapCrossing[i] - 1.0f;
+		// 				T x = mask & (2.f * syncDirection);
+		// 				sqrMinBlep.insertDiscontinuity(p, x);
+		// 			}
+		// 		}
+		// 	}
+		//
+		// 	T pulseCrossing = (0.5f - (phaseDist - deltaPhase)) / deltaPhase;
+		// 	int pulseMask = simd::movemask((0 < pulseCrossing) & (pulseCrossing <= 1.f));
+		// 	if (pulseMask) {
+		// 		for (int i = 0; i < channels; i++) {
+		// 			if (pulseMask & (1 << i)) {
+		// 				T mask = simd::movemaskInverse<T>(1 << i);
+		// 				float p = pulseCrossing[i] - 0.5f;
+		// 				T x = mask & (-2.f * syncDirection);
+		// 				sqrMinBlep.insertDiscontinuity(p, x);
+		// 			}
+		// 		}
+		// 	}
+		//
+		// 	T halfCrossing = (0.5f - (phaseDist - deltaPhase)) / deltaPhase;
+		// 	int halfMask = simd::movemask((0 < halfCrossing) & (halfCrossing <= 1.f));
+		// 	if (halfMask) {
+		// 		for (int i = 0; i < channels; i++) {
+		// 			if (halfMask & (1 << i)) {
+		// 				T mask = simd::movemaskInverse<T>(1 << i);
+		// 				float p = halfCrossing[i] - 0.5f;
+		// 				T x = mask & (-2.f * syncDirection);
+		// 				sawMinBlep.insertDiscontinuity(p, x);
+		// 			}
+		// 		}
+		// 	}
+		//
 			if (syncEnabled) {
 				T deltaSync = syncValue - lastSyncValue;
 				T syncCrossing = -lastSyncValue / deltaSync;

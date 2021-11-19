@@ -396,7 +396,7 @@ struct BidooLEDButton : LEDButton {
 };
 
 template <typename TBase>
-struct SmallLEDBezelLight : TBase {
+struct SmallLEDBezelLight : VCVBezelLight<TBase> {
 	SmallLEDBezelLight() {
 		this->borderColor = color::BLACK_TRANSPARENT;
 		this->bgColor = color::BLACK_TRANSPARENT;
@@ -408,6 +408,7 @@ struct SmallLEDBezel : app::SvgSwitch {
 	SmallLEDBezel() {
 		momentary = true;
 		addFrame(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/SmallLEDBezel.svg")));
+		this->box.size = math::Vec(10.63f, 10.63f);
 	}
 };
 
@@ -421,6 +422,8 @@ struct SmallLEDLightBezel : SmallLEDBezel {
 		light->box.pos = box.size.div(2).minus(light->box.size.div(2));
 		addChild(light);
 	}
+
+	app::ModuleLightWidget* getLight() { return light;}
 };
 
 } // namespace rack
