@@ -372,8 +372,9 @@
       "description": "Envelope tool",
       "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#bancau",
       "tags": [
-        "Envelope",
+        "Envelope generator",
         "Oscillator",
+        "VCO",
         "LFO",
         "Waveshaper"
       ]
