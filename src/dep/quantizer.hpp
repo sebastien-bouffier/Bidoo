@@ -1,6 +1,5 @@
 #pragma once
-#include <system.hpp>
-#include <math.hpp>
+#include <rack.hpp>
 #include <iostream>
 
 namespace quantizer {
