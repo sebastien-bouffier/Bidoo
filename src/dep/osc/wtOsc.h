@@ -463,8 +463,8 @@ struct wtOscillator {
   T maxMorph = 2.e-2f;
   T minMorph = 0.f;
   T morph;
-  int playedIndex = 0;
-  int targetIndex = 0;
+  size_t playedIndex = 0;
+  size_t targetIndex = 0;
 
 	T lastSyncValue = 0.f;
   T lastOutValue = 0.f;

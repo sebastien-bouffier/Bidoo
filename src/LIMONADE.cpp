@@ -312,6 +312,7 @@ struct LIMONADE : Module {
 	int displayEditedFrame = 1;
 	int displayPlayedFrame = 1;
 	size_t index = 0;
+	bool dirty = false;
 
 	wtTable table;
 	wtOscillator<16, 16, float_4> oscillators[4];
@@ -460,6 +461,7 @@ struct LIMONADE : Module {
 			delete(wav);
 		}
 		table.calcFFT();
+		dirty = true;
 	}
 
 	void onRandomize() override {
@@ -469,6 +471,7 @@ struct LIMONADE : Module {
 	void onReset() override {
 		table.reset();
 		lastPath = "";
+		dirty = true;
 	}
 };
 
@@ -1105,34 +1108,36 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 
 };
 
-struct LIMONADETextField : LedDisplayTextField {
+struct LIMONADEFrameSizeTextField : LedDisplayTextField {
 	LIMONADE *module;
-	bool init = true;
 
-  LIMONADETextField(LIMONADE *mod) {
-    module = mod;
-  	color = YELLOW_BIDOO;
-  	textOffset = Vec(2,0);
-		if (module != NULL) text = std::to_string(module->frameSize);
-  }
+	void step() override {
+		LedDisplayTextField::step();
+		if (module && module->dirty) {
+			setText(std::to_string(module->frameSize));
+			module->dirty = false;
+		}
+	}
 
 	void onChange(const event::Change &e) override {
 		LedDisplayTextField::onChange(e);
-		if ((text.size() > 0) && (text != "")) {
+		if ((getText().size() > 0) && (getText() != "")) {
 			size_t val;
-			std::istringstream(text)>>val;
+			std::istringstream(getText())>>val;
 	    module->frameSize = val;
 		}
 	};
 
-	void draw(const DrawArgs &args) override {
-		if (init && module) {
-			text = std::to_string(module->frameSize);
-			init = false;
-		}
-		LedDisplayTextField::draw(args);
-	}
+};
 
+struct LIMONADEFrameSizeDisplay : LedDisplay {
+	void setModule(LIMONADE* module) {
+		LIMONADEFrameSizeTextField* textField = createWidget<LIMONADEFrameSizeTextField>(Vec(2.0f, -6.0f));
+		textField->box.size = box.size;
+		textField->multiline = false;
+		textField->module = module;
+		addChild(textField);
+	}
 };
 
 
@@ -1206,12 +1211,10 @@ struct LIMONADEWidget : ModuleWidget {
   	}
 
   	{
-  		LIMONADETextField *textField = new LIMONADETextField(module);
-
-  		textField->box.pos = Vec(170, 208);
-  		textField->box.size = Vec(45, 19);
-  		textField->multiline = false;
-  		addChild(textField);
+			LIMONADEFrameSizeDisplay* frameSizeDisplay = createWidget<LIMONADEFrameSizeDisplay>(Vec(170, 208));
+			frameSizeDisplay->box.size = Vec(45, 19);
+			frameSizeDisplay->setModule(module);
+			addChild(frameSizeDisplay);
   	}
 
 		BlueBtn *loadSampleParam = createParam<LimonadeBlueBtnLoadSample>(Vec(170, 240), module, LIMONADE::LOADSAMPLE_PARAM);

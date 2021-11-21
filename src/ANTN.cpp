@@ -131,8 +131,6 @@ void * threadReadTask(threadReadData data)
     }
   }
 
-  std::cout << url << '\n';
-
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
@@ -201,6 +199,7 @@ struct ANTN : Module {
   std::atomic<bool> tDc;
   std::atomic<bool> trFree;
   std::atomic<bool> tdFree;
+  bool dirty = false;
 
 	ANTN() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -243,11 +242,17 @@ struct ANTN : Module {
     json_t *urlJ = json_object_get(rootJ, "url");
   	if (urlJ)
   		url = json_string_value(urlJ);
+    dirty = true;
   }
 
 	void process(const ProcessArgs &args) override;
 
   void onSampleRateChange() override;
+
+  void onReset() override {
+		url = "";
+		dirty = true;
+	}
 };
 
 void ANTN::onSampleRateChange() {
@@ -311,28 +316,38 @@ void ANTN::process(const ProcessArgs &args) {
 struct ANTNTextField : LedDisplayTextField {
   ANTN *module;
 
-  ANTNTextField(ANTN *mod) {
-    module = mod;
-  	color = GREEN_BIDOO;
-  	textOffset = Vec(3, 3);
-    if (module != NULL) text = module->url;
-  }
+	void step() override {
+		LedDisplayTextField::step();
+		if (module && module->dirty) {
+			setText(module->url);
+			module->dirty = false;
+		}
+	}
 
-	void onChange(const event::Change &e) override {
-    if (text.size() > 0) {
-      std::string tText = text;
+	void onChange(const ChangeEvent& e) override {
+		if (module && getText().size()>0)
+    {
+      std::string tText = getText();
       tText.erase(std::remove_if(tText.begin(), tText.end(), [](unsigned char x){return std::isspace(x);}), tText.end());
-      if (module != NULL) module->url = tText;
-	  }
-    LedDisplayTextField::onChange(e);
-  };
+      module->url = tText;
+    }
+	}
 };
 
+struct ANTNDisplay : LedDisplay {
+	void setModule(ANTN* module) {
+		ANTNTextField* textField = createWidget<ANTNTextField>(Vec(0, 0));
+		textField->box.size = box.size;
+		textField->multiline = true;
+		textField->module = module;
+		addChild(textField);
+	}
+};
 
-struct ANTNDisplay : TransparentWidget {
+struct ANTNBufferDisplay : TransparentWidget {
 	ANTN *module;
 
-	ANTNDisplay() {
+	ANTNBufferDisplay() {
 
 	}
 
@@ -365,30 +380,26 @@ struct ANTNLight : BASE {
 };
 
 struct ANTNWidget : ModuleWidget {
-  TextField *textField;
-
 	ANTNWidget(ANTN *module) {
 		setModule(module);
 		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/ANTN.svg")));
-
-    if (module) {
-			ANTNDisplay *display = new ANTNDisplay();
-			display->module = module;
-			display->box.pos = Vec(10.0f, 140.0f);
-			display->box.size = Vec(70.0f, 70.0f);
-			addChild(display);
-		}
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
-  	textField = new ANTNTextField(module);
-  	textField->box.pos = Vec(5, 25);
-  	textField->box.size = Vec(125, 100);
-  	textField->multiline = true;
-  	addChild(textField);
+		ANTNBufferDisplay *display = new ANTNBufferDisplay();
+		display->module = module;
+		display->box.pos = Vec(10.0f, 140.0f);
+		display->box.size = Vec(70.0f, 70.0f);
+		addChild(display);
+
+
+    ANTNDisplay* urlDisplay = createWidget<ANTNDisplay>(Vec(5, 25));
+		urlDisplay->box.size = Vec(125, 100);
+		urlDisplay->setModule(module);
+		addChild(urlDisplay);
 
     addParam(createParam<BidooBlueKnob>(Vec(52.5f, 183), module, ANTN::GAIN_PARAM));
 
