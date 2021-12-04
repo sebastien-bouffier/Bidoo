@@ -50,6 +50,7 @@ extern Model *modelDILEMO;
 extern Model *modelLAMBDA;
 extern Model *modelBANCAU;
 extern Model *modelHCTIP;
+extern Model *modelSPORE;
 extern Model *modelDFUZE;
 extern Model *modelREI;
 extern Model *modelMU;

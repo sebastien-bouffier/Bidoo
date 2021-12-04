@@ -6,7 +6,7 @@
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
 <p align="center">
-   <img src="https://github.com/sebastien-bouffier/Bidoo/blob/v1.0/images/bidooV2.png"/>
+   <img src="https://github.com/sebastien-bouffier/Bidoo/blob/v2/images/bidooV2.png"/>
 </p>
 
 ## How to
@@ -15,7 +15,7 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## License
 
-All **source code** is copyright © 2019 Sébastien Bouffier (sebastien.bouffier@gmail.com) and is licensed under the [GNU General Public License v3.0](LICENSE.txt).
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
 All **graphics** in the `res` directory are copyright © 2019 Sébastien Bouffier (sebastien.bouffier@gmail.com) and licensed under [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/).
 
