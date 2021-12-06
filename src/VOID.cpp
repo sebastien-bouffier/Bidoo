@@ -1,6 +1,9 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
 
+// Windows defines VOID as a macro, which breaks the build...
+#undef VOID
+
 using namespace std;
 
 struct VOID : Module {
