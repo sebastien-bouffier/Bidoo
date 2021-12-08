@@ -312,7 +312,7 @@ struct LIMONADE : Module {
 	int displayEditedFrame = 1;
 	int displayPlayedFrame = 1;
 	size_t index = 0;
-	bool dirty = false;
+	bool dirty = true;
 
 	wtTable table;
 	wtOscillator<16, 16, float_4> oscillators[4];

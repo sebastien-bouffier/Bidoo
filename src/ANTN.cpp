@@ -15,8 +15,11 @@
 
 using namespace std;
 
+const int DATASIZE = 220000000;
+const int AUDIOSIZE = 524288;
+
 struct threadReadData {
-  dsp::DoubleRingBuffer<char,262144> *dataToDecodeRingBuffer;
+  dsp::DoubleRingBuffer<char,DATASIZE> *dataToDecodeRingBuffer;
   std::string url;
   std::string secUrl;
   std::atomic<bool> *dl;
@@ -25,8 +28,8 @@ struct threadReadData {
 };
 
 struct threadDecodeData {
-  dsp::DoubleRingBuffer<char,262144> *dataToDecodeRingBuffer;
-  dsp::DoubleRingBuffer<dsp::Frame<2>,2097152> *dataAudioRingBuffer;
+  dsp::DoubleRingBuffer<char,DATASIZE> *dataToDecodeRingBuffer;
+  dsp::DoubleRingBuffer<dsp::Frame<2>,AUDIOSIZE> *dataAudioRingBuffer;
   mp3dec_t mp3d;
   std::atomic<bool> *dc;
   std::atomic<bool> *free;
@@ -58,13 +61,13 @@ void * threadDecodeTask(threadDecodeData data)
 {
   data.free->store(false);
   mp3dec_frame_info_t info;
-  dsp::DoubleRingBuffer<dsp::Frame<2>,4096> *tmpBuffer = new dsp::DoubleRingBuffer<dsp::Frame<2>,4096>();
+  dsp::DoubleRingBuffer<dsp::Frame<2>,AUDIOSIZE> *tmpBuffer = new dsp::DoubleRingBuffer<dsp::Frame<2>,AUDIOSIZE>();
   dsp::SampleRateConverter<2> conv;
   int inSize;
   int outSize;
   while (data.dc->load()) {
     short pcm[MINIMP3_MAX_SAMPLES_PER_FRAME];
-    if (data.dataToDecodeRingBuffer->size() >= 65536) {
+    if ((data.dataToDecodeRingBuffer->size() >= 65536) && (data.dataAudioRingBuffer->capacity() >= 65536)) {
       int samples = mp3dec_decode_frame(&data.mp3d, (const uint8_t*)data.dataToDecodeRingBuffer->startData(), data.dataToDecodeRingBuffer->size(), pcm, &info);
 
       if (info.frame_bytes > 0) {
@@ -190,8 +193,8 @@ struct ANTN : Module {
   std::string url;
 	dsp::SchmittTrigger trigTrigger;
   bool read = false;
-  dsp::DoubleRingBuffer<dsp::Frame<2>,2097152> dataAudioRingBuffer;
-  dsp::DoubleRingBuffer<char,262144> dataToDecodeRingBuffer;
+  dsp::DoubleRingBuffer<dsp::Frame<2>,AUDIOSIZE> dataAudioRingBuffer;
+  dsp::DoubleRingBuffer<char,DATASIZE> dataToDecodeRingBuffer;
   thread rThread, dThread;
   threadReadData rData;
   threadDecodeData dData;
@@ -359,8 +362,8 @@ struct ANTNBufferDisplay : TransparentWidget {
         nvgStrokeColor(args.vg, BLUE_BIDOO);
         nvgFillColor(args.vg, BLUE_BIDOO);
       	nvgBeginPath(args.vg);
-        nvgRoundedRect(args.vg,0,0,115.f * module->dataToDecodeRingBuffer.size()/262144.f,5.f,0.0f);
-        nvgRoundedRect(args.vg,0,15.f,115.f * module->dataAudioRingBuffer.size()/2097152.f,5.f,0.0f);
+        nvgRoundedRect(args.vg,0,0, box.size.x * std::min((float)module->dataToDecodeRingBuffer.size()/DATASIZE,1.0f),5.f,0.0f);
+        nvgRoundedRect(args.vg,0,15.f,box.size.x * std::min((float)module->dataAudioRingBuffer.size()/AUDIOSIZE,1.0f),5.f,0.0f);
       	nvgClosePath(args.vg);
         nvgStroke(args.vg);
       	nvgFill(args.vg);
@@ -392,7 +395,7 @@ struct ANTNWidget : ModuleWidget {
 		ANTNBufferDisplay *display = new ANTNBufferDisplay();
 		display->module = module;
 		display->box.pos = Vec(10.0f, 140.0f);
-		display->box.size = Vec(70.0f, 70.0f);
+		display->box.size = Vec(115.0f, 20.0f);
 		addChild(display);
 
 

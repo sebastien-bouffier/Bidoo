@@ -86,6 +86,7 @@ void FLAME::process(const ProcessArgs &args) {
 		runningSum = 0.0f;
 		for (size_t i = ySampleWindow; i < ySampleWindow+hSampleWindow; i++)  runningSum += windowSum[i];
 		runningSum = runningSum/(wSampleWindow*hSampleWindow);
+		initRunninSum = false;
 	}
 
 	if (in_Buffer.full()) {
@@ -95,13 +96,12 @@ void FLAME::process(const ProcessArgs &args) {
 		runningSum += windowSum[ySampleWindow]/(wSampleWindow*hSampleWindow);
 	}
 
-	outputs[OUTPUT].setVoltage(runningSum);
+	outputs[OUTPUT].setVoltage(clamp(runningSum,0.0f,10.0f));
 }
 
 struct FLAMEDisplay : OpaqueWidget {
 	FLAME *module;
 	const float width = 130.0f;
-	float threshold = 1.0f;
 
 	FLAMEDisplay() {
 
@@ -144,37 +144,40 @@ struct FLAMEDisplay : OpaqueWidget {
 			if (module) {
 				float iWidth =  1.0f/width;
 				nvgSave(args.vg);
-				nvgScissor(args.vg,0,0,width,H);
+				nvgScissor(args.vg,0.2f,00.2f,width-0.4f,box.size.y-0.4f);
 
-				for (size_t j=module->fft.size()-1; j>0; j--) {
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, 0, H-j);
-					for (size_t i = 0; i < width; i++) {
-						float magn = interpolateLinear(&module->fft[j][0], (1.0f-pow(1.0f-i*iWidth,0.1f))*N2)*5e-4f;
-						nvgLineTo(args.vg, i, H-(magn*H) - j);
+				if (module->inputs[FLAME::INPUT].isConnected()) {
+					for (size_t j=module->fft.size()-1; j>0; j--) {
+						nvgBeginPath(args.vg);
+						float y = box.size.y*(1.0f - (float)j/(float)H);
+						nvgMoveTo(args.vg, 0, y);
+						for (size_t i = 0; i < width; i++) {
+							float magn = interpolateLinear(&module->fft[j][0], (1.0f-pow(1.0f-i*iWidth,0.1f))*N2)*5e-4f;
+							nvgLineTo(args.vg, i, y-(magn*box.size.y));
+						}
+						nvgLineTo(args.vg, width, y);
+						nvgClosePath(args.vg);
+						nvgStrokeWidth(args.vg, 1);
+						nvgStrokeColor(args.vg, nvgRGBA(min(255+j,size_t(255)), min(233+j,size_t(255)), min(0+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
+						nvgFillColor(args.vg, nvgRGBA(min(228+j,size_t(255)), min(87+j,size_t(255)), min(46+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
+						nvgStroke(args.vg);
+						nvgFill(args.vg);
 					}
-					nvgLineTo(args.vg, width, H - j);
+
+					nvgBeginPath(args.vg);
+					nvgMoveTo(args.vg, width, 0);
+					for (size_t j=module->fft.size()-1; j>0; j--) {
+						float y = box.size.y*(1.0f - (float)j/(float)H);
+						nvgLineTo(args.vg, width - module->windowSum[j]*5e-3f, y);
+					}
+					nvgLineTo(args.vg, width, box.size.y);
 					nvgClosePath(args.vg);
-					nvgStrokeWidth(args.vg, 1);
-					nvgStrokeColor(args.vg, nvgRGBA(min(255+j,size_t(255)), min(233+j,size_t(255)), min(0+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
-					nvgFillColor(args.vg, nvgRGBA(min(228+j,size_t(255)), min(87+j,size_t(255)), min(46+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
-					nvgStroke(args.vg);
+					nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 120));
 					nvgFill(args.vg);
 				}
 
 				nvgBeginPath(args.vg);
-				nvgMoveTo(args.vg, width, 0);
-				for (size_t j=module->fft.size()-1; j>0; j--) {
-					nvgLineTo(args.vg, width - module->windowSum[j]*5e-3f, H - j);
-				}
-				nvgLineTo(args.vg, width, H);
-				nvgClosePath(args.vg);
-				nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 120));
-				nvgFill(args.vg);
-
-				nvgBeginPath(args.vg);
 				nvgRect(args.vg, module->xBox, module->yBox, module->wBox, module->hBox);
-				nvgClosePath(args.vg);
 				nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 80));
 				nvgFill(args.vg);
 
@@ -202,7 +205,7 @@ struct FLAMEWidget : ModuleWidget {
   		FLAMEDisplay *display = new FLAMEDisplay();
   		display->module = module;
   		display->box.pos = Vec(10, 28);
-  		display->box.size = Vec(130, H);
+  		display->box.size = Vec(130, 256);
   		addChild(display);
   	}
 
