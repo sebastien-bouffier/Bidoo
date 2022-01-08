@@ -463,9 +463,9 @@ struct ZOUMAI : Module {
 	int quantizeCV1[8][8] = {{0}};
 	bool slideMode[8][8] = {{0}};
 
-	bool fills[8] = {0.0f};
-	bool forceTrigs[8] = {0.0f};
-	bool killTrigs[8] = {0.0f};
+	bool fills[8] = {0};
+	bool forceTrigs[8] = {0};
+	bool killTrigs[8] = {0};
 	float trsp[8] = {0.0f};
 	float dice[8] = {0.0f};
 	int rotLeft[8] = {0};
@@ -474,7 +474,7 @@ struct ZOUMAI : Module {
 
 	bool solo = false;
 
-	float powTable[100][10000] = {0.0f};
+	float powTable[100][10000] = {{0.0f}};
 
 	ZOUMAI() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
