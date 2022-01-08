@@ -43,12 +43,12 @@ struct ZOUMAIExpander : Module {
 	dsp::SchmittTrigger trspTypeTrigger[8];
 
 
-	bool forceTrigs[8] = {0.0f};
-	bool killTrigs[8] = {0.0f};
-	bool fills[8] = {0.0f};
+	bool forceTrigs[8] = {0};
+	bool killTrigs[8] = {0};
+	bool fills[8] = {0};
 	float dice[8] = {0.0f};
-	int rotLen[8][8] = {{0.0f}};
-	int rotShift[8][8] = {{0.0f}};
+	int rotLen[8][8] = {{0}};
+	int rotShift[8][8] = {{0}};
 	float trspType[8] = {1.0f,1.0f,1.0f,1.0f,1.0f,1.0f,1.0f,1.0f};
 	int currentPattern = 0;
 

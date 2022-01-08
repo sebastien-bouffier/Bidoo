@@ -1,4 +1,4 @@
-### v2.0.4 (08/01/2021)
+### v2.0.6 (08/01/2021)
 - zOù MAï sync issues fixed
 - zOù MAï VO quantization per track
 - zOù MAï CV1 can be quantized too

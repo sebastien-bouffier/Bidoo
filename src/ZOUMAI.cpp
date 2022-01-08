@@ -449,7 +449,7 @@ struct ZOUMAI : Module {
 	TrigAttibutes nTrigsAttibutes[8][8][64];
 	TrackAttibutes nTracksAttibutes[8][8];
 	float trigSlide[8][8][64] = {{{0.0f}}};
-  bool trigSlideType[8][8][64] = {{{0.0f}}};
+  bool trigSlideType[8][8][64] = {{{0}}};
 	float trigTrim[8][8][64] = {{{0.0f}}};
 	float trigLength[8][8][64] = {{{0.0f}}};
 	float trigPulseDistance[8][8][64] = {{{0.5f}}};
