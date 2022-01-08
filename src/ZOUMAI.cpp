@@ -470,7 +470,7 @@ struct ZOUMAI : Module {
 	float dice[8] = {0.0f};
 	int rotLeft[8] = {0};
 	int rotRight[8] = {0};
-	int rotLen[8] = {16};
+	int rotLen[8] = {16,16,16,16,16,16,16,16};
 
 	bool solo = false;
 
