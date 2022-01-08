@@ -793,7 +793,7 @@ void DTROY::process(const ProcessArgs &args) {
 
 	if (patterns[playedPattern].CurrentStep().slide) {
 		if (pulse == 0) {
-			float slideCoeff = clamp(patterns[playedPattern].slideTime - 0.01f + inputs[SLIDE_TIME_INPUT].getVoltage() * 0.1f, -0.1f, 0.99f);
+			float slideCoeff = clamp(patterns[playedPattern].slideTime + inputs[SLIDE_TIME_INPUT].getVoltage() * 0.1f, 0.0f, 0.99f);
 			pitch = pitch - (1.0f - powf(phase, slideCoeff)) * (pitch - previousPitch);
 		}
 	}

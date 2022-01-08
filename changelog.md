@@ -1,3 +1,18 @@
+### v2.0.4 (08/01/2021)
+- zOù MAï sync issues fixed
+- zOù MAï VO quantization per track
+- zOù MAï CV1 can be quantized too
+- zOù MAï slide timing vs. rate constant per track
+- zOù MAï slide base calculation per note, note length vs. 1 step length
+- zOù MAï tools removed from interface, tools extended and moved in menu and accessible by "over" shortcuts (description/mapping in menu)
+- zOù MAï expander with new features (each pattern has its own set of params) :
+- zOù MAï Fill per track
+- zOù MAï Force all rand steps per track
+- zOù MAï Mute all rand steps (except dice  100% i.e. no rand) per track
+- zOù MAï Transpose per track (0+10V or -4+6V base)
+- zOù MAï Increase or decrease dice value for steps with rand dice less than 100% per track
+- zOù MAï Rotate pattern left or right per track (rotate shift and length as params)
+
 ### v1.1.39 (26/09/2021)
 - πlOT Orange mode for controls => Like in Red mode they are quantized in order to drive a VCO but they jump from note to note like in Yellow mode.
 - πlOT sequencer can record controls values

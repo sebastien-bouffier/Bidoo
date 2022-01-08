@@ -17,6 +17,7 @@ extern Plugin *pluginInstance;
 extern Model *modelDTROY;
 extern Model *modelBORDL;
 extern Model *modelZOUMAI;
+extern Model *modelZOUMAIExpander;
 extern Model *modelTOCANTE;
 extern Model *modelCHUTE;
 extern Model *modelLATE;
@@ -59,3 +60,10 @@ extern Model *modelRABBIT;
 extern Model *modelBISTROT;
 extern Model *modelDIKTAT;
 extern Model *modelVOID;
+
+struct InstantiateExpanderItem : MenuItem {
+	Module* module;
+	Model* model;
+	Vec posit;
+	void onAction(const event::Action &e) override;
+};

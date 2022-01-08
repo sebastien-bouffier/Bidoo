@@ -11,6 +11,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelDTROY);
 	p->addModel(modelBORDL);
 	p->addModel(modelZOUMAI);
+	p->addModel(modelZOUMAIExpander);
 	p->addModel(modelMU);
   p->addModel(modelCHUTE);
 	p->addModel(modelLOURDE);
@@ -50,4 +51,18 @@ void init(rack::Plugin *p) {
 	p->addModel(modelSIGMA);
 	p->addModel(modelFLAME);
 	p->addModel(modelVOID);
+}
+
+void InstantiateExpanderItem::onAction(const event::Action &e) {
+	engine::Module* module = model->createModule();
+	APP->engine->addModule(module);
+	ModuleWidget* mw = model->createModuleWidget(module);
+	if (mw) {
+		APP->scene->rack->setModulePosNearest(mw, posit);
+		APP->scene->rack->addModule(mw);
+		history::ModuleAdd *h = new history::ModuleAdd;
+		h->name = "create expander module";
+		h->setModule(mw);
+		APP->history->push(h);
+	}
 }

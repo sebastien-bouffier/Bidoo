@@ -43,6 +43,9 @@ struct DIKTAT : Module {
 	int scale[16] = {0};
 	float inputNote[16] = {0.0f};
 
+	quantizer::Quantizer quant;
+	quantizer::Chord chord;
+
 	DIKTAT() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f, "Channel","",0,1,1);
@@ -147,7 +150,7 @@ void DIKTAT::process(const ProcessArgs &args) {
 
 		inputNote[i] = inputs[NOTE_INPUT].getVoltage(i);
 
-		quantizer::Chord chord = quantizer::closestChordInScale(inputNote[i], lRootNote, lScale);
+		chord = quant.closestChordInScale(inputNote[i], lRootNote, lScale);
 
 		outputs[NOTE_TONIC_OUTPUT].setVoltage(chord.tonic,i);
 		outputs[NOTE_THIRD_OUTPUT].setVoltage(chord.third,i);

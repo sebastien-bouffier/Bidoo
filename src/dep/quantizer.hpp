@@ -49,21 +49,21 @@ namespace quantizer {
   	{9,  "Dorian ♭9", 7, {0,	1, 3,	5, 7,	9, 10, 0, 0, 0, 0, 0}},
   	{10, "Lydian Aug", 7, {0,	2, 4,	6, 8,	9, 11, 0, 0, 0, 0, 0}},
   	{11, "Lydian Dom", 7, {0,	2, 4,	6, 7,	9, 10, 0, 0, 0, 0, 0}},
-  	{12, "Mixolydian ♭6", 7, {0,	2, 4,	5, 7,	8, 10, 0, 0, 0, 0, 0}},
+  	{12, "Mixoly. ♭6", 7, {0,	2, 4,	5, 7,	8, 10, 0, 0, 0, 0, 0}},
   	{13, "Aeolian Dim", 7, {0,	2, 3,	5, 6,	8, 10, 0, 0, 0, 0, 0}},
-  	{14, "Super Locrian", 7, {0,	1, 3,	4, 6,	8, 10, 0, 0, 0, 0, 0}},
+  	{14, "Super Loc.", 7, {0,	1, 3,	4, 6,	8, 10, 0, 0, 0, 0, 0}},
   	{15, "Aeolian ♮7", 7, {0,	2, 3,	5, 7,	8, 11, 0, 0, 0, 0, 0}},
   	{16, "Locrian ♮6", 7, {0,	1, 3,	5, 6,	9, 10, 0, 0, 0, 0, 0}},
   	{17, "Ionian Aug", 7, {0,	2, 4,	5, 8,	9, 11, 0, 0, 0, 0, 0}},
   	{18, "Dorian ♯4", 7, {0,	2, 3,	6, 7,	9, 10, 0, 0, 0, 0, 0}},
-  	{19, "Phrygian Dom", 7, {0,	1, 4,	5, 7,	8, 10, 0, 0, 0, 0, 0}},
+  	{19, "Phry. Dom", 7, {0,	1, 4,	5, 7,	8, 10, 0, 0, 0, 0, 0}},
   	{20, "Lydian ♯9", 7, {0,	3, 4,	6, 7,	9, 11, 0, 0, 0, 0, 0}},
-  	{21, "Super Locrian ♭♭7", 7, {0,	1, 3,	4, 6,	8, 9, 0, 0, 0, 0, 0}},
+  	{21, "Super Loc. ♭♭7", 7, {0,	1, 3,	4, 6,	8, 9, 0, 0, 0, 0, 0}},
     {22, "Blues", 9, {0, 2, 3, 4, 5, 7, 9, 10, 11, 0, 0, 0}},
     {23, "Melodic Min", 9, {0, 2, 3, 5, 7, 8, 9, 10, 11, 0, 0, 0}},
     {24, "Pentatonic", 5, {0, 2, 4, 7, 9, 0, 0, 0, 0, 0, 0, 0}},
-    {25, "Chromatic", 12, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}},
-    {26, "Turkish", 7, {0, 1, 3, 5, 7, 10, 11, 0, 0, 0, 0, 0}}
+    {25, "Turkish", 7, {0, 1, 3, 5, 7, 10, 11, 0, 0, 0, 0, 0}},
+    {26, "Chromatic", 12, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}}
   };
 
   struct Chord {
@@ -82,8 +82,26 @@ namespace quantizer {
 
   std::string scaleName(int scale);
 
-  float closestVoltageInScale(float inVolts, int rootNote, int scale);
+  float closestVoltageInScale(const float inVolts, const int rootNote, const int scale);
 
-  Chord closestChordInScale(float inVolts, int rootNote, int scale);
+  Chord closestChordInScale(const float inVolts, const int rootNote, const int scale);
+
+  struct Quantizer {
+
+    float map[numScales][120] = {{0.0f}};
+
+    Quantizer();
+
+    float quantize(float voltsIn);
+
+    std::string noteName(float voltsIn);
+
+    std::string scaleName(int scale);
+
+    float closestVoltageInScale(const float inVolts, const int rootNote, const int scale);
+
+    Chord closestChordInScale(const float inVolts, const int rootNote, const int scale);
+
+  };
 
 }
