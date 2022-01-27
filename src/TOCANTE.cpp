@@ -5,7 +5,7 @@
 using namespace std;
 
 
-struct TOCANTE : Module {
+struct TOCANTE : BidooModule {
 	enum ParamIds {
 		BPM_PARAM,
 		BPMFINE_PARAM,
@@ -205,10 +205,10 @@ struct TocanteLight : BASE {
 	}
 };
 
-struct TOCANTEWidget : ModuleWidget {
+struct TOCANTEWidget : BidooWidget {
 	TOCANTEWidget(TOCANTE *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/TOCANTE.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/TOCANTE.svg"));
 
 		TOCANTEDisplay *display = new TOCANTEDisplay();
 		display->module = module;

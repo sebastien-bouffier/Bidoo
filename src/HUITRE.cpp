@@ -6,7 +6,7 @@
 
 using namespace std;
 
-struct HUITRE : Module {
+struct HUITRE : BidooModule {
 	enum ParamIds {
 		TRIG_PARAM,
 		PATTERN_PARAM = TRIG_PARAM + 8,
@@ -56,12 +56,13 @@ struct HUITRE : Module {
 
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "mode", json_boolean(mode));
 		return rootJ;
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		json_t *modeJ = json_object_get(rootJ, "mode");
 		if (modeJ) mode = json_is_true(modeJ);
 	}
@@ -122,7 +123,7 @@ void HUITRE::process(const ProcessArgs &args) {
 	outputs[CV2_OUTPUT].setVoltage(params[CV2_PARAM+currentPattern].getValue());
 }
 
-struct HUITREWidget : ModuleWidget {
+struct HUITREWidget : BidooWidget {
   HUITREWidget(HUITRE *module);
 };
 
@@ -135,7 +136,7 @@ struct HUITRELight : BASE {
 
 HUITREWidget::HUITREWidget(HUITRE *module) {
 	setModule(module);
-	setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/HUITRE.svg")));
+	prepareThemes(asset::plugin(pluginInstance, "res/HUITRE.svg"));
 
 	addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));

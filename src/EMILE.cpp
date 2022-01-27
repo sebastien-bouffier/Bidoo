@@ -27,7 +27,7 @@ inline double fastPow(double a, double b) {
   return u.d;
 }
 
-struct EMILE : Module {
+struct EMILE : BidooModule {
 	enum ParamIds {
 		CURVE_PARAM,
     GAIN_PARAM,
@@ -115,7 +115,7 @@ struct EMILE : Module {
 	void loadSample(std::string path);
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
 
     json_object_set_new(rootJ, "r", json_boolean(r));
@@ -127,6 +127,7 @@ struct EMILE : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+    BidooModule::dataFromJson(rootJ);
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		if (lastPathJ) {
 			lastPath = json_string_value(lastPathJ);
@@ -281,10 +282,10 @@ struct EMILEDisplay : OpaqueWidget {
 };
 
 
-struct EMILEWidget : ModuleWidget {
+struct EMILEWidget : BidooWidget {
 	EMILEWidget(EMILE *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/EMILE.svg")));
+    prepareThemes(asset::plugin(pluginInstance, "res/EMILE.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
@@ -357,10 +358,10 @@ struct EMILEWidget : ModuleWidget {
   };
 
   void appendContextMenu(ui::Menu *menu) override {
+    BidooWidget::appendContextMenu(menu);
 		EMILE *module = dynamic_cast<EMILE*>(this->module);
 		assert(module);
-
-		menu->addChild(construct<MenuLabel>());
+    menu->addChild(new MenuSeparator());
 		menu->addChild(construct<EMILEItem>(&MenuItem::text, "Load image (png)", &EMILEItem::module, module));
 	}
 };

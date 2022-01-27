@@ -79,7 +79,7 @@ struct channel {
 	}
 };
 
-struct OAI : Module {
+struct OAI : BidooModule {
 	enum ParamIds {
 		START_PARAM,
 		LEN_PARAM,
@@ -176,7 +176,7 @@ struct OAI : Module {
 	}
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "currentChannel", json_integer(currentChannel));
 		for (size_t i = 0; i<16 ; i++) {
 			json_t *channelJ = json_object();
@@ -203,6 +203,7 @@ struct OAI : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		for (size_t i = 0; i<16 ; i++) {
 			json_t *channelJ = json_object_get(rootJ, ("channel" + to_string(i)).c_str());
 			if (channelJ){
@@ -395,10 +396,10 @@ void OAI::process(const ProcessArgs &args) {
 	}
 }
 
-struct OAIWidget : ModuleWidget {
+struct OAIWidget : BidooWidget {
 	OAIWidget(OAI *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/OAI.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/OAI.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
@@ -461,9 +462,10 @@ struct OAIWidget : ModuleWidget {
 	}
 
   void appendContextMenu(ui::Menu *menu) override {
+		BidooWidget::appendContextMenu(menu);
 		OAI *module = dynamic_cast<OAI*>(this->module);
 		assert(module);
-		menu->addChild(construct<MenuLabel>());
+		menu->addChild(new MenuSeparator());
 		menu->addChild(construct<OAIItem>(&MenuItem::text, "Load sample", &OAIItem::module, module));
 	}
 };

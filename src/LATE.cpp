@@ -5,7 +5,7 @@
 
 using namespace std;
 
-struct LATE : Module {
+struct LATE : BidooModule {
 	enum ParamIds {
 		SWING_PARAM,
 		CVCOEFF_PARAM,
@@ -79,10 +79,10 @@ struct LATE : Module {
 
 };
 
-struct LATEWidget : ModuleWidget {
+struct LATEWidget : BidooWidget {
 	LATEWidget(LATE *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/LATE.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/LATE.svg"));
 
 		addParam(createParam<BidooBlueKnob>(Vec(8, 70), module, LATE::SWING_PARAM));
 		addParam(createParam<BidooBlueTrimpot>(Vec(13, 105), module, LATE::CVCOEFF_PARAM));

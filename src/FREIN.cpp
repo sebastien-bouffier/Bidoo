@@ -8,7 +8,7 @@
 
 using namespace std;
 
-struct FREIN : Module {
+struct FREIN : BidooModule {
 	enum ParamIds {
 		TRIG_PARAM,
 		START_PARAM,
@@ -111,10 +111,10 @@ struct FREIN : Module {
 	}
 };
 
-struct FREINWidget : ModuleWidget {
+struct FREINWidget : BidooWidget {
 	FREINWidget(FREIN *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/FREIN.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/FREIN.svg"));
 
 		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(19.5f, 20.0f), module, FREIN::BREAK_LIGHT));
 

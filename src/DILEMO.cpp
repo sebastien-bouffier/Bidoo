@@ -4,7 +4,7 @@
 
 using namespace std;
 
-struct DILEMO : Module {
+struct DILEMO : BidooModule {
 	enum ParamIds {
 		THRESHOLD_PARAM,
 		NUM_PARAMS
@@ -68,10 +68,10 @@ void DILEMO::process(const ProcessArgs &args) {
 	outputs[NOT_OUT].setVoltage(!inNOT ? 10.0f : 0.0f);
 }
 
-struct DILEMOWidget : ModuleWidget {
+struct DILEMOWidget : BidooWidget {
 	DILEMOWidget(DILEMO *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/DILEMO.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/DILEMO.svg"));
 
 		const int inputXAnchor = 7;
 		const int inputYAnchor = 79;

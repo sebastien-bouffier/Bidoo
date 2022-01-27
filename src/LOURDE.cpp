@@ -4,7 +4,7 @@
 
 using namespace std;
 
-struct LOURDE : Module {
+struct LOURDE : BidooModule {
 	enum ParamIds {
 		WEIGHT1,
 		WEIGHT2,
@@ -73,11 +73,10 @@ struct LabelDisplayWidget : TransparentWidget {
 
 };
 
-struct LOURDEWidget : ModuleWidget {
+struct LOURDEWidget : BidooWidget {
 	LOURDEWidget(LOURDE *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/LOURDE.svg")));
-
+		prepareThemes(asset::plugin(pluginInstance, "res/LOURDE.svg"));
 
   	addInput(createInput<PJ301MPort>(Vec(25.5,77), module, LOURDE::IN1));
     addInput(createInput<PJ301MPort>(Vec(25.5,157), module, LOURDE::IN2));

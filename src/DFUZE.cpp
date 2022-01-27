@@ -6,7 +6,7 @@
 
 using namespace std;
 
-struct DFUZE : Module {
+struct DFUZE : BidooModule {
 	enum ParamIds {
 		SIZE_PARAM,
 		REVTIME_PARAM,
@@ -73,10 +73,10 @@ void DFUZE::process(const ProcessArgs &args) {
 	outputs[OUT_R_OUTPUT].setVoltage(rOut);
 }
 
-struct DFUZEWidget : ModuleWidget {
+struct DFUZEWidget : BidooWidget {
 	DFUZEWidget(DFUZE *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/DFUZE.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/DFUZE.svg"));
 
 		addParam(createParam<BidooBlueKnob>(Vec(13, 50), module, DFUZE::SIZE_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(13, 95), module, DFUZE::REVTIME_PARAM));

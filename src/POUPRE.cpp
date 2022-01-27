@@ -17,7 +17,7 @@ struct channel {
 	int gate=1;
 };
 
-struct POUPRE : Module {
+struct POUPRE : BidooModule {
 	enum ParamIds {
 		CHANNEL_PARAM,
 		START_PARAM,
@@ -85,7 +85,7 @@ struct POUPRE : Module {
 	void saveSample();
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
 		json_object_set_new(rootJ, "currentChannel", json_integer(currentChannel));
 		for (size_t i = 0; i<16 ; i++) {
@@ -101,6 +101,7 @@ struct POUPRE : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		json_t *currentChannelJ = json_object_get(rootJ, "currentChannel");
 		if (currentChannelJ) {
@@ -276,10 +277,10 @@ void POUPRE::process(const ProcessArgs &args) {
 	}
 }
 
-struct POUPREWidget : ModuleWidget {
+struct POUPREWidget : BidooWidget {
 	POUPREWidget(POUPRE *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/POUPRE.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/POUPRE.svg"));
 
 		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(34.0f, 20.0f), module, POUPRE::SAMPLE_LIGHT));
 
@@ -335,9 +336,10 @@ struct POUPREWidget : ModuleWidget {
 	}
 
   void appendContextMenu(ui::Menu *menu) override {
+		BidooWidget::appendContextMenu(menu);
 		POUPRE *module = dynamic_cast<POUPRE*>(this->module);
 		assert(module);
-		menu->addChild(construct<MenuLabel>());
+		menu->addChild(new MenuSeparator());
 		menu->addChild(construct<POUPREItem>(&MenuItem::text, "Load sample", &POUPREItem::module, module));
 	}
 };

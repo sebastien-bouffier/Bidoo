@@ -72,7 +72,7 @@ struct channel {
 	}
 };
 
-struct MAGMA : Module {
+struct MAGMA : BidooModule {
 	enum ParamIds {
 		START_PARAM,
 		LEN_PARAM,
@@ -180,7 +180,7 @@ struct MAGMA : Module {
 	}
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
 		json_object_set_new(rootJ, "currentChannel", json_integer(currentChannel));
 		for (size_t i = 0; i<16 ; i++) {
@@ -200,6 +200,7 @@ struct MAGMA : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		json_t *currentChannelJ = json_object_get(rootJ, "currentChannel");
 		if (currentChannelJ) {
 			currentChannel = json_integer_value(currentChannelJ);
@@ -431,10 +432,10 @@ void MAGMA::process(const ProcessArgs &args) {
 	}
 }
 
-struct MAGMAWidget : ModuleWidget {
+struct MAGMAWidget : BidooWidget {
 	MAGMAWidget(MAGMA *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/MAGMA.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/MAGMA.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
@@ -506,9 +507,10 @@ struct MAGMAWidget : ModuleWidget {
 	}
 
   void appendContextMenu(ui::Menu *menu) override {
+		BidooWidget::appendContextMenu(menu);
 		MAGMA *module = dynamic_cast<MAGMA*>(this->module);
 		assert(module);
-		menu->addChild(construct<MenuLabel>());
+		menu->addChild(new MenuSeparator());
 		menu->addChild(construct<MAGMAItem>(&MenuItem::text, "Load sample", &MAGMAItem::module, module));
 	}
 };

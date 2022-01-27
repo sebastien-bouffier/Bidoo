@@ -67,3 +67,62 @@ struct InstantiateExpanderItem : MenuItem {
 	Vec posit;
 	void onAction(const event::Action &e) override;
 };
+
+struct BidooModule : Module {
+	int themeId = 0;
+	bool themeChanged = true;
+	json_t *dataToJson() override;
+	void dataFromJson(json_t *rootJ) override;
+};
+
+struct BidooWidget : ModuleWidget {
+	SvgPanel* lightPanel;
+	SvgPanel* darkPanel;
+	SvgPanel* blackPanel;
+	SvgPanel* bluePanel;
+	SvgPanel* greenPanel;
+
+	struct LightItem : MenuItem {
+		BidooModule *module;
+		void onAction(const event::Action &e) override {
+			module->themeId = 0;
+			module->themeChanged = true;
+		}
+	};
+
+	struct DarkItem : MenuItem {
+		BidooModule *module;
+		void onAction(const event::Action &e) override {
+			module->themeId = 1;
+			module->themeChanged = true;
+		}
+	};
+
+	struct BlackItem : MenuItem {
+		BidooModule *module;
+		void onAction(const event::Action &e) override {
+			module->themeId = 2;
+			module->themeChanged = true;
+		}
+	};
+
+	struct BlueItem : MenuItem {
+		BidooModule *module;
+		void onAction(const event::Action &e) override {
+			module->themeId = 3;
+			module->themeChanged = true;
+		}
+	};
+
+	struct GreenItem : MenuItem {
+		BidooModule *module;
+		void onAction(const event::Action &e) override {
+			module->themeId = 4;
+			module->themeChanged = true;
+		}
+	};
+
+	void prepareThemes(const std::string& filename);
+	void appendContextMenu(Menu *menu) override;
+	void step() override;
+};

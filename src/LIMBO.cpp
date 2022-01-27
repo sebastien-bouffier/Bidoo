@@ -58,7 +58,7 @@ struct LadderFilter {
 	}
 };
 
-struct LIMBO : Module {
+struct LIMBO : BidooModule {
 	enum ParamIds {
 		CUTOFF_PARAM,
 		Q_PARAM,
@@ -124,10 +124,10 @@ struct LIMBO : Module {
 
 };
 
-struct LIMBOWidget : ModuleWidget {
+struct LIMBOWidget : BidooWidget {
 	LIMBOWidget(LIMBO *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/LIMBO.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/LIMBO.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));

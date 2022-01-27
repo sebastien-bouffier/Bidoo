@@ -11,7 +11,7 @@
 
 using namespace std;
 
-struct OUAIVE : Module {
+struct OUAIVE : BidooModule {
 	enum ParamIds {
 		NB_SLICES_PARAM,
 		TRIG_MODE_PARAM,
@@ -82,11 +82,8 @@ struct OUAIVE : Module {
 
 	void loadSample();
 
-	// persistence
-
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
-		// lastPath
+		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
 		json_object_set_new(rootJ, "trigMode", json_integer(trigMode));
 		json_object_set_new(rootJ, "readMode", json_integer(readMode));
@@ -94,7 +91,7 @@ struct OUAIVE : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
-		// lastPath
+		BidooModule::dataFromJson(rootJ);
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		if (lastPathJ) {
 			lastPath = json_string_value(lastPathJ);
@@ -448,10 +445,10 @@ struct OUAIVEDisplay : OpaqueWidget {
 
 };
 
-struct OUAIVEWidget : ModuleWidget {
+struct OUAIVEWidget : BidooWidget {
 	OUAIVEWidget(OUAIVE *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/OUAIVE.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/OUAIVE.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
@@ -507,10 +504,11 @@ struct OUAIVEWidget : ModuleWidget {
   };
 
   void appendContextMenu(ui::Menu *menu) override {
+		BidooWidget::appendContextMenu(menu);
 		OUAIVE *module = dynamic_cast<OUAIVE*>(this->module);
 		assert(module);
 
-		menu->addChild(construct<MenuLabel>());
+		menu->addChild(new MenuSeparator());
 		menu->addChild(construct<OUAIVEItem>(&MenuItem::text, "Load sample", &OUAIVEItem::module, module));
 	}
 

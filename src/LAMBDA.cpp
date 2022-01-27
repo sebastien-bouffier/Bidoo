@@ -3,7 +3,7 @@
 
 using namespace std;
 
-struct LAMBDA : Module {
+struct LAMBDA : BidooModule {
 	enum ParamIds {
 		NUM_PARAMS
 	};
@@ -41,10 +41,10 @@ struct LAMBDA : Module {
 	}
 };
 
-struct LAMBDAWidget : ModuleWidget {
+struct LAMBDAWidget : BidooWidget {
 	LAMBDAWidget(LAMBDA *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/LAMBDA.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/LAMBDA.svg"));
 
 		addInput(createInput<PJ301MPort>(Vec(10.5f, 31), module, LAMBDA::CLOCK_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(10.5f, 74), module, LAMBDA::CV_INPUT));

@@ -5,7 +5,7 @@
 
 using namespace std;
 
-struct BAR : Module {
+struct BAR : BidooModule {
 	enum ParamIds {
 		THRESHOLD_PARAM,
 		RATIO_PARAM,
@@ -216,7 +216,7 @@ void BAR::process(const ProcessArgs &args) {
 	float cAtt = exp(-1.0f/(attackTime * args.sampleRate * 0.001f));
 	float cRel = exp(-1.0f/(releaseTime * args.sampleRate * 0.001f));
 
-	if (preGain>previousPostGain) {
+	if (preGain<previousPostGain) {
 		postGain = cAtt * previousPostGain + (1.0f-cAtt) * preGain;
 	} else {
 		postGain = cRel * previousPostGain + (1.0f-cRel) * preGain;
@@ -460,13 +460,13 @@ struct BARDisplay : TransparentWidget {
 		}
 		Widget::drawLayer(args, layer);
 	}
-	
+
 };
 
-struct BARWidget : ModuleWidget {
+struct BARWidget : BidooWidget {
 	BARWidget(BAR *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/BAR.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/BAR.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));

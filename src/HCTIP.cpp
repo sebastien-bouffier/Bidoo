@@ -8,7 +8,7 @@
 
 using namespace std;
 
-struct HCTIP : Module {
+struct HCTIP : BidooModule {
 	enum ParamIds {
 		PITCH_PARAM,
 		NUM_PARAMS
@@ -61,11 +61,10 @@ struct HCTIP : Module {
 	}
 };
 
-struct HCTIPWidget : ModuleWidget {
+struct HCTIPWidget : BidooWidget {
 	HCTIPWidget(HCTIP *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/HCTIP.svg")));
-
+		prepareThemes(asset::plugin(pluginInstance, "res/HCTIP.svg"));
 
 		addParam(createParam<BidooBlueKnob>(Vec(8, 70), module, HCTIP::PITCH_PARAM));
 		addInput(createInput<PJ301MPort>(Vec(10, 130.f), module, HCTIP::PITCH_INPUT));

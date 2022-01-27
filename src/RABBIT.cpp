@@ -4,7 +4,7 @@
 
 using namespace std;
 
-struct RABBIT : Module {
+struct RABBIT : BidooModule {
 	enum ParamIds {
 		BITOFF_PARAM,
 		BITREV_PARAM = BITOFF_PARAM + 8,
@@ -97,7 +97,7 @@ struct RABBIT : Module {
 	}
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		for (int i = 0; i < 8; i++) {
 			json_object_set_new(rootJ, ("bitOff" + to_string(i)).c_str(), json_boolean(bitOff[i]));
 			json_object_set_new(rootJ, ("bitRev" + to_string(i)).c_str(), json_boolean(bitRev[i]));
@@ -106,6 +106,7 @@ struct RABBIT : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		for (int i = 0; i < 8; i++) {
 			json_t *jbitOff = json_object_get(rootJ, ("bitOff" + to_string(i)).c_str());
 			if (jbitOff) {
@@ -127,10 +128,10 @@ struct RabbitLight : BASE {
 	}
 };
 
-struct RABBITWidget : ModuleWidget {
+struct RABBITWidget : BidooWidget {
 	RABBITWidget(RABBIT *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/RABBIT.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/RABBIT.svg"));
 
 		for (int i = 0; i < 8; i++) {
 			addParam(createLightParam<LEDLightBezel<RedLight>>(Vec(27.0f, 50.0f + 32.0f * i), module, RABBIT::BITOFF_PARAM + i, RABBIT::BITOFF_LIGHTS + i));

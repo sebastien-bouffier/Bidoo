@@ -242,7 +242,7 @@ void tDeleteMorphing(wtTable &table) {
 	table.deleteMorphing();
 }
 
-struct LIMONADE : Module {
+struct LIMONADE : BidooModule {
 	enum ParamIds {
 		RESET_PARAM,
 		SYNC_PARAM,
@@ -394,7 +394,7 @@ struct LIMONADE : Module {
 	void normalizeWt();
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		json_t *framesJ = json_array();
 		size_t nFrames = 0;
 		for (size_t i=0; i<table.nFrames; i++) {
@@ -419,6 +419,7 @@ struct LIMONADE : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		size_t nFrames = 0;
 		json_t *nFramesJ = json_object_get(rootJ, "nFrames");
 		if (nFramesJ)	nFrames = json_integer_value(nFramesJ);
@@ -1184,10 +1185,10 @@ struct LimonadeBlueBtnLoadFrame : BlueBtn {
 	}
 };
 
-struct LIMONADEWidget : ModuleWidget {
+struct LIMONADEWidget : BidooWidget {
 	LIMONADEWidget(LIMONADE *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/LIMONADE.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/LIMONADE.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
@@ -1334,8 +1335,9 @@ struct LIMONADEWidget : ModuleWidget {
   }
 
 	void appendContextMenu(Menu *menu) override {
+		BidooWidget::appendContextMenu(menu);
 		LIMONADE *m = dynamic_cast<LIMONADE*>(this->module);
-		menu->addChild(new MenuEntry);
+		menu->addChild(new MenuSeparator());
 		moduleDisplayModeItem *modeItem = new moduleDisplayModeItem;
 		modeItem->text = "Wavetable display: ";
 		modeItem->rightText = (m->displayMode == 0) ? "ON✔ OFF" : "ON  OFF✔";

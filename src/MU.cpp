@@ -4,7 +4,7 @@
 
 using namespace std;
 
-struct MU : Module {
+struct MU : BidooModule {
 	enum ParamIds {
 		BPM_PARAM,
 		BPMFINE_PARAM,
@@ -84,7 +84,7 @@ struct MU : Module {
 	bool trigStack = false;
 	bool mute = false;
 
-	MU() : Module() {
+	MU() : BidooModule() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(BPM_PARAM, 0.0f, 800.0f, 117.0f);
 		configParam(BPMFINE_PARAM, 0.0f, 0.99f, 0.0f);
@@ -277,10 +277,10 @@ struct TinyPJ301MPortWithDisplay : TinyPJ301MPort {
 	}
 };
 
-struct MUWidget : ModuleWidget {
+struct MUWidget : BidooWidget {
 	MUWidget(MU *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/MU.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/MU.svg"));
 
 		LabelMICROWidget *display = new LabelMICROWidget();
 		display->box.pos = Vec(4,37);

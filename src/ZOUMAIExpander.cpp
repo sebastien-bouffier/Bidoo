@@ -2,7 +2,7 @@
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
 
-struct ZOUMAIExpander : Module {
+struct ZOUMAIExpander : BidooModule {
 	enum ParamIds {
 		FILL_PARAM,
 		FORCE_PARAM = FILL_PARAM + 8,
@@ -95,7 +95,7 @@ struct ZOUMAIExpander : Module {
 	}
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "currentPattern", json_integer(currentPattern));
 		for (size_t i = 0; i<8; i++) {
 			json_object_set_new(rootJ, ("trspType" + to_string(i)).c_str(), json_real(trspType[i]));
@@ -112,6 +112,7 @@ struct ZOUMAIExpander : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		json_t *currentPatternJ = json_object_get(rootJ, "currentPattern");
 		if (currentPatternJ)
 			currentPattern = json_integer_value(currentPatternJ);
@@ -223,12 +224,12 @@ struct ZOUMAIExpander : Module {
 
 };
 
-struct ZOUMAIExpanderWidget : ModuleWidget {
+struct ZOUMAIExpanderWidget : BidooWidget {
 
 
 	ZOUMAIExpanderWidget(ZOUMAIExpander *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/ZOUMAIExpander.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/ZOUMAIExpander.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));

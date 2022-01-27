@@ -38,7 +38,7 @@ inline constexpr signum(T const x) {
     return (T(0) < x) - (x < T(0));
 }
 
-struct EDSAROS : Module {
+struct EDSAROS : BidooModule {
 	enum ParamIds {
 		SAMPLESTART_PARAM,
 		SAMPLEEND_PARAM,
@@ -179,13 +179,14 @@ struct EDSAROS : Module {
 	void loadSample();
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
     json_object_set_new(rootJ, "zeroCrossing", json_boolean(zeroCrossing));
 		return rootJ;
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+    BidooModule::dataFromJson(rootJ);
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		if (lastPathJ) {
 			lastPath = json_string_value(lastPathJ);
@@ -896,10 +897,10 @@ struct EDSAROSBidooSmallSnapBlueKnob : BidooSmallSnapBlueKnob {
 };
 
 
-struct EDSAROSWidget : ModuleWidget {
+struct EDSAROSWidget : BidooWidget {
 	EDSAROSWidget(EDSAROS *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/EDSAROS.svg")));
+    prepareThemes(asset::plugin(pluginInstance, "res/EDSAROS.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
@@ -1043,9 +1044,10 @@ struct EDSAROSWidget : ModuleWidget {
   };
 
   void appendContextMenu(ui::Menu *menu) override {
+    BidooWidget::appendContextMenu(menu);
 		EDSAROS *module = dynamic_cast<EDSAROS*>(this->module);
 		assert(module);
-		menu->addChild(construct<MenuLabel>());
+		menu->addChild(new MenuSeparator());
 		menu->addChild(construct<EDSAROSItem>(&MenuItem::text, "Load sample", &EDSAROSItem::module, module));
 	}
 

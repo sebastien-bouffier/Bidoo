@@ -3,7 +3,7 @@
 
 using namespace std;
 
-struct MS : Module {
+struct MS : BidooModule {
 	enum ParamIds {
 		NUM_PARAMS
 	};
@@ -35,10 +35,10 @@ struct MS : Module {
 	}
 };
 
-struct MSWidget : ModuleWidget {
+struct MSWidget : BidooWidget {
 	MSWidget(MS *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/MS.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/MS.svg"));
 
 		addInput(createInput<PJ301MPort>(Vec(10, 30), module, MS::L_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(10, 70), module, MS::R_INPUT));

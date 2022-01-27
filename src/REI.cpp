@@ -9,7 +9,7 @@
 
 using namespace std;
 
-struct REI : Module {
+struct REI : BidooModule {
 	enum ParamIds {
 		SIZE_PARAM,
 		DAMP_PARAM,
@@ -135,10 +135,10 @@ struct REILight : BASE {
 	}
 };
 
-struct REIWidget : ModuleWidget {
+struct REIWidget : BidooWidget {
 	REIWidget(REI *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/REI.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/REI.svg"));
 
 		const float yAnchor = 38.0f;
 		const float inputsOffset = 32.0f;

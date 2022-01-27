@@ -3,7 +3,7 @@
 
 using namespace std;
 
-struct BANCAU : Module {
+struct BANCAU : BidooModule {
 	enum ParamIds {
 		RISE1_PARAM,
 		RISECV1_PARAM,
@@ -204,10 +204,10 @@ struct BANCAU : Module {
 	}
 };
 
-struct BANCAUWidget : ModuleWidget {
+struct BANCAUWidget : BidooWidget {
 	BANCAUWidget(BANCAU *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/BANCAU.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/BANCAU.svg"));
 
 		const float xPilars[6] = {10-2.5f,45-2.5f,80-2.5f,120-2.5f,155-2.5f,190-2.5f};
 		const int yPilars[6] = {60,110,160,208,260,320};

@@ -158,7 +158,7 @@ struct PAYSAN {
 	}
 };
 
-struct SPORE : Module {
+struct SPORE : BidooModule {
 	enum ParamIds {
 		PITCH_PARAM,
 		GRAINSIZE_PARAM,
@@ -222,10 +222,10 @@ struct SPORE : Module {
 
 };
 
-struct SPOREWidget : ModuleWidget {
+struct SPOREWidget : BidooWidget {
 	SPOREWidget(SPORE *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/SPORE.svg")));
+    prepareThemes(asset::plugin(pluginInstance, "res/SPORE.svg"));
 
 		const float controlYAnchor = 15;
 		const float controlYOffset = 54.0f;

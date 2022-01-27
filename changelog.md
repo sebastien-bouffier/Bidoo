@@ -1,3 +1,7 @@
+### v2.0.8 (27/01/2021)
+- bAr and mINIBar attack and release params where inverted
+- all modules have themes (light, dark, black, blue and green)
+
 ### v2.0.7 (08/01/2021)
 - zOù MAï sync issues fixed
 - zOù MAï VO quantization per track

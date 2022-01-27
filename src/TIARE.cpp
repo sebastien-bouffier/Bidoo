@@ -338,7 +338,7 @@ struct Oscillator {
 	}
 };
 
-struct TIARE : Module {
+struct TIARE : BidooModule {
 	enum ParamIds {
 		FREQ_PARAM,
 		FINE_PARAM,
@@ -394,7 +394,7 @@ struct TIARE : Module {
 	}
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "phaseDistX", json_real(phaseDistX));
 		json_object_set_new(rootJ, "phaseDistY", json_real(phaseDistY));
 		json_object_set_new(rootJ, "freqFactor", json_integer(freqFactor));
@@ -402,6 +402,7 @@ struct TIARE : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		json_t *phaseDistXJ = json_object_get(rootJ, "phaseDistX");
 		if (phaseDistXJ) {
 			phaseDistX = json_number_value(phaseDistXJ);
@@ -553,12 +554,12 @@ struct moduleModeItem : MenuItem {
 	}
 };
 
-struct TIAREWidget : ModuleWidget {
+struct TIAREWidget : BidooWidget {
 
 	TIAREWidget(TIARE *module) {
 
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/TIARE.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/TIARE.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
@@ -595,7 +596,8 @@ struct TIAREWidget : ModuleWidget {
 	}
 
 	void appendContextMenu(Menu *menu) override {
-		menu->addChild(new MenuEntry);
+		BidooWidget::appendContextMenu(menu);
+		menu->addChild(new MenuSeparator());
 		moduleModeItem *modeItem = new moduleModeItem;
 		modeItem->text = "Mode: ";
 		modeItem->rightText = dynamic_cast<TIARE*>(this->module)->freqFactor == 1 ? "OSC✔ LFO" : "OSC  LFO✔";

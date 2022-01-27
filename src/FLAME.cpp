@@ -10,7 +10,7 @@
 
 using namespace std;
 
-struct FLAME : Module {
+struct FLAME : BidooModule {
 	enum ParamIds {
 		MIN_PARAM,
 		MED_PARAM,
@@ -66,7 +66,7 @@ struct FLAME : Module {
 	}
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "xBox", json_real(xBox));
 		json_object_set_new(rootJ, "yBox", json_real(yBox));
 		json_object_set_new(rootJ, "wBox", json_real(wBox));
@@ -77,6 +77,7 @@ struct FLAME : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		json_t *xBoxJ = json_object_get(rootJ, "xBox");
 		if (xBoxJ) xBox = json_real_value(xBoxJ);
 		json_t *yBoxJ = json_object_get(rootJ, "yBox");
@@ -280,10 +281,10 @@ struct FLAMEDisplay : OpaqueWidget {
 };
 
 
-struct FLAMEWidget : ModuleWidget {
+struct FLAMEWidget : BidooWidget {
 	FLAMEWidget(FLAME *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/FLAME.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/FLAME.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));

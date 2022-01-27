@@ -345,7 +345,7 @@ struct TrackAttibutes {
 	inline void setRefAttributes(const unsigned long _refAttributes) {refAttributes = _refAttributes;}
 };
 
-struct ZOUMAI : Module {
+struct ZOUMAI : BidooModule {
 	enum ParamIds {
 		STEPS_PARAMS,
 		TRACKSONOFF_PARAMS = STEPS_PARAMS + 16,
@@ -618,7 +618,7 @@ struct ZOUMAI : Module {
 
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "currentPattern", json_integer(currentPattern));
 		json_object_set_new(rootJ, "currentTrack", json_integer(currentTrack));
 		json_object_set_new(rootJ, "currentTrig", json_integer(currentTrig));
@@ -664,6 +664,7 @@ struct ZOUMAI : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+    BidooModule::dataFromJson(rootJ);
 		json_t *currentPatternJ = json_object_get(rootJ, "currentPattern");
 		if (currentPatternJ)
 			currentPattern = json_integer_value(currentPatternJ);
@@ -2326,10 +2327,10 @@ struct BidooProbBlueKnob : BidooBlueSnapKnob {
 
 
 
-struct ZOUMAIWidget : ModuleWidget {
+struct ZOUMAIWidget : BidooWidget {
 	ZOUMAIWidget(ZOUMAI *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/ZOUMAI.svg")));
+    prepareThemes(asset::plugin(pluginInstance, "res/ZOUMAI.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
@@ -2713,6 +2714,7 @@ struct ZOUMAIWidget : ModuleWidget {
 
 
 	void appendContextMenu(Menu *menu) override {
+      BidooWidget::appendContextMenu(menu);
 			ZOUMAI *module = dynamic_cast<ZOUMAI*>(this->module);
 			assert(module);
 

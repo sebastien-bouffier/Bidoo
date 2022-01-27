@@ -29,7 +29,7 @@ struct MultiFilter {
 	}
 };
 
-struct BAFIS : Module {
+struct BAFIS : BidooModule {
 	enum ParamIds {
 		FREQ_PARAM,
     Q_PARAM = FREQ_PARAM + 3,
@@ -247,10 +247,10 @@ struct BAFIS : Module {
 
 };
 
-struct BAFISWidget : ModuleWidget {
+struct BAFISWidget : BidooWidget {
 	BAFISWidget(BAFIS *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/BAFIS.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/BAFIS.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));

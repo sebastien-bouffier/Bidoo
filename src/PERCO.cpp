@@ -32,7 +32,7 @@ struct MultiFilter {
 	}
 };
 
-struct PERCO : Module {
+struct PERCO : BidooModule {
 	enum ParamIds {
 		CUTOFF_PARAM,
 		Q_PARAM,
@@ -66,7 +66,7 @@ struct PERCO : Module {
 	}
 
 	void process(const ProcessArgs &args) override {
-		
+
 		float freqCvParam = params[CMOD_PARAM].getValue();
 		freqCvParam = dsp::quadraticBipolar(freqCvParam);
 		float freqParam = params[CUTOFF_PARAM].getValue();
@@ -87,10 +87,10 @@ struct PERCO : Module {
 
 };
 
-struct PERCOWidget : ModuleWidget {
+struct PERCOWidget : BidooWidget {
 	PERCOWidget(PERCO *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/PERCO.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/PERCO.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));

@@ -7,7 +7,7 @@
 
 using namespace std;
 
-struct PILOT : Module {
+struct PILOT : BidooModule {
 	enum ParamIds {
 		BOTTOMSCENE_PARAM,
 		TOPSCENE_PARAM,
@@ -231,7 +231,7 @@ struct PILOT : Module {
 	}
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 
 		json_object_set_new(rootJ, "moveType", json_integer(moveType));
 		json_object_set_new(rootJ, "WEOM", json_integer(waitEOM));
@@ -273,6 +273,7 @@ struct PILOT : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		json_t *moveTypeJ = json_object_get(rootJ, "moveType");
 		if (moveTypeJ)
 			moveType = json_integer_value(moveTypeJ);
@@ -698,7 +699,7 @@ void PILOT::process(const ProcessArgs &args) {
 
 }
 
-struct PILOTWidget : ModuleWidget {
+struct PILOTWidget : BidooWidget {
 	ParamWidget *controls[16];
 	ParamWidget *morphButton;
 	void appendContextMenu(ui::Menu *menu) override;
@@ -1109,7 +1110,7 @@ struct PILOTColoredKnob : BidooLargeColoredKnob {
 
 PILOTWidget::PILOTWidget(PILOT *module) {
 	setModule(module);
-	setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/PILOT.svg")));
+	prepareThemes(asset::plugin(pluginInstance, "res/PILOT.svg"));
 
 	addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
@@ -1292,9 +1293,10 @@ struct PILOTItem : MenuItem {
 };
 
 void PILOTWidget::appendContextMenu(ui::Menu *menu) {
+	BidooWidget::appendContextMenu(menu);
 	PILOT *module = dynamic_cast<PILOT*>(this->module);
 	assert(module);
-	menu->addChild(construct<MenuLabel>());
+	menu->addChild(new MenuSeparator());
 	menu->addChild(construct<PILOTItem>(&MenuItem::text, "Randomize top scene only", &PILOTItem::module, module));
 }
 
@@ -1302,7 +1304,7 @@ void PILOTWidget::step() {
 	for (int i = 0; i < 16; i++) {
 		dynamic_cast<PILOTColoredKnob*>(controls[i])->fb->setDirty();
 	}
-	ModuleWidget::step();
+	BidooWidget::step();
 }
 
 void PILOTWidget::draw(const DrawArgs& args) {

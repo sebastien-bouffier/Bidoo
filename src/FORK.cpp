@@ -73,7 +73,7 @@ float porteuse(const float h,const float p)
   return Porteuse0+hf*(Porteuse1-Porteuse0);
 }
 
-struct FORK : Module {
+struct FORK : BidooModule {
 	enum ParamIds {
 		FORMANT_TYPE_PARAM,
 		PITCH_PARAM,
@@ -168,10 +168,10 @@ void FORK::process(const ProcessArgs &args) {
 	outputs[SIGNAL_OUTPUT].setVoltage(5.0f*out);
 }
 
-struct FORKWidget : ModuleWidget {
+struct FORKWidget : BidooWidget {
 	FORKWidget(FORK *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/FORK.svg")));
+    prepareThemes(asset::plugin(pluginInstance, "res/FORK.svg"));
 
   	addParam(createParam<BidooLargeBlueKnob>(Vec(26.0f,40.0f), module, FORK::PITCH_PARAM));
   	addParam(createParam<BlueCKD6>(Vec(30.0f,274.0f), module, FORK::PRESET_PARAM));

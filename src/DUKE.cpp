@@ -4,7 +4,7 @@
 
 using namespace std;
 
-struct DUKE : Module {
+struct DUKE : BidooModule {
 	enum ParamIds {
 		SLIDER_PARAM,
 		ADONF_PARAM = SLIDER_PARAM + 4,
@@ -66,10 +66,10 @@ void DUKE::process(const ProcessArgs &args) {
 	}
 }
 
-struct DUKEWidget : ModuleWidget {
+struct DUKEWidget : BidooWidget {
 	DUKEWidget(DUKE *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/DUKE.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/DUKE.svg"));
 
 		static const float portX0[4] = {36.0f, 70.0f, 105.0f, 140.0f};
 		addParam(createParam<BlueCKD6>(Vec(portX0[0]-29.0f, 190.0f), module, DUKE::ADONF_PARAM));

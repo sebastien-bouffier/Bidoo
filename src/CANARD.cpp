@@ -12,7 +12,7 @@
 
 using namespace std;
 
-struct CANARD : Module {
+struct CANARD : BidooModule {
 	enum ParamIds {
 		RECORD_PARAM,
 		SAMPLE_START_PARAM,
@@ -113,7 +113,7 @@ struct CANARD : Module {
 	void calcTransients();
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		// lastPath
 		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
 		json_t *slicesJ = json_array();
@@ -127,6 +127,7 @@ struct CANARD : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		if (lastPathJ) {
 			lastPath = json_string_value(lastPathJ);
@@ -716,11 +717,11 @@ struct CANARDDisplay : OpaqueWidget {
 
 };
 
-struct CANARDWidget : ModuleWidget {
+struct CANARDWidget : BidooWidget {
 
 	CANARDWidget(CANARD *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/CANARD.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/CANARD.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
@@ -839,10 +840,11 @@ struct CANARDWidget : ModuleWidget {
 
 
 	void appendContextMenu(ui::Menu *menu) override {
+		BidooWidget::appendContextMenu(menu);
 		CANARD *module = dynamic_cast<CANARD*>(this->module);
 		assert(module);
 
-		menu->addChild(construct<MenuLabel>());
+		menu->addChild(new MenuSeparator());
 		menu->addChild(construct<CANARDDeleteSlice>(&MenuItem::text, "Delete slice", &CANARDDeleteSlice::module, module));
 		menu->addChild(construct<CANARDDeleteSliceMarker>(&MenuItem::text, "Delete slice marker", &CANARDDeleteSliceMarker::module, module));
 		menu->addChild(construct<CANARDAddSliceMarker>(&MenuItem::text, "Add slice marker", &CANARDAddSliceMarker::module, module));

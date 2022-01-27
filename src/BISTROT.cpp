@@ -4,7 +4,7 @@
 
 using namespace std;
 
-struct BISTROT : Module {
+struct BISTROT : BidooModule {
 	enum ParamIds {
 		LINK_PARAM,
 		NUM_PARAMS
@@ -73,10 +73,10 @@ void BISTROT::process(const ProcessArgs &args) {
 		outputs[OUTPUT].setVoltage(-1.0f * clamp(((((float)out/255.0f))-0.5f)*10.0f,-10.0f,10.0f));
 }
 
-struct BISTROTWidget : ModuleWidget {
+struct BISTROTWidget : BidooWidget {
 	BISTROTWidget(BISTROT *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/BISTROT.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/BISTROT.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
@@ -88,8 +88,8 @@ struct BISTROTWidget : ModuleWidget {
 
     for (int i = 0; i<8; i++) {
       addChild(createLight<SmallLight<RedLight>>(Vec(18.0f, 97.5f + 26.0f * i), module, BISTROT::BIT_INPUT_LIGHTS + i));
-			addOutput(createOutput<TinyPJ301MPort>(Vec(34.0f, 93.0f + 26.0f * i), module, BISTROT::BIT_OUTPUT + i));
-			addInput(createInput<TinyPJ301MPort>(Vec(72.0f, 93.0f + 26.0f * i), module, BISTROT::BIT_INPUT + i));
+			addOutput(createOutput<TinyPJ301MPort>(Vec(33.5f, 93.0f + 26.0f * i), module, BISTROT::BIT_OUTPUT + i));
+			addInput(createInput<TinyPJ301MPort>(Vec(71.5f, 93.0f + 26.0f * i), module, BISTROT::BIT_INPUT + i));
 			addChild(createLight<SmallLight<BlueLight>>(Vec(95.0f, 97.5f + 26.0f * i), module, BISTROT::BIT_OUTPUT_LIGHTS + i));
     }
 

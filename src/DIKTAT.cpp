@@ -9,7 +9,7 @@
 
 using namespace std;
 
-struct DIKTAT : Module {
+struct DIKTAT : BidooModule {
 	enum ParamIds {
 		CHANNEL_PARAM,
 		GLOBAL_PARAM,
@@ -72,7 +72,7 @@ struct DIKTAT : Module {
 
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "currentChannel", json_integer(currentChannel));
 		json_object_set_new(rootJ, "globalMode", json_boolean(globalMode));
 		for (size_t i = 0; i<16 ; i++) {
@@ -85,6 +85,7 @@ struct DIKTAT : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		for (size_t i = 0; i<16 ; i++) {
 			json_t *channelJ = json_object_get(rootJ, ("channel" + to_string(i)).c_str());
 			if (channelJ){
@@ -162,7 +163,7 @@ void DIKTAT::process(const ProcessArgs &args) {
 	}
 }
 
-struct DIKTATWidget : ModuleWidget {
+struct DIKTATWidget : BidooWidget {
   DIKTATWidget(DIKTAT *module);
 };
 
@@ -240,7 +241,7 @@ struct DiktatPJ301MPort : PJ301MPort {
 
 DIKTATWidget::DIKTATWidget(DIKTAT *module) {
 	setModule(module);
-	setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/DIKTAT.svg")));
+	prepareThemes(asset::plugin(pluginInstance, "res/DIKTAT.svg"));
 
 	addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));

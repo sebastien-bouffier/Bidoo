@@ -6,7 +6,7 @@
 
 using namespace std;
 
-struct CHUTE : Module {
+struct CHUTE : BidooModule {
 	enum ParamIds {
 		ALTITUDE_PARAM,
 		GRAVITY_PARAM,
@@ -144,10 +144,10 @@ struct CHUTEDisplay : TransparentWidget {
 
 };
 
-struct CHUTEWidget : ModuleWidget {
+struct CHUTEWidget : BidooWidget {
 	CHUTEWidget(CHUTE *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/CHUTE.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/CHUTE.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));

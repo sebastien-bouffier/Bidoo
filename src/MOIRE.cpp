@@ -6,7 +6,7 @@
 
 using namespace std;
 
-struct MOIRE : Module {
+struct MOIRE : BidooModule {
 	enum ParamIds {
 		CURRENTSCENE_PARAM,
 		TARGETSCENE_PARAM,
@@ -94,8 +94,7 @@ struct MOIRE : Module {
 	}
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
-		// scenes
+		json_t *rootJ = BidooModule::dataToJson();
 		json_t *scenesJ = json_array();
 		json_t *typesJ = json_array();
 		for (int i = 0; i < 16; i++) {
@@ -116,6 +115,7 @@ struct MOIRE : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		json_t *scenesJ = json_object_get(rootJ, "scenes");
 		json_t *typesJ = json_object_get(rootJ, "types");
 		if (scenesJ && typesJ) {
@@ -175,7 +175,7 @@ void MOIRE::process(const ProcessArgs &args) {
 	}
 }
 
-struct MOIREWidget : ModuleWidget {
+struct MOIREWidget : BidooWidget {
 	ParamWidget *controls[16];
 	ParamWidget *morphButton;
 	void step() override;
@@ -267,7 +267,7 @@ struct MOIREMorphKnob : BidooMorphKnob {
 
 MOIREWidget::MOIREWidget(MOIRE *module) {
 	setModule(module);
-	setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/MOIRE.svg")));
+	prepareThemes(asset::plugin(pluginInstance, "res/MOIRE.svg"));
 
 	addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
@@ -322,9 +322,10 @@ struct MoireItem : MenuItem {
 };
 
 void MOIREWidget::appendContextMenu(ui::Menu *menu) {
+	BidooWidget::appendContextMenu(menu);
 	MOIRE *module = dynamic_cast<MOIRE*>(this->module);
 	assert(module);
-	menu->addChild(construct<MenuLabel>());
+	menu->addChild(new MenuSeparator());
 	menu->addChild(construct<MoireItem>(&MenuItem::text, "Randomize target scene only", &MoireItem::module, module));
 }
 
@@ -336,7 +337,7 @@ void MOIREWidget::step() {
       knob->getParamQuantity()->setValue(module->currentValues[i]);
 		}
 	}
-	ModuleWidget::step();
+	BidooWidget::step();
 }
 
 Model *modelMOIRE = createModel<MOIRE, MOIREWidget>("MOiRE");

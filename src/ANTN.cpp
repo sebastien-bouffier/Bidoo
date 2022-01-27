@@ -170,7 +170,7 @@ void * urlTask(threadReadData data)
   return 0;
 }
 
-struct ANTN : Module {
+struct ANTN : BidooModule {
 	enum ParamIds {
 		URL_PARAM,
 		TRIG_PARAM,
@@ -236,12 +236,13 @@ struct ANTN : Module {
   }
 
   json_t *dataToJson() override {
-    json_t *rootJ = json_object();
+    json_t *rootJ = BidooModule::dataToJson();
     json_object_set_new(rootJ, "url", json_string(url.c_str()));
     return rootJ;
   }
 
   void dataFromJson(json_t *rootJ) override {
+    BidooModule::dataFromJson(rootJ);
     json_t *urlJ = json_object_get(rootJ, "url");
   	if (urlJ)
   		url = json_string_value(urlJ);
@@ -382,10 +383,10 @@ struct ANTNLight : BASE {
 	}
 };
 
-struct ANTNWidget : ModuleWidget {
+struct ANTNWidget : BidooWidget {
 	ANTNWidget(ANTN *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/ANTN.svg")));
+    prepareThemes(asset::plugin(pluginInstance, "res/ANTN.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));

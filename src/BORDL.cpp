@@ -227,7 +227,7 @@ struct PatternExtended {
 
 };
 
-struct BORDL : Module {
+struct BORDL : BidooModule {
 	enum ParamIds {
 		CLOCK_PARAM,
 		RUN_PARAM,
@@ -395,7 +395,7 @@ struct BORDL : Module {
 	void process(const ProcessArgs &args) override;
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 
 		json_object_set_new(rootJ, "running", json_boolean(running));
 		json_object_set_new(rootJ, "playMode", json_integer(playMode));
@@ -448,6 +448,7 @@ struct BORDL : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		json_t *runningJ = json_object_get(rootJ, "running");
 		if (runningJ)
 			running = json_is_true(runningJ);
@@ -1125,7 +1126,7 @@ struct BORDLPitchDisplay : TransparentWidget {
 
 };
 
-struct BORDLWidget : ModuleWidget {
+struct BORDLWidget : BidooWidget {
 	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam,
 	 *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam,
 		*pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8],
@@ -1135,7 +1136,7 @@ struct BORDLWidget : ModuleWidget {
 
 	BORDLWidget(BORDL *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/BORDL.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/BORDL.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
@@ -1293,10 +1294,11 @@ struct BORDLStepOutputsModeItem : MenuItem {
 };
 
 void BORDLWidget::appendContextMenu(ui::Menu *menu) {
+	BidooWidget::appendContextMenu(menu);
 	BORDL *module = dynamic_cast<BORDL*>(this->module);
 	assert(module);
 
-	menu->addChild(construct<MenuLabel>());
+	menu->addChild(new MenuSeparator());
 	menu->addChild(construct<BORDLRandPitchItem>(&MenuItem::text, "Rand pitch", &BORDLRandPitchItem::module, module));
 	menu->addChild(construct<BORDLRandGatesItem>(&MenuItem::text, "Rand gates", &BORDLRandGatesItem::module, module));
 	menu->addChild(construct<BORDLRandSlideSkipItem>(&MenuItem::text, "Rand slides & skips", &BORDLRandSlideSkipItem::module, module));

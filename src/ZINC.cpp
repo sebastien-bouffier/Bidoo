@@ -85,7 +85,7 @@ void ZBiquad::calcBiquad(void) {
     return;
 }
 
-struct ZINC : Module {
+struct ZINC : BidooModule {
 	enum ParamIds {
 		BG_PARAM,
 		ATTACK_PARAM = BG_PARAM + BANDS,
@@ -112,6 +112,7 @@ struct ZINC : Module {
 	enum LightIds {
 		NUM_LIGHTS
 	};
+
 	ZBiquad* iFilter[BANDS2];
 	ZBiquad* cFilter[BANDS2];
 	float_4 mem[BANDS4] = { 0.0f };
@@ -121,6 +122,7 @@ struct ZINC : Module {
 	const float slewMin = 0.001f;
 	const float slewMax = 500.0f;
 	const float shapeScale = 0.1f;
+
 	ZINC() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 
@@ -136,7 +138,6 @@ struct ZINC : Module {
 		configParam(Q2_PARAM, 1.f, 10.f, 5.f, "Q", "dB", 0.f, 1.f);
 		configParam(Q3_PARAM, 1.f, 10.f, 5.f, "Q", "dB", 0.f, 1.f);
 		configParam(Q4_PARAM, 1.f, 10.f, 5.f, "Q", "dB", 0.f, 1.f);
-
 
 		for (int i = 0; i < BANDS2; i++) {
 			iFilter[i] = new ZBiquad(freq[i%4] / APP->engine->getSampleRate(), {5.0f}, {6.0f});
@@ -258,12 +259,12 @@ struct BidooziNCColoredKnob : RoundKnob {
 
 };
 
-struct ZINCWidget : ModuleWidget {
+struct ZINCWidget : BidooWidget {
 	ParamWidget *controls[16];
 
 	ZINCWidget(ZINC *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/ZINC.svg")));
+    prepareThemes(asset::plugin(pluginInstance, "res/ZINC.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
@@ -313,7 +314,7 @@ void ZINCWidget::step() {
 			BidooziNCColoredKnob* knob = dynamic_cast<BidooziNCColoredKnob*>(controls[i]);
 			knob->fb->dirty = true;
 	}
-	ModuleWidget::step();
+	BidooWidget::step();
 }
 
 Model *modelZINC = createModel<ZINC, ZINCWidget>("ziNC");

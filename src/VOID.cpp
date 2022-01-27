@@ -3,7 +3,7 @@
 
 using namespace std;
 
-struct VOID : Module {
+struct VOID : BidooModule {
 	enum ParamIds {
 		NUM_PARAMS
 	};
@@ -20,10 +20,10 @@ struct VOID : Module {
 	VOID() {	}
 };
 
-struct VOIDWidget : ModuleWidget {
+struct VOIDWidget : BidooWidget {
 	VOIDWidget(VOID *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/VOID.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/VOID.svg"));
 
 		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));

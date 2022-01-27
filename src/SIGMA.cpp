@@ -4,7 +4,7 @@
 
 using namespace std;
 
-struct SIGMA : Module {
+struct SIGMA : BidooModule {
 	enum ParamIds {
 		NUM_PARAMS
 	};
@@ -31,10 +31,10 @@ struct SIGMA : Module {
 	}
 };
 
-struct SIGMAWidget : ModuleWidget {
+struct SIGMAWidget : BidooWidget {
 	SIGMAWidget(SIGMA *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/SIGMA.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/SIGMA.svg"));
 
 		for (int i = 0; i < SIGMA::NUM_OUTPUTS; i++) {
 			addOutput(createOutput<TinyPJ301MPort>(Vec(15.0f + round(i / 3)*30.0f, 120.0f + (i % 3)*100.0f), module, i));

@@ -195,7 +195,7 @@ struct Pattern {
 	}
 };
 
-struct DTROY : Module {
+struct DTROY : BidooModule {
 	enum ParamIds {
 		CLOCK_PARAM,
 		RUN_PARAM,
@@ -351,7 +351,7 @@ struct DTROY : Module {
 	// persistence, random & init
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 
 		json_object_set_new(rootJ, "running", json_boolean(running));
 		json_object_set_new(rootJ, "playMode", json_integer(playMode));
@@ -400,6 +400,7 @@ struct DTROY : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		json_t *runningJ = json_object_get(rootJ, "running");
 		if (runningJ)
 			running = json_boolean_value(runningJ);
@@ -868,7 +869,7 @@ struct DTROYDisplay : TransparentWidget {
 
 };
 
-struct DTROYWidget : ModuleWidget {
+struct DTROYWidget : BidooWidget {
 	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam,
 	 *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam,
 		*pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8],
@@ -881,7 +882,7 @@ struct DTROYWidget : ModuleWidget {
 
 DTROYWidget::DTROYWidget(DTROY *module) {
 	setModule(module);
-	setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/DTROY.svg")));
+	prepareThemes(asset::plugin(pluginInstance, "res/DTROY.svg"));
 
 	addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
@@ -1002,10 +1003,11 @@ struct DTROYStepOutputsModeItem : MenuItem {
 };
 
 void DTROYWidget::appendContextMenu(ui::Menu *menu) {
+	BidooWidget::appendContextMenu(menu);
 	DTROY *module = dynamic_cast<DTROY*>(this->module);
 	assert(module);
 
-	menu->addChild(construct<MenuLabel>());
+	menu->addChild(new MenuSeparator());
 	menu->addChild(construct<DTROYRandPitchItem>(&MenuItem::text, "Rand pitch", &DTROYRandPitchItem::module, module));
 	menu->addChild(construct<DTROYRandGatesItem>(&MenuItem::text, "Rand gates", &DTROYRandGatesItem::module, module));
 	menu->addChild(construct<DTROYRandSlideSkipItem>(&MenuItem::text, "Rand slides & skips", &DTROYRandSlideSkipItem::module, module));

@@ -5,7 +5,7 @@
 
 using namespace std;
 
-struct MINIBAR : Module {
+struct MINIBAR : BidooModule {
 	enum ParamIds {
 		THRESHOLD_PARAM,
 		RATIO_PARAM,
@@ -162,7 +162,7 @@ void MINIBAR::process(const ProcessArgs &args) {
 	float cAtt = exp(-1.0f/(attackTime * args.sampleRate * 0.001f));
 	float cRel = exp(-1.0f/(releaseTime * args.sampleRate * 0.001f));
 
-	if (preGain>previousPostGain) {
+	if (preGain<previousPostGain) {
 		postGain = cAtt * previousPostGain + (1.0f-cAtt) * preGain;
 	} else {
 		postGain = cRel * previousPostGain + (1.0f-cRel) * preGain;
@@ -380,10 +380,10 @@ struct MicrobarTrimpotWithDisplay : BidooBlueTrimpot {
 	}
 };
 
-struct MINIBARWidget : ModuleWidget {
+struct MINIBARWidget : BidooWidget {
 	MINIBARWidget(MINIBAR *module) {
 		setModule(module);
-		setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/MINIBAR.svg")));
+		prepareThemes(asset::plugin(pluginInstance, "res/MINIBAR.svg"));
 
 		if (module) {
 			MINIBARDisplay *display = new MINIBARDisplay();

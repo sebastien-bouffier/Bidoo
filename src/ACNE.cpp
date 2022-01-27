@@ -11,7 +11,7 @@ const int ACNE_NB_TRACKS = 16;
 const int ACNE_NB_OUTS = 8;
 const int ACNE_NB_SNAPSHOTS = 16;
 
-struct ACNE : Module {
+struct ACNE : BidooModule {
 	enum ParamIds {
 	  COPY_PARAM,
 		MAIN_OUT_GAIN_PARAM,
@@ -121,7 +121,7 @@ struct ACNE : Module {
 	void process(const ProcessArgs &args) override;
 
 	json_t *dataToJson() override {
-		json_t *rootJ = json_object();
+		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "autosave", json_boolean(autosave));
 		json_t *snapShotsJ = json_array();
 		for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
@@ -146,6 +146,7 @@ struct ACNE : Module {
 	}
 
 	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
 		json_t *autosaveJ = json_object_get(rootJ, "autosave");
 		if (autosaveJ) autosave = json_is_true(autosaveJ);
 		json_t *snapShotsJ = json_object_get(rootJ, "snapshots");
@@ -362,7 +363,7 @@ void ACNE::process(const ProcessArgs &args) {
 	ramp = simd::fmax(ramp-args.sampleTime,0.f);
 }
 
-struct ACNEWidget : ModuleWidget {
+struct ACNEWidget : BidooWidget {
 	ACNEWidget(ACNE *module);
 };
 
@@ -393,7 +394,7 @@ struct AcneBidooColoredTrimpot : BidooColoredTrimpot {
 
 ACNEWidget::ACNEWidget(ACNE *module) {
 	setModule(module);
-	setPanel(APP->window->loadSvg(asset::plugin(pluginInstance, "res/ACNE.svg")));
+	prepareThemes(asset::plugin(pluginInstance, "res/ACNE.svg"));
 
 	addChild(createWidget<ScrewSilver>(Vec(15, 0)));
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
