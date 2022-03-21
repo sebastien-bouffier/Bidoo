@@ -43,7 +43,7 @@ struct PatternExtended {
 	std::vector<StepExtended> steps {16};
 
 	void Update(int playMode, int countMode, int numberOfSteps, int numberOfStepsParam, int rootNote, int scale,
-		 float gateTime, float slideTime, float sensitivity, std::vector<char> skips, std::vector<char> slides,
+		 float gateTime, float slideTime, float sensitivity, bool skips[8], bool slides[8],
 		  Param *pulses, Param *pitches, Param *types, Param *probGates,
 			Param *rndPitches, Param *accents, Param *rndAccents)
 			{
@@ -63,12 +63,12 @@ struct PatternExtended {
 			steps[i].index = i%8;
 			steps[i].number = i;
 			if (((countMode == 0) && (i < numberOfSteps)) || ((countMode == 1) && (pCount < numberOfSteps))) {
-				steps[i].skip = (skips[steps[i].index] == 't');
+				steps[i].skip = skips[steps[i].index];
 			}	else {
 				steps[i].skip = true;
 			}
-			steps[i].skipParam = (skips[steps[i].index] == 't');
-			steps[i].slide = (slides[steps[i].index] == 't');
+			steps[i].skipParam = skips[steps[i].index];
+			steps[i].slide = slides[steps[i].index];
 			if ((countMode == 1) && ((pCount + (int)pulses[steps[i].index].getValue()) >= numberOfSteps)) {
 				steps[i].pulses = max(numberOfSteps - pCount, 0);
 			}	else {
@@ -288,17 +288,15 @@ struct BORDL : BidooModule {
 		SLIDES_LIGHTS = STEPS_LIGHTS + 8,
 		SKIPS_LIGHTS = SLIDES_LIGHTS + 8,
 		COPY_LIGHT = SKIPS_LIGHTS + 8,
-		NUM_LIGHTS
+		PLAYMODE_LIGHT,
+		COUNTMODE_LIGHT = PLAYMODE_LIGHT + 3,
+		NUM_LIGHTS = COUNTMODE_LIGHT + 3
 	};
 
 	bool running = true;
 	dsp::SchmittTrigger clockTrigger;
 	dsp::SchmittTrigger runningTrigger;
 	dsp::SchmittTrigger resetTrigger;
-	dsp::SchmittTrigger slideTriggers[8];
-	dsp::SchmittTrigger skipTriggers[8];
-	dsp::SchmittTrigger playModeTrigger;
-	dsp::SchmittTrigger countModeTrigger;
 	dsp::SchmittTrigger copyTrigger;
 	dsp::SchmittTrigger upTrigger;
 	dsp::SchmittTrigger downTrigger;
@@ -314,8 +312,8 @@ struct BORDL : BidooModule {
 	float previousPitch = 0.0f;
 	float tCurrent;
 	float tLastTrig;
-	std::vector<char> slideState = {'f','f','f','f','f','f','f','f'};
-	std::vector<char> skipState = {'f','f','f','f','f','f','f','f'};
+	bool slideState[8] = {0};
+	bool skipState[8] = {0};
 	int playMode = 0; // 0 forward, 1 backward, 2 pingpong, 3 random, 4 brownian
 	int countMode = 0; // 0 steps, 1 pulses
 	int numSteps = 8;
@@ -336,6 +334,8 @@ struct BORDL : BidooModule {
 
 	PatternExtended patterns[16];
 
+	quantizer::Quantizer quant;
+
 	BORDL() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 
@@ -348,7 +348,7 @@ struct BORDL : BidooModule {
 		configParam(GATE_TIME_PARAM, 0.1f, 1.0f, 0.5f,"Gate length","%",0,100,0);
 		configParam(SLIDE_TIME_PARAM	, 0.1f, 1.0f, 0.2f,"Slide length","%",0,100,0);
 		configParam(PLAY_MODE_PARAM, 0.0f, 4.0f, 0.0f,"Play mode");
-		configParam(COUNT_MODE_PARAM, 0.0f, 4.0f, 0.0f,"Count mode");
+		configParam(COUNT_MODE_PARAM, 0.0f, 1.0f, 0.0f,"Count mode");
 		configParam(PATTERN_PARAM, 1.0f, 16.0f, 1.0f,"Edited pattern","",0,1,0);
 		configParam(SENSITIVITY_PARAM, 0.1f, 1.0f, 1.0f,"Pitch sensitivity","%",0,100,0);
 
@@ -407,9 +407,9 @@ struct BORDL : BidooModule {
 		json_t *trigsJ = json_array();
 		for (int i = 0; i < 8; i++) {
 			json_t *trigJ = json_array();
-			json_t *trigJSlide = json_boolean(slideState[i] == 't');
+			json_t *trigJSlide = json_boolean(slideState[i]);
 			json_array_append_new(trigJ, trigJSlide);
-			json_t *trigJSkip = json_boolean(skipState[i] == 't');
+			json_t *trigJSkip = json_boolean(skipState[i]);
 			json_array_append_new(trigJ, trigJSkip);
 			json_array_append_new(trigsJ, trigJ);
 		}
@@ -473,8 +473,8 @@ struct BORDL : BidooModule {
 				json_t *trigJ = json_array_get(trigsJ, i);
 				if (trigJ)
 				{
-					slideState[i] = json_boolean_value(json_array_get(trigJ, 0)) ? 't' : 'f';
-					skipState[i] = json_boolean_value(json_array_get(trigJ, 1)) ? 't' : 'f';
+					slideState[i] = json_boolean_value(json_array_get(trigJ, 0));
+					skipState[i] = json_boolean_value(json_array_get(trigJ, 1));
 				}
 			}
 		}
@@ -561,8 +561,8 @@ struct BORDL : BidooModule {
 
 	void randomizeSlidesSkips() {
 		for (int i = 0; i < 8; i++) {
-			slideState[i] = (random::uniform() > 0.8f) ? 't' : 'f';
-			skipState[i] = (random::uniform() > 0.85f) ? 't' : 'f';
+			slideState[i] = (random::uniform() > 0.8f);
+			skipState[i] = (random::uniform() > 0.85f);
 		}
 	}
 
@@ -663,6 +663,8 @@ void BORDL::process(const ProcessArgs &args) {
 		selectedPattern = target;
 		playMode = patterns[selectedPattern].playMode;
 		countMode = patterns[selectedPattern].countMode;
+		params[PLAY_MODE_PARAM].setValue(playMode);
+		params[COUNT_MODE_PARAM].setValue(countMode);
 		params[STEPS_PARAM].setValue(patterns[selectedPattern].numberOfStepsParam);
 		params[ROOT_NOTE_PARAM].setValue(patterns[selectedPattern].rootNote);
 		params[SCALE_PARAM].setValue(patterns[selectedPattern].scale);
@@ -677,8 +679,8 @@ void BORDL::process(const ProcessArgs &args) {
 			params[TRIG_COUNT_PARAM+i].setValue(patterns[selectedPattern].steps[i].pulsesParam);
 			params[TRIG_GATEPROB_PARAM+i].setValue(patterns[selectedPattern].steps[i].gateProb);
 			params[TRIG_TYPE_PARAM+i].setValue(patterns[selectedPattern].steps[i].type);
-			skipState[i] = patterns[selectedPattern].steps[i].skipParam ? 't' : 'f';
-			slideState[i] = patterns[selectedPattern].steps[i].slide ? 't' : 'f';
+			skipState[i] = patterns[selectedPattern].steps[i].skipParam;
+			slideState[i] = patterns[selectedPattern].steps[i].slide;
 		}
 	}
 
@@ -698,6 +700,8 @@ void BORDL::process(const ProcessArgs &args) {
 			params[SENSITIVITY_PARAM].setValue(patterns[copyPattern].sensitivity);
 			playMode = patterns[copyPattern].playMode;
 			countMode = patterns[copyPattern].countMode;
+			params[PLAY_MODE_PARAM].setValue(playMode);
+			params[COUNT_MODE_PARAM].setValue(countMode);
 			for (int i = 0; i < 8; i++) {
 				params[TRIG_PITCH_PARAM+i].setValue(patterns[copyPattern].steps[i].pitch);
 				params[TRIG_PITCHRND_PARAM+i].setValue(patterns[copyPattern].steps[i].pitchRnd);
@@ -706,8 +710,8 @@ void BORDL::process(const ProcessArgs &args) {
 				params[TRIG_COUNT_PARAM+i].setValue(patterns[copyPattern].steps[i].pulsesParam);
 				params[TRIG_GATEPROB_PARAM+i].setValue(patterns[copyPattern].steps[i].gateProb);
 				params[TRIG_TYPE_PARAM+i].setValue(patterns[copyPattern].steps[i].type);
-				skipState[i] = patterns[copyPattern].steps[i].skipParam ? 't' : 'f';
-				slideState[i] = patterns[copyPattern].steps[i].slide ? 't' : 'f';
+				skipState[i] = patterns[copyPattern].steps[i].skipParam;
+				slideState[i] = patterns[copyPattern].steps[i].slide;
 			}
 			copyState = false;
 			copyPattern = -1;
@@ -740,8 +744,8 @@ void BORDL::process(const ProcessArgs &args) {
 			float accent = params[TRIG_ACCENT_PARAM].getValue();
 			float accentRnd = params[TRIG_RNDACCENT_PARAM].getValue();
 			float gateProb = params[TRIG_GATEPROB_PARAM].getValue();
-			char skip = skipState[0];
-			char slide = slideState[0];
+			bool skip = skipState[0];
+			bool slide = slideState[0];
 			for (int i = 0; i < 7; i++) {
 				params[TRIG_PITCH_PARAM+i].setValue(params[TRIG_PITCH_PARAM+i+1].getValue());
 				params[TRIG_COUNT_PARAM+i].setValue(params[TRIG_COUNT_PARAM+i+1].getValue());
@@ -752,6 +756,8 @@ void BORDL::process(const ProcessArgs &args) {
 				params[TRIG_GATEPROB_PARAM+i].setValue(params[TRIG_GATEPROB_PARAM+i+1].getValue());
 				skipState[i] = skipState[i+1];
 				slideState[i] = slideState[i+1];
+				params[TRIG_SLIDE_PARAM+i].setValue(params[TRIG_SLIDE_PARAM+i+1].getValue());
+				params[TRIG_SKIP_PARAM+i].setValue(params[TRIG_SKIP_PARAM+i+1].getValue());
 			}
 			params[TRIG_PITCH_PARAM+7].setValue(pitch);
 			params[TRIG_COUNT_PARAM+7].setValue(pulse);
@@ -762,6 +768,8 @@ void BORDL::process(const ProcessArgs &args) {
 			params[TRIG_GATEPROB_PARAM+7].setValue(gateProb);
 			skipState[7] = skip;
 			slideState[7] = slide;
+			params[TRIG_SLIDE_PARAM+7].setValue(slide);
+			params[TRIG_SKIP_PARAM+7].setValue(skip);
 	}
 
 	if (rightTrigger.process(params[RIGHT_PARAM].getValue())) {
@@ -772,14 +780,20 @@ void BORDL::process(const ProcessArgs &args) {
 			float accent = params[TRIG_ACCENT_PARAM+7].getValue();
 			float accentRnd = params[TRIG_RNDACCENT_PARAM+7].getValue();
 			float gateProb = params[TRIG_GATEPROB_PARAM+7].getValue();
-			char skip = skipState[7];
-			char slide = slideState[7];
+			bool skip = skipState[7];
+			bool slide = slideState[7];
 			for (int i = 7; i > 0; i--) {
 				params[TRIG_PITCH_PARAM+i].setValue(params[TRIG_PITCH_PARAM+i-1].getValue());
 				params[TRIG_COUNT_PARAM+i].setValue(params[TRIG_COUNT_PARAM+i-1].getValue());
 				params[TRIG_TYPE_PARAM+i].setValue(params[TRIG_TYPE_PARAM+i-1].getValue());
+				params[TRIG_PITCHRND_PARAM+i].setValue(params[TRIG_PITCHRND_PARAM+i-1].getValue());
+				params[TRIG_ACCENT_PARAM+i].setValue(params[TRIG_ACCENT_PARAM+i-1].getValue());
+				params[TRIG_RNDACCENT_PARAM+i].setValue(params[TRIG_RNDACCENT_PARAM+i-1].getValue());
+				params[TRIG_GATEPROB_PARAM+i].setValue(params[TRIG_GATEPROB_PARAM+i-1].getValue());
 				skipState[i] = skipState[i-1];
 				slideState[i] = slideState[i-1];
+				params[TRIG_SLIDE_PARAM+i].setValue(params[TRIG_SLIDE_PARAM+i-1].getValue());
+				params[TRIG_SKIP_PARAM+i].setValue(params[TRIG_SKIP_PARAM+i-1].getValue());
 			}
 			params[TRIG_PITCH_PARAM].setValue(pitch);
 			params[TRIG_COUNT_PARAM].setValue(pulse);
@@ -790,6 +804,8 @@ void BORDL::process(const ProcessArgs &args) {
 			params[TRIG_GATEPROB_PARAM].setValue(gateProb);
 			skipState[0] = skip;
 			slideState[0] = slide;
+			params[TRIG_SLIDE_PARAM].setValue(slide);
+			params[TRIG_SKIP_PARAM].setValue(skip);
 	}
 
 
@@ -797,21 +813,13 @@ void BORDL::process(const ProcessArgs &args) {
 	if ((updateFlag) || (!loadedFromJson)) {
 		// Trigs Update
 		for (int i = 0; i < 8; i++) {
-			if (slideTriggers[i].process(params[TRIG_SLIDE_PARAM + i].getValue())) {
-				slideState[i] = slideState[i] == 't' ? 'f' : 't';
-			}
-			if (skipTriggers[i].process(params[TRIG_SKIP_PARAM + i].getValue())) {
-				skipState[i] = skipState[i] == 't' ? 'f' : 't';
-			}
+			slideState[i] = params[TRIG_SLIDE_PARAM + i].getValue();
+			skipState[i] = params[TRIG_SKIP_PARAM + i].getValue();
 		}
 		// playMode
-		if (playModeTrigger.process(params[PLAY_MODE_PARAM].getValue())) {
-			playMode = (((int)playMode + 1) % 5);
-		}
+		playMode = params[PLAY_MODE_PARAM].getValue();
 		// countMode
-		if (countModeTrigger.process(params[COUNT_MODE_PARAM].getValue())) {
-			countMode = (((int)countMode + 1) % 2);
-		}
+		countMode = params[COUNT_MODE_PARAM].getValue();
 		// numSteps
 		numSteps = clamp(roundf(params[STEPS_PARAM].getValue() + inputs[STEPS_INPUT].getVoltage()), 1.0f, 16.0f);
 		UpdatePattern();
@@ -820,6 +828,13 @@ void BORDL::process(const ProcessArgs &args) {
 			updateFlag = true;
 		}
 	}
+
+	lights[PLAYMODE_LIGHT].setBrightness(playMode>2?1.0f:0.0f);
+	lights[PLAYMODE_LIGHT+1].setBrightness(playMode>0 && playMode<4?1.0f:0.0f);
+	lights[PLAYMODE_LIGHT+2].setBrightness(playMode<2?1.0f:0.0f);
+	lights[COUNTMODE_LIGHT].setBrightness(0.0f);
+	lights[COUNTMODE_LIGHT+1].setBrightness(countMode==1?1.0f:0.0f);
+	lights[COUNTMODE_LIGHT+2].setBrightness(countMode==0?1.0f:0.0f);
 
 	// Steps && Pulses Management
 	if (nextStep) {
@@ -847,8 +862,8 @@ void BORDL::process(const ProcessArgs &args) {
 	// Lights & steps outputs
 	for (int i = 0; i < 8; i++) {
 		lights[STEPS_LIGHTS + i].setBrightness(lights[STEPS_LIGHTS + i].getBrightness() - lights[STEPS_LIGHTS + i].getBrightness() * invLightLambda * invESR);
-		lights[SLIDES_LIGHTS + i].setBrightness(slideState[i] == 't' ? 1.0f - lights[STEPS_LIGHTS + i].getBrightness() : lights[STEPS_LIGHTS + i].getBrightness());
-		lights[SKIPS_LIGHTS + i].setBrightness(skipState[i] == 't' ? 1.0f - lights[STEPS_LIGHTS + i].getBrightness() : lights[STEPS_LIGHTS + i].getBrightness());
+		lights[SLIDES_LIGHTS + i].setBrightness(slideState[i] ? 1.0f - lights[STEPS_LIGHTS + i].getBrightness() : lights[STEPS_LIGHTS + i].getBrightness());
+		lights[SKIPS_LIGHTS + i].setBrightness(skipState[i] ? 1.0f - lights[STEPS_LIGHTS + i].getBrightness() : lights[STEPS_LIGHTS + i].getBrightness());
 
 		outputs[STEP_OUTPUT+i].setVoltage(stepPulse[i].process(invESR) ? 10.0f : 0.0f);
 	}
@@ -888,7 +903,7 @@ void BORDL::process(const ProcessArgs &args) {
 	}
 
 	if (gateOn) {
-		pitch = quantizer::closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity
+		pitch = quant.closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity
 			+ (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + inputs[TRANSPOSE_INPUT].getVoltage(),
 			clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
 	}
@@ -1110,10 +1125,12 @@ struct BORDLPitchDisplay : TransparentWidget {
 			nvgFillColor(args.vg, YELLOW_BIDOO);
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 			nvgFontSize(args.vg, 16.0f);
-			nvgText(args.vg, pos.x, pos.y-9.0f, quantizer::noteName(quantizer::closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM+index].getValue() * clamp(module->patterns[module->playedPattern].sensitivity
-				+ (module->inputs[BORDL::SENSITIVITY_INPUT].isConnected() ? rescale(module->inputs[BORDL::SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + module->inputs[BORDL::TRANSPOSE_INPUT].getVoltage(),
-				clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f),
-				module->patterns[module->selectedPattern].scale)).c_str(), NULL);
+			nvgText(args.vg, pos.x, pos.y-9.0f, module->quant.noteName(
+					module->quant.closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM + index].getValue() * clamp(module->patterns[module->playedPattern].sensitivity
+					+ (module->inputs[BORDL::SENSITIVITY_INPUT].isConnected() ? rescale(module->inputs[BORDL::SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + module->inputs[BORDL::TRANSPOSE_INPUT].getVoltage(),
+					clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f),
+					module->patterns[module->selectedPattern].scale)
+			).c_str(), NULL);
 		}
 	}
 
@@ -1181,10 +1198,10 @@ struct BORDLWidget : BidooWidget {
 		addInput(createInput<PJ301MPort>(Vec(portX0[2], 149.0f),  module, BORDL::GATE_TIME_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(portX0[3], 149.0f),  module, BORDL::SLIDE_TIME_INPUT));
 
-		playModeParam = createParam<BlueCKD6>(Vec(portX0[0]-1.0f, 196.0f), module, BORDL::PLAY_MODE_PARAM);
-		addParam(playModeParam);
-		countModeParam = createParam<BlueCKD6>(Vec(portX0[1]-1.0f, 196.0f), module, BORDL::COUNT_MODE_PARAM);
-		addParam(countModeParam);
+		addParam(createLightParam<VCVLightBezelLatch<RedGreenBlueLight>>(Vec(portX0[0]+3.0f, 199.0f), module, BORDL::PLAY_MODE_PARAM, BORDL::PLAYMODE_LIGHT));
+		addParam(createLightParam<VCVLightBezelLatch<RedGreenBlueLight>>(Vec(portX0[1]+3.0f, 199.0f), module, BORDL::COUNT_MODE_PARAM, BORDL::COUNTMODE_LIGHT));
+
+
 		addInput(createInput<PJ301MPort>(Vec(portX0[2], 198.0f),  module, BORDL::PATTERN_INPUT));
 		patternParam = createParam<BidooRoundBlackSnapKnob>(Vec(portX0[3],196.0f), module, BORDL::PATTERN_PARAM);
 		addParam(patternParam);
@@ -1243,12 +1260,10 @@ struct BORDLWidget : BidooWidget {
 				displayGate->index = i;
 				addChild(displayGate);
 			}
-			slideParams[i] = createParam<LEDButton>(Vec(portX1[i]+7.0f, 295.0f), module, BORDL::TRIG_SLIDE_PARAM + i);
-			addParam(slideParams[i]);
-			addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+13.0f, 301.0f), module, BORDL::SLIDES_LIGHTS + i));
-			skipParams[i] = createParam<LEDButton>(Vec(portX1[i]+7.0f, 316.0f), module, BORDL::TRIG_SKIP_PARAM + i);
-			addParam(skipParams[i]);
-			addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[i]+13.0f, 322.0f), module, BORDL::SKIPS_LIGHTS + i));
+
+			const float btnOffset = 3.5f;
+			addParam(createLightParam<SmallLEDLightBezelSwitch<BlueLight>>(Vec(portX1[i]+7.0f + btnOffset, 295.0f + btnOffset), module, BORDL::TRIG_SLIDE_PARAM + i, BORDL::SLIDES_LIGHTS + i));
+			addParam(createLightParam<SmallLEDLightBezelSwitch<BlueLight>>(Vec(portX1[i]+7.0f + btnOffset, 316.0f + btnOffset), module, BORDL::TRIG_SKIP_PARAM + i, BORDL::SKIPS_LIGHTS + i));
 
 			addOutput(createOutput<TinyPJ301MPort>(Vec(portX1[i]+9.0f, 344.0f), module, BORDL::STEP_OUTPUT + i));
 		}

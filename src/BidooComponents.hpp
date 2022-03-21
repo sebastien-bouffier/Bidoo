@@ -412,11 +412,33 @@ struct SmallLEDBezel : app::SvgSwitch {
 	}
 };
 
+struct SmallLEDBezelSwitch : app::SvgSwitch {
+	SmallLEDBezelSwitch() {
+		momentary = false;
+		addFrame(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/SmallLEDBezel.svg")));
+		this->box.size = math::Vec(10.63f, 10.63f);
+	}
+};
+
 template <typename TLightBase = WhiteLight>
 struct SmallLEDLightBezel : SmallLEDBezel {
 	app::ModuleLightWidget* light;
 
 	SmallLEDLightBezel() {
+		light = new SmallLEDBezelLight<TLightBase>;
+		// Move center of light to center of box
+		light->box.pos = box.size.div(2).minus(light->box.size.div(2));
+		addChild(light);
+	}
+
+	app::ModuleLightWidget* getLight() { return light;}
+};
+
+template <typename TLightBase = WhiteLight>
+struct SmallLEDLightBezelSwitch : SmallLEDBezelSwitch {
+	app::ModuleLightWidget* light;
+
+	SmallLEDLightBezelSwitch() {
 		light = new SmallLEDBezelLight<TLightBase>;
 		// Move center of light to center of box
 		light->box.pos = box.size.div(2).minus(light->box.size.div(2));

@@ -147,6 +147,22 @@ namespace quantizer {
     return closestVal;
   }
 
+  std::string Quantizer::noteName(float voltsIn) {
+    int octaveInVolts = floor(voltsIn);
+    float closestDist = 3.0f;
+    int noteNumber = 0;
+
+    for (int i = 0; i < 12; i++) {
+      float scaleNoteInVolts = octaveInVolts + (float)i / 12.0f;
+      float distAway = fabs(voltsIn - scaleNoteInVolts);
+      if(distAway < closestDist) {
+        closestDist = distAway;
+        noteNumber = i;
+      }
+    }
+    return rootNotes[noteNumber+1].label + std::to_string(octaveInVolts+4);
+  }
+
   float Quantizer::closestVoltageInScale(float voltsIn, int rootNote, int scale) {
     if (scale == 0) {
       return voltsIn;

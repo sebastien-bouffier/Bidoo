@@ -1,3 +1,8 @@
+### v2.0.9 (21/03/2021)
+- last theme applied becomes the new default theme (modules are drawn accordingly in the browser once the application is restarted)
+- bordL's skip, slide, play mode and count mode buttons should be OSC compliant
+- bordL has some perf improvements
+
 ### v2.0.8 (27/01/2021)
 - bAr and mINIBar attack and release params where inverted
 - all modules have themes (light, dark, black, blue and green)

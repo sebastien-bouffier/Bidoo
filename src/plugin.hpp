@@ -69,8 +69,9 @@ struct InstantiateExpanderItem : MenuItem {
 };
 
 struct BidooModule : Module {
-	int themeId = 0;
+	int themeId = -1;
 	bool themeChanged = true;
+	bool loadDefault = true;
 	json_t *dataToJson() override;
 	void dataFromJson(json_t *rootJ) override;
 };
@@ -81,47 +82,69 @@ struct BidooWidget : ModuleWidget {
 	SvgPanel* blackPanel;
 	SvgPanel* bluePanel;
 	SvgPanel* greenPanel;
+	int defaultPanelTheme = 0;
+
+	BidooWidget() {
+		readThemeAndContrastFromDefault();
+	}
 
 	struct LightItem : MenuItem {
 		BidooModule *module;
+		BidooWidget *pWidget;
 		void onAction(const event::Action &e) override {
 			module->themeId = 0;
 			module->themeChanged = true;
+			pWidget->defaultPanelTheme = 0;
+			pWidget->writeThemeAndContrastAsDefault();
 		}
 	};
 
 	struct DarkItem : MenuItem {
 		BidooModule *module;
+		BidooWidget *pWidget;
 		void onAction(const event::Action &e) override {
 			module->themeId = 1;
 			module->themeChanged = true;
+			pWidget->defaultPanelTheme = 1;
+			pWidget->writeThemeAndContrastAsDefault();
 		}
 	};
 
 	struct BlackItem : MenuItem {
 		BidooModule *module;
+		BidooWidget *pWidget;
 		void onAction(const event::Action &e) override {
 			module->themeId = 2;
 			module->themeChanged = true;
+			pWidget->defaultPanelTheme = 2;
+			pWidget->writeThemeAndContrastAsDefault();
 		}
 	};
 
 	struct BlueItem : MenuItem {
 		BidooModule *module;
+		BidooWidget *pWidget;
 		void onAction(const event::Action &e) override {
 			module->themeId = 3;
 			module->themeChanged = true;
+			pWidget->defaultPanelTheme = 3;
+			pWidget->writeThemeAndContrastAsDefault();
 		}
 	};
 
 	struct GreenItem : MenuItem {
 		BidooModule *module;
+		BidooWidget *pWidget;
 		void onAction(const event::Action &e) override {
 			module->themeId = 4;
 			module->themeChanged = true;
+			pWidget->defaultPanelTheme = 4;
+			pWidget->writeThemeAndContrastAsDefault();
 		}
 	};
 
+	void writeThemeAndContrastAsDefault();
+	void readThemeAndContrastFromDefault();
 	void prepareThemes(const std::string& filename);
 	void appendContextMenu(Menu *menu) override;
 	void step() override;
