@@ -1,3 +1,6 @@
+### v2.0.10 (03/04/2021)
+- liMonADe scan bug fixed when table is empty
+
 ### v2.0.9 (21/03/2021)
 - last theme applied becomes the new default theme (modules are drawn accordingly in the browser once the application is restarted)
 - bordL's skip, slide, play mode and count mode buttons should be OSC compliant

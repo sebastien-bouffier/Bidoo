@@ -665,7 +665,7 @@ void LIMONADE::process(const ProcessArgs &args) {
 	}
 
 	if (recWt || recFrame) {
-		iRec[recIndex]=inputs[IN].getVoltage()/10.0f;
+		iRec[recIndex]=inputs[IN].getVoltage()*0.1f;
 		recIndex++;
 
 		if (recWt && (recIndex==frameSize*NF)) {
@@ -685,11 +685,11 @@ void LIMONADE::process(const ProcessArgs &args) {
 	}
 
 	float freqParam = params[FREQ_PARAM].getValue() / 12.f;
-	freqParam += dsp::quadraticBipolar(params[FINE_PARAM].getValue()) * 3.f / 12.f;
+	freqParam += dsp::quadraticBipolar(params[FINE_PARAM].getValue()) * 0.25f;
 	float fmParam = dsp::quadraticBipolar(params[FM_PARAM].getValue());
 
 	int channels = std::max(inputs[PITCH_INPUT].getChannels(), 1);
-	index = clamp(params[WTINDEX_PARAM].getValue() + inputs[WTINDEX_INPUT].getVoltage() * 0.1f * params[WTINDEXATT_PARAM].getValue(),0.0f,1.0f)*(float)(table.nFrames - 1);
+	index = clamp(params[WTINDEX_PARAM].getValue() + inputs[WTINDEX_INPUT].getVoltage() * 0.1f * params[WTINDEXATT_PARAM].getValue(),0.0f,1.0f)*(float)(table.nFrames == 0 ? 0 : table.nFrames - 1);
 	float ur = clamp(params[UNISSONRANGE_PARAM].getValue() + rescale(inputs[UNISSONRANGE_INPUT].getVoltage(),0.0f,10.0f,0.0f,0.02f),0.0f,0.02f);
 
 	for (int c = 0; c < channels; c += 4) {
@@ -845,7 +845,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 		}
 		else {
 				scrollLeftAnchor = clamp(scrollLeftAnchor + e.mouseDelta.x / APP->scene->rackScroll->zoomWidget->zoom, 0.0f,width-20.0f);
-				zoomLeftAnchor = rescale(scrollLeftAnchor, 0.0f, width-20.0f, 0.0f, (width - zoomWidth)/2.f);
+				zoomLeftAnchor = rescale(scrollLeftAnchor, 0.0f, width-20.0f, 0.0f, (width - zoomWidth)*0.5f);
 		}
 		OpaqueWidget::onDragMove(e);
 	}
@@ -885,10 +885,10 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 				nvgFontSize(args.vg, 16.0f);
 				nvgFillColor(args.vg, YELLOW_BIDOO);
 
-				nvgText(args.vg, 130.0f, heightMagn + graphGap/2+4, "▲ Magnitude ▼ Phase", NULL);
+				nvgText(args.vg, 130.0f, heightMagn + graphGap * 0.5f + 4, "▲ Magnitude ▼ Phase", NULL);
 
 				if (module->table.nFrames>0) {
-					nvgText(args.vg, 0.0f, heightMagn + graphGap/2+4, ("Frame " + to_string((int)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames-1) + 1)) + " / " + to_string(module->table.nFrames)).c_str(), NULL);
+					nvgText(args.vg, 0.0f, heightMagn + graphGap * 0.5f + 4, ("Frame " + to_string((int)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames-1) + 1)) + " / " + to_string(module->table.nFrames)).c_str(), NULL);
 					for (size_t i = 0; i < FS2/2; i++) {
 						float x, y;
 						x = (float)i * IFS2;
@@ -1033,7 +1033,7 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 				size_t wtidx = 0;
 				if (fs>0) {
 					idx = module->params[LIMONADE::INDEX_PARAM].getValue()*(fs-1);
-					wtidx = clamp(module->params[LIMONADE::WTINDEX_PARAM].getValue()+module->inputs[LIMONADE::WTINDEX_INPUT].getVoltage()*0.1f*module->params[LIMONADE::WTINDEXATT_PARAM].getValue(),0.0f,1.0f)*(fs-1);
+					wtidx = module->index;
 				}
 
 				nvgSave(args.vg);
