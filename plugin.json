@@ -1,6 +1,6 @@
 {
   "slug": "Bidoo",
-  "version": "2.0.10",
+  "version": "2.0.11",
   "license": "GPL-3.0-or-later",
   "name": "Bidoo",
   "brand": "Bidoo",
@@ -444,7 +444,7 @@
       ]
     },
     {
-      "slug": "vOId",
+      "slug": "VOAID",
       "name": "vOId",
       "description": "The ultimate mastering tool for Rack.\nOnce plugged in your Rack, you gonna\n sound FAAAAT.\n\nPicture is taken from a very good LP\nTERA MELOS.\n",
       "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#void",

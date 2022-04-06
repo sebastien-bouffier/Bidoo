@@ -3,7 +3,7 @@
 
 using namespace std;
 
-struct VOID : BidooModule {
+struct VOAID : BidooModule {
 	enum ParamIds {
 		NUM_PARAMS
 	};
@@ -17,11 +17,11 @@ struct VOID : BidooModule {
 		NUM_LIGHTS
 	};
 
-	VOID() {	}
+	VOAID() {	}
 };
 
-struct VOIDWidget : BidooWidget {
-	VOIDWidget(VOID *module) {
+struct VOAIDWidget : BidooWidget {
+	VOAIDWidget(VOAID *module) {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/VOID.svg"));
 
@@ -32,4 +32,4 @@ struct VOIDWidget : BidooWidget {
 	}
 };
 
-Model *modelVOID = createModel<VOID, VOIDWidget>("vOId");
+Model *modelVOAID = createModel<VOAID, VOAIDWidget>("VOAID");
