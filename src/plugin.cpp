@@ -51,7 +51,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelBISTROT);
 	p->addModel(modelSIGMA);
 	p->addModel(modelFLAME);
-	p->addModel(modelVOAID);
+	p->addModel(modelVOID);
 }
 
 void InstantiateExpanderItem::onAction(const event::Action &e) {

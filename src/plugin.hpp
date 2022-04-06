@@ -59,7 +59,7 @@ extern Model *modelSIGMA;
 extern Model *modelRABBIT;
 extern Model *modelBISTROT;
 extern Model *modelDIKTAT;
-extern Model *modelVOAID;
+extern Model *modelVOID;
 
 struct InstantiateExpanderItem : MenuItem {
 	Module* module;
