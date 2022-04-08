@@ -1,5 +1,8 @@
+### v2.0.13 (08/04/2021)
+- changelog link update
+
 ### v2.0.12 (06/04/2021)
-- rename VOID module and widget class
+- rename VOID module class
 
 ### v2.0.10 (03/04/2021)
 - liMonADe scan bug fixed when table is empty
