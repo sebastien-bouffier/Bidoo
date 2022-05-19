@@ -1,22 +1,28 @@
-### v2.0.13 (08/04/2021)
+### v2.0.14 (19/05/2022)
+- bordL random skip and slide fix
+- liMonADe wave table and frame wav export, first step for wave table png export
+- zOù MAï run button added
+- zOù MAï CV1 and 2 range is now -10V +10V
+
+### v2.0.13 (08/04/2022)
 - changelog link update
 
-### v2.0.12 (06/04/2021)
+### v2.0.12 (06/04/2022)
 - rename VOID module class
 
 ### v2.0.10 (03/04/2021)
 - liMonADe scan bug fixed when table is empty
 
-### v2.0.9 (21/03/2021)
+### v2.0.9 (21/03/2022)
 - last theme applied becomes the new default theme (modules are drawn accordingly in the browser once the application is restarted)
 - bordL's skip, slide, play mode and count mode buttons should be OSC compliant
 - bordL has some perf improvements
 
-### v2.0.8 (27/01/2021)
+### v2.0.8 (27/01/2022)
 - bAr and mINIBar attack and release params where inverted
 - all modules have themes (light, dark, black, blue and green)
 
-### v2.0.7 (08/01/2021)
+### v2.0.7 (08/01/2022)
 - zOù MAï sync issues fixed
 - zOù MAï VO quantization per track
 - zOù MAï CV1 can be quantized too

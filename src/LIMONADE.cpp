@@ -15,9 +15,77 @@
 
 using namespace std;
 
+static const char WAV_FILTERS[] = "wav:wav";
+static const char PNG_FILTERS[] = "png:png";
+
 void tUpdateWaveTable(wtTable &table, float index) {
 	size_t i = index*(table.nFrames-1);
 	table.frames[i].calcWav();
+}
+
+void tSaveWaveTableAsWave(wtTable &table, int sampleRate, std::string path) {
+	drwav_data_format format;
+	format.container = drwav_container_riff;
+	format.format = DR_WAVE_FORMAT_PCM;
+	format.channels = 1;
+	format.sampleRate = sampleRate;
+	format.bitsPerSample = 32;
+
+	int *pSamples = (int*)calloc(NF*FS,sizeof(int));
+	memset(pSamples, 0, NF*FS*sizeof(int));
+	for (unsigned int i = 0; i < NF; i++) {
+		for (unsigned int j = 0; j < FS; j++) {
+			*(pSamples+i*FS+j)=floor(table.frames[i].sample[j]*1990000000);
+		}
+	}
+
+	drwav wav;
+	drwav_init_file_write(&wav, path.c_str(), &format, NULL);
+	drwav_uint64 framesWritten = drwav_write_pcm_frames(&wav, table.frames.size()*table.frames[0].sample.size(), pSamples);
+	drwav_uninit(&wav);
+
+	free(pSamples);
+}
+
+void tSaveFrameAsWave(wtTable &table, int sampleRate, std::string path, int frameIndex) {
+	drwav_data_format format;
+	format.container = drwav_container_riff;
+	format.format = DR_WAVE_FORMAT_PCM;
+	format.channels = 1;
+	format.sampleRate = sampleRate;
+	format.bitsPerSample = 32;
+
+	int *pSamples = (int*)calloc(FS,sizeof(int));
+	memset(pSamples, 0, FS*sizeof(int));
+	for (unsigned int i = 0; i < FS; i++) {
+		*(pSamples+i)= floor(table.frames[frameIndex].sample[i]*1990000000);
+	}
+
+	drwav wav;
+	drwav_init_file_write(&wav, path.c_str(), &format, NULL);
+	drwav_uint64 framesWritten = drwav_write_pcm_frames(&wav, table.frames[frameIndex].sample.size(), pSamples);
+	drwav_uninit(&wav);
+
+	free(pSamples);
+}
+
+void tSaveWaveTableAsPng(wtTable &table, int sampleRate, std::string path) {
+	unsigned width = FS;
+	unsigned height = NF;
+	std::vector<unsigned char> image;
+	for(size_t i=0; i<NF; i++) {
+		for (size_t j=0; j<FS; j++) {
+			image.push_back(floor(table.frames[i].sample[j]*1000000000) + 1000000000);
+			image.push_back(floor(table.frames[i].sample[j]*1000000000) + 1000000000);
+			image.push_back(floor(table.frames[i].sample[j]*1000000000) + 1000000000);
+			image.push_back(floor(table.frames[i].sample[j]*1000000000) + 1000000000);
+		}
+	}
+	unsigned error = lodepng::encode(path, image, width, height);
+	if(error != 0)
+  {
+    std::cout << "error " << error << ": " << lodepng_error_text(error) << std::endl;
+	}
 }
 
 void tLoadSample(wtTable &table, std::string path, size_t frameLen, bool interpolate) {
@@ -28,7 +96,7 @@ void tLoadSample(wtTable &table, std::string path, size_t frameLen, bool interpo
 	  drwav_uint64 sc;
 		float *pSampleData;
 		float *sample;
-	  pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
+	  pSampleData = drwav_open_file_and_read_pcm_frames_f32(path.c_str(), &c, &sr, &sc, NULL);
 	  if (pSampleData != NULL)  {
 			sc = sc/c;
 			sample = (float*)calloc(sc,sizeof(float));
@@ -36,7 +104,7 @@ void tLoadSample(wtTable &table, std::string path, size_t frameLen, bool interpo
 				if (c == 1) sample[i] = pSampleData[i];
 				else sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
 			}
-			drwav_free(pSampleData);
+			drwav_free(pSampleData, NULL);
 			table.loadSample(sc, frameLen, interpolate, sample);
 			free(sample);
 			table.calcFFT();
@@ -87,7 +155,7 @@ void tLoadFrame(wtTable &table, std::string path, float index, bool interpolate)
 	  drwav_uint64 sc;
 		float *pSampleData;
 		float *sample;
-	  pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
+	  pSampleData = drwav_open_file_and_read_pcm_frames_f32(path.c_str(), &c, &sr, &sc, NULL);
 	  if (pSampleData != NULL)  {
 			sc = sc/c;
 			sample = (float*)calloc(sc,sizeof(float));
@@ -95,7 +163,7 @@ void tLoadFrame(wtTable &table, std::string path, float index, bool interpolate)
 				if (c == 1) sample[i] = pSampleData[i];
 				else sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
 			}
-			drwav_free(pSampleData);
+			drwav_free(pSampleData, NULL);
 			size_t i = index*(table.nFrames-1);
 			if (i<table.nFrames) {
 				table.frames[i].loadSample(sc, interpolate, sample);
@@ -522,31 +590,37 @@ void LIMONADE::resetWaveTable() {
 }
 
 void LIMONADE::loadSample() {
-	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
+	osdialog_filters* filters = osdialog_filters_parse(WAV_FILTERS);
+	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, filters);
 	if (path) {
 		lastPath=path;
 		tLoadSample(table, path, frameSize, true);
 		free(path);
 		morphType = -1;
 	}
+	osdialog_filters_free(filters);
 }
 
 void LIMONADE::loadFrame() {
-	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
+	osdialog_filters* filters = osdialog_filters_parse(WAV_FILTERS);
+	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, filters);
 	if (path) {
 		lastPath=path;
 		tLoadFrame(table, path, params[INDEX_PARAM].getValue(), true);
 		free(path);
 	}
+	osdialog_filters_free(filters);
 }
 
 void LIMONADE::loadPNG() {
-	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, NULL);
+	osdialog_filters* filters = osdialog_filters_parse(PNG_FILTERS);
+	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, filters);
 	if (path) {
 		lastPath=path;
 		tLoadPNG(table, path);
 		free(path);
 	}
+	osdialog_filters_free(filters);
 }
 
 void LIMONADE::windowWt() {
@@ -1141,8 +1215,6 @@ struct LIMONADEFrameSizeDisplay : LedDisplay {
 	}
 };
 
-
-
 struct moduleDisplayModeItem : MenuItem {
 	LIMONADE *module;
 	void onAction(const event::Action &e) override {
@@ -1161,6 +1233,48 @@ struct moduleDisplayPlayedFrameItem : MenuItem {
 	LIMONADE *module;
 	void onAction(const event::Action &e) override {
 		module->displayPlayedFrame = (module->displayPlayedFrame == 0) ? 1 : 0;
+	}
+};
+
+struct moduleSaveWavetableAsWavItem : MenuItem {
+	LIMONADE *module;
+	void onAction(const event::Action &e) override {
+		std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
+		osdialog_filters* filters = osdialog_filters_parse(WAV_FILTERS);
+		char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), "Untitled", filters);
+		if (path) {
+			tSaveWaveTableAsWave(module->table, APP->engine->getSampleRate(), path);
+			free(path);
+		}
+		osdialog_filters_free(filters);
+	}
+};
+
+struct moduleSaveFrameAsWavItem : MenuItem {
+	LIMONADE *module;
+	void onAction(const event::Action &e) override {
+		std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
+		osdialog_filters* filters = osdialog_filters_parse(WAV_FILTERS);
+		char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), "Untitled", filters);
+		if (path) {
+			tSaveFrameAsWave(module->table, APP->engine->getSampleRate(), path, (size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1)));
+			free(path);
+		}
+		osdialog_filters_free(filters);
+	}
+};
+
+struct moduleSaveWavetableAsPngItem : MenuItem {
+	LIMONADE *module;
+	void onAction(const event::Action &e) override {
+		std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
+		osdialog_filters* filters = osdialog_filters_parse(PNG_FILTERS);
+		char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), "Untitled", filters);
+		if (path) {
+			tSaveWaveTableAsPng(module->table, APP->engine->getSampleRate(), path);
+			free(path);
+		}
+		osdialog_filters_free(filters);
 	}
 };
 
@@ -1353,6 +1467,18 @@ struct LIMONADEWidget : BidooWidget {
 		playedFrameItem->rightText = (m->displayPlayedFrame == 0) ? "ON✔ OFF" : "ON  OFF✔";
 		playedFrameItem->module = m;
 		menu->addChild(playedFrameItem);
+		moduleSaveWavetableAsWavItem *saveWavetableAsWavItem = new moduleSaveWavetableAsWavItem;
+		saveWavetableAsWavItem->text = "Save wavetable as wav";
+		saveWavetableAsWavItem->module = m;
+		menu->addChild(saveWavetableAsWavItem);
+		moduleSaveFrameAsWavItem *saveFrameAsWavItem = new moduleSaveFrameAsWavItem;
+		saveFrameAsWavItem->text = "Save frame as wav";
+		saveFrameAsWavItem->module = m;
+		menu->addChild(saveFrameAsWavItem);
+		moduleSaveWavetableAsPngItem *saveWavetableAsPngItem = new moduleSaveWavetableAsPngItem;
+		saveWavetableAsPngItem->text = "Save wavetable as png";
+		saveWavetableAsPngItem->module = m;
+		menu->addChild(saveWavetableAsPngItem);
 	}
 
 

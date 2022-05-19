@@ -563,6 +563,8 @@ struct BORDL : BidooModule {
 		for (int i = 0; i < 8; i++) {
 			slideState[i] = (random::uniform() > 0.8f);
 			skipState[i] = (random::uniform() > 0.85f);
+			params[TRIG_SLIDE_PARAM+i].setValue(slideState[i]);
+			params[TRIG_SKIP_PARAM+i].setValue(skipState[i]);
 		}
 	}
 

@@ -182,7 +182,7 @@ struct TrigAttibutes {
 							setTrigSleeping(true);
 							break;
 						}
-						setTrigSleeping((random::uniform()*100)>=(clamp(getTrigCount()*(1+dice),0.0f,100.0f)));
+						setTrigSleeping((random::uniform()*100)>=(clamp(getTrigCount()+dice*100,0.0f,100.0f)));
 					}
 					else
 						setTrigSleeping(false);
@@ -352,6 +352,7 @@ struct ZOUMAI : BidooModule {
 		TRACKSELECT_PARAMS = TRACKSONOFF_PARAMS + 8,
 		TRIGPAGE_PARAM = TRACKSELECT_PARAMS + 8,
 		FILL_PARAM = TRIGPAGE_PARAM + 4,
+    RUN_PARAM,
 		OCTAVE_PARAMS,
 		NOTE_PARAMS = OCTAVE_PARAMS + 7,
 		PATTERN_PARAM = NOTE_PARAMS + 12,
@@ -483,6 +484,7 @@ struct ZOUMAI : BidooModule {
 		rightExpander.consumerMessage = rightMessages[1];
 
 		configParam(FILL_PARAM, 0.0f, 1.0f, 0.0f);
+    configParam(RUN_PARAM, 0.0f, 1.0f, 0.0f);
 
     configParam(TRIGPAGE_PARAM, 0.0f, 2.0f,  0.0f);
     configParam(TRIGPAGE_PARAM+1, 0.0f, 2.0f,  0.0f);
@@ -498,8 +500,8 @@ struct ZOUMAI : BidooModule {
 		configParam(TRACKSCALE_PARAM, 0.0f, quantizer::numScales-1, 1.0f, "Scale","",0,1,1);
 		configParam(TRACKQUANTIZECV1_PARAM, 0.0f, 1.0f, 0.0f);
 
-		configParam(TRIGCV1_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(TRIGCV2_PARAM, 0.0f, 10.0f, 0.0f);
+		configParam(TRIGCV1_PARAM, -10.0f, 10.0f, 0.0f);
+		configParam(TRIGCV2_PARAM, -10.0f, 10.0f, 0.0f);
 		configParam(TRIGLENGTH_PARAM, 0.0f, 64.0f, 0.9f);
 		configParam(TRIGPULSECOUNT_PARAM, 0.0f, 64.0f, 1.0f);
 		configParam(TRIGPULSEDISTANCE_PARAM, 0.0f, 64.0f, 0.1f);
@@ -1446,8 +1448,7 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		}
 	}
 
-
-	if (runTrigger.process(inputs[RUN_INPUT].getVoltage())) {
+	if (runTrigger.process(inputs[RUN_INPUT].getVoltage() + params[RUN_PARAM].getValue())) {
 		run = !run;
 		globalReset = true;
 	}
@@ -2385,11 +2386,12 @@ struct ZOUMAIWidget : BidooWidget {
 		tProbKnob->refReset = probCountResetKnob;
 		addParam(tProbKnob);
 
-		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[6]+3.0f), module, ZOUMAI::FILL_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[6]+4.0f), module, ZOUMAI::FILL_INPUT));
 		addParam(createParam<BlueCKD6>(Vec(40.0f, portY0[6]-1.0f+3.0f), module, ZOUMAI::FILL_PARAM));
 		addChild(createLight<SmallLight<BlueLight>>(Vec(51.5f, portY0[6]-8.0f), module, ZOUMAI::FILL_LIGHT));
 
-		addInput(createInput<PJ301MPort>(Vec(80.0f, portY0[6]+3.0f), module, ZOUMAI::RUN_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(74.0f, portY0[6]+4.0f), module, ZOUMAI::RUN_INPUT));
+    addParam(createParam<BlueCKD6>(Vec(104.0f, portY0[6]-1.0f+3.0f), module, ZOUMAI::RUN_PARAM));
 
 		//static const float portX0[5] = {374.0f, 389.0f, 404.0f, 419.0f, 434.0f};
 

@@ -15,7 +15,7 @@ namespace waves {
       unsigned int sr;
       drwav_uint64 sc;
       float* pSampleData;
-      pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
+      pSampleData = drwav_open_file_and_read_pcm_frames_f32(path.c_str(), &c, &sr, &sc, NULL);
       if (pSampleData != NULL)  {
         sampleChannels = c;
         sampleRate = sr;
@@ -30,7 +30,7 @@ namespace waves {
           result.push_back(frame);
         }
         sampleCount = sc/c;
-        drwav_free(pSampleData);
+        drwav_free(pSampleData, NULL);
       }
     }
     else if (waveExtension == ".aiff") {
@@ -80,7 +80,7 @@ namespace waves {
       unsigned int sr;
       drwav_uint64 sc;
       float* pSampleData;
-      pSampleData = drwav_open_file_and_read_f32(path.c_str(), &c, &sr, &sc);
+      pSampleData = drwav_open_file_and_read_pcm_frames_f32(path.c_str(), &c, &sr, &sc, NULL);
       if (pSampleData != NULL)  {
         sampleChannels = c;
         sampleRate = sr;
@@ -94,7 +94,7 @@ namespace waves {
           result.push_back(frame);
         }
         sampleCount = sc/c;
-        drwav_free(pSampleData);
+        drwav_free(pSampleData, NULL);
       }
     }
     else if (waveExtension == ".aiff") {
@@ -146,13 +146,15 @@ namespace waves {
     int *pSamples = (int*)calloc(2*sample.size(),sizeof(int));
     memset(pSamples, 0, 2*sample.size()*sizeof(int));
     for (unsigned int i = 0; i < sample.size(); i++) {
-    	*(pSamples+2*i)= floor(sample[i].samples[0]*2147483647);
-    	*(pSamples+2*i+1)= floor(sample[i].samples[1]*2147483647);
+    	*(pSamples+2*i)= floor(sample[i].samples[0]*1990000000);
+    	*(pSamples+2*i+1)= floor(sample[i].samples[1]*1990000000);
     }
 
-    drwav* pWav = drwav_open_file_write(path.c_str(), &format);
-    drwav_write(pWav, 2*sample.size(), pSamples);
-    drwav_close(pWav);
+    drwav wav;
+    drwav_init_file_write(&wav, path.c_str(), &format, NULL);
+    drwav_uint64 framesWritten = drwav_write_pcm_frames(&wav, 2*sample.size(), pSamples);
+    drwav_uninit(&wav);
+
     free(pSamples);
   }
 

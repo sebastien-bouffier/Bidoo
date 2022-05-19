@@ -211,7 +211,7 @@ struct ZOUMAIExpander : BidooModule {
 					messagesToZou[i+24]=0.0f;
 				}
 
-				messagesToZou[i+32]=clamp(rescale(inputs[TRSP_INPUT+i].getVoltage(),-10.0f,10.0f,-1.0f,1.0f) + params[DICE_PARAM+i].getValue(),-1.0f,1.0f);
+				messagesToZou[i+32]=clamp(rescale(inputs[DICE_INPUT+i].getVoltage(),-10.0f,10.0f,-1.0f,1.0f) + params[DICE_PARAM+i].getValue(),-1.0f,1.0f);
 
 				messagesToZou[i+40]=rotLeftTrigger[i].process(inputs[ROTLEFT_INPUT+i].getVoltage()) ? params[ROTSHIFT_PARAM+i].getValue() : 0.0f;
 
