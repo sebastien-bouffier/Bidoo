@@ -127,6 +127,7 @@ struct PILOT : BidooModule {
 	dsp::SchmittTrigger resetTrigger;
 	dsp::PulseGenerator gatePulses[16];
 
+	quantizer::Quantizer quant;
 
 	PILOT() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -677,15 +678,15 @@ void PILOT::process(const ProcessArgs &args) {
 
 		if (controlTypes[i] >= 3) {
 			if (controlFocused[i] || (controlTypes[i] == 4)) {
-				outputs[CV_OUTPUTS + i].setVoltage(quantizer::closestVoltageInScale(params[CONTROLS_PARAMS+i].getValue()*10.0f-4.0f, controlRootNotes[i], controlScales[i]));
+				outputs[CV_OUTPUTS + i].setVoltage(std::get<0>(quant.closestVoltageInScale(params[CONTROLS_PARAMS+i].getValue()*10.0f-4.0f, controlRootNotes[i], controlScales[i])));
 			}
 			else {
 				if ((scenes[bank][bottomScene][i]==scenes[bank][topScene][i]) || (bottomScene==topScene)) {
-					outputs[CV_OUTPUTS + i].setVoltage(quantizer::closestVoltageInScale(scenes[bank][bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i]));
+					outputs[CV_OUTPUTS + i].setVoltage(std::get<0>(quant.closestVoltageInScale(scenes[bank][bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i])));
 				}
 				else {
 					outputs[CV_OUTPUTS + i].setVoltage(rescale(params[CONTROLS_PARAMS+i].getValue(),scenes[bank][bottomScene][i],scenes[bank][topScene][i],
-					quantizer::closestVoltageInScale(scenes[bank][bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i]),quantizer::closestVoltageInScale(scenes[bank][topScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i])));
+					std::get<0>(quant.closestVoltageInScale(scenes[bank][bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i])),std::get<0>(quant.closestVoltageInScale(scenes[bank][topScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i]))));
 				}
 			}
 		}
@@ -784,7 +785,8 @@ struct PILOTNoteDisplay : TransparentWidget {
 	      nvgFontSize(args.vg, 18);
 	  		nvgTextLetterSpacing(args.vg, -2);
 	  		nvgFillColor(args.vg, YELLOW_BIDOO);
-				nvgText(args.vg, 0, 12, quantizer::noteName(module->outputs[PILOT::CV_OUTPUTS+module->currentFocus].getVoltage()).c_str(), NULL);
+				PILOT *mod = dynamic_cast<PILOT*>(module);
+				nvgText(args.vg, 0, 12, mod->quant.noteName(module->outputs[PILOT::CV_OUTPUTS+module->currentFocus].getVoltage()).c_str(), NULL);
 	    }
 		}
 		Widget::drawLayer(args, layer);

@@ -76,29 +76,20 @@ namespace quantizer {
     float thirteenth;
   };
 
-  float quantize(float voltsIn);
-
-  std::string noteName(float voltsIn);
-
-  std::string scaleName(int scale);
-
-  float closestVoltageInScale(const float inVolts, const int rootNote, const int scale);
-
-  Chord closestChordInScale(const float inVolts, const int rootNote, const int scale);
 
   struct Quantizer {
 
-    float map[numScales][120] = {{0.0f}};
+    float map[12][numScales][120] = {{{0.0f}}};
 
     Quantizer();
 
-    float quantize(float voltsIn);
+    std::tuple<float, int> quantize(float voltsIn);
 
     std::string noteName(float voltsIn);
 
     std::string scaleName(int scale);
 
-    float closestVoltageInScale(const float inVolts, const int rootNote, const int scale);
+    std::tuple<float, int> closestVoltageInScale(const float inVolts, const int rootNote, const int scale);
 
     Chord closestChordInScale(const float inVolts, const int rootNote, const int scale);
 

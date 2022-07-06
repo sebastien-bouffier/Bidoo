@@ -1,150 +1,66 @@
 #include "quantizer.hpp"
+#include <math.hpp>
 
 namespace quantizer {
 
-  float quantize(float voltsIn) {
-    float closestVal = 0.0f;
-    float closestDist = 1.0f;
-    int octaveInVolts = 0;
-    if ((voltsIn >= 0.0f) || (voltsIn == (int)voltsIn)) {
-      octaveInVolts = int(voltsIn);
-    }
-    else {
-      octaveInVolts = int(voltsIn)-1;
-    }
-    for (int i = 0; i < 12; i++) {
-      float scaleNoteInVolts = octaveInVolts + (float)i / 12.0f;
-      float distAway = fabs(voltsIn - scaleNoteInVolts);
-      if(distAway < closestDist) {
-        closestVal = scaleNoteInVolts;
-        closestDist = distAway;
-      }
-    }
-    return closestVal;
-  }
-
-  std::string noteName(float inVolts) {
-    int octaveInVolts = floor(inVolts);
-    float closestDist = 3.0f;
-    int noteNumber = 0;
-
-    for (int i = 0; i < 12; i++) {
-      float scaleNoteInVolts = octaveInVolts + (float)i / 12.0f;
-      float distAway = fabs(inVolts - scaleNoteInVolts);
-      if(distAway < closestDist) {
-        closestDist = distAway;
-        noteNumber = i;
-      }
-    }
-    return rootNotes[noteNumber+1].label + std::to_string(octaveInVolts+4);
-  }
-
-  std::string scaleName(int scale) {
-    return scales[scale].label;
-  }
-
-  float closestVoltageInScale(float inVolts, int rootNote, int scale) {
-    if (scale == 0) {
-      return inVolts;
-    }
-    else if (rootNote==-1) {
-      return quantize(inVolts);
-    }
-    else {
-      int octaveInVolts = floor(inVolts);
-      float closestVal = -4.0f;
-      float closestDist = 3.0f;
-
-      for (int i = 0; i < 24; i++) {
-        float scaleNoteInVolts = octaveInVolts + int(i/scales[scale].numNotes) + (rootNote / 12.0f) + scales[scale].intervals[i%scales[scale].numNotes] / 12.0f;
-        float distAway = fabs(inVolts - scaleNoteInVolts);
-        if(distAway < closestDist) {
-          closestVal = scaleNoteInVolts;
-          closestDist = distAway;
-        }
-        else { break; }
-      }
-
-      return closestVal;
-    }
-  }
-
-  Chord closestChordInScale(float inVolts, int rootNote, int scale) {
-    Chord result;
-    if (scale == 0) {
-      result.tonic = inVolts;
-      result.third = inVolts;
-      result.fifth = inVolts;
-      result.seventh = inVolts;
-      result.ninth = inVolts;
-      result.eleventh = inVolts;
-      result.thirteenth = inVolts;
-    }
-    else if (rootNote==-1) {
-      result.tonic = quantize(inVolts);
-      result.third = quantize(inVolts);
-      result.fifth = quantize(inVolts);
-      result.seventh = quantize(inVolts);
-      result.ninth = quantize(inVolts);
-      result.eleventh = quantize(inVolts);
-      result.thirteenth = quantize(inVolts);
-    }
-    else {
-      int octaveInVolts = floor(inVolts);
-      float closestVal = -4.0f;
-      float closestDist = 3.0f;
-      int index = 0;
-      for (int i = 0; i < 24; i++) {
-        float scaleNoteInVolts = octaveInVolts + floor(i/scales[scale].numNotes) + (rootNote / 12.0f) + scales[scale].intervals[i%scales[scale].numNotes] / 12.0f;
-        float distAway = fabs(inVolts - scaleNoteInVolts);
-        if(distAway < closestDist) {
-          closestVal = scaleNoteInVolts;
-          closestDist = distAway;
-          index = i;
-        }
-        else { break; }
-      }
-      result.tonic = closestVal;
-      result.third = rack::math::clamp(octaveInVolts + floor((index+2)/scales[scale].numNotes) + (rootNote / 12.0f) + scales[scale].intervals[(index+2)%scales[scale].numNotes] / 12.0f,-4.0f,6.0f);
-      result.fifth = rack::math::clamp(octaveInVolts + floor((index+4)/scales[scale].numNotes) + (rootNote / 12.0f) + scales[scale].intervals[(index+4)%scales[scale].numNotes] / 12.0f,-4.0f,6.0f);
-      result.seventh = rack::math::clamp(octaveInVolts + floor((index+6)/scales[scale].numNotes) + (rootNote / 12.0f) + scales[scale].intervals[(index+6)%scales[scale].numNotes] / 12.0f,-4.0f,6.0f);
-      result.ninth = rack::math::clamp(octaveInVolts + floor((index+8)/scales[scale].numNotes) + (rootNote / 12.0f) + scales[scale].intervals[(index+8)%scales[scale].numNotes] / 12.0f,-4.0f,6.0f);
-      result.eleventh = rack::math::clamp(octaveInVolts + floor((index+10)/scales[scale].numNotes) + (rootNote / 12.0f) + scales[scale].intervals[(index+10)%scales[scale].numNotes] / 12.0f,-4.0f,6.0f);
-      result.thirteenth = rack::math::clamp(octaveInVolts + floor((index+12)/scales[scale].numNotes) + (rootNote / 12.0f) + scales[scale].intervals[(index+12)%scales[scale].numNotes] / 12.0f,-4.0f,6.0f);
-    }
-    return result;
-  }
-
   Quantizer::Quantizer() {
-    for(int i=0; i<numScales; i++) {
-      for (int j=0; j<10; j++) {
-        for (int k=0; k<scales[i].numNotes;k++) {
-          map[i][j*scales[i].numNotes+k]=-4.f+j+scales[i].intervals[k]/12.0f;
+    for (int l=0; l<12; l++) {
+      for(int i=0; i<numScales; i++) {
+        for (int j=0; j<10; j++) {
+          for (int k=0; k<scales[i].numNotes;k++) {
+            map[l][i][j*scales[i].numNotes+k]=-4.f + l/12.0f + j + scales[i].intervals[k]/12.0f;
+          }
         }
       }
     }
   }
 
-  float Quantizer::quantize(float voltsIn) {
-    float closestVal = 0.0f;
-    float closestDist = 1.0f;
-    int octaveInVolts = 0;
-    if ((voltsIn >= 0.0f) || (voltsIn == (int)voltsIn)) {
-      octaveInVolts = int(voltsIn);
+  std::tuple<float, int> getNearest(float x, float y, float target, int lower, int upper) {
+    if (target - x >= y - target)
+    {
+      return std::make_tuple(y,upper);
     }
-    else {
-      octaveInVolts = int(voltsIn)-1;
+    else
+    {
+      return std::make_tuple(x,lower);
     }
-    int sIndex = (octaveInVolts+4)*12;
-    for (int i = 0; i < 12; i++) {
-      float scaleNoteInVolts = map[26][sIndex+i];
-      float distAway = fabs(voltsIn - scaleNoteInVolts);
-      if(distAway < closestDist) {
-        closestVal = scaleNoteInVolts;
-        closestDist = distAway;
+  }
+
+  std::tuple<float, int> getNearestElement(float arr[], int n, float target) {
+   if (target <= arr[0]) {
+     return std::make_tuple(arr[0],0);
+   }
+
+   if (target >= arr[n - 1]) {
+     return std::make_tuple(arr[n - 1],n-1);
+   }
+
+   int left = 0, right = n, mid = 0;
+   while (left < right) {
+      mid = (left + right) / 2;
+      if (arr[mid] == target) {
+        return std::make_tuple(arr[mid],mid);
       }
-    }
-    return closestVal;
+
+      if (target < arr[mid]) {
+        if ((mid > 0) && (target > arr[mid - 1])) {
+          return getNearest(arr[mid - 1], arr[mid], target, mid-1, mid);
+        }
+        right = mid;
+      }
+      else
+      {
+       if ((mid < n - 1) && (target < arr[mid + 1])) {
+         return getNearest(arr[mid], arr[mid + 1], target, mid, mid+1);
+       }
+       left = mid + 1;
+      }
+   }
+   return std::make_tuple(arr[mid],mid);
+  }
+
+  std::tuple<float, int> Quantizer::quantize(float voltsIn) {
+    return getNearestElement(map[0][26], scales[26].numNotes*10, voltsIn);
   }
 
   std::string Quantizer::noteName(float voltsIn) {
@@ -163,36 +79,17 @@ namespace quantizer {
     return rootNotes[noteNumber+1].label + std::to_string(octaveInVolts+4);
   }
 
-  float Quantizer::closestVoltageInScale(float voltsIn, int rootNote, int scale) {
+
+
+  std::tuple<float, int> Quantizer::closestVoltageInScale(float voltsIn, int rootNote, int scale) {
     if (scale == 0) {
-      return voltsIn;
+      return std::make_tuple(voltsIn,0);
     }
     else if (rootNote==-1) {
       return Quantizer::quantize(voltsIn);
     }
     else {
-      float closestVal = 0.0f;
-      float closestDist = 1.0f;
-      int octaveInVolts = 0;
-      if ((voltsIn >= 0.0f) || (voltsIn == (int)voltsIn)) {
-        octaveInVolts = int(voltsIn);
-      }
-      else {
-        octaveInVolts = int(voltsIn)-1;
-      }
-      int sIndex = (octaveInVolts+4)*scales[scale].numNotes;
-      float rShift = rootNote / 12.0f;
-      for (int i = 0; i < 12; i++) {
-        float scaleNoteInVolts = map[scale][sIndex+i] + rShift;
-        float distAway = fabs(voltsIn - scaleNoteInVolts);
-        if(distAway < closestDist) {
-          closestVal = scaleNoteInVolts;
-          closestDist = distAway;
-        }
-        else { break; }
-      }
-
-      return closestVal;
+      return getNearestElement(map[rootNote][scale], scales[scale].numNotes*10, voltsIn);
     }
   }
 
@@ -208,43 +105,28 @@ namespace quantizer {
       result.thirteenth = voltsIn;
     }
     else if (rootNote==-1) {
-      result.tonic = Quantizer::quantize(voltsIn);
-      result.third = Quantizer::quantize(voltsIn);
-      result.fifth = Quantizer::quantize(voltsIn);
-      result.seventh = Quantizer::quantize(voltsIn);
-      result.ninth = Quantizer::quantize(voltsIn);
-      result.eleventh = Quantizer::quantize(voltsIn);
-      result.thirteenth = Quantizer::quantize(voltsIn);
+      float pitch;
+      int index;
+      std::tie(pitch, index) = Quantizer::quantize(voltsIn);
+      result.tonic = pitch;
+      result.third = result.tonic;
+      result.fifth = result.tonic;
+      result.seventh = result.tonic;
+      result.ninth = result.tonic;
+      result.eleventh = result.tonic;
+      result.thirteenth = result.tonic;
     }
     else {
-      float closestVal = 0.0f;
-      float closestDist = 1.0f;
-      int octaveInVolts = 0;
-      if ((voltsIn >= 0.0f) || (voltsIn == (int)voltsIn)) {
-        octaveInVolts = int(voltsIn);
-      }
-      else {
-        octaveInVolts = int(voltsIn)-1;
-      }
-      int sIndex = (octaveInVolts+4)*scales[scale].numNotes;
-      float rShift = rootNote / 12.0f;
-      for (int i = 0; i < 12; i++) {
-        float scaleNoteInVolts = map[scale][sIndex] + rShift;
-        float distAway = fabs(voltsIn - scaleNoteInVolts);
-        sIndex++;
-        if(distAway < closestDist) {
-          closestVal = scaleNoteInVolts;
-          closestDist = distAway;
-        }
-        else { break; }
-      }
-      result.tonic = closestVal;
-      result.third = map[scale][sIndex+1] + rShift;
-      result.fifth = map[scale][sIndex+3] + rShift;
-      result.seventh = map[scale][sIndex+5] + rShift;
-      result.ninth = map[scale][sIndex+7] + rShift;
-      result.eleventh = map[scale][sIndex+9] + rShift;
-      result.thirteenth = map[scale][sIndex+11] + rShift;
+      float pitch;
+      int index;
+      std::tie(pitch, index) = getNearestElement(map[rootNote][scale], scales[scale].numNotes*10, voltsIn);
+      result.tonic = pitch;
+      result.third = map[rootNote][scale][rack::math::clamp(index+2,0,scales[scale].numNotes*10)];
+      result.fifth = map[rootNote][scale][rack::math::clamp(index+4,0,scales[scale].numNotes*10)];
+      result.seventh = map[rootNote][scale][rack::math::clamp(index+6,0,scales[scale].numNotes*10)];
+      result.ninth = map[rootNote][scale][rack::math::clamp(index+8,0,scales[scale].numNotes*10)];
+      result.eleventh = map[rootNote][scale][rack::math::clamp(index+10,0,scales[scale].numNotes*10)];
+      result.thirteenth = map[rootNote][scale][rack::math::clamp(index+12,0,scales[scale].numNotes*10)];
     }
     return result;
   }

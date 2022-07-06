@@ -1,3 +1,7 @@
+### v2.0.15 (06/07/2022)
+- quantization issue in all modules fix
+- zOù MAï track naming capability via menu
+
 ### v2.0.14 (19/05/2022)
 - bordL random skip and slide fix
 - liMonADe wave table and frame wav export, first step for wave table png export

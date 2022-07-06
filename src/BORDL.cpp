@@ -905,9 +905,9 @@ void BORDL::process(const ProcessArgs &args) {
 	}
 
 	if (gateOn) {
-		pitch = quant.closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity
+		pitch = std::get<0>(quant.closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch + rndPitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity
 			+ (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + inputs[TRANSPOSE_INPUT].getVoltage(),
-			clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage());
+			clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage()));
 	}
 
 	if (patterns[playedPattern].CurrentStep().slide) {
@@ -1128,10 +1128,10 @@ struct BORDLPitchDisplay : TransparentWidget {
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 			nvgFontSize(args.vg, 16.0f);
 			nvgText(args.vg, pos.x, pos.y-9.0f, module->quant.noteName(
-					module->quant.closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM + index].getValue() * clamp(module->patterns[module->playedPattern].sensitivity
+					std::get<0>(module->quant.closestVoltageInScale(module->params[BORDL::TRIG_PITCH_PARAM + index].getValue() * clamp(module->patterns[module->playedPattern].sensitivity
 					+ (module->inputs[BORDL::SENSITIVITY_INPUT].isConnected() ? rescale(module->inputs[BORDL::SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + module->inputs[BORDL::TRANSPOSE_INPUT].getVoltage(),
 					clamp(module->patterns[module->selectedPattern].rootNote + rescale(clamp(module->inputs[BORDL::ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f),
-					module->patterns[module->selectedPattern].scale)
+					module->patterns[module->selectedPattern].scale))
 			).c_str(), NULL);
 		}
 	}

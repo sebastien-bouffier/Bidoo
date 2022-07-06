@@ -477,6 +477,8 @@ struct ZOUMAI : BidooModule {
 
 	float powTable[100][10000] = {{0.0f}};
 
+  std::string labels[8] = {"Track 1","Track 2","Track 3","Track 4","Track 5","Track 6","Track 7","Track 8"};
+
 	ZOUMAI() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 
@@ -625,6 +627,9 @@ struct ZOUMAI : BidooModule {
 		json_object_set_new(rootJ, "currentTrack", json_integer(currentTrack));
 		json_object_set_new(rootJ, "currentTrig", json_integer(currentTrig));
 		json_object_set_new(rootJ, "trigPage", json_integer(trigPage));
+    for(size_t i=0; i<8; i++) {
+      json_object_set_new(rootJ, ("label" + to_string(i)).c_str(), json_string(labels[i].c_str()));
+    }
 		for (size_t i = 0; i<8; i++) {
 			json_t *patternJ = json_object();
 			for (size_t j = 0; j < 8; j++) {
@@ -682,6 +687,13 @@ struct ZOUMAI : BidooModule {
 		json_t *trigPageJ = json_object_get(rootJ, "trigPage");
 		if (trigPageJ)
 			trigPage = json_integer_value(trigPageJ);
+
+    for(size_t i=0; i<8; i++) {
+      json_t *labelJ=json_object_get(rootJ, ("label"+ to_string(i)).c_str());
+      if (labelJ) {
+        labels[i] = json_string_value(labelJ);
+      }
+    }
 
 		for (size_t i=0; i<8;i++) {
 			json_t *patternJ = json_object_get(rootJ, ("pattern" + to_string(i)).c_str());
@@ -1079,12 +1091,12 @@ struct ZOUMAI : BidooModule {
 	float trackGetVO(const int track, const int tPT, const bool quantize = false) {
 		float vo = nTrigsAttibutes[currentPattern][track][tPT].getVO() + trsp[track];
 		if (trigSlide[currentPattern][track][tPT] == 0.0f) {
-			return quantize ? quant.closestVoltageInScale(vo, rootNote[currentPattern][track], scale[currentPattern][track]) : vo;
+			return quantize ? std::get<0>(quant.closestVoltageInScale(vo, rootNote[currentPattern][track], scale[currentPattern][track])) : vo;
 		}
 		else
 		{
 			float fullLength = trigGetFullLength(track,tPT);
-			float voQ = quantize ? quant.closestVoltageInScale(vo, rootNote[currentPattern][track], scale[currentPattern][track]) : vo;
+			float voQ = quantize ? std::get<0>(quant.closestVoltageInScale(vo, rootNote[currentPattern][track], scale[currentPattern][track])) : vo;
 			if (fullLength > 0.0f) {
 				if (slideMode[currentPattern][track]) {
           if (trigSlideType[currentPattern][track][tPT]) {
@@ -1583,7 +1595,7 @@ void ZOUMAI::process(const ProcessArgs &args) {
 
 			bool q = rootNote[currentPattern][i]>=0 && scale[currentPattern][i]>0;
 			outputs[VO_OUTPUTS + i].setVoltage(trackGetVO(i, tPT, q));
-			outputs[CV1_OUTPUTS + i].setVoltage(outputs[GATE_OUTPUTS + i].getVoltage() == 0.0f ? 0.0f : ((quantizeCV1[currentPattern][i]>0 && q) ? quant.closestVoltageInScale(trigCV1[currentPattern][i][tPT]-4.0f, rootNote[currentPattern][i], scale[currentPattern][i]) : trigCV1[currentPattern][i][tPT]));
+			outputs[CV1_OUTPUTS + i].setVoltage(outputs[GATE_OUTPUTS + i].getVoltage() == 0.0f ? 0.0f : ((quantizeCV1[currentPattern][i]>0 && q) ? std::get<0>(quant.closestVoltageInScale(trigCV1[currentPattern][i][tPT]-4.0f, rootNote[currentPattern][i], scale[currentPattern][i])) : trigCV1[currentPattern][i][tPT]));
 			outputs[CV2_OUTPUTS + i].setVoltage(outputs[GATE_OUTPUTS + i].getVoltage() == 0.0f ? 0.0f : trigCV2[currentPattern][i][tPT]);
 		}
 	}
@@ -2120,7 +2132,7 @@ struct ZOUMAIDisplay : TransparentWidget {
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 
 			if (module) {
-				sPatternHeader << "Pattern " + to_string(module->currentPattern + 1) + " : Track " + to_string(module->currentTrack + 1);
+				sPatternHeader << "Pattern " + to_string(module->currentPattern + 1) + " : " + module->labels[module->currentTrack];
 				sSteps << module->nTracksAttibutes[module->currentPattern][module->currentTrack].getTrackLength();
 				sSpeed << fixed << setprecision(2) << module->nTracksAttibutes[module->currentPattern][module->currentTrack].getTrackSpeed();
 				sRead << displayReadMode(module->nTracksAttibutes[module->currentPattern][module->currentTrack].getTrackReadMode());
@@ -2714,6 +2726,23 @@ struct ZOUMAIWidget : BidooWidget {
 		}
 	};
 
+  struct labelTextField : TextField {
+
+    ZOUMAI *module;
+
+    labelTextField()
+    {
+      this->box.pos.x = 50;
+      this->box.size.x = 160;
+      this->multiline = false;
+    }
+
+    void onChange(const event::Change& e) override {
+      module->labels[module->currentTrack] = text;
+    };
+
+  };
+
 
 	void appendContextMenu(Menu *menu) override {
       BidooWidget::appendContextMenu(menu);
@@ -2759,6 +2788,23 @@ struct ZOUMAIWidget : BidooWidget {
 				menu->addChild(construct<ZouTrackDownItem>(&MenuItem::text, "Move Down (over+S)", &ZouTrackDownItem::module, module));
 				menu->addChild(construct<ZouTrackLeftItem>(&MenuItem::text, "Move Left (over+A)", &ZouTrackLeftItem::module, module));
 				menu->addChild(construct<ZouTrackRightItem>(&MenuItem::text, "Move Right (over+D)", &ZouTrackRightItem::module, module));
+
+        // Add label input
+        auto holder = new rack::Widget;
+        holder->box.size.x = 220; // This value will determine the width of the menu
+        holder->box.size.y = 20;
+
+        auto lab = new rack::Label;
+        lab->text = "Label: ";
+        lab->box.size = 50; // label box size determins the bounding box around #1, #2, #3 etc.
+        holder->addChild(lab);
+
+        auto textfield = new labelTextField();
+        textfield->module = module;
+        textfield->text = module->labels[module->currentTrack];
+        holder->addChild(textfield);
+
+        menu->addChild(holder);
 			}));
 
 			menu->addChild(createSubmenuItem("Pattern", "", [=](ui::Menu* menu) {

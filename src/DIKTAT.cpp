@@ -230,7 +230,7 @@ struct DiktatPJ301MPort : PJ301MPort {
 				nvgFontSize(args.vg, 10.0f);
 				nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 				DIKTAT *mod = dynamic_cast<DIKTAT*>(module);
-				nvgText(args.vg, 12, -4, quantizer::noteName(getPort()->getVoltage(mod->currentChannel)).c_str(), NULL);
+				nvgText(args.vg, 12, -4, mod->quant.noteName(getPort()->getVoltage(mod->currentChannel)).c_str(), NULL);
 			}
 		}
 		Widget::drawLayer(args, layer);
