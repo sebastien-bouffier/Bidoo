@@ -1331,7 +1331,7 @@ struct ZOUMAI : BidooModule {
 };
 
 void ZOUMAI::process(const ProcessArgs &args) {
-	currentPattern = (int)clamp((inputs[PATTERN_INPUT].isConnected() ? rescale(clamp(inputs[PATTERN_INPUT].getVoltage(), 0.0f, 10.0f),0.0f,10.0f,0.0f,7.0f) : 0) + (int)params[PATTERN_PARAM].getValue(), 0.0f, 7.0f);
+	currentPattern = (int)clamp((inputs[PATTERN_INPUT].isConnected() ? rescale(clamp(inputs[PATTERN_INPUT].getVoltage(), 0.0f, 10.0f),0.0f,10.0f,0.0f,8.0f) : 0) + (int)params[PATTERN_PARAM].getValue(), 0.0f, 7.0f);
 
 	if (rightExpander.module && rightExpander.module->model == modelZOUMAIExpander) {
 		float *messagesFromExpander = (float*)rightExpander.consumerMessage;

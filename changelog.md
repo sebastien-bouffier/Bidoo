@@ -1,3 +1,6 @@
+### v2.0.16 (09/07/2022)
+- zOù MAï pattern CV input rescaled
+
 ### v2.0.15 (06/07/2022)
 - quantization issue in all modules fix
 - zOù MAï track naming capability via menu

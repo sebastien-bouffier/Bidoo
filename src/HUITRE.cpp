@@ -46,7 +46,7 @@ struct HUITRE : BidooModule {
 		configParam(MODE_PARAM, 0.0f, 1.0f, 0.0f);
 		for (int i = 0; i < 8; i++) {
 			configParam(TRIG_PARAM+i, 0.0f, 10.0f, 0.0f);
-			configParam(PATTERN_PARAM+i, 0.0f, 10.0f,0.01f+ i*10.0f/7.0f);
+			configParam(PATTERN_PARAM+i, 0.0f, 10.0f,0.00f+ i*10.0f/8.0f);
 			configParam(CV1_PARAM+i, 0.0f, 10.0f, 0.0f);
 			configParam(CV2_PARAM+i, 0.0f, 10.0f, 0.0f);
 		}
