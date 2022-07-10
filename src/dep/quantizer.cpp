@@ -7,7 +7,7 @@ namespace quantizer {
     for (int l=0; l<12; l++) {
       for(int i=0; i<numScales; i++) {
         int index = 0;
-        for (int j=0; j<11; j++) {      
+        for (int j=0; j<11; j++) {
           for (int k=0; k<scales[i].numNotes;k++) {
             float pitch = -5.f + l/12.0f + j + scales[i].intervals[k]/12.0f;
             if ((pitch>=-4.0f) && (pitch<=6.0f)) {

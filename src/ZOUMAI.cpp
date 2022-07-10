@@ -1498,7 +1498,18 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		}
 
 		for (int i=0; i<8;i++) {
-			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage()) || (!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset)) {
+			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage())) {
+				if (rotLeft[i]) {
+					nTrackLeft(i,rotLeft[i], rotLen[i]);
+					updateTrigToParams();
+				}
+				else if (rotRight[i]) {
+					nTrackRight(i,rotRight[i], rotLen[i]);
+					updateTrigToParams();
+				}
+				trackReset(i, fill || fills[i], i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre(), forceTrigs[i], killTrigs[i], dice[i]);
+			}
+      else if (!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset) {
 				if (rotLeft[i]) {
 					nTrackLeft(i,rotLeft[i], rotLen[i]);
 					updateTrigToParams();

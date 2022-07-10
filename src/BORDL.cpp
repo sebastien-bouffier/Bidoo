@@ -293,6 +293,7 @@ struct BORDL : BidooModule {
 		NUM_LIGHTS = COUNTMODE_LIGHT + 3
 	};
 
+	quantizer::Quantizer quant;
 	bool running = true;
 	dsp::SchmittTrigger clockTrigger;
 	dsp::SchmittTrigger runningTrigger;
@@ -333,8 +334,6 @@ struct BORDL : BidooModule {
 	bool copyState = false;
 
 	PatternExtended patterns[16];
-
-	quantizer::Quantizer quant;
 
 	BORDL() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -1097,27 +1096,6 @@ struct BORDLPitchDisplay : TransparentWidget {
 
 	BORDLPitchDisplay() {
 
-	}
-
-	std::string displayNote(float value) {
-		int octave = sgn(value) == 1.0f ? value : (value-1);
-		int note = (value-octave)*1000;
-		switch(note){
-			case 0:  return "C" + to_string(octave+4);
-			case 83: return "C#" + to_string(octave+4);
-			case 166: return "D" + to_string(octave+4);
-			case 250: return "D#" + to_string(octave+4);
-			case 333: return "E" + to_string(octave+4);
-			case 416: return "F" + to_string(octave+4);
-			case 500: return "F#" + to_string(octave+4);
-			case 583: return "G" + to_string(octave+4);
-			case 666: return "G#" + to_string(octave+4);
-			case 750: return "A" + to_string(octave+4);
-			case 833: return "A#" + to_string(octave+4);
-			case 916: return "B" + to_string(octave+4);
-			case 1000: return "C" + to_string(octave+5);
-			default: return to_string(octave+4);
-		}
 	}
 
 	void drawPitch(const DrawArgs &args, Vec pos) {
