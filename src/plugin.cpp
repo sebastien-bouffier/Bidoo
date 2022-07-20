@@ -13,6 +13,8 @@ void init(rack::Plugin *p) {
 	p->addModel(modelBORDL);
 	p->addModel(modelZOUMAI);
 	p->addModel(modelZOUMAIExpander);
+	p->addModel(modelENCORE);
+	p->addModel(modelENCOREExpander);
 	p->addModel(modelMU);
   p->addModel(modelCHUTE);
 	p->addModel(modelLOURDE);

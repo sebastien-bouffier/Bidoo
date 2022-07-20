@@ -11,50 +11,6 @@
 
 using namespace std;
 
-unsigned int calc_GCD(unsigned int a, unsigned int b)
-{
-  unsigned int shift, tmp;
-  if(a == 0) return b;
-  if(b == 0) return a;
-  for(shift = 0; ((a | b) & 1) == 0; shift++) { a >>= 1; b >>= 1; }
-  while((a & 1) == 0) a >>= 1;
-  do
-  {
-    while((b & 1) == 0) b >>= 1;
-    if(a > b) { tmp = a; a = b; b = tmp; }
-    b = b - a;
-  }
-  while(b != 0);
-  return a << shift;
-}
-
-
-void array_cycle_left(void *_ptr, size_t n, size_t es, size_t shift)
-{
-  char *ptr = (char*)_ptr;
-  if(n <= 1 || !shift) return;
-  shift = shift % n;
-  size_t i, j, k, gcd = calc_GCD(n, shift);
-  char tmp[es];
-  for(i = 0; i < gcd; i++) {
-    memcpy(tmp, ptr+es*i, es);
-    for(j = i; 1; j = k) {
-      k = j+shift;
-      if(k >= n) k -= n;
-      if(k == i) break;
-      memcpy(ptr+es*j, ptr+es*k, es);
-    }
-    memcpy(ptr+es*j, tmp, es);
-  }
-}
-
-void array_cycle_right(void *_ptr, size_t n, size_t es, size_t shift)
-{
-  if(!n || !shift) return;
-  shift = shift % n;
-  array_cycle_left(_ptr, n, es, n - shift);
-}
-
 
 
 struct TrigAttibutes {
@@ -544,6 +500,49 @@ struct ZOUMAI : BidooModule {
 
 		onReset();
 	}
+
+  unsigned int calc_GCD(unsigned int a, unsigned int b)
+  {
+    unsigned int shift, tmp;
+    if(a == 0) return b;
+    if(b == 0) return a;
+    for(shift = 0; ((a | b) & 1) == 0; shift++) { a >>= 1; b >>= 1; }
+    while((a & 1) == 0) a >>= 1;
+    do
+    {
+      while((b & 1) == 0) b >>= 1;
+      if(a > b) { tmp = a; a = b; b = tmp; }
+      b = b - a;
+    }
+    while(b != 0);
+    return a << shift;
+  }
+
+  void array_cycle_left(void *_ptr, size_t n, size_t es, size_t shift)
+  {
+    char *ptr = (char*)_ptr;
+    if(n <= 1 || !shift) return;
+    shift = shift % n;
+    size_t i, j, k, gcd = calc_GCD(n, shift);
+    char tmp[es];
+    for(i = 0; i < gcd; i++) {
+      memcpy(tmp, ptr+es*i, es);
+      for(j = i; 1; j = k) {
+        k = j+shift;
+        if(k >= n) k -= n;
+        if(k == i) break;
+        memcpy(ptr+es*j, ptr+es*k, es);
+      }
+      memcpy(ptr+es*j, tmp, es);
+    }
+  }
+
+  void array_cycle_right(void *_ptr, size_t n, size_t es, size_t shift)
+  {
+    if(!n || !shift) return;
+    shift = shift % n;
+    array_cycle_left(_ptr, n, es, n - shift);
+  }
 
 	void updateTrackToParams() {
 		params[TRACKLENGTH_PARAM].setValue(nTracksAttibutes[currentPattern][currentTrack].getTrackLength());

@@ -89,6 +89,24 @@
       ]
     },
     {
+      "slug": "ENCORE",
+      "name": "enCORE",
+      "description": "Sequencer",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#encore",
+      "tags": [
+        "Sequencer"
+      ]
+    },
+    {
+      "slug": "ENCORE-Expander",
+      "name": "enCORE Expander",
+      "description": "Expander for enCORE",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#encore",
+      "tags": [
+        "Sequencer"
+      ]
+    },
+    {
       "slug": "DIKTAT",
       "name": "DIKTAT",
       "description": "Authoritarian quantizer",
