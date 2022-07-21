@@ -1,3 +1,8 @@
+### v2.0.17 (21/07/2022)
+- tOCAnTe upgrade for more divisions + dedicated output for enCORE sequencer
+- DIKTAT some scales/modes added (all modules with quantization benefit from that upgrade)
+- enCORE sequencer is a sibling of zOù MAï the difference is the clock management since enCORE needs 32 clock pulses per step so it is less precise in terms of step length/trim/retrig etc... but it does not suffer of bpm calculation changes on startup between the three first clock ticks.
+
 ### v2.0.16 (09/07/2022)
 - zOù MAï pattern CV input rescaled
 

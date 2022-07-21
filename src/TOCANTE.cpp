@@ -31,6 +31,9 @@ struct TOCANTE : BidooModule {
 		OUT_QUARTER,
 		OUT_EIGHTH,
 		OUT_SIXTEENTH,
+		OUT_THIRTYSECOND,
+		OUT_SIXTYFOURTH,
+		OUT_ONEHUNDREDTWENTYEIGHTH,
 		OUT_RESET,
 		OUT_RUN,
 		NUM_OUTPUTS
@@ -46,10 +49,14 @@ struct TOCANTE : BidooModule {
 	int currentStep = 0;
 	int stepsPerMeasure = 1;
 	int stepsPerBeat = 1;
+	int stepsPerOneHundredTwentyEighth = 1;
+	int stepsPerSixtyFourth = 1;
+	int stepsPerThirtySecond = 1;
 	int stepsPerSixteenth = 1;
 	int stepsPerEighth = 1;
 	int stepsPerQuarter = 1;
 	int stepsPerTriplet = 1;
+
 	int count = 0;
 	dsp::PulseGenerator gatePulse;
 	dsp::PulseGenerator gatePulse_triplets;
@@ -80,11 +87,14 @@ void TOCANTE::process(const ProcessArgs &args) {
 	ref = clamp(powf(2.0f,params[REF_PARAM].getValue()+(int)rescale(clamp(inputs[REF_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,3.0f)),2.0f,16.0f);
 	beats = clamp(params[BEATS_PARAM].getValue()+rescale(clamp(inputs[BEATS_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,32.0f),1.0f,32.0f);
 	bpm = clamp(round(params[BPM_PARAM].getValue()+rescale(clamp(inputs[BPM_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,350.0f)) + round(100*(params[BPMFINE_PARAM].getValue()+rescale(clamp(inputs[BPMFINE_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,0.99f))) * 0.01f, 1.0f, 350.0f);
-	stepsPerSixteenth =  floor(args.sampleRate / bpm * 60 * ref / 32) * 2;
+	stepsPerOneHundredTwentyEighth = (ref/4.0f) * 60.0f * args.sampleRate / bpm / 128.0f;
+	stepsPerSixtyFourth = stepsPerOneHundredTwentyEighth * 8;
+	stepsPerThirtySecond = stepsPerSixtyFourth * 2;
+	stepsPerSixteenth =  stepsPerThirtySecond * 2;
 	stepsPerEighth = stepsPerSixteenth * 2;
 	stepsPerQuarter = stepsPerEighth * 2;
-	stepsPerTriplet = floor(stepsPerQuarter / 3);
-	stepsPerBeat = stepsPerSixteenth * 16 / ref;
+	stepsPerTriplet = stepsPerQuarter / 3;
+	stepsPerBeat = stepsPerOneHundredTwentyEighth* 128 * 4 / ref;
 	stepsPerMeasure = beats*stepsPerBeat;
 
 	lights[RESET_LIGHT].setBrightness(lights[RESET_LIGHT].getBrightness()-0.0001f*lights[RESET_LIGHT].getBrightness());
@@ -107,7 +117,7 @@ void TOCANTE::process(const ProcessArgs &args) {
 		lights[RESET_LIGHT].setBrightness(1.0);
 	}
 
-	if ((stepsPerSixteenth>0) && ((currentStep % stepsPerSixteenth) == 0)) {
+	if ((stepsPerSixteenth>0) && ((currentStep % stepsPerOneHundredTwentyEighth) == 0)) {
 		gatePulse.trigger(1e-3f);
 	}
 
@@ -134,11 +144,14 @@ void TOCANTE::process(const ProcessArgs &args) {
 	}
 
 	outputs[OUT_MEASURE].setVoltage((running && pulseMeasure) ? 10.0f : 0.0f);
-	outputs[OUT_BEAT].setVoltage((running && pulseEven && (currentStep % stepsPerBeat == 0)) ? 10.0f : 0.0f);
+	outputs[OUT_BEAT].setVoltage((running && (currentStep % stepsPerBeat == 0)) ? 10.0f : 0.0f);
 	outputs[OUT_TRIPLET].setVoltage((running && pulseTriplets && (currentStep % stepsPerTriplet == 0)) ? 10.0f : 0.0f);
 	outputs[OUT_QUARTER].setVoltage((running && pulseEven && (currentStep % stepsPerQuarter == 0)) ? 10.0f : 0.0f);
 	outputs[OUT_EIGHTH].setVoltage((running && pulseEven && (currentStep % stepsPerEighth == 0)) ? 10.0f : 0.0f);
 	outputs[OUT_SIXTEENTH].setVoltage((running && pulseEven && (currentStep % stepsPerSixteenth == 0)) ? 10.0f : 0.0f);
+	outputs[OUT_THIRTYSECOND].setVoltage((running && pulseEven && (currentStep % stepsPerThirtySecond == 0)) ? 10.0f : 0.0f);
+	outputs[OUT_SIXTYFOURTH].setVoltage((running && pulseEven && (currentStep % stepsPerSixtyFourth == 0)) ? 10.0f : 0.0f);
+	outputs[OUT_ONEHUNDREDTWENTYEIGHTH].setVoltage((running && pulseEven && (currentStep % stepsPerOneHundredTwentyEighth == 0)) ? 10.0f : 0.0f);
 
 	outputs[OUT_RESET].setVoltage(pulseReset ? 10.0f : 0.0f);
 	outputs[OUT_RUN].setVoltage(pulseRun ? 10.0f : 0.0f);
@@ -241,11 +254,16 @@ struct TOCANTEWidget : BidooWidget {
 		addInput(createInput<TinyPJ301MPort>(Vec(80, 125), module, TOCANTE::REF_INPUT));
 
 		addOutput(createOutput<PJ301MPort>(Vec(7.0f, 236.0f), module, TOCANTE::OUT_MEASURE));
-		addOutput(createOutput<PJ301MPort>(Vec(73.5f, 236.0f), module, TOCANTE::OUT_BEAT));
 		addOutput(createOutput<PJ301MPort>(Vec(7.0f, 283.0f), module, TOCANTE::OUT_QUARTER));
-		addOutput(createOutput<PJ301MPort>(Vec(73.5f, 283.0f), module, TOCANTE::OUT_TRIPLET));
 		addOutput(createOutput<PJ301MPort>(Vec(7.0f, 330.0f), module, TOCANTE::OUT_EIGHTH));
-		addOutput(createOutput<PJ301MPort>(Vec(73.5f, 330.0f), module, TOCANTE::OUT_SIXTEENTH));
+
+		addOutput(createOutput<PJ301MPort>(Vec(40.5f, 236.0f), module, TOCANTE::OUT_BEAT));
+		addOutput(createOutput<PJ301MPort>(Vec(40.5f, 283.0f), module, TOCANTE::OUT_TRIPLET));
+		addOutput(createOutput<PJ301MPort>(Vec(40.5f, 330.0f), module, TOCANTE::OUT_SIXTEENTH));
+
+		addOutput(createOutput<PJ301MPort>(Vec(74.0f, 236.0f), module, TOCANTE::OUT_THIRTYSECOND));
+		addOutput(createOutput<PJ301MPort>(Vec(74.0f, 283.0f), module, TOCANTE::OUT_SIXTYFOURTH));
+		addOutput(createOutput<PJ301MPort>(Vec(74.0f, 330.0f), module, TOCANTE::OUT_ONEHUNDREDTWENTYEIGHTH));
 	}
 };
 

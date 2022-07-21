@@ -238,7 +238,7 @@ struct TrackAttibutes {
 	static const unsigned long TRACK_SOLO						= 0x8;
 	static const unsigned long TRACK_LENGTH					= 0x7F0; static const unsigned long trackLengthShift = 4;
 	static const unsigned long TRACK_READMODE				= 0x3800; static const unsigned long trackReadModeShift = 11;
-	static const unsigned long TRACK_SPEED					= 0x1C000; static const unsigned long trackSpeedShift = 14;
+	static const unsigned long TRACK_SPEED					= 0x3C000; static const unsigned long trackSpeedShift = 14;
 
 	static const unsigned long TRACK_CURRENTTRIG		= 0xFF;
 	static const unsigned long TRACK_PLAYEDTRIG			= 0xFF00; static const unsigned long trackPlayedTrigShift = 8;
@@ -448,7 +448,7 @@ struct ENCORE : BidooModule {
     configParam(PATTERN_PARAM, 0.0f, 7.0f, 0.0f);
 
 		configParam(TRACKLENGTH_PARAM, 1.0f, 64.0f, 16.0f);
-		configParam(TRACKSPEED_PARAM, 1.0f, 4.0f, 1.0f);
+		configParam(TRACKSPEED_PARAM, 1.0f, 8.0f, 1.0f);
 		configParam(TRACKREADMODE_PARAM, 0.0f, 4.0f, 0.0f);
 		configParam(TRACKROOTNOTE_PARAM, -1.0f, quantizer::numNotes-2, -1.0f, "Root note","",0,1,1);
 		configParam(TRACKSCALE_PARAM, 0.0f, quantizer::numScales-1, 1.0f, "Scale","",0,1,1);
@@ -1118,7 +1118,7 @@ struct ENCORE : BidooModule {
 
 	void trackSetCurrentTrig(const int track, const bool fill, const bool pNei, const bool force=false, const bool forceTrig = false, const bool killTrig = false, const float dice = 0.0f) {
 		int cI = nTracksAttibutes[currentPattern][track].getTrackCurrentTrig();
-		if ((trackHead[currentPattern][track] != cI*32) || force) {
+		if ((trackHead[currentPattern][track] > (cI+1)*32) || (trackHead[currentPattern][track] < cI*32) || force) {
 			nTracksAttibutes[currentPattern][track].setTrackPre((nTrigsAttibutes[currentPattern][track][cI].getTrigActive() && nTrigsAttibutes[currentPattern][track][cI].hasProbability()) ? !nTrigsAttibutes[currentPattern][track][cI].getTrigSleeping() : nTracksAttibutes[currentPattern][track].getTrackPre());
 			nTrigsAttibutes[currentPattern][track][cI].setTrigInitialized(false);
 			nTracksAttibutes[currentPattern][track].setTrackCurrentTrig(trackHead[currentPattern][track]/32);
@@ -1549,10 +1549,10 @@ void ENCORE::process(const ProcessArgs &args) {
 
 }
 
-struct recordBtn : SvgSwitch {
+struct EncorerecordBtn : SvgSwitch {
 	ENCORE *module;
 
-	recordBtn() {
+	EncorerecordBtn() {
 		momentary = false;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledgrey.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledred.svg")));
@@ -1562,10 +1562,10 @@ struct recordBtn : SvgSwitch {
 
 };
 
-struct quantizeBtn : SvgSwitch {
+struct EncorequantizeBtn : SvgSwitch {
 	ENCORE *module;
 
-	quantizeBtn() {
+	EncorequantizeBtn() {
 		momentary = false;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledgrey.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledblue.svg")));
@@ -1575,9 +1575,9 @@ struct quantizeBtn : SvgSwitch {
 
 };
 
-struct octaveBtn : SmallLEDLightBezel<RedGreenBlueLight> {
+struct EncoreoctaveBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 
-	octaveBtn() {
+	EncoreoctaveBtn() {
 
 	}
 
@@ -1599,9 +1599,9 @@ struct octaveBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 	}
 };
 
-struct trigPageBtn : SmallLEDLightBezel<RedGreenBlueLight> {
+struct EncoretrigPageBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 
-	trigPageBtn() {
+	EncoretrigPageBtn() {
 
 	}
 
@@ -1620,9 +1620,9 @@ struct trigPageBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 	}
 };
 
-struct trackSelectBtn : SmallLEDLightBezel<RedGreenBlueLight> {
+struct EncoretrackSelectBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 
-	trackSelectBtn() {
+	EncoretrackSelectBtn() {
 
 	}
 
@@ -1741,9 +1741,9 @@ struct trackSelectBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 	}
 };
 
-struct trackOnOffBtn : LEDLightBezel<RedGreenBlueLight> {
+struct EncoretrackOnOffBtn : LEDLightBezel<RedGreenBlueLight> {
 
-	trackOnOffBtn() {
+	EncoretrackOnOffBtn() {
 
 	}
 
@@ -1881,9 +1881,9 @@ struct trackOnOffBtn : LEDLightBezel<RedGreenBlueLight> {
 
 };
 
-struct noteBtn : LEDLightBezel<RedGreenBlueLight> {
+struct EncorenoteBtn : LEDLightBezel<RedGreenBlueLight> {
 
-	noteBtn() {
+	EncorenoteBtn() {
 
 	}
 
@@ -1906,9 +1906,9 @@ struct noteBtn : LEDLightBezel<RedGreenBlueLight> {
 };
 
 
-struct stepBtn : LEDLightBezel<RedGreenBlueLight> {
+struct EncorestepBtn : LEDLightBezel<RedGreenBlueLight> {
 
-	stepBtn() {
+	EncorestepBtn() {
 
 	}
 
@@ -1999,7 +1999,7 @@ struct stepBtn : LEDLightBezel<RedGreenBlueLight> {
 
 };
 
-struct zouPatternBtn : BidooRoundBlackSnapKnob {
+struct EncorezouPatternBtn : BidooRoundBlackSnapKnob {
 
 	void onHoverKey(const HoverKeyEvent& e) override {
 		if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
@@ -2258,7 +2258,7 @@ struct ENCORELight : BASE {
 	}
 };
 
-struct BidooProbBlueKnob : BidooBlueSnapKnob {
+struct EncoreBidooProbBlueKnob : BidooBlueSnapKnob {
 	Widget *ref, *refReset;
 
 	void drawLayer(const DrawArgs& args, int layer) override {
@@ -2307,7 +2307,7 @@ struct ENCOREWidget : BidooWidget {
 		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[2]), module, ENCORE::G1_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[3]), module, ENCORE::G2_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[4]), module, ENCORE::PATTERN_INPUT));
-		addParam(createParam<zouPatternBtn>(Vec(7.f,portY0[5]-13.f), module, ENCORE::PATTERN_PARAM));
+		addParam(createParam<EncorezouPatternBtn>(Vec(7.f,portY0[5]-13.f), module, ENCORE::PATTERN_PARAM));
 
 		static const float portX0Controls[6] = {142.0f, 175.0f, 208.0f, 241.0f, 284.0f, 336.0f};
 		static const float portX1Controls[6] = {147.0f, 184.0f, 221.0f, 258.0f, 295.0f, 332.0f};
@@ -2334,8 +2334,8 @@ struct ENCOREWidget : BidooWidget {
 		ParamWidget *probCountResetKnob = createParam<BidooBlueKnob>(Vec(portX1Controls[4],portY0[4]), module, ENCORE::TRIGPROBACOUNTRESET_PARAM);
 		addParam(probCountResetKnob);
 
-		ParamWidget *probKnob = createParam<BidooProbBlueKnob>(Vec(portX1Controls[2],portY0[4]), module, ENCORE::TRIGPROBA_PARAM);
-		BidooProbBlueKnob *tProbKnob = dynamic_cast<BidooProbBlueKnob*>(probKnob);
+		ParamWidget *probKnob = createParam<EncoreBidooProbBlueKnob>(Vec(portX1Controls[2],portY0[4]), module, ENCORE::TRIGPROBA_PARAM);
+		EncoreBidooProbBlueKnob *tProbKnob = dynamic_cast<EncoreBidooProbBlueKnob*>(probKnob);
 		tProbKnob->ref = probCountKnob;
 		tProbKnob->refReset = probCountResetKnob;
 		addParam(tProbKnob);
@@ -2350,17 +2350,17 @@ struct ENCOREWidget : BidooWidget {
 		//static const float portX0[5] = {374.0f, 389.0f, 404.0f, 419.0f, 434.0f};
 
 		for (size_t i=0;i<4;i++) {
-			addParam(createLightParam<trigPageBtn>(Vec(380+19*i-1.5f, 317.0f-2.5f), module, ENCORE::TRIGPAGE_PARAM+i, ENCORE::TRIGPAGE_LIGHTS+3*i));
+			addParam(createLightParam<EncoretrigPageBtn>(Vec(380+19*i-1.5f, 317.0f-2.5f), module, ENCORE::TRIGPAGE_PARAM+i, ENCORE::TRIGPAGE_LIGHTS+3*i));
 		}
 
 		for (size_t i=0;i<8;i++){
 			addInput(createInput<TinyPJ301MPort>(Vec(50.0f, 67.0f + i*28.0f), module, ENCORE::TRACKRESET_INPUTS + i));
 			addInput(createInput<TinyPJ301MPort>(Vec(70.0f, 67.0f + i*28.0f), module, ENCORE::TRACKACTIVE_INPUTS + i));
 
-			addParam(createLightParam<trackOnOffBtn>(Vec(90.0f , 64.0f + i*28.0f), module, ENCORE::TRACKSONOFF_PARAMS+i, ENCORE::TRACKSONOFF_LIGHTS+3*i));
+			addParam(createLightParam<EncoretrackOnOffBtn>(Vec(90.0f , 64.0f + i*28.0f), module, ENCORE::TRACKSONOFF_PARAMS+i, ENCORE::TRACKSONOFF_LIGHTS+3*i));
 
 
-			addParam(createLightParam<trackSelectBtn>(Vec(120.0f -2.5f, 72.0f -2.5f + i*28.0f), module, ENCORE::TRACKSELECT_PARAMS+i, ENCORE::TRACKSELECT_LIGHTS+3*i));
+			addParam(createLightParam<EncoretrackSelectBtn>(Vec(120.0f -2.5f, 72.0f -2.5f + i*28.0f), module, ENCORE::TRACKSELECT_PARAMS+i, ENCORE::TRACKSELECT_LIGHTS+3*i));
 
 			addOutput(createOutput<TinyPJ301MPort>(Vec(375.0f, 65.0f + i * 20.0f), module, ENCORE::GATE_OUTPUTS + i));
 			addOutput(createOutput<TinyPJ301MPort>(Vec(395.0f, 65.0f + i * 20.0f),  module, ENCORE::VO_OUTPUTS + i));
@@ -2369,44 +2369,44 @@ struct ENCOREWidget : BidooWidget {
 		}
 
 		for (size_t i=0;i<16;i++) {
-			addParam(createLightParam<stepBtn>(Vec(12.0f+ 28.0f*i, 330.0f), module, ENCORE::STEPS_PARAMS + i, ENCORE::STEPS_LIGHTS + i*3));
+			addParam(createLightParam<EncorestepBtn>(Vec(12.0f+ 28.0f*i, 330.0f), module, ENCORE::STEPS_PARAMS + i, ENCORE::STEPS_LIGHTS + i*3));
 		}
 
 		float xKeyboardAnchor = 140.0f;
 		float yKeyboardAnchor = 255.0f;
 
 		for (size_t i=0;i<7;i++) {
-			addParam(createLightParam<octaveBtn>(Vec(xKeyboardAnchor + 39.5f  + i * 19.0f, yKeyboardAnchor +1.5f), module, ENCORE::OCTAVE_PARAMS + i, ENCORE::OCTAVE_LIGHTS + i*3));
+			addParam(createLightParam<EncoreoctaveBtn>(Vec(xKeyboardAnchor + 39.5f  + i * 19.0f, yKeyboardAnchor +1.5f), module, ENCORE::OCTAVE_PARAMS + i, ENCORE::OCTAVE_LIGHTS + i*3));
 		}
 
-		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS, ENCORE::NOTE_LIGHTS));
-		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+15.0f, yKeyboardAnchor+20.0f), module, ENCORE::NOTE_PARAMS+1, ENCORE::NOTE_LIGHTS+3));
-		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+30.0f, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS+2, ENCORE::NOTE_LIGHTS+3*2));
-		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+45.0f, yKeyboardAnchor+20.0f), module, ENCORE::NOTE_PARAMS+3, ENCORE::NOTE_LIGHTS+3*3));
-		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+60.0f, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS+4, ENCORE::NOTE_LIGHTS+3*4));
-		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+90.0f, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS+5, ENCORE::NOTE_LIGHTS+3*5));
-		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+105.0f, yKeyboardAnchor+20.0f), module, ENCORE::NOTE_PARAMS+6, ENCORE::NOTE_LIGHTS+3*6));
-		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+120.0f, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS+7, ENCORE::NOTE_LIGHTS+3*7));
-		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+135.0f, yKeyboardAnchor+20.0f), module, ENCORE::NOTE_PARAMS+8, ENCORE::NOTE_LIGHTS+3*8));
-		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+150.0f, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS+9, ENCORE::NOTE_LIGHTS+3*9));
-		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+165.0f, yKeyboardAnchor+20.0f), module, ENCORE::NOTE_PARAMS+10, ENCORE::NOTE_LIGHTS+3*10));
-		addParam(createLightParam<noteBtn>(Vec(xKeyboardAnchor+180.0f, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS+11, ENCORE::NOTE_LIGHTS+3*11));
+		addParam(createLightParam<EncorenoteBtn>(Vec(xKeyboardAnchor, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS, ENCORE::NOTE_LIGHTS));
+		addParam(createLightParam<EncorenoteBtn>(Vec(xKeyboardAnchor+15.0f, yKeyboardAnchor+20.0f), module, ENCORE::NOTE_PARAMS+1, ENCORE::NOTE_LIGHTS+3));
+		addParam(createLightParam<EncorenoteBtn>(Vec(xKeyboardAnchor+30.0f, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS+2, ENCORE::NOTE_LIGHTS+3*2));
+		addParam(createLightParam<EncorenoteBtn>(Vec(xKeyboardAnchor+45.0f, yKeyboardAnchor+20.0f), module, ENCORE::NOTE_PARAMS+3, ENCORE::NOTE_LIGHTS+3*3));
+		addParam(createLightParam<EncorenoteBtn>(Vec(xKeyboardAnchor+60.0f, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS+4, ENCORE::NOTE_LIGHTS+3*4));
+		addParam(createLightParam<EncorenoteBtn>(Vec(xKeyboardAnchor+90.0f, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS+5, ENCORE::NOTE_LIGHTS+3*5));
+		addParam(createLightParam<EncorenoteBtn>(Vec(xKeyboardAnchor+105.0f, yKeyboardAnchor+20.0f), module, ENCORE::NOTE_PARAMS+6, ENCORE::NOTE_LIGHTS+3*6));
+		addParam(createLightParam<EncorenoteBtn>(Vec(xKeyboardAnchor+120.0f, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS+7, ENCORE::NOTE_LIGHTS+3*7));
+		addParam(createLightParam<EncorenoteBtn>(Vec(xKeyboardAnchor+135.0f, yKeyboardAnchor+20.0f), module, ENCORE::NOTE_PARAMS+8, ENCORE::NOTE_LIGHTS+3*8));
+		addParam(createLightParam<EncorenoteBtn>(Vec(xKeyboardAnchor+150.0f, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS+9, ENCORE::NOTE_LIGHTS+3*9));
+		addParam(createLightParam<EncorenoteBtn>(Vec(xKeyboardAnchor+165.0f, yKeyboardAnchor+20.0f), module, ENCORE::NOTE_PARAMS+10, ENCORE::NOTE_LIGHTS+3*10));
+		addParam(createLightParam<EncorenoteBtn>(Vec(xKeyboardAnchor+180.0f, yKeyboardAnchor+40.0f), module, ENCORE::NOTE_PARAMS+11, ENCORE::NOTE_LIGHTS+3*11));
 
 
-		recordBtn* rBtn;
-		addParam(rBtn = createParam<recordBtn>(Vec(297.0f, 358.0f), module, ENCORE::RECORD_PARAM));
+		EncorerecordBtn* rBtn;
+		addParam(rBtn = createParam<EncorerecordBtn>(Vec(297.0f, 358.0f), module, ENCORE::RECORD_PARAM));
 		rBtn->module = module ? module : NULL;
 
 		addInput(createInput<TinyPJ301MPort>(Vec(327.0f, 360.0f), module, ENCORE::GATE_INPUT));
 		addInput(createInput<TinyPJ301MPort>(Vec(356.0f, 360.0f), module, ENCORE::VO_INPUT));
 
-		quantizeBtn* qBtn;
-		addParam(qBtn = createParam<quantizeBtn>(Vec(385.0f, 358.0f), module, ENCORE::QUANTIZE_PARAM));
+		EncorequantizeBtn* qBtn;
+		addParam(qBtn = createParam<EncorequantizeBtn>(Vec(385.0f, 358.0f), module, ENCORE::QUANTIZE_PARAM));
 		qBtn->module = module ? module : NULL;
 
 	}
 
-	struct ZouInitTrigItem : MenuItem {
+	struct EncoreInitTrigItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->trigInit(module->currentPattern,module->currentTrack, module->currentTrig);
@@ -2414,7 +2414,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouCopyTrigItem : MenuItem {
+	struct EncoreCopyTrigItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->copyTrigId = module->currentTrig;
@@ -2426,7 +2426,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouPasteTrigItem : MenuItem {
+	struct EncorePasteTrigItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->pasteTrig(module->copyPatternId, module->copyTrackId, module->copyTrigId, module->currentPattern, module->currentTrack, module->currentTrig);
@@ -2434,7 +2434,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouRandomizeTrigNoteItem : MenuItem {
+	struct EncoreRandomizeTrigNoteItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->randomizeTrigNote(module->currentTrack, module->currentTrig);
@@ -2442,7 +2442,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouRandomizeTrigNotePlusItem : MenuItem {
+	struct EncoreRandomizeTrigNotePlusItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->randomizeTrigNotePlus(module->currentTrack, module->currentTrig);
@@ -2450,7 +2450,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouRandomizeTrigProbItem : MenuItem {
+	struct EncoreRandomizeTrigProbItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->randomizeTrigProb(module->currentTrack, module->currentTrig);
@@ -2458,7 +2458,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouFullRandomizeTrigItem : MenuItem {
+	struct EncoreFullRandomizeTrigItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->fullRandomizeTrig(module->currentTrack, module->currentTrig);
@@ -2466,7 +2466,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouRandomizeTrigCV1Item : MenuItem {
+	struct EncoreRandomizeTrigCV1Item : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->randomizeTrigCV1(module->currentTrack, module->currentTrig);
@@ -2474,7 +2474,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouRandomizeTrigCV2Item : MenuItem {
+	struct EncoreRandomizeTrigCV2Item : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->randomizeTrigCV2(module->currentTrack, module->currentTrig);
@@ -2482,7 +2482,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouTrigUpItem : MenuItem {
+	struct EncoreTrigUpItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->trigUp(module->currentTrig);
@@ -2490,7 +2490,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouTrigDownItem : MenuItem {
+	struct EncoreTrigDownItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->trigDown(module->currentTrig);
@@ -2498,7 +2498,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouCopyTrackItem : MenuItem {
+	struct EncoreCopyTrackItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->copyTrackId = module->currentTrack;
@@ -2509,7 +2509,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouPasteTrackItem : MenuItem {
+	struct EncorePasteTrackItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->pasteTrack(module->copyPatternId, module->copyTrackId, module->currentPattern, module->currentTrack);
@@ -2518,7 +2518,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouInitTrackItem : MenuItem {
+	struct EncoreInitTrackItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->trackInit(module->currentPattern, module->currentTrack);
@@ -2527,7 +2527,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouRandomizeTrackItem : MenuItem {
+	struct EncoreRandomizeTrackItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->randomizeTrack(module->currentTrack);
@@ -2536,7 +2536,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouRandomizeTrackTrigsNotesItem : MenuItem {
+	struct EncoreRandomizeTrackTrigsNotesItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->randomizeTrackTrigsNotes(module->currentTrack);
@@ -2545,7 +2545,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouRandomizeTrackTrigsNotesPlusItem : MenuItem {
+	struct EncoreRandomizeTrackTrigsNotesPlusItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->randomizeTrackTrigsNotesPlus(module->currentTrack);
@@ -2554,7 +2554,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouRandomizeTrackTrigsProbsItem : MenuItem {
+	struct EncoreRandomizeTrackTrigsProbsItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->randomizeTrackTrigsProbs(module->currentTrack);
@@ -2563,7 +2563,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouRandomizeTrackTrigsCV1Item : MenuItem {
+	struct EncoreRandomizeTrackTrigsCV1Item : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->randomizeTrackTrigsCV1(module->currentTrack);
@@ -2572,7 +2572,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouRandomizeTrackTrigsCV2Item : MenuItem {
+	struct EncoreRandomizeTrackTrigsCV2Item : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->randomizeTrackTrigsCV2(module->currentTrack);
@@ -2581,14 +2581,14 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouTrackSlideModeItem : MenuItem {
+	struct EncoreTrackSlideModeItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->slideMode[module->currentPattern][module->currentTrack] = !module->slideMode[module->currentPattern][module->currentTrack];
 		}
 	};
 
-	struct ZouTrackUpItem : MenuItem {
+	struct EncoreTrackUpItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->trackUp(module->currentTrack);
@@ -2596,7 +2596,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouTrackDownItem : MenuItem {
+	struct EncoreTrackDownItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->trackDown(module->currentTrack);
@@ -2604,7 +2604,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouTrackLeftItem : MenuItem {
+	struct EncoreTrackLeftItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->nTrackLeft(module->currentTrack,1);
@@ -2612,7 +2612,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouTrackRightItem : MenuItem {
+	struct EncoreTrackRightItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->nTrackRight(module->currentTrack,1);
@@ -2620,7 +2620,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouCopyPatternItem : MenuItem {
+	struct EncoreCopyPatternItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->copyPatternId = module->currentPattern;
@@ -2630,7 +2630,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouPastePatternItem : MenuItem {
+	struct EncorePastePatternItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->pastePattern();
@@ -2639,7 +2639,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouInitPatternItem : MenuItem {
+	struct EncoreInitPatternItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			for (int i=0; i<8; i++) {
@@ -2650,7 +2650,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouRandomizePatternItem : MenuItem {
+	struct EncoreRandomizePatternItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->randomizePattern();
@@ -2659,7 +2659,7 @@ struct ENCOREWidget : BidooWidget {
 		}
 	};
 
-	struct ZouFullRandomizePatternItem : MenuItem {
+	struct EncoreFullRandomizePatternItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
 			module->fullRandomizePattern();
@@ -2702,34 +2702,34 @@ struct ENCOREWidget : BidooWidget {
 			menu->addChild(new MenuSeparator());
 
 			menu->addChild(createSubmenuItem("Trig", "", [=](ui::Menu* menu) {
-				menu->addChild(construct<ZouInitTrigItem>(&MenuItem::text, "Erase (over+E)", &ZouInitTrigItem::module, module));
-				menu->addChild(construct<ZouCopyTrigItem>(&MenuItem::text, "Copy (over+C)", &ZouCopyTrigItem::module, module));
-				menu->addChild(construct<ZouPasteTrigItem>(&MenuItem::text, "Paste (over+V)", &ZouPasteTrigItem::module, module));
-				menu->addChild(construct<ZouRandomizeTrigNoteItem>(&MenuItem::text, "Rand Note (over+R)", &ZouRandomizeTrigNoteItem::module, module));
-				menu->addChild(construct<ZouRandomizeTrigNotePlusItem>(&MenuItem::text, "Rand Note+ (over+T)", &ZouRandomizeTrigNotePlusItem::module, module));
-				menu->addChild(construct<ZouRandomizeTrigProbItem>(&MenuItem::text, "Rand Prob (over+U)", &ZouRandomizeTrigProbItem::module, module));
-				menu->addChild(construct<ZouFullRandomizeTrigItem>(&MenuItem::text, "Full Rand (over+Y)", &ZouFullRandomizeTrigItem::module, module));
-				menu->addChild(construct<ZouRandomizeTrigCV1Item>(&MenuItem::text, "Rand CV1 (over+F)", &ZouRandomizeTrigCV1Item::module, module));
-				menu->addChild(construct<ZouRandomizeTrigCV2Item>(&MenuItem::text, "Rand CV2 (over+G)", &ZouRandomizeTrigCV2Item::module, module));
-				menu->addChild(construct<ZouTrigUpItem>(&MenuItem::text, "Move Up (over+W)", &ZouTrigUpItem::module, module));
-				menu->addChild(construct<ZouTrigDownItem>(&MenuItem::text, "Move Down (over+S)", &ZouTrigDownItem::module, module));
+				menu->addChild(construct<EncoreInitTrigItem>(&MenuItem::text, "Erase (over+E)", &EncoreInitTrigItem::module, module));
+				menu->addChild(construct<EncoreCopyTrigItem>(&MenuItem::text, "Copy (over+C)", &EncoreCopyTrigItem::module, module));
+				menu->addChild(construct<EncorePasteTrigItem>(&MenuItem::text, "Paste (over+V)", &EncorePasteTrigItem::module, module));
+				menu->addChild(construct<EncoreRandomizeTrigNoteItem>(&MenuItem::text, "Rand Note (over+R)", &EncoreRandomizeTrigNoteItem::module, module));
+				menu->addChild(construct<EncoreRandomizeTrigNotePlusItem>(&MenuItem::text, "Rand Note+ (over+T)", &EncoreRandomizeTrigNotePlusItem::module, module));
+				menu->addChild(construct<EncoreRandomizeTrigProbItem>(&MenuItem::text, "Rand Prob (over+U)", &EncoreRandomizeTrigProbItem::module, module));
+				menu->addChild(construct<EncoreFullRandomizeTrigItem>(&MenuItem::text, "Full Rand (over+Y)", &EncoreFullRandomizeTrigItem::module, module));
+				menu->addChild(construct<EncoreRandomizeTrigCV1Item>(&MenuItem::text, "Rand CV1 (over+F)", &EncoreRandomizeTrigCV1Item::module, module));
+				menu->addChild(construct<EncoreRandomizeTrigCV2Item>(&MenuItem::text, "Rand CV2 (over+G)", &EncoreRandomizeTrigCV2Item::module, module));
+				menu->addChild(construct<EncoreTrigUpItem>(&MenuItem::text, "Move Up (over+W)", &EncoreTrigUpItem::module, module));
+				menu->addChild(construct<EncoreTrigDownItem>(&MenuItem::text, "Move Down (over+S)", &EncoreTrigDownItem::module, module));
 			}));
 
 			menu->addChild(createSubmenuItem("Track", "", [=](ui::Menu* menu) {
-				menu->addChild(construct<ZouTrackSlideModeItem>(&MenuItem::text, module->slideMode[module->currentPattern][module->currentTrack] ? "Slide time✓/rate const." : "Slide time/rate✓ const.", &ZouTrackSlideModeItem::module, module));
-				menu->addChild(construct<ZouInitTrackItem>(&MenuItem::text, "Erase (over+E)", &ZouInitTrackItem::module, module));
-				menu->addChild(construct<ZouCopyTrackItem>(&MenuItem::text, "Copy (over+C)", &ZouCopyTrackItem::module, module));
-				menu->addChild(construct<ZouPasteTrackItem>(&MenuItem::text, "Paste (over+V)", &ZouPasteTrackItem::module, module));
-				menu->addChild(construct<ZouRandomizeTrackItem>(&MenuItem::text, "Rand (over+R)", &ZouRandomizeTrackItem::module, module));
-				menu->addChild(construct<ZouRandomizeTrackTrigsNotesItem>(&MenuItem::text, "Rand Notes (over+T)", &ZouRandomizeTrackTrigsNotesItem::module, module));
-				menu->addChild(construct<ZouRandomizeTrackTrigsNotesPlusItem>(&MenuItem::text, "Rand Notes+ (over+U)", &ZouRandomizeTrackTrigsNotesPlusItem::module, module));
-				menu->addChild(construct<ZouRandomizeTrackTrigsProbsItem>(&MenuItem::text, "Rand Probs (over+Y)", &ZouRandomizeTrackTrigsProbsItem::module, module));
-				menu->addChild(construct<ZouRandomizeTrackTrigsCV1Item>(&MenuItem::text, "Rand CV1 (over+F)", &ZouRandomizeTrackTrigsCV1Item::module, module));
-				menu->addChild(construct<ZouRandomizeTrackTrigsCV2Item>(&MenuItem::text, "Rand CV2 (over+G)", &ZouRandomizeTrackTrigsCV2Item::module, module));
-				menu->addChild(construct<ZouTrackUpItem>(&MenuItem::text, "Move Up (over+W)", &ZouTrackUpItem::module, module));
-				menu->addChild(construct<ZouTrackDownItem>(&MenuItem::text, "Move Down (over+S)", &ZouTrackDownItem::module, module));
-				menu->addChild(construct<ZouTrackLeftItem>(&MenuItem::text, "Move Left (over+A)", &ZouTrackLeftItem::module, module));
-				menu->addChild(construct<ZouTrackRightItem>(&MenuItem::text, "Move Right (over+D)", &ZouTrackRightItem::module, module));
+				menu->addChild(construct<EncoreTrackSlideModeItem>(&MenuItem::text, module->slideMode[module->currentPattern][module->currentTrack] ? "Slide time✓/rate const." : "Slide time/rate✓ const.", &EncoreTrackSlideModeItem::module, module));
+				menu->addChild(construct<EncoreInitTrackItem>(&MenuItem::text, "Erase (over+E)", &EncoreInitTrackItem::module, module));
+				menu->addChild(construct<EncoreCopyTrackItem>(&MenuItem::text, "Copy (over+C)", &EncoreCopyTrackItem::module, module));
+				menu->addChild(construct<EncorePasteTrackItem>(&MenuItem::text, "Paste (over+V)", &EncorePasteTrackItem::module, module));
+				menu->addChild(construct<EncoreRandomizeTrackItem>(&MenuItem::text, "Rand (over+R)", &EncoreRandomizeTrackItem::module, module));
+				menu->addChild(construct<EncoreRandomizeTrackTrigsNotesItem>(&MenuItem::text, "Rand Notes (over+T)", &EncoreRandomizeTrackTrigsNotesItem::module, module));
+				menu->addChild(construct<EncoreRandomizeTrackTrigsNotesPlusItem>(&MenuItem::text, "Rand Notes+ (over+U)", &EncoreRandomizeTrackTrigsNotesPlusItem::module, module));
+				menu->addChild(construct<EncoreRandomizeTrackTrigsProbsItem>(&MenuItem::text, "Rand Probs (over+Y)", &EncoreRandomizeTrackTrigsProbsItem::module, module));
+				menu->addChild(construct<EncoreRandomizeTrackTrigsCV1Item>(&MenuItem::text, "Rand CV1 (over+F)", &EncoreRandomizeTrackTrigsCV1Item::module, module));
+				menu->addChild(construct<EncoreRandomizeTrackTrigsCV2Item>(&MenuItem::text, "Rand CV2 (over+G)", &EncoreRandomizeTrackTrigsCV2Item::module, module));
+				menu->addChild(construct<EncoreTrackUpItem>(&MenuItem::text, "Move Up (over+W)", &EncoreTrackUpItem::module, module));
+				menu->addChild(construct<EncoreTrackDownItem>(&MenuItem::text, "Move Down (over+S)", &EncoreTrackDownItem::module, module));
+				menu->addChild(construct<EncoreTrackLeftItem>(&MenuItem::text, "Move Left (over+A)", &EncoreTrackLeftItem::module, module));
+				menu->addChild(construct<EncoreTrackRightItem>(&MenuItem::text, "Move Right (over+D)", &EncoreTrackRightItem::module, module));
 
         // Add label input
         auto holder = new rack::Widget;
@@ -2750,11 +2750,11 @@ struct ENCOREWidget : BidooWidget {
 			}));
 
 			menu->addChild(createSubmenuItem("Pattern", "", [=](ui::Menu* menu) {
-				menu->addChild(construct<ZouInitPatternItem>(&MenuItem::text, "Erase (over+E)", &ZouInitPatternItem::module, module));
-				menu->addChild(construct<ZouCopyPatternItem>(&MenuItem::text, "Copy (over+C)", &ZouCopyPatternItem::module, module));
-				menu->addChild(construct<ZouPastePatternItem>(&MenuItem::text, "Paste (over+V)", &ZouPastePatternItem::module, module));
-				menu->addChild(construct<ZouRandomizePatternItem>(&MenuItem::text, "Rand (over+R)", &ZouRandomizePatternItem::module, module));
-				menu->addChild(construct<ZouFullRandomizePatternItem>(&MenuItem::text, "Full Rand (over+T)", &ZouFullRandomizePatternItem::module, module));
+				menu->addChild(construct<EncoreInitPatternItem>(&MenuItem::text, "Erase (over+E)", &EncoreInitPatternItem::module, module));
+				menu->addChild(construct<EncoreCopyPatternItem>(&MenuItem::text, "Copy (over+C)", &EncoreCopyPatternItem::module, module));
+				menu->addChild(construct<EncorePastePatternItem>(&MenuItem::text, "Paste (over+V)", &EncorePastePatternItem::module, module));
+				menu->addChild(construct<EncoreRandomizePatternItem>(&MenuItem::text, "Rand (over+R)", &EncoreRandomizePatternItem::module, module));
+				menu->addChild(construct<EncoreFullRandomizePatternItem>(&MenuItem::text, "Full Rand (over+T)", &EncoreFullRandomizePatternItem::module, module));
 			}));
 
 		}
