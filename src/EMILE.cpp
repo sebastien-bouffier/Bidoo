@@ -105,7 +105,7 @@ struct EMILE : BidooModule {
   ~EMILE() {
     pffft_aligned_free(magn);
     pffft_aligned_free(acc);
-    pffft_destroy_setup(pffftSetup);
+    //pffft_destroy_setup(pffftSetup);
     pffft_aligned_free(fftIn);
     pffft_aligned_free(fftOut);
 	}

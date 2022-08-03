@@ -790,7 +790,7 @@ struct ENCORE : BidooModule {
 
 	void randomizeTrigNotePlus(const int track, const int trig) {
 		nTrigsAttibutes[currentPattern][track][trig].fullRandomize();
-		trigSlide[currentPattern][track][trig]=random::uniform()*31.0f;
+		trigSlide[currentPattern][track][trig]=random::uniform();
     trigSlideType[currentPattern][track][trig]=random::uniform()>0.5f?true:false;
 		trigLength[currentPattern][track][trig]=random::uniform()*31.0f;
 		trigPulseDistance[currentPattern][track][trig]=random::uniform()*31.0f;
@@ -1118,16 +1118,16 @@ struct ENCORE : BidooModule {
 
 	void trackSetCurrentTrig(const int track, const bool fill, const bool pNei, const bool force=false, const bool forceTrig = false, const bool killTrig = false, const float dice = 0.0f) {
 		int cI = nTracksAttibutes[currentPattern][track].getTrackCurrentTrig();
-		if ((trackHead[currentPattern][track] > (cI+1)*32) || (trackHead[currentPattern][track] < cI*32) || force) {
-			nTracksAttibutes[currentPattern][track].setTrackPre((nTrigsAttibutes[currentPattern][track][cI].getTrigActive() && nTrigsAttibutes[currentPattern][track][cI].hasProbability()) ? !nTrigsAttibutes[currentPattern][track][cI].getTrigSleeping() : nTracksAttibutes[currentPattern][track].getTrackPre());
+		if (((trackHead[currentPattern][track]/32) != cI) || force) {
+			//nTracksAttibutes[currentPattern][track].setTrackPre((nTrigsAttibutes[currentPattern][track][cI].getTrigActive() && nTrigsAttibutes[currentPattern][track][cI].hasProbability()) ? !nTrigsAttibutes[currentPattern][track][cI].getTrigSleeping() : nTracksAttibutes[currentPattern][track].getTrackPre());
 			nTrigsAttibutes[currentPattern][track][cI].setTrigInitialized(false);
-			nTracksAttibutes[currentPattern][track].setTrackCurrentTrig(trackHead[currentPattern][track]/32);
-			cI = nTracksAttibutes[currentPattern][track].getTrackCurrentTrig();
+			cI = trackHead[currentPattern][track]/32;
+			nTracksAttibutes[currentPattern][track].setTrackCurrentTrig(cI);
 			nTrigsAttibutes[currentPattern][track][cI].init(fill,nTracksAttibutes[currentPattern][track].getTrackPre(),pNei, forceTrig, killTrig, dice);
 			nTracksAttibutes[currentPattern][track].setTrackPre((nTrigsAttibutes[currentPattern][track][cI].getTrigActive()
 			&& nTrigsAttibutes[currentPattern][track][cI].hasProbability()) ? !nTrigsAttibutes[currentPattern][track][cI].getTrigSleeping() : nTracksAttibutes[currentPattern][track].getTrackPre());
 			trackSetNextTrig(track);
-			nTrigsAttibutes[currentPattern][track][nTracksAttibutes[currentPattern][track].getTrackNextTrig()].init(fill,nTracksAttibutes[currentPattern][track].getTrackPre(),pNei, forceTrig, killTrig, dice);
+			//nTrigsAttibutes[currentPattern][track][nTracksAttibutes[currentPattern][track].getTrackNextTrig()].init(fill,nTracksAttibutes[currentPattern][track].getTrackPre(), pNei, forceTrig, killTrig, dice);
 		}
 
 		int cPT = nTracksAttibutes[currentPattern][track].getTrackPlayedTrig();
@@ -1150,7 +1150,7 @@ struct ENCORE : BidooModule {
 	}
 
 	void trackReset(const int track, const bool fill, const bool pNei, const bool forceTrig = false, const bool killTrig = false, const float dice = 0.0f) {
-		nTracksAttibutes[currentPattern][track].setTrackPre(false);
+		//nTracksAttibutes[currentPattern][track].setTrackPre(false);
 		nTracksAttibutes[currentPattern][track].setTrackForward(true);
 
 		if (nTracksAttibutes[currentPattern][track].getTrackReadMode() == 1)

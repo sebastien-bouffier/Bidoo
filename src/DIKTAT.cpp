@@ -42,6 +42,8 @@ struct DIKTAT : BidooModule {
 	int rootNote[16] = {0};
 	int scale[16] = {0};
 	float inputNote[16] = {0.0f};
+	int lRootNote[16] = {0};
+	int lScale[16] = {0};
 
 	quantizer::Quantizer quant;
 	quantizer::Chord chord;
@@ -132,26 +134,25 @@ void DIKTAT::process(const ProcessArgs &args) {
 	outputs[NOTE_THIRTEENTH_OUTPUT].setChannels(c);
 
 	for (int i=0;i<c;i++) {
-		int lRootNote = 0;
-		int lScale = 0;
+
 
 		if (inputs[ROOT_NOTE_INPUT].isConnected()) {
-			lRootNote = rescale(clamp(rootNote[globalMode ? 0 : i] + inputs[ROOT_NOTE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,quantizer::numNotes-1);
+			lRootNote[i] = rescale(clamp(rootNote[globalMode ? 0 : i] + inputs[ROOT_NOTE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,quantizer::numNotes-1);
 		}
 		else {
-			lRootNote = rootNote[globalMode ? 0 : i];
+			lRootNote[i] = rootNote[globalMode ? 0 : i];
 		}
 
 		if (inputs[SCALE_INPUT].isConnected()) {
-			scale[i] = rescale(clamp(scale[globalMode ? 0 : i] + inputs[SCALE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,quantizer::numScales-1);
+			lScale[i] = rescale(clamp(scale[globalMode ? 0 : i] + inputs[SCALE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,quantizer::numScales-1);
 		}
 		else {
-			lScale = scale[globalMode ? 0 : i];
+			lScale[i] = scale[globalMode ? 0 : i];
 		}
 
 		inputNote[i] = inputs[NOTE_INPUT].getVoltage(i);
 
-		chord = quant.closestChordInScale(inputNote[i], lRootNote, lScale);
+		chord = quant.closestChordInScale(inputNote[i], lRootNote[i], lScale[i]);
 
 		outputs[NOTE_TONIC_OUTPUT].setVoltage(chord.tonic,i);
 		outputs[NOTE_THIRD_OUTPUT].setVoltage(chord.third,i);
@@ -195,7 +196,7 @@ struct RootNoteDisplay : OpaqueWidget {
 				nvgFillColor(args.vg, YELLOW_BIDOO);
 				nvgFontSize(args.vg, 12.0f);
 				nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
-				nvgText(args.vg, 0, 0, quantizer::rootNotes[module->rootNote[module->currentChannel]+1].label.c_str(), NULL);
+				nvgText(args.vg, 0, 0, quantizer::rootNotes[module->lRootNote[module->currentChannel]+1].label.c_str(), NULL);
 			}
 		}
 		Widget::drawLayer(args, layer);
@@ -212,7 +213,7 @@ struct ScaleDisplay : OpaqueWidget {
 				nvgFillColor(args.vg, YELLOW_BIDOO);
 				nvgFontSize(args.vg, 12.0f);
 				nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
-				nvgText(args.vg, 0, 0, quantizer::scales[module->scale[module->currentChannel]].label.c_str(), NULL);
+				nvgText(args.vg, 0, 0, quantizer::scales[module->lScale[module->currentChannel]].label.c_str(), NULL);
 			}
 		}
 		Widget::drawLayer(args, layer);

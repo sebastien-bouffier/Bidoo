@@ -112,11 +112,6 @@ void * threadReadTask(threadReadData data)
 {
   data.free->store(false);
 
-  CURL *curl;
-  curl = curl_easy_init();
-  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 
   std::string url;
   data.secUrl == "" ? url = data.url : url = data.secUrl;
@@ -129,18 +124,50 @@ void * threadReadTask(threadReadData data)
       if (found!=std::string::npos) {
         url = line.substr(found);
         url.erase(std::remove_if(url.begin(), url.end(), [](unsigned char x){return std::isspace(x);}), url.end());
+        url = url.substr(0, url.find("?", 0));
         break;
       }
     }
   }
 
-  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
-  curl_easy_perform(curl);
-  curl_easy_cleanup(curl);
+  std::cout << "URL" << '\n';
+  std::cout << data.url << '\n';
+  std::cout << "secURL" << '\n';
+  std::cout << data.secUrl << '\n';
+  std::cout << "url" << '\n';
+  std::cout << url << '\n';
 
-  data.free->store(true);
+
+  if ((rack::system::getExtension(url) == ".pls") || (rack::system::getExtension(url) == ".m3u")) {
+    CURL *curl;
+    curl = curl_easy_init();
+    data.url=url;
+    data.secUrl="";
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_URL, data.url.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteUrlCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
+    curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+    data.free->store(true);
+    thread iThread = thread(threadReadTask, data);
+    iThread.detach();
+  }
+  else {
+    CURL *curl;
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
+    curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+    data.free->store(true);
+  }
 
   return 0;
 }

@@ -10,7 +10,7 @@ namespace waves {
     waveFileName = rack::system::getFilename(path);
     waveExtension = rack::system::getExtension(waveFileName);
     std::vector<rack::dsp::Frame<1>> result;
-    if (waveExtension == ".wav") {
+    if (rack::string::uppercase(waveExtension) == ".WAV") {
       unsigned int c;
       unsigned int sr;
       drwav_uint64 sc;
@@ -33,7 +33,7 @@ namespace waves {
         drwav_free(pSampleData, NULL);
       }
     }
-    else if (waveExtension == ".aiff") {
+    else if (rack::string::uppercase(waveExtension) == ".AIFF") {
       AudioFile<float> audioFile;
       if (audioFile.load (path.c_str()))  {
         sampleChannels = audioFile.getNumChannels();
@@ -75,7 +75,7 @@ namespace waves {
     waveFileName = rack::system::getFilename(path);
     waveExtension = rack::system::getExtension(waveFileName);
     std::vector<rack::dsp::Frame<2>> result;
-    if (waveExtension == ".wav") {
+    if (rack::string::uppercase(waveExtension) == ".WAV") {
       unsigned int c;
       unsigned int sr;
       drwav_uint64 sc;
@@ -97,7 +97,7 @@ namespace waves {
         drwav_free(pSampleData, NULL);
       }
     }
-    else if (waveExtension == ".aiff") {
+    else if (rack::string::uppercase(waveExtension) == ".AIFF") {
       AudioFile<float> audioFile;
       if (audioFile.load (path.c_str()))  {
         sampleChannels = audioFile.getNumChannels();

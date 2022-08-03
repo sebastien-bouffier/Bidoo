@@ -102,6 +102,8 @@ struct PILOT : BidooModule {
 	int length = 15;
 	int recordingStatus = 0;
 	bool reset = false;
+	int copyBankId = -1;
+	bool copyBankArmed = false;
 
 	dsp::SchmittTrigger typeTriggers[16];
 	dsp::SchmittTrigger voltageTriggers[16];
@@ -333,6 +335,16 @@ void PILOT::process(const ProcessArgs &args) {
 	changeDir =false;
 
 	bank = params[BANK_PARAM].getValue()+rescale(inputs[BANK_INPUT].getVoltage(),0.f,10.0f,0.0f,15.0f);
+
+	if (copyBankArmed) {
+		for (int i=0; i<16;i++) {
+			for (int j=0; j<16; j++) {
+				scenes[bank][i][j] = scenes[copyBankId][i][j];
+			}
+		}
+		copyBankId = -1;
+		copyBankArmed = false;
+	}
 
 	if (moveTypeTrigger.process(params[MOVETYPE_PARAM].getValue())) {
 		moveType = (moveType+1)%6;
@@ -1110,6 +1122,25 @@ struct PILOTColoredKnob : BidooLargeColoredKnob {
 	}
 };
 
+struct PilotBankBtn : BidooBlueSnapKnob {
+
+	void onHoverKey(const HoverKeyEvent& e) override {
+		if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
+			if (e.key == GLFW_KEY_C) {
+				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
+				mod->copyBankId = mod->bank;
+			}
+
+			if (e.key == GLFW_KEY_V) {
+				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
+				mod->copyBankArmed = true;
+			}
+		}
+		BidooBlueSnapKnob::onHoverKey(e);
+	}
+
+};
+
 PILOTWidget::PILOTWidget(PILOT *module) {
 	setModule(module);
 	prepareThemes(asset::plugin(pluginInstance, "res/PILOT.svg"));
@@ -1283,7 +1314,7 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	displayBank->box.size = Vec(20, 20);
 	displayBank->value = module ? &module->bank : NULL;
 	addChild(displayBank);
-	addParam(createParam<BidooBlueSnapKnob>(Vec(seqXAnchor + controlsXOffest-9, 250), module, PILOT::BANK_PARAM));
+	addParam(createParam<PilotBankBtn>(Vec(seqXAnchor + controlsXOffest-9, 250), module, PILOT::BANK_PARAM));
 	addInput(createInput<TinyPJ301MPort>(Vec(curveCtrlXAnchor + 3*curveCtrlXOffset+curveInputXOffset, 257), module, PILOT::BANK_INPUT));
 }
 
@@ -1294,12 +1325,28 @@ struct PILOTItem : MenuItem {
 	}
 };
 
+struct PILOTCopyBankItem : MenuItem {
+	PILOT *module;
+	void onAction(const event::Action &e) override {
+		module->copyBankId = module->bank;
+	}
+};
+
+struct PILOTPasteBankItem : MenuItem {
+	PILOT *module;
+	void onAction(const event::Action &e) override {
+		module->copyBankArmed = true;
+	}
+};
+
 void PILOTWidget::appendContextMenu(ui::Menu *menu) {
 	BidooWidget::appendContextMenu(menu);
 	PILOT *module = dynamic_cast<PILOT*>(this->module);
 	assert(module);
 	menu->addChild(new MenuSeparator());
 	menu->addChild(construct<PILOTItem>(&MenuItem::text, "Randomize top scene only", &PILOTItem::module, module));
+	menu->addChild(construct<PILOTCopyBankItem>(&MenuItem::text, "Copy bank (over+C)", &PILOTCopyBankItem::module, module));
+	menu->addChild(construct<PILOTPasteBankItem>(&MenuItem::text, "Paste bank (over+V)", &PILOTPasteBankItem::module, module));
 }
 
 void PILOTWidget::step() {

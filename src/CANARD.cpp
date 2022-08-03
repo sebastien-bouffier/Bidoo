@@ -365,6 +365,9 @@ void CANARD::process(const ProcessArgs &args) {
 		if (trigTrigger.process(inputs[TRIG_INPUT].getVoltage()) && (prevTrigState == 0.0f))
 		{
 			initPos();
+			if ((slices.size() == 1) && (inputs[SLICE_INPUT].isConnected())) {
+				samplePos = sampleStart + loopLength * rescale(clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,1.0f);
+			}
 			play = true;
 		}
 		else {
