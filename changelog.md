@@ -1,3 +1,12 @@
+### v2.0.19 (10/08/2022)
+- all samplers are not case sensitive anymore on files extensions
+- πlOT bank copy/paste capability
+- enCORE fix PRE/!PRE probability issue
+- antN better .pls .m3u links management
+- dIKT@T root note on channels > 1 issue fixed
+- cANARd sample position can be automated via index input in loop mode
+- EMILE crash VCV under OS X when deleting module with an image loaded ... fixed
+
 ### v2.0.17 (21/07/2022)
 - tOCAnTe upgrade for more divisions + dedicated output for enCORE sequencer
 - DIKTAT some scales/modes added (all modules with quantization benefit from that upgrade)
