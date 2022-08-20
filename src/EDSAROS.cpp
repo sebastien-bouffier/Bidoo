@@ -105,8 +105,8 @@ struct EDSAROS : BidooModule {
 	rspl::MipMapFlt	rev_mip_map;
 	rspl::ResamplerFlt voices[16];
 	rspl::ResamplerFlt rev_voices[16];
-	float *sample;
-	float *rev_sample;
+	float *sample = NULL;
+	float *rev_sample = NULL;
 	bool loading = false;
 	std::mutex mylock;
 	int pos = 0;
