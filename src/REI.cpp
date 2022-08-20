@@ -50,9 +50,8 @@ struct REI : BidooModule {
 	revmodel revprocessor;
 	dsp::SchmittTrigger freezeTrigger;
 	bool freeze = false;
-	PitchShifter *pShifter;
+	PitchShifter *pShifter = nullptr;
 	int delay = 0;
-	bool first = true;
 
 	REI() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -65,20 +64,19 @@ struct REI : BidooModule {
 		configParam(SHIMMPITCH_PARAM, .5f, 4.f, 1.f, "Pitch shift", "x");
 		configParam(FREEZE_PARAM, 0.f, 1.f, 0.f, "Freeze");
 		configSwitch(CLIPPING_PARAM, 0, 1, 0, "Clipping", {"Tanh", "Digi"});
-
-		pShifter = new PitchShifter();
 	}
 
 	~REI() {
 		delete pShifter;
 	}
 
-	void process(const ProcessArgs &args) override {
-		if (first) {
-			pShifter->init(REIBUFF_SIZE, 4, args.sampleRate);
-			first = false;
-		}
+	void onSampleRateChange(const SampleRateChangeEvent &e) override {
+		delete pShifter;
+		pShifter = new PitchShifter();
+		pShifter->init(REIBUFF_SIZE, 4, e.sampleRate);
+	}
 
+	void process(const ProcessArgs &args) override {
 		float outL = 0.0f, outR = 0.0f;
 		float wOutL = 0.0f, wOutR = 0.0f;
 		float inL = 0.0f, inR = 0.0f;
