@@ -527,7 +527,7 @@ struct LIMONADE : BidooModule {
 			else if (morphType==2) {
 				morphSpectrumConstantPhase();
 			}
-			delete(wav);
+			free(wav);
 		}
 		table.calcFFT();
 		dirty = true;
