@@ -127,12 +127,12 @@ struct PAYSAN {
 	}
 
 	void seme (int distance) {
+    pasSeme--;
 		if (pasSeme <= 0 && (graines[indexSeme].status == 2)) {
 			graines[indexSeme].status = 3;
 			indexSeme = (indexSeme+1)%NbGraines;
 			pasSeme = distance;
 		}
-		pasSeme--;
 	}
 
 	float felibre(float vitesse) {

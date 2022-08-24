@@ -1,3 +1,7 @@
+### v2.0.20 (24/08/2022)
+- pitchshifters sample rate change fix thanks to Filipe
+- C++ fixes thanks to Filipe
+
 ### v2.0.19 (10/08/2022)
 - all samplers are not case sensitive anymore on files extensions
 - πlOT bank copy/paste capability
