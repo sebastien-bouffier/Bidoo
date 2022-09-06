@@ -98,7 +98,7 @@ namespace quantizer {
 
   struct Quantizer {
 
-    float map[12][numScales][120] = {{{0.0f}}};
+    float map[12][numScales][121] = {{{0.0f}}};
 
     Quantizer();
 
