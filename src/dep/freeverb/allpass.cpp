@@ -8,27 +8,32 @@
 
 allpass::allpass()
 {
-	bufidx = 0;
 	buffer = 0;
+	bufidx = 0;
+	bufsize = 0;
+	allocated = false;
 };
 
 allpass::~allpass()
 {
-	//if (buffer) delete buffer;
+	if (allocated) delete[] buffer;
 };
 
 void allpass::setbuffer(float *buf, int size)
 {
 	buffer = buf;
+	bufidx = 0;
 	bufsize = size;
+	allocated = false;
 }
 
 void allpass::changebuffer(float *buf, int size)
 	{
-		if (buffer) {delete buffer;}
+		if (allocated) {delete[] buffer;}
 		buffer = new float[size];
 		bufsize = size;
 		bufidx = 0;
+		allocated = true;
 }
 
 void allpass::mute()

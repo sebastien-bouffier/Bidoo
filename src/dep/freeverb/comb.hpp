@@ -26,6 +26,7 @@ struct comb
 	float	*buffer;
 	int		bufsize;
 	int		bufidx;
+	bool	allocated;
 };
 
 
