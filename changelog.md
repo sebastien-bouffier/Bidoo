@@ -1,3 +1,6 @@
+### v2.0.21 (07/09/2022)
+- mem leaks fixes thanks to Filipe
+
 ### v2.0.20 (24/08/2022)
 - pitchshifters sample rate change fix thanks to Filipe
 - C++ fixes thanks to Filipe
