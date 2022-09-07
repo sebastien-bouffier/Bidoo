@@ -435,7 +435,7 @@ struct LIMONADE : BidooModule {
 	}
 
   ~LIMONADE() {
-		delete(iRec);
+		free(iRec);
 	}
 
 	void process(const ProcessArgs &args) override;

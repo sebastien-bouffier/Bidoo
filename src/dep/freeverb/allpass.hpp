@@ -21,6 +21,7 @@ struct allpass
 	float	*buffer;
 	int		bufsize;
 	int		bufidx;
+	bool	allocated;
 };
 
 inline float allpass::process(float input)

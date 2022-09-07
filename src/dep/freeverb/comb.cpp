@@ -9,36 +9,44 @@
 comb::comb()
 {
 	filterstore = 0;
+	bufsize = 0;
 	bufidx = 0;
 	buffer = 0;
+	allocated = false;
 }
 
 comb::~comb()
 {
 	filterstore = 0;
 	bufidx = 0;
-	//if (buffer) delete buffer;
+	if (allocated) delete[] buffer;
 }
 
 
 void comb::setbuffer(float *buf, int size)
 {
 	buffer = buf;
+	bufidx = 0;
 	bufsize = size;
+	filterstore = 0;
+	allocated = false;
 }
 
 void comb::changebuffer(float *buf, int size)
 	{
-		if (buffer) {delete buffer;}
+		if (allocated) {delete[] buffer;}
 		buffer = new float[size];
 		bufsize = size;
 		bufidx = 0;
+		filterstore = 0;
+		allocated = true;
 }
 
 void comb::mute()
 {
 	for (int i=0; i<bufsize; i++)
 		buffer[i]=0;
+	filterstore = 0;
 }
 
 void comb::setdamp(float val)

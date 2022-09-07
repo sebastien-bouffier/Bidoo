@@ -44,12 +44,17 @@ revmodel::revmodel()
 	allpassR[2].setfeedback(0.5f);
 	allpassL[3].setfeedback(0.5f);
 	allpassR[3].setfeedback(0.5f);
-	setwet(initialwet);
-	setroomsize(initialroom);
-	setdry(initialdry);
-	setdamp(initialdamp);
-	setwidth(initialwidth);
-	setmode(initialmode);
+
+	// safely initialize all values first
+	wet = initialwet * scalewet;	
+	roomsize = (initialroom * scaleroom) + offsetroom;
+	dry = initialdry * scaledry;
+	damp = initialdamp * scaledamp;
+	width = initialwidth;
+	mode = initialmode;
+
+	// now we can call update after all values are initialized
+	update();
 
 	// Buffer will be full of rubbish - so we MUST mute them
 	mute();
