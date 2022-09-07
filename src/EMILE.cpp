@@ -102,12 +102,13 @@ struct EMILE : BidooModule {
     fftOut =  (float*)pffft_aligned_malloc(FS*sizeof(float));
 	}
 
-  ~EMILE() {
+  ~EMILE() override {
     pffft_aligned_free(magn);
+    pffft_aligned_free(out);
     pffft_aligned_free(acc);
-    //pffft_destroy_setup(pffftSetup);
     pffft_aligned_free(fftIn);
     pffft_aligned_free(fftOut);
+    pffft_destroy_setup(pffftSetup);
 	}
 
 	void process(const ProcessArgs &args) override;
