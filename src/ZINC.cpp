@@ -145,6 +145,13 @@ struct ZINC : BidooModule {
 		}
 	}
 
+	~ZINC() override {
+		for (int i = 0; i < BANDS2; i++) {
+			delete iFilter[i];
+			delete cFilter[i];
+		}
+	}
+
 	void process(const ProcessArgs &args) override {
 		float inM = inputs[IN_MOD].getVoltage() / 5.0f;
 		float inC = inputs[IN_CARR].getVoltage() / 5.0f;
