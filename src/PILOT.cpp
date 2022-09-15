@@ -104,6 +104,7 @@ struct PILOT : BidooModule {
 	bool reset = false;
 	int copyBankId = -1;
 	bool copyBankArmed = false;
+	bool showTapes = false;
 
 	dsp::SchmittTrigger typeTriggers[16];
 	dsp::SchmittTrigger voltageTriggers[16];
@@ -130,6 +131,8 @@ struct PILOT : BidooModule {
 	dsp::PulseGenerator gatePulses[16];
 
 	quantizer::Quantizer quant;
+
+	std::string labels[16] = {"","","","","","","","","","","","","","","",""};
 
 	PILOT() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -239,6 +242,11 @@ struct PILOT : BidooModule {
 		json_object_set_new(rootJ, "moveType", json_integer(moveType));
 		json_object_set_new(rootJ, "WEOM", json_integer(waitEOM));
 		json_object_set_new(rootJ, "CURVE", json_boolean(curve));
+		json_object_set_new(rootJ, "SHOWTAPES", json_boolean(showTapes));
+
+		for(size_t i=0; i<16; i++) {
+      json_object_set_new(rootJ, ("label" + to_string(i)).c_str(), json_string(labels[i].c_str()));
+    }
 
 		json_t *banksJ = json_array();
 		json_t *typesJ = json_array();
@@ -288,6 +296,17 @@ struct PILOT : BidooModule {
 		json_t *curveJ = json_object_get(rootJ, "CURVE");
 		if (curveJ)
 			curve = json_boolean_value(curveJ);
+
+		json_t *showTapesJ = json_object_get(rootJ, "SHOWTAPES");
+		if (showTapesJ)
+			showTapes = json_boolean_value(showTapesJ);
+
+		for(size_t i=0; i<16; i++) {
+      json_t *labelJ=json_object_get(rootJ, ("label"+ to_string(i)).c_str());
+      if (labelJ) {
+        labels[i] = json_string_value(labelJ);
+      }
+    }
 
 		json_t *banksJ = json_object_get(rootJ, "banks");
 		json_t *typesJ = json_object_get(rootJ, "types");
@@ -709,12 +728,32 @@ void PILOT::process(const ProcessArgs &args) {
 			outputs[CV_OUTPUTS + i].setVoltage(params[CONTROLS_PARAMS+i].getValue()*10.0f-5.0f*voltageTypes[i]);
 		}
 	}
-
 }
+
+struct PILOTLabelDisplay : SvgWidget {
+	PILOT *module;
+	int id;
+
+	PILOTLabelDisplay() {
+		setSvg(Svg::load(asset::plugin(pluginInstance, "res/TAPE.svg")));
+	}
+
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (module && (layer == 1)) {
+			nvgFontSize(args.vg, 8);
+			nvgTextLetterSpacing(args.vg, -1);
+  		nvgFillColor(args.vg, ORANGE_BIDOO);
+			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
+  		nvgText(args.vg, 19, 4, module->labels[id].c_str(), NULL);
+		}
+		Widget::drawLayer(args, layer);
+	}
+};
 
 struct PILOTWidget : BidooWidget {
 	ParamWidget *controls[16];
 	ParamWidget *morphButton;
+	PILOTLabelDisplay *labels[16];
 	void appendContextMenu(ui::Menu *menu) override;
 	void draw(const DrawArgs& args) override;
 	void step() override;
@@ -1123,7 +1162,6 @@ struct PILOTColoredKnob : BidooLargeColoredKnob {
 };
 
 struct PilotBankBtn : BidooBlueSnapKnob {
-
 	void onHoverKey(const HoverKeyEvent& e) override {
 		if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
 			if (e.key == GLFW_KEY_C) {
@@ -1138,8 +1176,8 @@ struct PilotBankBtn : BidooBlueSnapKnob {
 		}
 		BidooBlueSnapKnob::onHoverKey(e);
 	}
-
 };
+
 
 PILOTWidget::PILOTWidget(PILOT *module) {
 	setModule(module);
@@ -1234,6 +1272,14 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 			dynamic_cast<PILOTColoredKnob*>(controls[i])->blink=&module->controlFocused[i];
 		}
 		addParam(controls[i]);
+
+		labels[i] = createWidget<PILOTLabelDisplay>(Vec(controlsXAnchor + controlsSpacer *(i%4), controlsYAnchor - 18 + controlsSpacer * floor(i/4)));
+		labels[i]->box.size = Vec(55, 20);
+		labels[i]->module = module ? module : NULL;;
+		labels[i]->id=i;
+		addChild(labels[i]);
+		labels[i]->setVisible(module ? module->showTapes : false);
+
 		addParam(createParam<BidooLEDButton>(Vec(ledsXAnchor + controlsSpacer * (i%4), ledsYAnchor + controlsSpacer * floor(i/4)), module, PILOT::TYPE_PARAMS + i));
 		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(ledsXAnchor + led_offset + controlsSpacer * (i%4), ledsYAnchor + led_offset + controlsSpacer * floor(i/4)), module, PILOT::TYPE_LIGHTS + i*3));
 		addParam(createParam<BidooLEDButton>(Vec(ledsXAnchor + controlsSpacer * (i%4), diffYled_offset + ledsYAnchor + controlsSpacer * floor(i/4)), module, PILOT::VOLTAGE_PARAMS + i));
@@ -1339,6 +1385,34 @@ struct PILOTPasteBankItem : MenuItem {
 	}
 };
 
+struct PILOTShowTapesItem : MenuItem {
+	PILOT *module;
+	PILOTWidget *pWidget;
+	void onAction(const event::Action &e) override {
+		module->showTapes = !module->showTapes;
+		for (int i = 0; i < 16; i++) {
+			pWidget->labels[i]->setVisible(module->showTapes);
+		}
+	}
+};
+
+struct PilotlabelTextField : TextField {
+	PILOT *module;
+	int id;
+
+	PilotlabelTextField()
+	{
+		this->box.pos.x = 60;
+		this->box.size.x = 159;
+		this->multiline = false;
+	}
+
+	void onChange(const event::Change& e) override {
+		module->labels[id] = text;
+	};
+
+};
+
 void PILOTWidget::appendContextMenu(ui::Menu *menu) {
 	BidooWidget::appendContextMenu(menu);
 	PILOT *module = dynamic_cast<PILOT*>(this->module);
@@ -1347,6 +1421,26 @@ void PILOTWidget::appendContextMenu(ui::Menu *menu) {
 	menu->addChild(construct<PILOTItem>(&MenuItem::text, "Randomize top scene only", &PILOTItem::module, module));
 	menu->addChild(construct<PILOTCopyBankItem>(&MenuItem::text, "Copy bank (over+C)", &PILOTCopyBankItem::module, module));
 	menu->addChild(construct<PILOTPasteBankItem>(&MenuItem::text, "Paste bank (over+V)", &PILOTPasteBankItem::module, module));
+	menu->addChild(construct<PILOTShowTapesItem>(&MenuItem::text, "Show/Hide masking tape", &PILOTShowTapesItem::module, module, &PILOTShowTapesItem::pWidget, this));
+
+	for (int i = 0; i < 16; i++) {
+		auto holder = new rack::Widget;
+		holder->box.size.x = 220;
+		holder->box.size.y = 20;
+
+		auto lab = new rack::Label;
+		lab->text = "Label " + std::to_string(i) +  " : ";
+		lab->box.size = 65;
+		holder->addChild(lab);
+
+		auto textfield = new PilotlabelTextField();
+		textfield->module = module;
+		textfield->id = i;
+		textfield->text = module->labels[i];
+		holder->addChild(textfield);
+
+		menu->addChild(holder);
+	}
 }
 
 void PILOTWidget::step() {
