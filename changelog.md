@@ -1,3 +1,7 @@
+### v2.0.23 (1/10/2022)
+- πlOT fix on gate mode
+- rabBIT randomize implementation
+
 ### v2.0.22 (15/09/2022)
 - πlOT can add masking tape on top of controls in order to display labels (use menu)
 

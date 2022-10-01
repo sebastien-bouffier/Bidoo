@@ -58,6 +58,13 @@ struct RABBIT : BidooModule {
 	~RABBIT() {
 	}
 
+	void onRandomize() override {
+		for (int i=0; i<8; i++) {
+			bitOff[i]=random::uniform()>0.5f;
+			bitRev[i]=random::uniform()>0.5f;
+		}
+	}
+
 	void process(const ProcessArgs &args) override {
 		float in_L = clamp(inputs[L_INPUT].getVoltage(), -10.0f, 10.0f);
 		float in_R = clamp(inputs[R_INPUT].getVoltage(), -10.0f, 10.0f);

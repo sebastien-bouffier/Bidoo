@@ -7,6 +7,9 @@
 
 using namespace std;
 
+enum waitEOMType { wait, hesitate, whatever};
+enum controlType { cv, cvJump, gate, voJump, voSlide};
+
 struct PILOT : BidooModule {
 	enum ParamIds {
 		BOTTOMSCENE_PARAM,
@@ -84,6 +87,7 @@ struct PILOT : BidooModule {
 	int controlRootNotes[16] = {0};
 	int controlScales[16] = {0};
 	bool controlFocused[16] = {false};
+	float values[16] = {0.0f};
 	int currentFocus = -1;
 	bool morphFocused = false;
 	int topScene = 0;
@@ -201,7 +205,7 @@ struct PILOT : BidooModule {
 					scenes[i][j][k]=0.0f;
 				}
 			}
-			controlTypes[i] = 0.0f;
+			controlTypes[i] = 0;
 		}
 		moveType = 5;
 	}
@@ -376,9 +380,9 @@ void PILOT::process(const ProcessArgs &args) {
 	if (weomTrigger.process(params[WEOM_PARAM].getValue())) {
 		waitEOM = (waitEOM+1)%3;
 	}
-	lights[WEOM_LIGHT].setBrightness(waitEOM>0?1:0);
-	lights[WEOM_LIGHT+1].setBrightness(waitEOM==1?1:0);
-	lights[WEOM_LIGHT+2].setBrightness(waitEOM==0?1:0);
+	lights[WEOM_LIGHT].setBrightness(waitEOM!=wait?1:0);
+	lights[WEOM_LIGHT+1].setBrightness(waitEOM==hesitate?1:0);
+	lights[WEOM_LIGHT+2].setBrightness(waitEOM==wait?1:0);
 
 	if (curveTrigger.process(params[CURVE_PARAM].getValue())) {
 		curve = !curve;
@@ -388,7 +392,7 @@ void PILOT::process(const ProcessArgs &args) {
 	lights[CURVE_LIGHT+2].setBrightness(curve?1:0);
 
 	if (recordingTrigger.process(params[RECORD_PARAM].getValue())) {
-		if ((recordingStatus==0) && (moveType==0) && (waitEOM==0)) {
+		if ((recordingStatus==0) && (moveType==0) && (waitEOM==wait)) {
 			recordingStatus=1;
 		}
 	}
@@ -405,7 +409,7 @@ void PILOT::process(const ProcessArgs &args) {
 			reset=false;
 			moving = true;
 	}
-	else if ((moveNextTrigger.process(params[MOVENEXT_PARAM].getValue()+inputs[MOVENEXT_INPUT].getVoltage())) && ((waitEOM==0 && !moving) || (waitEOM>0))) {
+	else if ((moveNextTrigger.process(params[MOVENEXT_PARAM].getValue()+inputs[MOVENEXT_INPUT].getVoltage())) && ((waitEOM==wait && !moving) || (waitEOM!=wait))) {
 		moving = true;
 		forward = !forward;
 		changeDir = true;
@@ -664,15 +668,15 @@ void PILOT::process(const ProcessArgs &args) {
 			voltageTypes[i] = voltageTypes[i] == 0 ? 1 : 0;
 		}
 
-		lights[TYPE_LIGHTS+ i*3].setBrightness((controlTypes[i] == 1) || (controlTypes[i] == 3) || (controlTypes[i] == 4) ? 1 : 0);
-		lights[TYPE_LIGHTS+ i*3 + 1].setBrightness((controlTypes[i] == 1) || (controlTypes[i] == 2) ? 1 : ((controlTypes[i] == 4) ? 0.5f : 0));
-		lights[TYPE_LIGHTS+ i*3 + 2].setBrightness(controlTypes[i] == 0 ? 1 : 0);
+		lights[TYPE_LIGHTS+ i*3].setBrightness((controlTypes[i] == cvJump) || (controlTypes[i] == voJump) || (controlTypes[i] == voSlide) ? 1 : 0);
+		lights[TYPE_LIGHTS+ i*3 + 1].setBrightness((controlTypes[i] == cvJump) || (controlTypes[i] == gate) ? 1 : ((controlTypes[i] == voSlide) ? 0.5f : 0));
+		lights[TYPE_LIGHTS+ i*3 + 2].setBrightness(controlTypes[i] == cv ? 1 : 0);
 		lights[VOLTAGE_LIGHTS+ i*3].setBrightness(voltageTypes[i] == 1 ? 1 : 0);
 		lights[VOLTAGE_LIGHTS+ i*3 + 1].setBrightness(voltageTypes[i] == 1 ? 1 : 0);
 		lights[VOLTAGE_LIGHTS+ i*3 + 2].setBrightness(voltageTypes[i] == 0 ? 1 : 0);
 
 		if (!controlFocused[i]) {
-			if ((controlTypes[i] != 1) && (controlTypes[i] != 4)) {
+			if ((controlTypes[i] == cv) || (controlTypes[i] == voSlide)) {
 				if (!curve) {
 					if (scenes[bank][bottomScene][i] != scenes[bank][topScene][i]) {
 						params[CONTROLS_PARAMS+i].setValue(clamp(rescale(morph,0.0f,1.0f,scenes[bank][bottomScene][i],scenes[bank][topScene][i]),0.0f,1.0f));
@@ -691,24 +695,29 @@ void PILOT::process(const ProcessArgs &args) {
 				}
 			}
 			else {
-				if (morph == 1.0f || (changeDir && (waitEOM==1) && forward)) {
+				if (morph == 1.0f || (changeDir && (waitEOM==whatever) && forward)) {
 					params[CONTROLS_PARAMS+i].setValue(scenes[bank][topScene][i]);
 				}
-				else if (morph == 0.0f || (changeDir && (waitEOM==1) && !forward)) {
+				else if (morph == 0.0f || (changeDir && (waitEOM==whatever) && !forward)) {
 					params[CONTROLS_PARAMS+i].setValue(scenes[bank][bottomScene][i]);
 				}
 			}
 		}
 
-		if ((changeDir && waitEOM<2) || (waitEOM==2 && ((morph==0.0f) || (morph==1.0f)) && !pulses[i])) {
-			gatePulses[i].reset();
-			gatePulses[i].trigger(powf(params[CONTROLS_PARAMS+i].getValue(),8.0f));
+		pulses[i] = gatePulses[i].process(args.sampleTime) && (params[CONTROLS_PARAMS+i].getValue()>0.0f);
+
+		if ((changeDir && waitEOM!=hesitate) || (waitEOM==hesitate && ((morph==0.0f) || (morph==1.0f)) && !pulses[i])) {
+			if (params[CONTROLS_PARAMS+i].getValue()>0.0f)  {
+				gatePulses[i].trigger(powf(params[CONTROLS_PARAMS+i].getValue(),8.0f));
+			}
+			else {
+				gatePulses[i].reset();
+				pulses[i] = false;
+			}
 		}
 
-		pulses[i] = gatePulses[i].process(args.sampleTime);
-
-		if (controlTypes[i] >= 3) {
-			if (controlFocused[i] || (controlTypes[i] == 4)) {
+		if (controlTypes[i] >= voJump) {
+			if (controlFocused[i] || (controlTypes[i] == voSlide)) {
 				outputs[CV_OUTPUTS + i].setVoltage(std::get<0>(quant.closestVoltageInScale(params[CONTROLS_PARAMS+i].getValue()*10.0f-4.0f, controlRootNotes[i], controlScales[i])));
 			}
 			else {
@@ -721,7 +730,7 @@ void PILOT::process(const ProcessArgs &args) {
 				}
 			}
 		}
-		else if (controlTypes[i] == 2) {
+		else if (controlTypes[i] == gate) {
 			outputs[CV_OUTPUTS + i].setVoltage(pulses[i] ? 10.0f-5.0f*voltageTypes[i] : 0.0f);
 		}
 		else {
@@ -836,8 +845,7 @@ struct PILOTNoteDisplay : TransparentWidget {
 	      nvgFontSize(args.vg, 18);
 	  		nvgTextLetterSpacing(args.vg, -2);
 	  		nvgFillColor(args.vg, YELLOW_BIDOO);
-				PILOT *mod = dynamic_cast<PILOT*>(module);
-				nvgText(args.vg, 0, 12, mod->quant.noteName(module->outputs[PILOT::CV_OUTPUTS+module->currentFocus].getVoltage()).c_str(), NULL);
+				nvgText(args.vg, 0, 12, module->quant.noteName(module->outputs[PILOT::CV_OUTPUTS+module->currentFocus].getVoltage()).c_str(), NULL);
 	    }
 		}
 		Widget::drawLayer(args, layer);
@@ -905,17 +913,22 @@ struct PILOTCurveDisplay : TransparentWidget {
 };
 
 struct PILOTMorphKnob : BidooHugeRedKnob {
+
+	PILOTMorphKnob() {
+		smooth = false;
+	}
+
 	void onDragStart(const DragStartEvent& e) override {
 		PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
 		module->morphFocused = true;
-		e.consume(this);
+		//e.consume(this);
 		BidooHugeRedKnob::onDragStart(e);
 	}
 
 	void onDragEnd(const DragEndEvent& e) override {
 		PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
 		module->morphFocused = false;
-		e.consume(this);
+		//e.consume(this);
 		BidooHugeRedKnob::onDragEnd(e);
 	}
 
@@ -924,7 +937,7 @@ struct PILOTMorphKnob : BidooHugeRedKnob {
 			for (int i = 0 ; i < 16; i++) {
 				module->controlFocused[i] = false;
 			}
-			e.consume(this);
+			//e.consume(this);
 			BidooHugeRedKnob::onButton(e);
 		}
 };
@@ -1102,6 +1115,10 @@ struct CtrlScaleMenuItem : ui::MenuItem {
 };
 
 struct PILOTColoredKnob : BidooLargeColoredKnob {
+
+	PILOTColoredKnob () {
+		smooth = false;
+	}
 
 	void setValueNoEngine(float value) {
 		float newValue = clamp(value, fminf(this->getParamQuantity()->getMinValue(), this->getParamQuantity()->getMaxValue()), fmaxf(this->getParamQuantity()->getMinValue(), this->getParamQuantity()->getMaxValue()));
