@@ -1,3 +1,6 @@
+### v2.0.24 (1/10/2022)
+- πlOT fix OSX build
+
 ### v2.0.23 (1/10/2022)
 - πlOT fix on gate mode
 - rabBIT randomize implementation
