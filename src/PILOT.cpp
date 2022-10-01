@@ -7,7 +7,7 @@
 
 using namespace std;
 
-enum waitEOMType { wait, hesitate, whatever};
+enum waitEOMType { waitExt, hesitate, whatever};
 enum controlType { cv, cvJump, gate, voJump, voSlide};
 
 struct PILOT : BidooModule {
@@ -81,7 +81,7 @@ struct PILOT : BidooModule {
 		NUM_LIGHTS = VOLTAGE_LIGHTS + 16*3
 	};
 
-	float scenes[16][16][16] = {{0.0f}};
+	float scenes[16][16][16] = {{{0.0f}}};
 	int controlTypes[16] = {0};
 	int voltageTypes[16] = {0};
 	int controlRootNotes[16] = {0};
@@ -380,9 +380,9 @@ void PILOT::process(const ProcessArgs &args) {
 	if (weomTrigger.process(params[WEOM_PARAM].getValue())) {
 		waitEOM = (waitEOM+1)%3;
 	}
-	lights[WEOM_LIGHT].setBrightness(waitEOM!=wait?1:0);
+	lights[WEOM_LIGHT].setBrightness(waitEOM!=waitExt?1:0);
 	lights[WEOM_LIGHT+1].setBrightness(waitEOM==hesitate?1:0);
-	lights[WEOM_LIGHT+2].setBrightness(waitEOM==wait?1:0);
+	lights[WEOM_LIGHT+2].setBrightness(waitEOM==waitExt?1:0);
 
 	if (curveTrigger.process(params[CURVE_PARAM].getValue())) {
 		curve = !curve;
@@ -392,7 +392,7 @@ void PILOT::process(const ProcessArgs &args) {
 	lights[CURVE_LIGHT+2].setBrightness(curve?1:0);
 
 	if (recordingTrigger.process(params[RECORD_PARAM].getValue())) {
-		if ((recordingStatus==0) && (moveType==0) && (waitEOM==wait)) {
+		if ((recordingStatus==0) && (moveType==0) && (waitEOM==waitExt)) {
 			recordingStatus=1;
 		}
 	}
@@ -409,7 +409,7 @@ void PILOT::process(const ProcessArgs &args) {
 			reset=false;
 			moving = true;
 	}
-	else if ((moveNextTrigger.process(params[MOVENEXT_PARAM].getValue()+inputs[MOVENEXT_INPUT].getVoltage())) && ((waitEOM==wait && !moving) || (waitEOM!=wait))) {
+	else if ((moveNextTrigger.process(params[MOVENEXT_PARAM].getValue()+inputs[MOVENEXT_INPUT].getVoltage())) && ((waitEOM==waitExt && !moving) || (waitEOM!=waitExt))) {
 		moving = true;
 		forward = !forward;
 		changeDir = true;
@@ -1236,7 +1236,7 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	const int inputSquBtnDrift = 4;
 	const int sqBtnYDrift = 2;
 	const int sqBtnDrift = 3;
-	const int dispOffset = 1.7f;
+	const float dispOffset = 1.7f;
 
 	PILOTDisplay *displayTop = new PILOTDisplay();
 	displayTop->box.pos = Vec(sceneXAnchor+dispOffset,topSceneYAnchor);
