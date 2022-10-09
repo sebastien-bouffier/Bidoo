@@ -22,6 +22,7 @@ extern Model *modelENCORE;
 extern Model *modelENCOREExpander;
 extern Model *modelTOCANTE;
 extern Model *modelCHUTE;
+extern Model *modelRATEAU;
 extern Model *modelLATE;
 extern Model *modelACNE;
 extern Model *modelMS;

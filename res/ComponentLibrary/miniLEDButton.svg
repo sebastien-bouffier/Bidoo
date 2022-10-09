@@ -5,18 +5,43 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
-   width="7"
-   height="7"
-   viewBox="0 0 1.8520832 1.8520832"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
+   sodipodi:docname="miniLEDButton.svg"
+   id="svg7595"
    version="1.1"
-   id="svg7595">
+   viewBox="0 0 1.7999998 1.7999998"
+   height="1.8mm"
+   width="1.8mm">
+  <sodipodi:namedview
+     inkscape:current-layer="svg7595"
+     inkscape:window-maximized="1"
+     inkscape:window-y="-8"
+     inkscape:window-x="-8"
+     inkscape:cy="3.5"
+     inkscape:cx="3.5"
+     inkscape:zoom="146.57143"
+     units="mm"
+     showgrid="false"
+     id="namedview10"
+     inkscape:window-height="1377"
+     inkscape:window-width="2560"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0"
+     guidetolerance="10"
+     gridtolerance="10"
+     objecttolerance="10"
+     borderopacity="1"
+     bordercolor="#666666"
+     pagecolor="#ffffff" />
   <defs
      id="defs7589">
     <clipPath
        id="clip444">
       <path
-         d="m 1201.582,338.19922 h 18 v 18 h -18 z m 0,0"
-         id="path24586" />
+         id="path24586"
+         d="m 1201.582,338.19922 h 18 v 18 h -18 z m 0,0" />
     </clipPath>
   </defs>
   <metadata
@@ -32,18 +57,18 @@
     </rdf:RDF>
   </metadata>
   <g
-     id="layer1"
-     transform="matrix(0.87213749,0,0,0.87293501,-40.773033,-61.525472)"
-     style="fill:#7d7d7d;fill-opacity:1">
+     style="fill:#7d7d7d;fill-opacity:1;stroke-width:1.0278"
+     transform="matrix(0.84967261,0,0,0.84819672,-39.722691,-59.781871)"
+     id="layer1">
     <g
-       transform="matrix(0.11769499,0,0,0.11789717,-94.665369,30.609131)"
-       clip-path="url(#clip444)"
+       style="clip-rule:nonzero;fill:#7d7d7d;fill-opacity:1;stroke-width:1.0278"
        id="g31387"
-       style="clip-rule:nonzero;fill:#7d7d7d;fill-opacity:1">
+       clip-path="url(#clip444)"
+       transform="matrix(0.11769499,0,0,0.11789717,-94.665369,30.609131)">
       <path
-         style="fill:#7d7d7d;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         id="path31385"
          d="m 1202.125,344.12109 c -1.6953,4.66797 0.7148,9.83594 5.3789,11.53516 4.6719,1.69531 9.8359,-0.71094 11.5352,-5.37891 1.6992,-4.67187 -0.7071,-9.83203 -5.3789,-11.53515 -4.668,-1.69532 -9.8282,0.70703 -11.5352,5.3789"
-         id="path31385" />
+         style="fill:#7d7d7d;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1.0278" />
     </g>
   </g>
 </svg>

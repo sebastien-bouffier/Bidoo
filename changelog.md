@@ -1,3 +1,6 @@
+### v2.0.25 (9/10/2022)
+- ratEaU is available
+
 ### v2.0.24 (1/10/2022)
 - πlOT fix OSX build
 

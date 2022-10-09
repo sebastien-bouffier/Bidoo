@@ -16,6 +16,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelENCORE);
 	p->addModel(modelENCOREExpander);
 	p->addModel(modelMU);
+	p->addModel(modelRATEAU);
   p->addModel(modelCHUTE);
 	p->addModel(modelLOURDE);
 	p->addModel(modelDILEMO);
