@@ -848,8 +848,8 @@ struct RATEAUDisplay : TransparentWidget {
 
 };
 
-struct divBtn : app::SvgSwitch {
-	divBtn() {
+struct divRateauBtn : app::SvgSwitch {
+	divRateauBtn() {
 		momentary = false;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/divBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/divBtn_1.svg")));
@@ -857,8 +857,8 @@ struct divBtn : app::SvgSwitch {
 	}
 };
 
-struct stepBtn : app::SvgSwitch {
-	stepBtn() {
+struct stepRateauBtn : app::SvgSwitch {
+	stepRateauBtn() {
 		momentary = false;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/stepBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/stepBtn_1.svg")));
@@ -866,8 +866,8 @@ struct stepBtn : app::SvgSwitch {
 	}
 };
 
-struct probBtn : app::SvgSwitch {
-	probBtn() {
+struct probRateauBtn : app::SvgSwitch {
+	probRateauBtn() {
 		momentary = false;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/probBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/probBtn_1.svg")));
@@ -875,8 +875,8 @@ struct probBtn : app::SvgSwitch {
 	}
 };
 
-struct speedBtn : app::SvgSwitch {
-	speedBtn() {
+struct speedRateauBtn : app::SvgSwitch {
+	speedRateauBtn() {
 		momentary = false;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/speedBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/speedBtn_1.svg")));
@@ -884,8 +884,8 @@ struct speedBtn : app::SvgSwitch {
 	}
 };
 
-struct clockshiftBtn : app::SvgSwitch {
-	clockshiftBtn() {
+struct clockshiftRateauBtn : app::SvgSwitch {
+	clockshiftRateauBtn() {
 		momentary = false;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/clockshiftBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/clockshiftBtn_1.svg")));
@@ -893,8 +893,8 @@ struct clockshiftBtn : app::SvgSwitch {
 	}
 };
 
-struct timeshiftBtn : app::SvgSwitch {
-	timeshiftBtn() {
+struct timeshiftRateauBtn : app::SvgSwitch {
+	timeshiftRateauBtn() {
 		momentary = false;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/timeshiftBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/timeshiftBtn_1.svg")));
@@ -902,8 +902,8 @@ struct timeshiftBtn : app::SvgSwitch {
 	}
 };
 
-struct pulsewidthBtn : app::SvgSwitch {
-	pulsewidthBtn() {
+struct pulsewidthRateauBtn : app::SvgSwitch {
+	pulsewidthRateauBtn() {
 		momentary = false;
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/pulsewidthBtn_0.svg")));
 		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/pulsewidthBtn_1.svg")));
@@ -937,13 +937,13 @@ RATEAUWidget::RATEAUWidget(RATEAU *module) {
 	const int ledOffset = 6;
 	const int btnYAnchor = 116;
 
-	addParam(createParam<divBtn>(Vec(btnXAnchor, btnYAnchor), module, RATEAU::DIV_PARAM));
-	addParam(createParam<stepBtn>(Vec(btnXAnchor+btnOffset, btnYAnchor), module, RATEAU::STEP_PARAM));
-	addParam(createParam<probBtn>(Vec(btnXAnchor+2*btnOffset, btnYAnchor), module, RATEAU::PROB_PARAM));
-	addParam(createParam<speedBtn>(Vec(btnXAnchor+3*btnOffset, btnYAnchor), module, RATEAU::SPEED_PARAM));
-	addParam(createParam<clockshiftBtn>(Vec(btnXAnchor+4*btnOffset, btnYAnchor), module, RATEAU::CLOCKSHIFT_PARAM));
-	addParam(createParam<timeshiftBtn>(Vec(btnXAnchor+5*btnOffset, btnYAnchor), module, RATEAU::TIMESHIFT_PARAM));
-	addParam(createParam<pulsewidthBtn>(Vec(btnXAnchor+6*btnOffset, btnYAnchor), module, RATEAU::PULSEWIDTH_PARAM));
+	addParam(createParam<divRateauBtn>(Vec(btnXAnchor, btnYAnchor), module, RATEAU::DIV_PARAM));
+	addParam(createParam<stepRateauBtn>(Vec(btnXAnchor+btnOffset, btnYAnchor), module, RATEAU::STEP_PARAM));
+	addParam(createParam<probRateauBtn>(Vec(btnXAnchor+2*btnOffset, btnYAnchor), module, RATEAU::PROB_PARAM));
+	addParam(createParam<speedRateauBtn>(Vec(btnXAnchor+3*btnOffset, btnYAnchor), module, RATEAU::SPEED_PARAM));
+	addParam(createParam<clockshiftRateauBtn>(Vec(btnXAnchor+4*btnOffset, btnYAnchor), module, RATEAU::CLOCKSHIFT_PARAM));
+	addParam(createParam<timeshiftRateauBtn>(Vec(btnXAnchor+5*btnOffset, btnYAnchor), module, RATEAU::TIMESHIFT_PARAM));
+	addParam(createParam<pulsewidthRateauBtn>(Vec(btnXAnchor+6*btnOffset, btnYAnchor), module, RATEAU::PULSEWIDTH_PARAM));
 
 	addInput(createInput<PJ301MPort>(Vec(13.0f, 45.0f+intputsAlign), module, RATEAU::CLOCK_INPUT));
 	addInput(createInput<PJ301MPort>(Vec(49.0f, 45.0f+intputsAlign), module, RATEAU::RESET_INPUT));

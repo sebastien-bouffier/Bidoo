@@ -1,3 +1,6 @@
+### v2.0.26 (11/10/2022)
+- fix Zou triggers issue
+
 ### v2.0.25 (9/10/2022)
 - ratEaU is available
 
