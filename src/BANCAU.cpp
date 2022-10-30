@@ -100,6 +100,8 @@ struct BANCAU : BidooModule {
 		fall1CV = params[FALLEXP1_PARAM].getValue() == 0 ? (params[FALLCV1_PARAM].getValue() * rescale(clamp(inputs[FALLCV1_INPUT].getVoltage() + inputs[BOTHCV1_INPUT].getVoltage(),-10.0f,10.0f),-10.f,10.f,-1.f, 1.f))	: (params[FALLCV1_PARAM].getValue() * out1/10.0f);
 		rise1 = std::pow(params[RISE1_PARAM].getValue() + rise1CV,4.f);
 		fall1 = std::pow(params[FALL1_PARAM].getValue() + fall1CV,4.f);
+		// rise1 = exp(params[RISE1_PARAM].getValue() + rise1CV)-1.0f;
+		// fall1 = exp(params[FALL1_PARAM].getValue() + fall1CV)-1.0f;
 
 		float in1 = inputs[IN1_INPUT].getVoltage();
 

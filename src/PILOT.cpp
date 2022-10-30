@@ -83,6 +83,7 @@ struct PILOT : BidooModule {
 
 	float scenes[16][16][16] = {{{0.0f}}};
 	int controlTypes[16] = {0};
+	bool controlOverrideTypes[16] = {true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true };
 	int voltageTypes[16] = {0};
 	int controlRootNotes[16] = {0};
 	int controlScales[16] = {0};
@@ -92,6 +93,8 @@ struct PILOT : BidooModule {
 	bool morphFocused = false;
 	int topScene = 0;
 	int bottomScene = 0;
+	int oldTopScene = 0;
+	int oldBottomScene = 0;
 	int bank = 0;
 	float morph = 0.0f;
 	bool pulses[16] = {false};
@@ -108,6 +111,7 @@ struct PILOT : BidooModule {
 	bool reset = false;
 	int copyBankId = -1;
 	bool copyBankArmed = false;
+	int copySceneId = -1;
 	bool showTapes = false;
 
 	dsp::SchmittTrigger typeTriggers[16];
@@ -257,6 +261,7 @@ struct PILOT : BidooModule {
 		json_t *voltagesJ = json_array();
 		json_t *rootNotesJ = json_array();
 		json_t *scalesJ = json_array();
+		json_t *overrideTypesJ = json_array();
 
 		for(int b=0; b<16; b++) {
 			json_t *bankJ = json_array();
@@ -277,12 +282,15 @@ struct PILOT : BidooModule {
 			json_array_append_new(rootNotesJ, rootNoteJ);
 			json_t *scaleJ = json_integer(controlScales[b]);
 			json_array_append_new(scalesJ, scaleJ);
+			json_t *overrideTypeJ = json_boolean(controlOverrideTypes[b]);
+			json_array_append_new(overrideTypesJ, overrideTypeJ);
 		}
 		json_object_set_new(rootJ, "banks", banksJ);
 		json_object_set_new(rootJ, "types", typesJ);
 		json_object_set_new(rootJ, "voltages", voltagesJ);
 		json_object_set_new(rootJ, "roots", rootNotesJ);
 		json_object_set_new(rootJ, "scales", scalesJ);
+		json_object_set_new(rootJ, "overrides", overrideTypesJ);
 
 		return rootJ;
 	}
@@ -317,6 +325,7 @@ struct PILOT : BidooModule {
 		json_t *voltagesJ = json_object_get(rootJ, "voltages");
 		json_t *rootsJ = json_object_get(rootJ, "roots");
 		json_t *scalesJ = json_object_get(rootJ, "scales");
+		json_t *overridesJ = json_object_get(rootJ, "overrides");
 
 		if (banksJ && typesJ) {
 			for (int i = 0; i < 16; i++) {
@@ -348,6 +357,10 @@ struct PILOT : BidooModule {
 				if (scaleJ) {
 					controlScales[i] = json_integer_value(scaleJ);
 				}
+				json_t *overrideJ = json_array_get(overridesJ, i);
+				if (overrideJ) {
+					controlOverrideTypes[i] = json_boolean_value(overrideJ);
+				}
 			}
 		}
 	}
@@ -356,6 +369,8 @@ struct PILOT : BidooModule {
 
 void PILOT::process(const ProcessArgs &args) {
 	changeDir =false;
+	oldTopScene = topScene;
+	oldBottomScene = bottomScene;
 
 	bank = params[BANK_PARAM].getValue()+rescale(inputs[BANK_INPUT].getVoltage(),0.f,10.0f,0.0f,15.0f);
 
@@ -567,6 +582,13 @@ void PILOT::process(const ProcessArgs &args) {
 		}
 		bottomScene = params[BOTTOMSCENE_PARAM].getValue();
 	}
+
+	if ((recordingStatus == 0) && ((oldTopScene != topScene) || (oldBottomScene != bottomScene))) {
+		for (int i = 0 ; i < 16; i++) {
+			if (!controlOverrideTypes[i]) controlFocused[i] = false;
+		}
+	}
+
 
 	if (rndTopTrigger.process(params[RNDTOP_PARAM].getValue())) {
 		randomizeScene(topScene);
@@ -1114,6 +1136,15 @@ struct CtrlScaleMenuItem : ui::MenuItem {
 	}
 };
 
+struct CtrlOverrideTypeItem : ui::MenuItem {
+	ParamQuantity* param = NULL;
+
+	void onAction(const ActionEvent& e) override {
+		PILOT *module = dynamic_cast<PILOT*>(param->module);
+		module->controlOverrideTypes[param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = !module->controlOverrideTypes[param->paramId - PILOT::PILOT::CONTROLS_PARAMS];
+	}
+};
+
 struct PILOTColoredKnob : BidooLargeColoredKnob {
 
 	PILOTColoredKnob () {
@@ -1152,6 +1183,13 @@ struct PILOTColoredKnob : BidooLargeColoredKnob {
 		itemInit->text = "Init";
 		itemInit->param = this->getParamQuantity();
 		menu->addChild(itemInit);
+
+		CtrlOverrideTypeItem* itemOverrideType = new CtrlOverrideTypeItem;
+		itemOverrideType->text = "Const. override" ;
+		PILOT *mod = dynamic_cast<PILOT*>(this->module);
+		if (mod->controlOverrideTypes[this->paramId - PILOT::PILOT::CONTROLS_PARAMS]) itemOverrideType->rightText = CHECKMARK_STRING;
+		itemOverrideType->param = this->getParamQuantity();
+		menu->addChild(itemOverrideType);
 
 		CtrlRootNoteMenuItem* itemRootNote = new CtrlRootNoteMenuItem;
 		itemRootNote->text = "Root note";
@@ -1192,6 +1230,98 @@ struct PilotBankBtn : BidooBlueSnapKnob {
 			}
 		}
 		BidooBlueSnapKnob::onHoverKey(e);
+	}
+};
+
+struct PILOTCopyTopSceneItem : MenuItem {
+	PILOT *module;
+	void onAction(const event::Action &e) override {
+		module->copyBankId = module->bank;
+		module->copySceneId = module->topScene;
+	}
+};
+
+struct PILOTPasteTopSceneItem : MenuItem {
+	PILOT *module;
+	void onAction(const event::Action &e) override {
+		for (int i=0; i<16;i++) {
+				module->scenes[module->bank][module->topScene][i] = module->scenes[module->copyBankId][module->copySceneId][i];
+		}
+	}
+};
+
+struct PilotTopSceneBtn : BidooBlueSnapTrimpot {
+	void onHoverKey(const HoverKeyEvent& e) override {
+		if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
+			if (e.key == GLFW_KEY_C) {
+				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
+				mod->copyBankId = mod->bank;
+				mod->copySceneId = mod->topScene;
+			}
+
+			if (e.key == GLFW_KEY_V) {
+				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
+				for (int i=0; i<16;i++) {
+						mod->scenes[mod->bank][mod->topScene][i] = mod->scenes[mod->copyBankId][mod->copySceneId][i];
+				}
+			}
+		}
+		BidooBlueSnapTrimpot::onHoverKey(e);
+	}
+
+	void appendContextMenu(ui::Menu *menu) override {
+		BidooBlueSnapTrimpot::appendContextMenu(menu);
+		PILOT *module = dynamic_cast<PILOT*>(this->module);
+		assert(module);
+		menu->addChild(new MenuSeparator());
+		menu->addChild(construct<PILOTCopyTopSceneItem>(&MenuItem::text, "Copy scene (over+C)", &PILOTCopyTopSceneItem::module, module));
+		menu->addChild(construct<PILOTPasteTopSceneItem>(&MenuItem::text, "Paste scene (over+V)", &PILOTPasteTopSceneItem::module, module));
+	}
+};
+
+struct PILOTCopyBottomSceneItem : MenuItem {
+	PILOT *module;
+	void onAction(const event::Action &e) override {
+		module->copyBankId = module->bank;
+		module->copySceneId = module->bottomScene;
+	}
+};
+
+struct PILOTPasteBottomSceneItem : MenuItem {
+	PILOT *module;
+	void onAction(const event::Action &e) override {
+		for (int i=0; i<16;i++) {
+				module->scenes[module->bank][module->bottomScene][i] = module->scenes[module->copyBankId][module->copySceneId][i];
+		}
+	}
+};
+
+struct PilotBottomSceneBtn : BidooBlueSnapTrimpot {
+	void onHoverKey(const HoverKeyEvent& e) override {
+		if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
+			if (e.key == GLFW_KEY_C) {
+				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
+				mod->copyBankId = mod->bank;
+				mod->copySceneId = mod->bottomScene;
+			}
+
+			if (e.key == GLFW_KEY_V) {
+				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
+				for (int i=0; i<16;i++) {
+						mod->scenes[mod->bank][mod->bottomScene][i] = mod->scenes[mod->copyBankId][mod->copySceneId][i];
+				}
+			}
+		}
+		BidooBlueSnapTrimpot::onHoverKey(e);
+	}
+
+	void appendContextMenu(ui::Menu *menu) override {
+		BidooBlueSnapTrimpot::appendContextMenu(menu);
+		PILOT *module = dynamic_cast<PILOT*>(this->module);
+		assert(module);
+		menu->addChild(new MenuSeparator());
+		menu->addChild(construct<PILOTCopyBottomSceneItem>(&MenuItem::text, "Copy scene (over+C)", &PILOTCopyBottomSceneItem::module, module));
+		menu->addChild(construct<PILOTPasteBottomSceneItem>(&MenuItem::text, "Paste scene (over+V)", &PILOTPasteBottomSceneItem::module, module));
 	}
 };
 
@@ -1246,7 +1376,7 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	addParam(createParam<SaveBtn>(Vec(sceneXAnchor + ctrlSceneXOffset + sqBtnDrift, topSceneYAnchor), module, PILOT::SAVETOP_PARAM));
 	addParam(createParam<Rnd2Btn>(Vec(sceneXAnchor + 2*ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor), module, PILOT::RNDTOP_PARAM));
 	addParam(createParam<Rnd2Btn>(Vec(sceneXAnchor + 3*ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor), module, PILOT::FRNDTOP_PARAM));
-	addParam(createParam<BidooBlueSnapTrimpot>(Vec(sceneXAnchor, topSceneYAnchor+ ctrlSceneYOffset), module, PILOT::TOPSCENE_PARAM));
+	addParam(createParam<PilotTopSceneBtn>(Vec(sceneXAnchor, topSceneYAnchor+ ctrlSceneYOffset), module, PILOT::TOPSCENE_PARAM));
 	addParam(createParam<LeftBtn>(Vec(sceneXAnchor + ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift), module, PILOT::TOPSCENEMINUS_PARAM));
 	addParam(createParam<RightBtn>(Vec(sceneXAnchor + 2*ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift), module, PILOT::TOPSCENEPLUS_PARAM));
 	addParam(createParam<RndBtn>(Vec(sceneXAnchor + 3*ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift), module, PILOT::TOPSCENERND_PARAM));
@@ -1263,7 +1393,7 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	addParam(createParam<SaveBtn>(Vec(sceneXAnchor + ctrlSceneXOffset + sqBtnDrift, bottomSceneYAnchor), module, PILOT::SAVEBOTTOM_PARAM));
 	addParam(createParam<Rnd2Btn>(Vec(sceneXAnchor + 2*ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor), module, PILOT::RNDBOTTOM_PARAM));
 	addParam(createParam<Rnd2Btn>(Vec(sceneXAnchor + 3*ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor), module, PILOT::FRNDBOTTOM_PARAM));
-	addParam(createParam<BidooBlueSnapTrimpot>(Vec(sceneXAnchor, bottomSceneYAnchor+ ctrlSceneYOffset), module, PILOT::BOTTOMSCENE_PARAM));
+	addParam(createParam<PilotBottomSceneBtn>(Vec(sceneXAnchor, bottomSceneYAnchor+ ctrlSceneYOffset), module, PILOT::BOTTOMSCENE_PARAM));
 	addParam(createParam<LeftBtn>(Vec(sceneXAnchor + ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift), module, PILOT::BOTTOMSCENEMINUS_PARAM));
 	addParam(createParam<RightBtn>(Vec(sceneXAnchor + 2*ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift), module, PILOT::BOTTOMSCENEPLUS_PARAM));
 	addParam(createParam<RndBtn>(Vec(sceneXAnchor + 3*ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift), module, PILOT::BOTTOMSCENERND_PARAM));
@@ -1337,9 +1467,7 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 	addInput(createInput<TinyPJ301MPort>(Vec(curveCtrlXAnchor + 2*curveCtrlXOffset+curveInputXOffset, curveYAnchor+curveCtrlYOffset+curveInputYOffset), module, PILOT::BX_INPUT));
 	addInput(createInput<TinyPJ301MPort>(Vec(curveCtrlXAnchor + 3*curveCtrlXOffset+curveInputXOffset, curveYAnchor+curveCtrlYOffset+curveInputYOffset), module, PILOT::BY_INPUT));
 
-
 	const int controlsYOffest = 5;
-
 	const int seqXAnchor = 15;
 	const int seqYAnchor = 310;
 	const int seqDispOffset = 33;
@@ -1413,6 +1541,15 @@ struct PILOTShowTapesItem : MenuItem {
 	}
 };
 
+struct PILOTToggleOverrideTypesItem : MenuItem {
+	PILOT *module;
+	void onAction(const event::Action &e) override {
+		for (int i = 0; i < 16; i++) {
+			module->controlOverrideTypes[i] = !module->controlOverrideTypes[i];
+		}
+	}
+};
+
 struct PilotlabelTextField : TextField {
 	PILOT *module;
 	int id;
@@ -1439,6 +1576,7 @@ void PILOTWidget::appendContextMenu(ui::Menu *menu) {
 	menu->addChild(construct<PILOTCopyBankItem>(&MenuItem::text, "Copy bank (over+C)", &PILOTCopyBankItem::module, module));
 	menu->addChild(construct<PILOTPasteBankItem>(&MenuItem::text, "Paste bank (over+V)", &PILOTPasteBankItem::module, module));
 	menu->addChild(construct<PILOTShowTapesItem>(&MenuItem::text, "Show/Hide masking tape", &PILOTShowTapesItem::module, module, &PILOTShowTapesItem::pWidget, this));
+	menu->addChild(construct<PILOTToggleOverrideTypesItem>(&MenuItem::text, "Toggle override types", &PILOTToggleOverrideTypesItem::module, module));
 
 	for (int i = 0; i < 16; i++) {
 		auto holder = new rack::Widget;

@@ -1,3 +1,7 @@
+### v2.0.27 (30/10/2022)
+- πlOT copy/paste scenes available on top and bottom scene buttons (can be applied between banks)
+- πlOT controls behavior can be switched between "constant override" (default mode) i.e. it keeps its value until a scene is saved or the morph button is clicked, and not "constant override" meaning that the control jumps to its value when changing scene.
+
 ### v2.0.26 (11/10/2022)
 - fix Zou triggers issue
 
