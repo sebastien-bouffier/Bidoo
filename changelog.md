@@ -1,3 +1,6 @@
+### v2.0.28 (22/11/2022)
+- cANARd fix zoom issue
+
 ### v2.0.27 (30/10/2022)
 - πlOT copy/paste scenes available on top and bottom scene buttons (can be applied between banks)
 - πlOT controls behavior can be switched between "constant override" (default mode) i.e. it keeps its value until a scene is saved or the morph button is clicked, and not "constant override" meaning that the control jumps to its value when changing scene.
