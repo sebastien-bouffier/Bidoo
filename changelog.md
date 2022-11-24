@@ -1,3 +1,6 @@
+### v2.0.29 (24/11/2022)
+- ANTn minimp3 config change for OSX build compability
+
 ### v2.0.28 (22/11/2022)
 - cANARd fix zoom issue
 
