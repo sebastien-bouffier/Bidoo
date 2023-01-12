@@ -1,3 +1,6 @@
+### v2.1.0 (12/01/2023)
+- ANTn minimp3 config change for SIMD optimizations
+
 ### v2.0.29 (24/11/2022)
 - ANTn minimp3 config change for OSX build compability
 

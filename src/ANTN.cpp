@@ -9,7 +9,6 @@
 #include <sstream>
 #include <thread>
 #include "curl/curl.h"
-#define MINIMP3_NO_SIMD
 #define MINIMP3_IMPLEMENTATION
 #include "dep/minimp3/minimp3.h"
 
