@@ -388,12 +388,14 @@ struct ZOUMAI : BidooModule {
 	int copyTrackId = -1;
 	int copyPatternId = -1;
 	int copyTrigId = -1;
+	int copyPageId = -1;
 	bool run = false;
 	int clockMaxCount = 0;
 	bool noteIncoming = false;
 	float currentIncomingVO = -100.0f;
 	bool globalReset = false;
 	bool clockTrigged = false;
+	bool copyPageArmed = false;
 	bool copyTrigArmed = false;
 	bool copyTrackArmed = false;
 	bool copyPatternArmed = false;
@@ -994,6 +996,12 @@ struct ZOUMAI : BidooModule {
 			for (int j=0; j<64; j++) {
 				pasteTrig(copyPatternId,i,j,currentPattern,i,j);
 			}
+		}
+	}
+
+	void pastePage() {
+		for(int i=0; i<16; i++) {
+			pasteTrig(currentPattern,currentTrack,i+(copyPageId*16),currentPattern,currentTrack,i+(trigPage*16));
 		}
 	}
 
@@ -2474,6 +2482,25 @@ struct ZOUMAIWidget : BidooWidget {
 
 	}
 
+	struct ZouCopyPageItem : MenuItem {
+		ZOUMAI *module;
+		void onAction(const event::Action &e) override {
+			module->copyPageId = module->trigPage;
+			module->copyPatternArmed = false;
+			module->copyTrackArmed = false;
+			module->copyTrigArmed = false;
+			module->copyPageArmed = true;
+		}
+	};
+
+	struct ZouPastePageItem : MenuItem {
+		ZOUMAI *module;
+		void onAction(const event::Action &e) override {
+			module->pastePage();
+			module->updateTrigToParams();
+		}
+	};
+	
 	struct ZouInitTrigItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
@@ -2823,6 +2850,11 @@ struct ZOUMAIWidget : BidooWidget {
 				menu->addChild(construct<ZouPastePatternItem>(&MenuItem::text, "Paste (over+V)", &ZouPastePatternItem::module, module));
 				menu->addChild(construct<ZouRandomizePatternItem>(&MenuItem::text, "Rand (over+R)", &ZouRandomizePatternItem::module, module));
 				menu->addChild(construct<ZouFullRandomizePatternItem>(&MenuItem::text, "Full Rand (over+T)", &ZouFullRandomizePatternItem::module, module));
+			}));
+		
+			menu->addChild(createSubmenuItem("Page", "", [=](ui::Menu* menu) {
+				menu->addChild(construct<ZouCopyPageItem>(&MenuItem::text, "Copy (over+C)", &ZouCopyPageItem::module, module));
+				menu->addChild(construct<ZouPastePageItem>(&MenuItem::text, "Paste (over+V)", &ZouPastePageItem::module, module));
 			}));
 
 		}
