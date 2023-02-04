@@ -862,6 +862,43 @@ struct ZOUMAI : BidooModule {
 		}
 	}
 
+	void randomizePageTrigsNotes(const int page) {
+		const int start = page * 16;
+		for (int i=start; i<start+16; i++) {
+			randomizeTrigNote(currentTrack,i);
+		}
+	}
+
+	void randomizePageTrigsNotesPlus(const int page) {
+		for (int i=0; i<64; i++) {
+			randomizeTrigNotePlus(page,i);
+		}
+	}
+
+	void randomizePageTrigsProbs(const int page) {
+		for (int i=0; i<64; i++) {
+			randomizeTrigProb(page,i);
+		}
+	}
+
+	void randomizePageTrigsCV1(const int page) {
+		for (int i=0; i<64; i++) {
+			randomizeTrigCV1(page,i);
+		}
+	}
+
+	void randomizePageTrigsCV2(const int page) {
+		for (int i=0; i<64; i++) {
+			randomizeTrigCV2(page,i);
+		}
+	}
+
+	void fullRandomizePage(const int page) {
+		for (int i=0; i<64; i++) {
+			fullRandomizeTrig(page,i);
+		}
+	}
+
 	void randomizePattern() {
 		for (int i=0; i<8; i++) {
 			randomizeTrack(i);
@@ -2500,6 +2537,14 @@ struct ZOUMAIWidget : BidooWidget {
 			module->updateTrigToParams();
 		}
 	};
+
+	struct ZouRandomizePageTrigsNotesItem : MenuItem {
+		ZOUMAI *module;
+		void onAction(const event::Action &e) override {
+			module->randomizePageTrigsNotes(module->trigPage);
+			module->updateTrigToParams();
+		}
+	};
 	
 	struct ZouInitTrigItem : MenuItem {
 		ZOUMAI *module;
@@ -2855,6 +2900,7 @@ struct ZOUMAIWidget : BidooWidget {
 			menu->addChild(createSubmenuItem("Page", "", [=](ui::Menu* menu) {
 				menu->addChild(construct<ZouCopyPageItem>(&MenuItem::text, "Copy (over+C)", &ZouCopyPageItem::module, module));
 				menu->addChild(construct<ZouPastePageItem>(&MenuItem::text, "Paste (over+V)", &ZouPastePageItem::module, module));
+				menu->addChild(construct<ZouRandomizePageTrigsNotesItem>(&MenuItem::text, "Rand Notes (over+T)", &ZouRandomizePageTrigsNotesItem::module, module));
 			}));
 
 		}
