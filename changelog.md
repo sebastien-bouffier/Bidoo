@@ -1,3 +1,6 @@
+### v2.1.1 (06/02/2023)
+- zOù MAï and enCORE can copy/paste/randomize/erase per page thanks to Tavis
+
 ### v2.1.0 (12/01/2023)
 - ANTn minimp3 config change for SIMD optimizations
 
