@@ -388,12 +388,14 @@ struct ZOUMAI : BidooModule {
 	int copyTrackId = -1;
 	int copyPatternId = -1;
 	int copyTrigId = -1;
+	int copyPageId = -1;
 	bool run = false;
 	int clockMaxCount = 0;
 	bool noteIncoming = false;
 	float currentIncomingVO = -100.0f;
 	bool globalReset = false;
 	bool clockTrigged = false;
+	bool copyPageArmed = false;
 	bool copyTrigArmed = false;
 	bool copyTrackArmed = false;
 	bool copyPatternArmed = false;
@@ -860,6 +862,48 @@ struct ZOUMAI : BidooModule {
 		}
 	}
 
+	void randomizePageTrigsNotes(const int page) {
+		const int start = page * 16;
+		for (int i=start; i<start+16; i++) {
+			randomizeTrigNote(currentTrack,i);
+		}
+	}
+
+	void randomizePageTrigsNotesPlus(const int page) {
+		const int start = page * 16;
+		for (int i=start; i<start+16; i++) {
+			randomizeTrigNotePlus(currentTrack,i);
+		}
+	}
+
+	void randomizePageTrigsProbs(const int page) {
+		const int start = page * 16;
+		for (int i=start; i<start+16; i++) {
+			randomizeTrigProb(currentTrack,i);
+		}
+	}
+
+	void randomizePageTrigsCV1(const int page) {
+		const int start = page * 16;
+		for (int i=start; i<start+16; i++) {
+			randomizeTrigCV1(currentTrack,i);
+		}
+	}
+
+	void randomizePageTrigsCV2(const int page) {
+		const int start = page * 16;
+		for (int i=start; i<start+16; i++) {
+			randomizeTrigCV2(currentTrack,i);
+		}
+	}
+
+	void fullRandomizePage(const int page) {
+		const int start = page * 16;
+		for (int i=start; i<start+16; i++) {
+			fullRandomizeTrig(currentTrack,i);
+		}
+	}
+
 	void randomizePattern() {
 		for (int i=0; i<8; i++) {
 			randomizeTrack(i);
@@ -997,6 +1041,12 @@ struct ZOUMAI : BidooModule {
 		}
 	}
 
+	void pastePage(const int fromPage, const int toPage) {
+		for(int i=0; i<16; i++) {
+			pasteTrig(currentPattern,currentTrack,i+(fromPage*16),currentPattern,currentTrack,i+(toPage*16));
+		}
+	}
+
 	void trigInit(const int pattern, const int track, const int trig) {
 		nTrigsAttibutes[pattern][track][trig].init();
 		trigSlide[pattern][track][trig] = 0.0f;
@@ -1006,6 +1056,14 @@ struct ZOUMAI : BidooModule {
 		trigCV1[pattern][track][trig] = 0.0f;
 		trigCV2[pattern][track][trig] = 0.0f;
     trigSlideType[pattern][track][trig] = false;
+	}
+
+	void pageInit(const int page) {
+		const int start = page*16;
+		for (int i=start; i<start+16; i++) {
+			trigInit(currentPattern, currentTrack, i);
+			nTrigsAttibutes[currentPattern][currentTrack][i].setTrigIndex(i);
+		}
 	}
 
 	void trackInit(const int pattern, const int track) {
@@ -1685,6 +1743,62 @@ struct trigPageBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 			e.consume(this);
 		}
 		SmallLEDLightBezel<RedGreenBlueLight>::onButton(e);
+	}
+
+	void onHoverKey(const HoverKeyEvent& e) override {
+		if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
+			if (e.key == GLFW_KEY_C) {
+				ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
+				mod->copyPageId = getParamQuantity()->paramId - ZOUMAI::TRIGPAGE_PARAM;
+				mod->copyPatternArmed = false;
+				mod->copyTrackArmed = false;
+				mod->copyTrigArmed = false;
+				mod->copyPageArmed = true;
+			}
+
+			if (e.key == GLFW_KEY_V) {
+				ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
+			  mod->pastePage(mod->copyPageId, getParamQuantity()->paramId - ZOUMAI::TRIGPAGE_PARAM);
+			  mod->updateTrigToParams();
+			}
+
+			if (e.key == GLFW_KEY_E) {
+				ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
+				mod->pageInit(getParamQuantity()->paramId - ZOUMAI::TRIGPAGE_PARAM);
+				mod->updateTrigToParams();
+			}
+
+			if (e.key == GLFW_KEY_T) {
+				ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
+				mod->randomizePageTrigsNotes(getParamQuantity()->paramId - ZOUMAI::TRIGPAGE_PARAM);
+				mod->updateTrigToParams();
+			}
+
+			if (e.key == GLFW_KEY_Y) {
+				ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
+				mod->randomizePageTrigsNotesPlus(getParamQuantity()->paramId - ZOUMAI::TRIGPAGE_PARAM);
+				mod->updateTrigToParams();
+			}
+
+			if (e.key == GLFW_KEY_U) {
+				ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
+				mod->randomizePageTrigsProbs(getParamQuantity()->paramId - ZOUMAI::TRIGPAGE_PARAM);
+				mod->updateTrigToParams();
+			}
+
+			if (e.key == GLFW_KEY_F) {
+				ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
+				mod->randomizePageTrigsCV1(getParamQuantity()->paramId - ZOUMAI::TRIGPAGE_PARAM);
+				mod->updateTrigToParams();
+			}
+
+			if (e.key == GLFW_KEY_G) {
+				ZOUMAI *mod = static_cast<ZOUMAI*>(getParamQuantity()->module);
+				mod->randomizePageTrigsCV2(getParamQuantity()->paramId - ZOUMAI::TRIGPAGE_PARAM);
+				mod->updateTrigToParams();
+			}
+		}
+		SmallLEDLightBezel<RedGreenBlueLight>::onHoverKey(e);
 	}
 };
 
@@ -2474,6 +2588,73 @@ struct ZOUMAIWidget : BidooWidget {
 
 	}
 
+	struct ZouInitPageItem : MenuItem {
+		ZOUMAI *module;
+		void onAction(const event::Action &e) override {
+			module->pageInit(module->trigPage);
+			module->updateTrigToParams();
+		}
+	};
+
+	struct ZouCopyPageItem : MenuItem {
+		ZOUMAI *module;
+		void onAction(const event::Action &e) override {
+			module->copyPageId = module->trigPage;
+			module->copyPatternArmed = false;
+			module->copyTrackArmed = false;
+			module->copyTrigArmed = false;
+			module->copyPageArmed = true;
+		}
+	};
+
+	struct ZouPastePageItem : MenuItem {
+		ZOUMAI *module;
+		void onAction(const event::Action &e) override {
+			module->pastePage(module->copyPageId, module->trigPage);
+			module->updateTrigToParams();
+		}
+	};
+
+	struct ZouRandomizePageTrigsNotesItem : MenuItem {
+		ZOUMAI *module;
+		void onAction(const event::Action &e) override {
+			module->randomizePageTrigsNotes(module->trigPage);
+			module->updateTrigToParams();
+		}
+	};
+	
+	struct ZouRandomizePageTrigsNotesPlusItem : MenuItem {
+		ZOUMAI *module;
+		void onAction(const event::Action &e) override {
+			module->randomizePageTrigsNotesPlus(module->trigPage);
+			module->updateTrigToParams();
+		}
+	};
+	
+	struct ZouRandomizePageTrigsProbsItem : MenuItem {
+		ZOUMAI *module;
+		void onAction(const event::Action &e) override {
+			module->randomizePageTrigsProbs(module->trigPage);
+			module->updateTrigToParams();
+		}
+	};
+
+	struct ZouRandomizePageTrigsCV1Item : MenuItem {
+		ZOUMAI *module;
+		void onAction(const event::Action &e) override {
+			module->randomizePageTrigsCV1(module->trigPage);
+			module->updateTrigToParams();
+		}
+	};
+
+	struct ZouRandomizePageTrigsCV2Item : MenuItem {
+		ZOUMAI *module;
+		void onAction(const event::Action &e) override {
+			module->randomizePageTrigsCV2(module->trigPage);
+			module->updateTrigToParams();
+		}
+	};
+
 	struct ZouInitTrigItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
@@ -2823,6 +3004,17 @@ struct ZOUMAIWidget : BidooWidget {
 				menu->addChild(construct<ZouPastePatternItem>(&MenuItem::text, "Paste (over+V)", &ZouPastePatternItem::module, module));
 				menu->addChild(construct<ZouRandomizePatternItem>(&MenuItem::text, "Rand (over+R)", &ZouRandomizePatternItem::module, module));
 				menu->addChild(construct<ZouFullRandomizePatternItem>(&MenuItem::text, "Full Rand (over+T)", &ZouFullRandomizePatternItem::module, module));
+			}));
+		
+			menu->addChild(createSubmenuItem("Page", "", [=](ui::Menu* menu) {
+				menu->addChild(construct<ZouInitPageItem>(&MenuItem::text, "Erase (over+E)", &ZouInitPageItem::module, module));
+				menu->addChild(construct<ZouCopyPageItem>(&MenuItem::text, "Copy (over+C)", &ZouCopyPageItem::module, module));
+				menu->addChild(construct<ZouPastePageItem>(&MenuItem::text, "Paste (over+V)", &ZouPastePageItem::module, module));
+				menu->addChild(construct<ZouRandomizePageTrigsNotesItem>(&MenuItem::text, "Rand Notes (over+T)", &ZouRandomizePageTrigsNotesItem::module, module));
+				menu->addChild(construct<ZouRandomizePageTrigsNotesPlusItem>(&MenuItem::text, "Rand Notes+ (over+U)", &ZouRandomizePageTrigsNotesPlusItem::module, module));
+				menu->addChild(construct<ZouRandomizePageTrigsProbsItem>(&MenuItem::text, "Rand Probs (over+Y)", &ZouRandomizePageTrigsProbsItem::module, module));
+				menu->addChild(construct<ZouRandomizePageTrigsCV1Item>(&MenuItem::text, "Rand CV1 (over+F)", &ZouRandomizePageTrigsCV1Item::module, module));
+				menu->addChild(construct<ZouRandomizePageTrigsCV2Item>(&MenuItem::text, "Rand CV2 (over+G)", &ZouRandomizePageTrigsCV2Item::module, module));
 			}));
 
 		}
