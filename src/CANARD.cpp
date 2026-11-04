@@ -7,10 +7,65 @@
 #include <iomanip>
 #include <sstream>
 #include <algorithm>
+#include <cstring>
+#include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <mutex>
+#include <thread>
 #include "dep/waves.hpp"
 
 using namespace std;
+
+// Linear up to 8 V, then bends to stay under 10 V (9.95 V at most).
+inline float canardSoftLimit(float x) {
+	float a = std::fabs(x);
+	if (a <= 8.0f)
+		return x;
+	return std::copysign(8.0f + 1.95f * std::tanh((a - 8.0f) * 0.5f), x);
+}
+
+// A sample and its slice markers (the first is always 0), with an overview
+// for the display. Never changed once handed to the audio thread: an edit
+// builds a new one on the worker.
+struct CanardSample {
+	static constexpr int OVERVIEW = 1024;
+	std::vector<dsp::Frame<2>> frames;
+	std::vector<int> slices{0};
+	float sampleRate = 0.f;
+	float overviewMin[2][OVERVIEW] = {};
+	float overviewMax[2][OVERVIEW] = {};
+
+	int size() const { return (int)frames.size(); }
+
+	void finish() {
+		std::sort(slices.begin(), slices.end());
+		slices.erase(std::unique(slices.begin(), slices.end()), slices.end());
+		slices.erase(std::remove_if(slices.begin(), slices.end(), [&](int s) { return s < 0 || (s > 0 && s >= size()); }), slices.end());
+		if (slices.empty() || slices[0] != 0)
+			slices.insert(slices.begin(), 0);
+		int count = size();
+		for (int b = 0; b < OVERVIEW; b++) {
+			int i0 = (int)((long long)b * count / OVERVIEW), i1 = std::max((int)((long long)(b + 1) * count / OVERVIEW), i0 + 1);
+			for (int c = 0; c < 2; c++) {
+				float lo = 0.f, hi = 0.f;
+				for (int i = i0; i < i1 && i < count; i++) {
+					lo = std::min(lo, frames[i].samples[c]);
+					hi = std::max(hi, frames[i].samples[c]);
+				}
+				overviewMin[c][b] = lo;
+				overviewMax[c][b] = hi;
+			}
+		}
+	}
+};
+
+// Recording goes into chunks the worker allocates in advance.
+struct CanardChunk {
+	static constexpr int FRAMES = 16384;
+	dsp::Frame<2> f[FRAMES];
+	int used = 0;
+};
 
 struct CANARD : BidooModule {
 	enum ParamIds {
@@ -52,440 +107,572 @@ struct CANARD : BidooModule {
 		NUM_LIGHTS
 	};
 
+	// Audio thread: the sample it plays and the playback state.
+	CanardSample *smp = nullptr;
 	bool play = false;
 	bool record = false;
-	bool save = false;
-	int channels = 2;
-	int sampleRate = 0;
-  int totalSampleCount = 0;
-	vector<dsp::Frame<2>> playBuffer, recordBuffer;
-	float samplePos = 0.0f, sampleStart = 0.0f, loopLength = 0.0f, fadeLenght = 0.0f, fadeCoeff = 1.0f, speedFactor = 1.0f;
-	size_t prevPlayedSlice = 0;
-	size_t playedSlice = 0;
-	bool changedSlice = false;
-	int readMode = 0; // 0 formward, 1 backward, 2 repeat
-	float speed;
-	std::vector<int> slices;
-	int selected = -1;
-	bool deleteFlag = false;
-	int addSliceMarker = -1;
-	bool addSliceMarkerFlag = false;
-	int deleteSliceMarker = -1;
-	bool deleteSliceMarkerFlag = false;
-	size_t index = 0;
-	float prevGateState = 0.0f;
-	float prevTrigState = 0.0f;
-	std::string lastPath;
-	std::string waveFileName;
-	std::string waveExtension;
-	bool loading = false;
+	float samplePos = 0.0f, sampleStart = 0.0f, loopLength = 0.0f, fadeLenght = 0.0f;
+	float direction = 1.0f;      // ping-pong flips it
+	int playedSlice = 0;
+	int totalSampleCount = 0;
+	float speed = 1.0f;
+	bool reverse = false;        // plays the slices backward
 	dsp::SchmittTrigger trigTrigger;
+	dsp::SchmittTrigger gateTrigger;
 	dsp::SchmittTrigger recordTrigger;
 	dsp::SchmittTrigger clearTrigger;
 	dsp::PulseGenerator eocPulse;
-	std::mutex mylock;
-	bool newStop = false;
-	bool first=true;
+
+	// Handoff between the worker and the audio thread.
+	std::atomic<CanardSample*> pending{nullptr};
+	std::atomic<CanardSample*> retired{nullptr};
+	std::atomic<bool> pendingSet{false};   // a pending change (it may be "no sample")
+	std::atomic<CanardSample*> live{nullptr};  // what the audio thread plays, read by the worker
+
+	// Recording: chunks the worker keeps ready, filled by the audio thread.
+	static constexpr int SPARES = 16;      // about 5 s ahead at 48 kHz
+	static constexpr int MAX_CHUNKS = 16384;  // about 90 minutes at 48 kHz
+	std::atomic<CanardChunk*> spare[SPARES];
+	CanardChunk *recChunks[MAX_CHUNKS] = {};
+	int recCount = 0;
+	std::atomic<int> recDone{-1};             // chunks of a finished recording, for the worker
+	std::atomic<bool> recAppend{false};
+	std::atomic<float> recRate{48000.f};
+	std::atomic<bool> clearRequested{false};
+
+	// Worker: loads, saves, slice edits, recordings.
+	enum JobType { LOAD, SAVE, CLEAR, DELETE_SLICE, ADD_MARKER, DELETE_MARKER, TRANSIENTS };
+	struct Job { JobType type; std::string path; int value; std::vector<int> slices; float rate; };
+	std::thread worker;
+	std::mutex jobMutex;
+	std::condition_variable jobCv;
+	std::deque<Job> jobs;
+	std::atomic<bool> quit{false};
+	std::atomic<float> reloadRate{0.f};
+	std::atomic<int> busy{0};
+	std::string lastPath;      // under jobMutex
+	std::string waveFileName;  // under jobMutex
+
+	// UI thread: what the display shows.
+	std::mutex uiMutex;
+	std::shared_ptr<CanardSample> uiSample;
+	int selected = -1;
+	int addSliceMarker = -1;
+	int deleteSliceMarker = -1;
 
 	CANARD() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(RECORD_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(SAMPLE_START_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(LOOP_LENGTH_PARAM, 0.0f, 10.0f, 10.0f);
-		configParam(READ_MODE_PARAM, 0.0f, 2.0f, 0.0f);
-		configParam(SPEED_PARAM, -4.0f, 4.0f, 1.0f);
-		configParam(FADE_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(SLICE_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(CLEAR_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(THRESHOLD_PARAM, 0.01f, 10.0f, 1.0f);
+		configButton(RECORD_PARAM, "Record (start / stop)");
+		configParam(SAMPLE_START_PARAM, 0.0f, 10.0f, 0.0f, "Start", "%", 0.f, 10.f);
+		configParam(LOOP_LENGTH_PARAM, 0.0f, 10.0f, 10.0f, "Length", "%", 0.f, 10.f);
+		configSwitch(READ_MODE_PARAM, 0.0f, 2.0f, 0.0f, "Read mode", {"Once", "Loop", "Ping-pong"});
+		configParam(SPEED_PARAM, -4.0f, 4.0f, 0.0f, "Speed", "x", 2.f);
+		configParam(FADE_PARAM, 0.0f, 10.0f, 0.0f, "Fade", "%", 0.f, 5.f);
+		configParam(SLICE_PARAM, 0.0f, 10.0f, 0.0f, "Slice");
+		configButton(CLEAR_PARAM, "Clear the sample");
+		configParam(THRESHOLD_PARAM, 0.01f, 10.0f, 1.0f, "Transient threshold (Shift-click: detect)");
 		configSwitch(MODE_PARAM, 0, 1, 0, "Slice mode", {"Off", "On"});
+		configInput(INL_INPUT, "Left in");
+		configInput(INR_INPUT, "Right in");
+		configInput(TRIG_INPUT, "Trigger");
+		configInput(GATE_INPUT, "Gate");
+		configInput(SAMPLE_START_INPUT, "Start CV");
+		configInput(LOOP_LENGTH_INPUT, "Length CV");
+		configInput(READ_MODE_INPUT, "Read mode CV");
+		configInput(SPEED_INPUT, "Speed (1V/oct)");
+		configInput(RECORD_INPUT, "Record trigger");
+		configInput(FADE_INPUT, "Fade CV");
+		configInput(SLICE_INPUT, "Slice CV");
+		configInput(CLEAR_INPUT, "Clear trigger");
+		configOutput(OUTL_OUTPUT, "Left");
+		configOutput(OUTR_OUTPUT, "Right");
+		configOutput(EOC_OUTPUT, "End of cycle");
+		for (int i = 0; i < SPARES; i++)
+			spare[i] = nullptr;
+		worker = std::thread(&CANARD::workerLoop, this);
+	}
 
-		playBuffer.resize(0);
-		recordBuffer.resize(0);
+	~CANARD() {
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			quit = true;
+		}
+		jobCv.notify_all();
+		if (worker.joinable())
+			worker.join();
+		delete pending.load();
+		delete retired.load();
+		delete smp;
+		for (int i = 0; i < SPARES; i++)
+			delete spare[i].load();
+		for (int i = 0; i < recCount; i++)
+			delete recChunks[i];
+	}
+
+	static float engineRate() {
+		return (APP && APP->engine) ? APP->engine->getSampleRate() : 48000.f;
+	}
+
+	// Any thread but the audio thread.
+	void post(Job job) {
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			if (job.type == LOAD) {
+				lastPath = job.path;
+				waveFileName = rack::system::getFilename(job.path);
+			}
+			if (job.type == SAVE) {
+				lastPath = job.path;
+				waveFileName = rack::system::getFilename(job.path);
+			}
+			if (job.type == CLEAR) {
+				lastPath.clear();
+				waveFileName.clear();
+			}
+			jobs.push_back(job);
+			busy++;
+		}
+		jobCv.notify_all();
+	}
+
+	void loadFile(const std::string &path, std::vector<int> slices = {}) {
+		post({LOAD, path, 0, slices, engineRate()});
+	}
+
+	std::string getPath() {
+		std::lock_guard<std::mutex> lock(jobMutex);
+		return lastPath;
+	}
+
+	std::string getFileName() {
+		std::lock_guard<std::mutex> lock(jobMutex);
+		return waveFileName;
+	}
+
+	// Worker: hands a new sample (or none) to the audio thread.
+	void publish(CanardSample *s) {
+		if (s)
+			s->finish();
+		auto shown = s ? std::make_shared<CanardSample>(*s) : nullptr;
+		if (shown)
+			shown->frames.clear();  // the display needs the overview and the slices only
+		{
+			std::lock_guard<std::mutex> ui(uiMutex);
+			uiSample = shown;
+		}
+		while (pendingSet.load() && !quit) {
+			// The audio thread takes the new one only once the old one is freed.
+			delete retired.exchange(nullptr, std::memory_order_acq_rel);
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+		delete pending.exchange(s, std::memory_order_acq_rel);
+		pendingSet = true;
+	}
+
+	CanardSample *copyLive() {
+		// An edit starts from the newest sample: wait until the audio thread took it.
+		while (pendingSet.load() && !quit) {
+			delete retired.exchange(nullptr, std::memory_order_acq_rel);
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+		CanardSample *l = live.load(std::memory_order_acquire);
+		return l ? new CanardSample(*l) : nullptr;
+	}
+
+	void detectTransients(CanardSample *s, float threshold) {
+		s->slices.clear();
+		s->slices.push_back(0);
+		const int size = 256;
+		float prevNrgy = 0.0f;
+		for (int i = 0; i + size < s->size(); i += size) {
+			float nrgy = 0.0f;
+			int zcIdx = 0;
+			bool firstZero = true;
+			for (int k = 0; k < size; k++) {
+				float v = s->frames[i + k].samples[0];
+				nrgy += 100 * v * v / size;
+				if (v == 0.0f && firstZero) {
+					zcIdx = k;
+					firstZero = false;
+				}
+			}
+			if ((nrgy > threshold) && (nrgy > 10 * prevNrgy))
+				s->slices.push_back(i + zcIdx);
+			prevNrgy = nrgy;
+		}
+	}
+
+	void runJob(const Job &job) {
+		switch (job.type) {
+			case LOAD: {
+				std::string name, ext;
+				int ch = 0, sr = 0, cnt = 0;
+				CanardSample *s = new CanardSample();
+				s->frames = waves::getStereoWav(job.path, job.rate, name, ext, ch, sr, cnt);
+				s->sampleRate = job.rate;
+				if (s->frames.empty()) {
+					delete s;
+					publish(nullptr);
+					break;
+				}
+				// Slices from a patch, at the rate they were saved at (the job's rate).
+				s->slices = job.slices;
+				publish(s);
+				break;
+			}
+			case SAVE: {
+				CanardSample *l = live.load(std::memory_order_acquire);
+				if (l && l->size() > 0)
+					waves::saveWave(l->frames, l->sampleRate, job.path);
+				break;
+			}
+			case CLEAR:
+				publish(nullptr);
+				break;
+			case DELETE_SLICE: {
+				CanardSample *s = copyLive();
+				if (!s)
+					break;
+				int sel = job.value;
+				if (sel >= 0 && sel < (int)s->slices.size()) {
+					int from = s->slices[sel];
+					int to = (sel + 1 < (int)s->slices.size()) ? s->slices[sel + 1] : s->size();
+					s->frames.erase(s->frames.begin() + from, s->frames.begin() + to);
+					s->slices.erase(s->slices.begin() + sel);
+					for (size_t i = sel; i < s->slices.size(); i++)
+						s->slices[i] -= (to - from);
+				}
+				if (s->frames.empty()) {
+					delete s;
+					s = nullptr;
+				}
+				publish(s);
+				break;
+			}
+			case ADD_MARKER: {
+				CanardSample *s = copyLive();
+				if (!s)
+					break;
+				s->slices.push_back(job.value);
+				publish(s);
+				break;
+			}
+			case DELETE_MARKER: {
+				CanardSample *s = copyLive();
+				if (!s)
+					break;
+				if (job.value > 0)
+					s->slices.erase(std::remove(s->slices.begin(), s->slices.end(), job.value), s->slices.end());
+				publish(s);
+				break;
+			}
+			case TRANSIENTS: {
+				CanardSample *s = copyLive();
+				if (!s)
+					break;
+				detectTransients(s, (float)job.value / 1000.f);
+				publish(s);
+				break;
+			}
+		}
+	}
+
+	void workerLoop() {
+		std::unique_lock<std::mutex> lock(jobMutex);
+		while (!quit) {
+			// The audio thread cannot notify without locking: poll often for it.
+			if (jobs.empty())
+				jobCv.wait_for(lock, std::chrono::milliseconds(10));
+			if (quit)
+				break;
+			lock.unlock();
+			delete retired.exchange(nullptr, std::memory_order_acq_rel);
+			// Keep spare recording chunks ready.
+			for (int i = 0; i < SPARES; i++)
+				if (!spare[i].load()) {
+					// Touched here, so the audio thread never takes a page fault on it.
+					CanardChunk *c = new CanardChunk();
+					std::memset(c->f, 0, sizeof(c->f));
+					spare[i].store(c, std::memory_order_release);
+				}
+			// A finished recording: a new sample, or appended as a new slice.
+			if (clearRequested.exchange(false)) {
+				{
+					std::lock_guard<std::mutex> l2(jobMutex);
+					lastPath.clear();
+					waveFileName.clear();
+				}
+				publish(nullptr);
+			}
+			int done = recDone.load();
+			if (done >= 0) {
+				CanardSample *s = recAppend ? copyLive() : nullptr;
+				if (!s) {
+					s = new CanardSample();
+					s->sampleRate = recRate;
+				}
+				int at = s->size();
+				for (int c = 0; c < done; c++) {
+					s->frames.insert(s->frames.end(), recChunks[c]->f, recChunks[c]->f + recChunks[c]->used);
+					delete recChunks[c];
+					recChunks[c] = nullptr;
+				}
+				if (at > 0)
+					s->slices.push_back(at);
+				{
+					std::lock_guard<std::mutex> l2(jobMutex);
+					if (!recAppend) {
+						lastPath.clear();
+						waveFileName.clear();
+					}
+				}
+				if (s->frames.empty()) {
+					delete s;
+					s = nullptr;
+				}
+				publish(s);
+				// Only now may the audio thread start another recording.
+				recDone.store(-1);
+			}
+			float rr = reloadRate.exchange(0.f);
+			lock.lock();
+			if (rr > 0.f && !lastPath.empty()) {
+				// Slices move with the new rate.
+				CanardSample *l = live.load(std::memory_order_acquire);
+				std::vector<int> sl;
+				if (l)
+					for (int s : l->slices)
+						sl.push_back((int)std::round(s * (double)rr / l->sampleRate));
+				jobs.push_back({LOAD, lastPath, 0, sl, rr});
+				busy++;
+			}
+			if (jobs.empty())
+				continue;
+			Job job = jobs.front();
+			jobs.pop_front();
+			lock.unlock();
+			runJob(job);
+			lock.lock();
+			busy--;
+		}
 	}
 
 	void process(const ProcessArgs &args) override;
 
-	void calcLoop();
-	void initPos();
-	void loadSample();
-	void saveSample();
-	void calcTransients();
-
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
-		// lastPath
-		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
+		json_object_set_new(rootJ, "lastPath", json_string(getPath().c_str()));
+		json_object_set_new(rootJ, "reverse", json_boolean(reverse));
 		json_t *slicesJ = json_array();
-		for (size_t i = 0; i<slices.size() ; i++) {
-			json_t *sliceJ = json_integer(slices[i]);
-			json_array_append_new(slicesJ, sliceJ);
+		std::shared_ptr<CanardSample> s;
+		{
+			std::lock_guard<std::mutex> lock(uiMutex);
+			s = uiSample;
 		}
+		if (s)
+			for (int x : s->slices)
+				json_array_append_new(slicesJ, json_integer(x));
 		json_object_set_new(rootJ, "slices", slicesJ);
-
 		return rootJ;
 	}
 
 	void dataFromJson(json_t *rootJ) override {
 		BidooModule::dataFromJson(rootJ);
+		json_t *reverseJ = json_object_get(rootJ, "reverse");
+		reverse = reverseJ && json_is_true(reverseJ);
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
-		if (lastPathJ) {
-			lastPath = json_string_value(lastPathJ);
-			waveFileName = rack::system::getFilename(lastPath);
-			waveExtension = rack::system::getExtension(lastPath);
-			if (!lastPath.empty()) loadSample();
-			if (totalSampleCount>0) {
-				json_t *slicesJ = json_object_get(rootJ, "slices");
-				if (slicesJ) {
-					size_t i;
-					json_t *sliceJ;
-					json_array_foreach(slicesJ, i, sliceJ) {
-							if (i != 0)
-								slices.push_back(json_integer_value(sliceJ));
-					}
-				}
-			}
+		if (lastPathJ && json_string_value(lastPathJ)[0]) {
+			std::vector<int> sl;
+			json_t *slicesJ = json_object_get(rootJ, "slices");
+			size_t i;
+			json_t *sliceJ;
+			if (slicesJ)
+				json_array_foreach(slicesJ, i, sliceJ)
+					sl.push_back(json_integer_value(sliceJ));
+			loadFile(json_string_value(lastPathJ), sl);
 		}
 	}
 
-	void onSampleRateChange() override {
-		if (!lastPath.empty()) loadSample();
+	void calcLoop() {
+		int sliceStart = 0;
+		int sliceEnd = totalSampleCount > 0 ? totalSampleCount - 1 : 0;
+		playedSlice = 0;
+		if (smp && params[MODE_PARAM].getValue() == 1 && smp->slices.size() > 0) {
+			int n = smp->slices.size();
+			playedSlice = clamp((int)std::round(clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f, 10.0f) * (n - 1) / 10), 0, n - 1);
+			sliceStart = smp->slices[playedSlice];
+			sliceEnd = (playedSlice < n - 1) ? (smp->slices[playedSlice + 1] - 1) : (totalSampleCount - 1);
+		}
+		if (totalSampleCount > 0) {
+			sampleStart = rescale(clamp(inputs[SAMPLE_START_INPUT].getVoltage() + params[SAMPLE_START_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f, sliceStart, sliceEnd);
+			loopLength = clamp(rescale(clamp(inputs[LOOP_LENGTH_INPUT].getVoltage() + params[LOOP_LENGTH_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f, 0.0f, sliceEnd - sliceStart + 1), 1.0f, std::max(sliceEnd - sampleStart, 1.0f));
+			fadeLenght = rescale(clamp(inputs[FADE_INPUT].getVoltage() + params[FADE_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f, 0.0f, std::floor(loopLength / 2));
+		}
+		else {
+			loopLength = 0;
+			sampleStart = 0;
+			fadeLenght = 0;
+		}
+	}
+
+	void initPos() {
+		direction = 1.0f;
+		samplePos = reverse ? sampleStart + loopLength : sampleStart;
 	}
 };
 
-void CANARD::calcTransients() {
-	slices.clear();
-	slices.push_back(0);
-	int i = 0;
-	int size = 256;
-	vector<dsp::Frame<2>>::const_iterator first;
-	vector<dsp::Frame<2>>::const_iterator last;
-	float prevNrgy = 0.0f;
-	while (i+size<totalSampleCount) {
-		first = playBuffer.begin() + i;
-		last = playBuffer.begin() + i + size;
-		vector<dsp::Frame<2>> newVec(first, last);
-		float nrgy = 0.0f;
-		unsigned int zcIdx = 0;
-		bool first = true;
-		for (int k = 0; k < size; k++) {
-			nrgy += 100*newVec[k].samples[0]*newVec[k].samples[0]/size;
-			if (newVec[k].samples[0]==0.0f) {
-				if (first) {
-					zcIdx = k;
-					first = false;
-				}
-			}
-		}
-		if ((nrgy > params[CANARD::THRESHOLD_PARAM].getValue()) && (nrgy > 10*prevNrgy))
-			slices.push_back(i+zcIdx);
-		i+=size;
-		prevNrgy = nrgy;
-	}
-}
-
-void CANARD::loadSample() {
-	APP->engine->yieldWorkers();
-	mylock.lock();
-	playBuffer = waves::getStereoWav(lastPath, APP->engine->getSampleRate(), waveFileName, waveExtension, channels, sampleRate, totalSampleCount);
-	mylock.unlock();
-	slices.clear();
-	loading = false;
-}
-
-void CANARD::saveSample() {
-	APP->engine->yieldWorkers();
-	mylock.lock();
-	waves::saveWave(playBuffer, APP->engine->getSampleRate(), lastPath);
-	mylock.unlock();
-	save = false;
-}
-
-void CANARD::calcLoop() {
-	prevPlayedSlice = index;
-	index = 0;
-	int sliceStart = 0;;
-	int sliceEnd = totalSampleCount > 0 ? totalSampleCount - 1 : 0;
-	if ((params[MODE_PARAM].getValue() == 1) && (slices.size()>0))
-	{
-		index = round(clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f,10.0f)*(slices.size()-1)/10);
-		sliceStart = slices[index];
-		sliceEnd = (index < (slices.size() - 1)) ? (slices[index+1] - 1) : (totalSampleCount - 1);
-	}
-
-	if (totalSampleCount > 0) {
-		sampleStart = rescale(clamp(inputs[SAMPLE_START_INPUT].getVoltage() + params[SAMPLE_START_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f, sliceStart, sliceEnd);
-		loopLength = clamp(rescale(clamp(inputs[LOOP_LENGTH_INPUT].getVoltage() + params[LOOP_LENGTH_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f, 0.0f, sliceEnd - sliceStart + 1),1.0f,sliceEnd-sampleStart+1);
-		fadeLenght = rescale(clamp(inputs[FADE_INPUT].getVoltage() + params[FADE_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f,0.0f, floor(loopLength/2));
-	}
-	else {
-		loopLength = 0;
-		sampleStart = 0;
-		fadeLenght = 0;
-	}
-	playedSlice = index;
-}
-
-void CANARD::initPos() {
-	if ((inputs[SPEED_INPUT].getVoltage() + params[SPEED_PARAM].getValue())>=0)
-	{
-		samplePos = sampleStart;
-	}
-	else
-	{
-		samplePos = sampleStart + loopLength;
-	}
-	speedFactor = 1.0f;
-}
-
 void CANARD::process(const ProcessArgs &args) {
-	if (loading) {
-		loadSample();
+	// Take a new sample from the worker, once it has freed the previous one.
+	if (pendingSet.load(std::memory_order_acquire) && !retired.load(std::memory_order_acquire)) {
+		CanardSample *s = pending.exchange(nullptr, std::memory_order_acq_rel);
+		retired.store(smp, std::memory_order_release);
+		smp = s;
+		live.store(s, std::memory_order_release);
+		pendingSet = false;
+		totalSampleCount = smp ? smp->size() : 0;
+		if (samplePos >= totalSampleCount)
+			play = false;
+	}
+	if (smp && smp->sampleRate != args.sampleRate && busy.load() == 0 && recDone.load() < 0 && reloadRate.load() == 0.f)
+		reloadRate = args.sampleRate;
+
+	if (clearTrigger.process(inputs[CLEAR_INPUT].getVoltage() + params[CLEAR_PARAM].getValue(), 0.1f, 1.f)) {
+		// Through the worker, like any change of the sample.
+		clearRequested = true;
+		play = false;
 	}
 
-	if (save) {
-		saveSample();
-	}
-
-	if (clearTrigger.process(inputs[CLEAR_INPUT].getVoltage() + params[CLEAR_PARAM].getValue()))
-	{
-		mylock.lock();
-		playBuffer.clear();
-		totalSampleCount = 0;
-		slices.clear();
-		mylock.unlock();
-		lastPath = "";
-		waveFileName = "";
-		waveExtension = "";
-	}
-
-	if ((selected>=0) && (deleteFlag)) {
-		int nbSample=0;
-		if ((size_t)selected<(slices.size()-1)) {
-			nbSample = slices[selected + 1] - slices[selected] - 1;
-			mylock.lock();
-			playBuffer.erase(playBuffer.begin() + slices[selected], playBuffer.begin() + slices[selected + 1]-1);
-			mylock.unlock();
+	// Recording, into chunks the worker keeps ready.
+	if (recordTrigger.process(inputs[RECORD_INPUT].getVoltage() + params[RECORD_PARAM].getValue(), 0.1f, 1.f)) {
+		if (record) {
+			recAppend = params[MODE_PARAM].getValue() == 1;
+			recRate = args.sampleRate;
+			recDone = recCount;
+			record = false;
 		}
-		else {
-			nbSample = totalSampleCount - slices[selected];
-			mylock.lock();
-			playBuffer.erase(playBuffer.begin() + slices[selected], playBuffer.end());
-			mylock.unlock();
-		}
-		slices.erase(slices.begin()+selected);
-		totalSampleCount = playBuffer.size();
-		for (size_t i = selected; i < slices.size(); i++)
-		{
-			slices[i] = slices[i]-nbSample;
-		}
-		selected = -1;
-		deleteFlag = false;
-		calcLoop();
-	}
-
-	if ((addSliceMarker>=0) && (addSliceMarkerFlag)) {
-		if (std::find(slices.begin(), slices.end(), addSliceMarker) != slices.end()) {
-			addSliceMarker = -1;
-			addSliceMarkerFlag = false;
-		}
-		else {
-			auto it = std::upper_bound(slices.begin(), slices.end(), addSliceMarker);
-			mylock.lock();
-			slices.insert(it, addSliceMarker);
-			mylock.unlock();
-			addSliceMarker = -1;
-			addSliceMarkerFlag = false;
-			calcLoop();
+		else if (recDone.load() < 0) {
+			recCount = 0;
+			record = true;
 		}
 	}
-
-	if ((deleteSliceMarker>=0) && (deleteSliceMarkerFlag)) {
-		if (std::find(slices.begin(), slices.end(), deleteSliceMarker) != slices.end()) {
-			mylock.lock();
-			slices.erase(std::find(slices.begin(), slices.end(), deleteSliceMarker));
-			mylock.unlock();
-			deleteSliceMarker = -1;
-			deleteSliceMarkerFlag = false;
-			calcLoop();
-		}
-	}
-
-	if (recordTrigger.process(inputs[RECORD_INPUT].getVoltage() + params[RECORD_PARAM].getValue()))
-	{
-		if(record) {
-			if (floor(params[MODE_PARAM].getValue()) == 0) {
-				mylock.lock();
-				slices.clear();
-				slices.push_back(0);
-				playBuffer.resize(0);
-				for (int i = 0; i < (int)recordBuffer.size(); i++) {
-					dsp::Frame<2> frame = recordBuffer[i];
-					playBuffer.push_back(frame);
-				}
-				totalSampleCount = playBuffer.size();
-				mylock.unlock();
-				lastPath = "";
-				waveFileName = "";
-				waveExtension = "";
-			}
-			else {
-				mylock.lock();
-				slices.push_back(totalSampleCount > 0 ? (totalSampleCount-1) : 0);
-				playBuffer.insert(playBuffer.end(), recordBuffer.begin(), recordBuffer.end());
-				totalSampleCount = playBuffer.size();
-				mylock.unlock();
-			}
-			mylock.lock();
-			recordBuffer.resize(0);
-			mylock.unlock();
-			lights[REC_LIGHT].setBrightness(0.0f);
-		}
-		record = !record;
-	}
-
 	if (record) {
-		lights[REC_LIGHT].setBrightness(10.0f);
-		mylock.lock();
-		dsp::Frame<2> frame;
-		frame.samples[0] = inputs[INL_INPUT].getVoltage()/10.0f;
-		frame.samples[1] = inputs[INR_INPUT].getVoltage()/10.0f;
-		recordBuffer.push_back(frame);
-		mylock.unlock();
+		CanardChunk *ch = recCount > 0 ? recChunks[recCount - 1] : nullptr;
+		if (!ch || ch->used >= CanardChunk::FRAMES) {
+			ch = nullptr;
+			if (recCount < MAX_CHUNKS) {
+				for (int i = 0; i < SPARES && !ch; i++)
+					ch = spare[i].exchange(nullptr, std::memory_order_acq_rel);
+			}
+			if (ch) {
+				ch->used = 0;
+				recChunks[recCount++] = ch;
+			}
+		}
+		if (ch) {
+			// Stored like a sample file: 5 V = 1, played back at 5 V.
+			ch->f[ch->used].samples[0] = inputs[INL_INPUT].getVoltage() * 0.2f;
+			ch->f[ch->used].samples[1] = (inputs[INR_INPUT].isConnected() ? inputs[INR_INPUT].getVoltage() : inputs[INL_INPUT].getVoltage()) * 0.2f;
+			ch->used++;
+		}
+		else {
+			// Out of chunks (the worker fell behind or 90 minutes were reached).
+			recAppend = params[MODE_PARAM].getValue() == 1;
+			recRate = args.sampleRate;
+			recDone = recCount;
+			record = false;
+		}
 	}
+	lights[REC_LIGHT].setBrightness(record ? 1.0f : 0.0f);
 
 	int trigMode = inputs[TRIG_INPUT].isConnected() ? 1 : (inputs[GATE_INPUT].isConnected() ? 2 : 0);
-	int readMode = round(clamp(inputs[READ_MODE_INPUT].getVoltage() + params[READ_MODE_PARAM].getValue(),0.0f,2.0f));
-	speed = inputs[SPEED_INPUT].getVoltage() + params[SPEED_PARAM].getValue();
+	int readMode = clamp((int)std::round(inputs[READ_MODE_INPUT].getVoltage() + params[READ_MODE_PARAM].getValue()), 0, 2);
+	speed = dsp::exp2_taylor5(clamp(params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage(), -4.f, 4.f));
 	calcLoop();
 
-	if (trigMode == 1) {
-		if (trigTrigger.process(inputs[TRIG_INPUT].getVoltage()) && (prevTrigState == 0.0f))
-		{
-			initPos();
-			if ((slices.size() == 1) && (inputs[SLICE_INPUT].isConnected())) {
-				samplePos = sampleStart + loopLength * rescale(clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,1.0f);
-			}
-			play = true;
-		}
-		else {
-			if ((readMode == 0) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
-				play = false;
-				if (newStop) {
-					eocPulse.trigger(10 / args.sampleRate);
-					newStop = false;
-				}
-			}
-			else if ((readMode == 0) && (speed<0) && (samplePos == sampleStart)) {
-				play = false;
-				if (newStop) {
-					eocPulse.trigger(10 / args.sampleRate);
-					newStop = false;
-				}
-			}
-			else if ((readMode == 1) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
-				initPos();
-			}
-			else if ((readMode == 1) && (speed<0) && (samplePos == sampleStart)) {
-				initPos();
-			}
-			else if ((readMode == 2) && ((samplePos == (sampleStart)) || (samplePos == (sampleStart+loopLength)))) {
-				speedFactor = -1 * speedFactor;
-				samplePos = samplePos + speedFactor * speed;
-			}
-			else {
-				samplePos = samplePos + speedFactor * speed;
-			}
-		}
-		samplePos = clamp(samplePos,sampleStart,sampleStart+loopLength);
-	}
-	else if (trigMode == 2)
-	{
-		if (inputs[GATE_INPUT].getVoltage()>0)
-		{
-			if (inputs[SLICE_INPUT].isConnected()) {
-				play = true;
-				samplePos= sampleStart + rescale(clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,1.0f) * loopLength;
-			}
-			else if (prevGateState == 0.0f) {
-				initPos();
-				play = true;
-			}
-			else {
-				if ((readMode == 0) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
-					play = false;
-					if (newStop) {
-						eocPulse.trigger(10 / args.sampleRate);
-						newStop = false;
-					}
-				}
-				else if ((readMode == 0) && (speed<0) && (samplePos == sampleStart)) {
-					play = false;
-					if (newStop) {
-						eocPulse.trigger(10 / args.sampleRate);
-						newStop = false;
-					}
-				}
-				else if ((readMode == 1) && (speed>=0) && (samplePos == (sampleStart+loopLength))) {
-					initPos();
-				}
-				else if ((readMode == 1) && (speed<0) && (samplePos == sampleStart)) {
-					initPos();
-				}
-				else if ((readMode == 2) && ((samplePos == (sampleStart)) || (samplePos == (sampleStart+loopLength)))) {
-					speedFactor = -1 * speedFactor;
-					samplePos = samplePos + speedFactor * speed;
-				}
-				else {
-					samplePos = samplePos + speedFactor * speed;
-				}
-			}
-			samplePos = clamp(samplePos,sampleStart,sampleStart+loopLength);
-		}
-		else {
-			play = false;
-		}
-	}
-	prevGateState = inputs[GATE_INPUT].getVoltage();
-	prevTrigState = inputs[TRIG_INPUT].getVoltage();
+	bool trig = trigTrigger.process(inputs[TRIG_INPUT].getVoltage(), 0.1f, 1.f);
+	bool gateRise = gateTrigger.process(inputs[GATE_INPUT].getVoltage(), 0.1f, 1.f);
+	bool gateHigh = gateTrigger.isHigh();
+	float end = sampleStart + loopLength;
+	bool advance = false;
 
-	if (play) {
-		newStop = true;
-		if (samplePos<totalSampleCount) {
-			if (fadeLenght>1000) {
-				if ((samplePos-sampleStart)<fadeLenght)
-					fadeCoeff = rescale(samplePos-sampleStart,0.0f,fadeLenght,0.0f,1.0f);
-				else if ((sampleStart+loopLength-samplePos)<fadeLenght)
-					fadeCoeff = rescale(sampleStart+loopLength-samplePos,fadeLenght,0.0f,1.0f,0.0f);
-				else
-					fadeCoeff = 1.0f;
+	if (trigMode == 1) {
+		if (trig) {
+			initPos();
+			if (smp && smp->slices.size() == 1 && inputs[SLICE_INPUT].isConnected())
+				samplePos = sampleStart + loopLength * clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f, 10.0f) * 0.1f;
+			play = totalSampleCount > 0;
+		}
+		else
+			advance = play;
+	}
+	else if (trigMode == 2) {
+		if (gateHigh) {
+			if (inputs[SLICE_INPUT].isConnected()) {
+				// Scrubbing: the slice CV sets the position.
+				play = totalSampleCount > 0;
+				samplePos = sampleStart + clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f, 10.0f) * 0.1f * loopLength;
+			}
+			else if (gateRise) {
+				initPos();
+				play = totalSampleCount > 0;
 			}
 			else
-				fadeCoeff = 1.0f;
-
-			int xi = samplePos;
-			float xf = samplePos - xi;
-			float crossfaded = crossfade(playBuffer[xi].samples[0], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0], xf);
-			outputs[OUTL_OUTPUT].setVoltage(crossfaded*fadeCoeff*5.0f);
-			crossfaded = crossfade(playBuffer[xi].samples[1], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[1], xf);
-			outputs[OUTR_OUTPUT].setVoltage(crossfaded*fadeCoeff*5.0f);
+				advance = play;
 		}
+		else
+			play = false;
 	}
-	else {
-		outputs[OUTL_OUTPUT].setVoltage(0.0f);
-		outputs[OUTR_OUTPUT].setVoltage(0.0f);
+	else
+		play = false;
+
+	if (advance) {
+		// Forward, or backward with reverse; ping-pong flips the direction.
+		float dir = (reverse ? -1.f : 1.f) * direction;
+		samplePos += dir * speed;
+		bool pastEnd = dir > 0 ? samplePos >= end : samplePos <= sampleStart;
+		if (pastEnd) {
+			if (readMode == 0) {
+				play = false;
+				eocPulse.trigger(1e-3f);
+			}
+			else if (readMode == 1)
+				initPos();
+			else {
+				direction = -direction;
+				samplePos = clamp(samplePos, sampleStart, end);
+			}
+		}
+		samplePos = clamp(samplePos, sampleStart, end);
 	}
 
-	outputs[EOC_OUTPUT].setVoltage(eocPulse.process(1 / args.sampleRate) ? 10.0f : 0.0f);
+	float outL = 0.f, outR = 0.f;
+	if (play && smp && totalSampleCount > 1) {
+		float fade = 1.0f;
+		if (fadeLenght >= 1.0f) {
+			if ((samplePos - sampleStart) < fadeLenght)
+				fade = (samplePos - sampleStart) / fadeLenght;
+			else if ((end - samplePos) < fadeLenght)
+				fade = (end - samplePos) / fadeLenght;
+		}
+		float p = clamp(samplePos, 0.f, totalSampleCount - 1.001f);
+		int xi = (int)p;
+		float xf = p - xi;
+		const dsp::Frame<2> &a = smp->frames[xi];
+		const dsp::Frame<2> &b = smp->frames[std::min(xi + 1, totalSampleCount - 1)];
+		outL = crossfade(a.samples[0], b.samples[0], xf) * fade * 5.0f;
+		outR = crossfade(a.samples[1], b.samples[1], xf) * fade * 5.0f;
+	}
+	outputs[OUTL_OUTPUT].setVoltage(canardSoftLimit(outL));
+	outputs[OUTR_OUTPUT].setVoltage(canardSoftLimit(outR));
+	outputs[EOC_OUTPUT].setVoltage(eocPulse.process(args.sampleTime) ? 10.0f : 0.0f);
 }
 
 struct BidooTransientsBlueTrimpot : BidooBlueTrimpot {
 	CANARD *module;
 
 	void onButton(const event::Button &e) override {
-		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
-			module->calcTransients();
-		}
+		if (module && e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT))
+			module->post({CANARD::TRANSIENTS, "", (int)(module->params[CANARD::THRESHOLD_PARAM].getValue() * 1000.f), {}, 0.f});
 		BidooBlueTrimpot::onButton(e);
 	}
 };
@@ -499,27 +686,35 @@ struct CANARDDisplay : OpaqueWidget {
 	int refIdx = 0;
 	float refX = 0.0f;
 
-	CANARDDisplay() {
-
+	std::shared_ptr<CanardSample> shown() {
+		std::lock_guard<std::mutex> lock(module->uiMutex);
+		return module->uiSample;
 	}
 
 	void onButton(const event::Button &e) override {
-		if (module->slices.size()>0) {
+		if (!module)
+			return;
+		std::shared_ptr<CanardSample> s = shown();
+		if (s && !s->slices.empty()) {
 			refX = e.pos.x;
-			refIdx = ((e.pos.x - zoomLeftAnchor)/zoomWidth)*(float)module->totalSampleCount;
+			int count = 0;
+			for (int b = 0; b < 1; b++)
+				count = std::max(count, module->totalSampleCount);
+			refIdx = clamp((int)(((e.pos.x - zoomLeftAnchor) / zoomWidth) * (float)count), 0, std::max(count - 1, 0));
 			module->addSliceMarker = refIdx;
-			auto lower = std::lower_bound(module->slices.begin(), module->slices.end(), refIdx);
-			module->selected = distance(module->slices.begin(),lower-1);
-			module->deleteSliceMarker = *(lower-1);
+			// The slice under the click (the first marker is always 0).
+			auto upper = std::upper_bound(s->slices.begin(), s->slices.end(), refIdx);
+			int sel = std::max((int)std::distance(s->slices.begin(), upper) - 1, 0);
+			module->selected = sel;
+			module->deleteSliceMarker = s->slices[sel];
 		}
 		if (e.button == 0)
 			OpaqueWidget::onButton(e);
-		else {
-			if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_RIGHT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
-				ModuleWidget *pWidget = dynamic_cast<ModuleWidget*>(this->parent);
+		else if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_RIGHT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
+			ModuleWidget *pWidget = dynamic_cast<ModuleWidget*>(this->parent);
+			if (pWidget)
 				pWidget->createContextMenu();
-				e.consume(this);
-			}
+			e.consume(this);
 		}
 	}
 
@@ -546,164 +741,102 @@ struct CANARDDisplay : OpaqueWidget {
 		OpaqueWidget::onDragEnd(e);
 	}
 
-	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer == 1) {
-			if (module && (module->playBuffer.size()>0)) {
-				module->mylock.lock();
-				std::vector<float> vL;
-				std::vector<float> vR;
-				for (int i=0;i<module->totalSampleCount;i++) {
-					vL.push_back(module->playBuffer[i].samples[0]);
-					vR.push_back(module->playBuffer[i].samples[1]);
-				}
-				std::vector<int> s(module->slices);
-				module->mylock.unlock();
-				size_t nbSample = vL.size();
+	void drawWave(const DrawArgs& args, const CanardSample &s, int c, float top) {
+		Rect b = Rect(Vec(zoomLeftAnchor, top), Vec(zoomWidth, height));
+		nvgBeginPath(args.vg);
+		for (int i = 0; i < CanardSample::OVERVIEW; i++) {
+			float x = b.pos.x + b.size.x * (i + 0.5f) / CanardSample::OVERVIEW;
+			float y = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(s.overviewMax[c][i], -1.f, 1.f));
+			if (i == 0)
+				nvgMoveTo(args.vg, x, y);
+			else
+				nvgLineTo(args.vg, x, y);
+		}
+		for (int i = CanardSample::OVERVIEW - 1; i >= 0; i--) {
+			float x = b.pos.x + b.size.x * (i + 0.5f) / CanardSample::OVERVIEW;
+			nvgLineTo(args.vg, x, b.pos.y + b.size.y * (0.5f - 0.5f * clamp(s.overviewMin[c][i], -1.f, 1.f)));
+		}
+		nvgLineCap(args.vg, NVG_MITER);
+		nvgStrokeWidth(args.vg, 1);
+		nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+		nvgStroke(args.vg);
+	}
 
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1 && module) {
+			std::shared_ptr<CanardSample> s = shown();
+			float nbSample = module->totalSampleCount;
+			if (s && nbSample > 0) {
+				auto px = [&](float idx) { return idx * zoomWidth / nbSample + zoomLeftAnchor; };
 				nvgScissor(args.vg, 0, 0, width, 2*height+10);
 
-				// Draw play line
-				if (!module->loading) {
-					nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
-					{
-						nvgBeginPath(args.vg);
-						nvgStrokeWidth(args.vg, 2);
-						if (nbSample>0) {
-							nvgMoveTo(args.vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 0);
-							nvgLineTo(args.vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 2*height+10);
-						}
-						else {
-							nvgMoveTo(args.vg, 0, 0);
-							nvgLineTo(args.vg, 0, 2*height+10);
-						}
-						nvgClosePath(args.vg);
-					}
+				// Play line
+				nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
+				nvgBeginPath(args.vg);
+				nvgStrokeWidth(args.vg, 2);
+				nvgMoveTo(args.vg, px(module->samplePos), 0);
+				nvgLineTo(args.vg, px(module->samplePos), 2*height+10);
+				nvgClosePath(args.vg);
+				nvgStroke(args.vg);
+
+				// Ref lines
+				nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
+				nvgStrokeWidth(args.vg, 1);
+				nvgBeginPath(args.vg);
+				nvgMoveTo(args.vg, 0, height/2);
+				nvgLineTo(args.vg, width, height/2);
+				nvgClosePath(args.vg);
+				nvgStroke(args.vg);
+				nvgBeginPath(args.vg);
+				nvgMoveTo(args.vg, 0, 3*height*0.5f+10);
+				nvgLineTo(args.vg, width, 3*height*0.5f+10);
+				nvgClosePath(args.vg);
+				nvgStroke(args.vg);
+
+				// Loop
+				nvgFillColor(args.vg, nvgRGBA(255, 255, 255, 60));
+				nvgBeginPath(args.vg);
+				nvgMoveTo(args.vg, px(module->sampleStart + module->fadeLenght), 0);
+				nvgLineTo(args.vg, px(module->sampleStart), 2*height+10);
+				nvgLineTo(args.vg, px(module->sampleStart + module->loopLength), 2*height+10);
+				nvgLineTo(args.vg, px(module->sampleStart + module->loopLength - module->fadeLenght), 0);
+				nvgLineTo(args.vg, px(module->sampleStart + module->fadeLenght), 0);
+				nvgClosePath(args.vg);
+				nvgFill(args.vg);
+
+				bool sliceMode = module->params[CANARD::MODE_PARAM].getValue() == 1;
+				// Selected slice
+				int sel = module->selected;
+				if (sel >= 0 && sel < (int)s->slices.size() && sliceMode) {
+					nvgStrokeColor(args.vg, RED_BIDOO);
+					nvgBeginPath(args.vg);
+					nvgStrokeWidth(args.vg, 4);
+					nvgMoveTo(args.vg, px(s->slices[sel]), 2*height+9);
+					nvgLineTo(args.vg, sel + 1 < (int)s->slices.size() ? px(s->slices[sel+1]) : zoomWidth + zoomLeftAnchor, 2*height+9);
+					nvgClosePath(args.vg);
 					nvgStroke(args.vg);
 				}
 
-				// Draw ref line
-				nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
-				nvgStrokeWidth(args.vg, 1);
-				{
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, 0, height/2);
-					nvgLineTo(args.vg, width, height/2);
-					nvgClosePath(args.vg);
-				}
-				nvgStroke(args.vg);
+				// Waveform
+				nvgSave(args.vg);
+				nvgStrokeColor(args.vg, PINK_BIDOO);
+				drawWave(args, *s, 0, 0);
+				drawWave(args, *s, 1, height + 10);
+				nvgRestore(args.vg);
 
-				nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
-				nvgStrokeWidth(args.vg, 1);
-				{
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, 0, 3*height*0.5f+10);
-					nvgLineTo(args.vg, width, 3*height*0.5f+10);
-					nvgClosePath(args.vg);
-				}
-				nvgStroke(args.vg);
-
-				if ((!module->loading) && (vL.size()>0)) {
-
-					// Draw loop
-					nvgFillColor(args.vg, nvgRGBA(255, 255, 255, 60));
-					nvgStrokeWidth(args.vg, 1);
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, (module->sampleStart + module->fadeLenght) * zoomWidth / nbSample + zoomLeftAnchor, 0);
-					nvgLineTo(args.vg, module->sampleStart * zoomWidth / vL.size() + zoomLeftAnchor, 2*height+10);
-					nvgLineTo(args.vg, (module->sampleStart + module->loopLength) * zoomWidth / nbSample + zoomLeftAnchor, 2*height+10);
-					nvgLineTo(args.vg, (module->sampleStart + module->loopLength - module->fadeLenght) * zoomWidth / nbSample + zoomLeftAnchor, 0);
-					nvgLineTo(args.vg, (module->sampleStart + module->fadeLenght) * zoomWidth / nbSample + zoomLeftAnchor, 0);
-					nvgClosePath(args.vg);
-					nvgFill(args.vg);
-
-					//draw selected
-					if ((module->selected >= 0) && ((size_t)module->selected < s.size()) && (floor(module->params[CANARD::MODE_PARAM].getValue()) == 1)) {
-						nvgStrokeColor(args.vg, RED_BIDOO);
-							nvgBeginPath(args.vg);
-						nvgStrokeWidth(args.vg, 4);
-						nvgMoveTo(args.vg, (s[module->selected] * zoomWidth / nbSample) + zoomLeftAnchor , 2*height+9);
-						if ((size_t)module->selected < (s.size()-1))
-							nvgLineTo(args.vg, (s[module->selected+1] * zoomWidth / nbSample) + zoomLeftAnchor , 2*height+9);
-						else
-							nvgLineTo(args.vg, zoomWidth + zoomLeftAnchor, 2*height+9);
+				// Slices
+				if (sliceMode) {
+					for (int x : s->slices) {
+						nvgStrokeColor(args.vg, x != module->deleteSliceMarker ? YELLOW_BIDOO : RED_BIDOO);
+						nvgStrokeWidth(args.vg, 1);
+						nvgBeginPath(args.vg);
+						nvgMoveTo(args.vg, px(x), 0);
+						nvgLineTo(args.vg, px(x), 2*height+10);
 						nvgClosePath(args.vg);
 						nvgStroke(args.vg);
 					}
-
-					// Draw waveform
-
-					if (nbSample>0) {
-						nvgStrokeColor(args.vg, PINK_BIDOO);
-						nvgSave(args.vg);
-						Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, height));
-						float invNbSample = 1.0f / nbSample;
-						size_t inc = std::max(vL.size()/zoomWidth/4,1.f);
-						nvgBeginPath(args.vg);
-						for (size_t i = 0; i < vL.size(); i+=inc) {
-							float x, y;
-							x = (float)i * invNbSample ;
-							y = (-1.f)*vL[i] * 0.5f + 0.5f;
-							Vec p;
-							p.x = b.pos.x + b.size.x * x;
-							p.y = b.pos.y + b.size.y * (1.0f - y);
-							if (i == 0) {
-								nvgMoveTo(args.vg, p.x, p.y);
-							}
-							else {
-								nvgLineTo(args.vg, p.x, p.y);
-							}
-						}
-
-						nvgLineCap(args.vg, NVG_MITER);
-						nvgStrokeWidth(args.vg, 1);
-						nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-						nvgStroke(args.vg);
-
-						b = Rect(Vec(zoomLeftAnchor, height+10), Vec(zoomWidth, height));
-						nvgBeginPath(args.vg);
-						for (size_t i = 0; i < vR.size(); i+=inc) {
-							float x, y;
-							x = (float)i * invNbSample;
-							y = (-1.f)*vR[i] * 0.5f + 0.5f;
-							Vec p;
-							p.x = b.pos.x + b.size.x * x;
-							p.y = b.pos.y + b.size.y * (1.0f - y);
-							if (i == 0)
-								nvgMoveTo(args.vg, p.x, p.y);
-							else {
-								nvgLineTo(args.vg, p.x, p.y);
-							}
-						}
-						nvgLineCap(args.vg, NVG_MITER);
-						nvgStrokeWidth(args.vg, 1);
-						nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-						nvgStroke(args.vg);
-					}
-
-					//draw slices
-
-					if (floor(module->params[CANARD::MODE_PARAM].getValue()) == 1) {
-						for (size_t i = 0; i < s.size(); i++) {
-							if (s[i] != module->deleteSliceMarker) {
-								nvgStrokeColor(args.vg, YELLOW_BIDOO);
-							}
-							else {
-								nvgStrokeColor(args.vg, RED_BIDOO);
-							}
-							nvgStrokeWidth(args.vg, 1);
-							{
-								nvgBeginPath(args.vg);
-								nvgMoveTo(args.vg, s[i] * zoomWidth / nbSample + zoomLeftAnchor , 0);
-								nvgLineTo(args.vg, s[i] * zoomWidth / nbSample + zoomLeftAnchor , 2*height+10);
-								nvgClosePath(args.vg);
-							}
-							nvgStroke(args.vg);
-						}
-					}
-
 				}
 				nvgResetScissor(args.vg);
-				nvgRestore(args.vg);
 			}
 		}
 		Widget::drawLayer(args, layer);
@@ -772,40 +905,39 @@ struct CANARDWidget : BidooWidget {
 	struct CANARDDeleteSlice : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
-			module->deleteFlag = true;
+			module->post({CANARD::DELETE_SLICE, "", module->selected, {}, 0.f});
 		}
 	};
 
 	struct CANARDDeleteSliceMarker : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
-			module->deleteSliceMarkerFlag = true;
+			module->post({CANARD::DELETE_MARKER, "", module->deleteSliceMarker, {}, 0.f});
 		}
 	};
 
 	struct CANARDAddSliceMarker : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
-			module->addSliceMarkerFlag = true;
+			module->post({CANARD::ADD_MARKER, "", module->addSliceMarker, {}, 0.f});
 		}
 	};
 
 	struct CANARDTransientDetect : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
-			APP->engine->yieldWorkers();
-			module->calcTransients();
+			module->post({CANARD::TRANSIENTS, "", (int)(module->params[CANARD::THRESHOLD_PARAM].getValue() * 1000.f), {}, 0.f});
 		}
 	};
 
 	struct CANARDLoadSample : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
-			std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
+			std::string last = module->getPath();
+			std::string dir = last.empty() ? asset::user("") : rack::system::getDirectory(last);
 			char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
 			if (path) {
-				module->lastPath = path;
-				module->loading=true;
+				module->loadFile(path);
 				free(path);
 			}
 		}
@@ -814,19 +946,20 @@ struct CANARDWidget : BidooWidget {
 	void onPathDrop(const PathDropEvent& e) override {
 		Widget::onPathDrop(e);
 		CANARD *module = dynamic_cast<CANARD*>(this->module);
-		module->lastPath = e.paths[0];
-		module->loading=true;
+		if (module && !e.paths.empty())
+			module->loadFile(e.paths[0]);
 	}
 
 	struct CANARDSaveSample : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
-			std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
-			std::string fileName = module->waveFileName.empty() ? "temp.wav" : module->waveFileName;
+			std::string last = module->getPath();
+			std::string dir = last.empty() ? asset::user("") : rack::system::getDirectory(last);
+			std::string name = module->getFileName();
+			std::string fileName = name.empty() ? "temp.wav" : name;
 			char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), fileName.c_str(), NULL);
 			if (path) {
-				module->lastPath = path;
-				if (!module->save) module->save = true;
+				module->post({CANARD::SAVE, path, 0, {}, 0.f});
 				free(path);
 			}
 		}
@@ -836,7 +969,8 @@ struct CANARDWidget : BidooWidget {
 	void appendContextMenu(ui::Menu *menu) override {
 		BidooWidget::appendContextMenu(menu);
 		CANARD *module = dynamic_cast<CANARD*>(this->module);
-		assert(module);
+		if (!module)
+			return;
 
 		menu->addChild(new MenuSeparator());
 		menu->addChild(construct<CANARDDeleteSlice>(&MenuItem::text, "Delete slice", &CANARDDeleteSlice::module, module));
@@ -845,6 +979,7 @@ struct CANARDWidget : BidooWidget {
 		menu->addChild(construct<CANARDTransientDetect>(&MenuItem::text, "Detect transients", &CANARDTransientDetect::module, module));
 		menu->addChild(construct<CANARDLoadSample>(&MenuItem::text, "Load sample", &CANARDLoadSample::module, module));
 		menu->addChild(construct<CANARDSaveSample>(&MenuItem::text, "Save sample", &CANARDSaveSample::module, module));
+		menu->addChild(createBoolPtrMenuItem("Reverse", "", &module->reverse));
 	}
 };
 
