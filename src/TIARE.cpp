@@ -1,21 +1,20 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
-#include "dsp/resampler.hpp"
 #include "dsp/filter.hpp"
+#include "dsp/fir.hpp"
+#include "dsp/window.hpp"
 
 using namespace std;
 
 using simd::float_4;
 
+// Oscillator running at 2x the sample rate. The phase is distorted by a
+// two-segment line through (X, Y); every jump of the saw and square (and of all
+// waves on hard sync) gets a minBLEP at its exact time, found on the
+// undistorted phase. Oversampling takes care of the corners phase distortion
+// puts in the waves.
 
 // Accurate only on [0, 1]
-template <typename T>
-T sin2pi_pade_05_7_6(T x) {
-	x -= 0.5f;
-	return (T(-6.28319) * x + T(35.353) * simd::pow(x, 3) - T(44.9043) * simd::pow(x, 5) + T(16.0951) * simd::pow(x, 7))
-	       / (1 + T(0.953136) * simd::pow(x, 2) + T(0.430238) * simd::pow(x, 4) + T(0.0981408) * simd::pow(x, 6));
-}
-
 template <typename T>
 T sin2pi_pade_05_5_4(T x) {
 	x -= 0.5f;
@@ -28,313 +27,263 @@ T expCurve(T x) {
 	return (3 + x * (-13 + 5 * x)) / (3 + 2 * x);
 }
 
+enum TiareWave { TIARE_SIN, TIARE_TRI, TIARE_SAW, TIARE_SQR, TIARE_WAVES };
 
-template <int OVERSAMPLE, int QUALITY, typename T>
-struct Oscillator {
+// Waves of a distorted phase in [0, 1), for one lane (float) or four (float_4).
+template <typename T>
+T tiareWave(int wave, T phase, bool analog, T pulseWidth) {
+	switch (wave) {
+		case TIARE_SIN: {
+			if (analog) {
+				// Quadratic approximation of sine, slightly richer harmonics
+				auto halfPhase = (phase < 0.5f);
+				T x = phase - simd::ifelse(halfPhase, T(0.25f), T(0.75f));
+				return (1.f - 16.f * x * x) * simd::ifelse(halfPhase, T(1.f), T(-1.f));
+			}
+			return sin2pi_pade_05_5_4(phase);
+		}
+		case TIARE_TRI: {
+			if (analog) {
+				T x = phase + 0.25f;
+				x -= simd::trunc(x);
+				auto halfX = (x >= 0.5f);
+				x *= 2;
+				x -= simd::trunc(x);
+				return expCurve(x) * simd::ifelse(halfX, T(1.f), T(-1.f));
+			}
+			return 1 - 4 * simd::fmin(simd::fabs(phase - 0.25f), simd::fabs(phase - 1.25f));
+		}
+		case TIARE_SAW: {
+			T x = phase + 0.5f;
+			x -= simd::trunc(x);
+			return analog ? -expCurve(x) : 2 * x - 1;
+		}
+		default:
+			return simd::ifelse(phase < pulseWidth, T(1.f), T(-1.f));
+	}
+}
+
+// Distorted phase: a line from (0, 0) to (x, y), then to (1, 1).
+inline float tiareDistort(float p, float x, float y) {
+	return p <= x ? p * y / x : y + (p - x) * (1.f - y) / (1.f - x);
+}
+
+// Inverse of tiareDistort.
+inline float tiareUndistort(float d, float x, float y) {
+	return d <= y ? d * x / y : x + (d - y) * (1.f - x) / (1.f - y);
+}
+
+// Same, for four lanes at once.
+inline float_4 tiareDistort(float_4 p, float_4 x, float_4 y) {
+	return simd::ifelse(p <= x, p * y / x, y + (p - x) * (1.f - y) / (1.f - x));
+}
+
+inline float_4 tiareUndistort(float_4 d, float_4 x, float_4 y) {
+	return simd::ifelse(d <= y, d * x / y, x + (d - y) * (1.f - x) / (1.f - y));
+}
+
+// 2x decimator: windowed-sinc FIR on a doubled ring buffer, no modulo per tap.
+template <typename T>
+struct TiareDecimator {
+	static const int TAPS = 32;
+	float kernel[TAPS];
+	T buffer[2 * TAPS];
+	int pos = 0;
+
+	TiareDecimator() {
+		dsp::boxcarLowpassIR(kernel, TAPS, 0.9f * 0.5f / 2.f);
+		dsp::blackmanHarrisWindow(kernel, TAPS);
+		float sum = 0.f;
+		for (float k : kernel) sum += k;
+		for (float &k : kernel) k /= sum;
+		for (T &b : buffer) b = 0.f;
+	}
+
+	void push(T x) {
+		buffer[pos] = x;
+		buffer[pos + TAPS] = x;
+		pos = (pos + 1) % TAPS;
+	}
+
+	T process(T a, T b) {
+		push(a);
+		push(b);
+		const T *newest = &buffer[pos + TAPS - 1];
+		T out = 0.f;
+		for (int i = 0; i < TAPS; i++)
+			out += kernel[i] * newest[-i];
+		return out;
+	}
+};
+
+template <typename T>
+struct TiareOscillator {
 	bool analog = false;
 	bool soft = false;
 	bool syncEnabled = false;
-	// For optimizing in serial code
+	bool lfo = false;
 	int channels = 0;
 
-	T lastSyncValue = 0.f;
 	T phase = 0.f;
-	T phaseDist = 0.f;
-	T freq;
+	T freq = 0.f;
 	T pulseWidth = 0.5f;
+	T distX = 0.5f;
+	T distY = 0.5f;
 	T syncDirection = 1.f;
-	int lfoFactor = 1;
+	T lastSync = 0.f;
 
+	dsp::MinBlepGenerator<16, 16, T> blep[TIARE_WAVES];
+	TiareDecimator<T> decimator[TIARE_WAVES];
 	dsp::TRCFilter<T> sqrFilter;
-
-	dsp::MinBlepGenerator<QUALITY, OVERSAMPLE, T> sqrMinBlep;
-	dsp::MinBlepGenerator<QUALITY, OVERSAMPLE, T> sawMinBlep;
-	dsp::MinBlepGenerator<QUALITY, OVERSAMPLE, T> triMinBlep;
-	dsp::MinBlepGenerator<QUALITY, OVERSAMPLE, T> sinMinBlep;
-
-	T sqrValue = 0.f;
-	T lastSqrValue = 0.f;
-	T sawValue = 0.f;
-	T lastSawValue = 0.f;
-	T triValue = 0.f;
-	T lastTriValue = 0.f;
-	T sinValue = 0.f;
-	T lastSinValue = 0.f;
+	T out[TIARE_WAVES];
 
 	void setPitch(T pitch, int factor) {
-		lfoFactor = factor;
+		lfo = factor != 1;
 		freq = dsp::FREQ_C4 * dsp::approxExp2_taylor5(pitch + 30) / 1073741824 / factor;
 	}
 
-	void setPulseWidth(T pulseWidth) {
-		const float pwMin = 0.01f;
-		this->pulseWidth = simd::clamp(pulseWidth, pwMin, 1.f - pwMin);
+	void setPulseWidth(T pw) {
+		pulseWidth = simd::clamp(pw, 0.01f, 0.99f);
 	}
 
-	void process(float deltaTime, T syncValue, float phaseDistX, float phaseDistY) {
-		// Advance phase
-		T deltaPhase = simd::clamp(freq * deltaTime, 1e-6f, 0.35f);
+	float laneWave(int wave, int i, float p) {
+		p -= std::floor(p);
+		return tiareWave<float>(wave, tiareDistort(p, distX[i], distY[i]), analog, pulseWidth[i]);
+	}
 
-		if (soft) {
-			// Reverse direction
-			deltaPhase *= syncDirection;
+	// minBLEPs for the jumps met while lane i moves from p over span (one
+	// direction, no wrap of more than one cycle). t0 and tLen place this
+	// segment inside the oversampled step.
+	void scanJumps(int i, float p, float span, float t0, float tLen, int waves) {
+		if (span == 0.f)
+			return;
+		const float eps = 1e-5f;
+		T mask = simd::movemaskInverse<T>(1 << i);
+		// Phase of each jump: saw at distorted 0.5, square at pulse width and at 0.
+		float thresholds[3] = {tiareUndistort(0.5f, distX[i], distY[i]), tiareUndistort(pulseWidth[i], distX[i], distY[i]), 0.f};
+		int owners[3] = {TIARE_SAW, TIARE_SQR, TIARE_SQR};
+		for (int k = 0; k < 3; k++) {
+			int w = owners[k];
+			if (!(waves & (1 << w)))
+				continue;
+			float th = thresholds[k];
+			float delta = span > 0.f ? th - p : p - th;
+			delta -= std::floor(delta);
+			if (delta == 0.f || delta > std::fabs(span))
+				continue;
+			float before = laneWave(w, i, th - (span > 0.f ? eps : -eps));
+			float after = laneWave(w, i, th + (span > 0.f ? eps : -eps));
+			float when = t0 + tLen * delta / std::fabs(span);
+			blep[w].insertDiscontinuity(when - 1.f, mask & T(after - before));
 		}
-		else {
-			// Reset back to forward
-			syncDirection = 1.f;
+	}
+
+	// Same as scanJumps for the lanes in laneMask, all moving by their whole
+	// deltaPhase: crossings are found for the 4 lanes at once, and only the
+	// lanes that do jump are handled one by one.
+	void scanJumpsLanes(T p, T span, int laneMask, int waves) {
+		const float eps = 1e-5f;
+		T forward = span > 0.f;
+		T dist = simd::fabs(span);
+		T thresholds[3] = {tiareUndistort(T(0.5f), distX, distY), tiareUndistort(pulseWidth, distX, distY), T(0.f)};
+		int owners[3] = {TIARE_SAW, TIARE_SQR, TIARE_SQR};
+		for (int k = 0; k < 3; k++) {
+			int w = owners[k];
+			if (!(waves & (1 << w)))
+				continue;
+			T delta = simd::ifelse(forward, thresholds[k] - p, p - thresholds[k]);
+			delta -= simd::floor(delta);
+			int hits = simd::movemask((delta > 0.f) & (delta <= dist)) & laneMask;
+			for (int i = 0; hits; i++, hits >>= 1) {
+				if (!(hits & 1))
+					continue;
+				float th = thresholds[k][i];
+				float e = span[i] > 0.f ? eps : -eps;
+				float jump = laneWave(w, i, th + e) - laneWave(w, i, th - e);
+				blep[w].insertDiscontinuity(delta[i] / dist[i] - 1.f, simd::movemaskInverse<T>(1 << i) & T(jump));
+			}
 		}
+	}
 
-		// Wrap phase
-		phase += deltaPhase;
-		phase -= simd::floor(phase);
+	// waves: bit mask of the outputs in use.
+	void process(float sampleTime, T syncValue, int waves) {
+		float dt = sampleTime * 0.5f;
+		T sub[TIARE_WAVES][2];
+		T syncStart = lastSync;
+		lastSync = syncValue;
 
-		for (int i=0; i<channels; i++) {
-			if (phase[i] <= phaseDistX)
-					phaseDist[i] = phase[i] * phaseDistY / phaseDistX;
-				else
-					phaseDist[i] = phaseDistY + (phase[i]-phaseDistX) * (1.0f - phaseDistY) / (1.0f - phaseDistX);
-		}
+		for (int s = 0; s < 2; s++) {
+			T syncFrom = syncStart + (syncValue - syncStart) * (s * 0.5f);
+			T syncTo = syncStart + (syncValue - syncStart) * ((s + 1) * 0.5f);
 
-		// Wrap phase
-		phaseDist -= simd::floor(phaseDist);
+			T deltaPhase = simd::clamp(freq * dt, 1e-7f, 0.35f);
+			if (soft)
+				deltaPhase *= syncDirection;
+			else
+				syncDirection = 1.f;
 
-
-		if (lfoFactor == 1) {
-
-		// 	T wrapPhase = (syncDirection == -1.f) & 1.f;
-		// 	T wrapCrossing = (wrapPhase - (phase - deltaPhase)) / deltaPhase;
-		// 	int wrapMask = simd::movemask((0 < wrapCrossing) & (wrapCrossing <= 1.f));
-		// 	if (wrapMask) {
-		// 		for (int i = 0; i < channels; i++) {
-		// 			if (wrapMask & (1 << i)) {
-		// 				T mask = simd::movemaskInverse<T>(1 << i);
-		// 				float p = wrapCrossing[i] - 1.0f;
-		// 				T x = mask & (2.f * syncDirection);
-		// 				sqrMinBlep.insertDiscontinuity(p, x);
-		// 			}
-		// 		}
-		// 	}
-		//
-		// 	T pulseCrossing = (0.5f - (phaseDist - deltaPhase)) / deltaPhase;
-		// 	int pulseMask = simd::movemask((0 < pulseCrossing) & (pulseCrossing <= 1.f));
-		// 	if (pulseMask) {
-		// 		for (int i = 0; i < channels; i++) {
-		// 			if (pulseMask & (1 << i)) {
-		// 				T mask = simd::movemaskInverse<T>(1 << i);
-		// 				float p = pulseCrossing[i] - 0.5f;
-		// 				T x = mask & (-2.f * syncDirection);
-		// 				sqrMinBlep.insertDiscontinuity(p, x);
-		// 			}
-		// 		}
-		// 	}
-		//
-		// 	T halfCrossing = (0.5f - (phaseDist - deltaPhase)) / deltaPhase;
-		// 	int halfMask = simd::movemask((0 < halfCrossing) & (halfCrossing <= 1.f));
-		// 	if (halfMask) {
-		// 		for (int i = 0; i < channels; i++) {
-		// 			if (halfMask & (1 << i)) {
-		// 				T mask = simd::movemaskInverse<T>(1 << i);
-		// 				float p = halfCrossing[i] - 0.5f;
-		// 				T x = mask & (-2.f * syncDirection);
-		// 				sawMinBlep.insertDiscontinuity(p, x);
-		// 			}
-		// 		}
-		// 	}
-		//
+			int syncMask = 0;
+			T syncCrossing = 0.f;
 			if (syncEnabled) {
-				T deltaSync = syncValue - lastSyncValue;
-				T syncCrossing = -lastSyncValue / deltaSync;
-				lastSyncValue = syncValue;
-				T sync = (0.f < syncCrossing) & (syncCrossing <= 1.f) & (syncValue >= 0.f);
-				int syncMask = simd::movemask(sync);
-				if (syncMask) {
+				// Rising through 0 V, including from a gate resting at exactly 0 V.
+				T sync = (syncFrom <= 0.f) & (syncTo > 0.f);
+				syncMask = simd::movemask(sync) & ((1 << channels) - 1);
+				syncCrossing = simd::clamp(-syncFrom / simd::fmax(syncTo - syncFrom, 1e-9f), 1e-6f, 1.f);
+			}
+
+			T newPhase = phase + deltaPhase;
+			int laneMask = (1 << channels) - 1;
+			scanJumpsLanes(phase, deltaPhase, laneMask & ~syncMask, waves);
+			for (int i = 0; syncMask >> i; i++) {
+				if (!(syncMask & (1 << i)))
+					continue;
+				float p = phase[i];
+				float d = deltaPhase[i];
+				{
+					float sc = syncCrossing[i];
 					if (soft) {
-						syncDirection = simd::ifelse(sync, -syncDirection, syncDirection);
+						// Soft sync: the phase turns back at the crossing.
+						scanJumps(i, p, d * sc, 0.f, sc, waves);
+						scanJumps(i, p + d * sc, -d * (1.f - sc), sc, 1.f - sc, waves);
+						syncDirection[i] = -syncDirection[i];
+						newPhase[i] = p + d * sc - d * (1.f - sc);
 					}
 					else {
-						T newPhase = simd::ifelse(sync, (1.f - syncCrossing) * deltaPhase, phase);
-						// Insert minBLEP for sync
-						for (int i = 0; i < channels; i++) {
-							if (syncMask & (1 << i)) {
-								T mask = simd::movemaskInverse<T>(1 << i);
-								float p = syncCrossing[i] - 1.f;
-								T x;
-								x = mask & (sqr(newPhase) - sqr(phaseDist));
-								sqrMinBlep.insertDiscontinuity(p, x);
-								x = mask & (saw(newPhase) - saw(phaseDist));
-								sawMinBlep.insertDiscontinuity(p, x);
-								x = mask & (tri(newPhase) - tri(phaseDist));
-								triMinBlep.insertDiscontinuity(p, x);
-								x = mask & (sin(newPhase) - sin(phaseDist));
-								sinMinBlep.insertDiscontinuity(p, x);
-							}
+						// Hard sync: jump to the start of the cycle.
+						scanJumps(i, p, d * sc, 0.f, sc, waves);
+						float at = p + d * sc;
+						float restart = (1.f - sc) * d;
+						T mask = simd::movemaskInverse<T>(1 << i);
+						for (int w = 0; w < TIARE_WAVES; w++) {
+							if (waves & (1 << w))
+								blep[w].insertDiscontinuity(sc - 1.f, mask & T(laneWave(w, i, 0.f) - laneWave(w, i, at)));
 						}
-						phase = newPhase;
+						scanJumps(i, 0.f, restart, sc, 1.f - sc, waves);
+						newPhase[i] = restart;
 					}
 				}
 			}
-		}
+			phase = newPhase - simd::floor(newPhase);
 
-		sqrValue = sqr(phaseDist);
+			T distorted = tiareDistort(phase, distX, distY);
 
-		if (lfoFactor == 1) {
-			T deltaOut = sqrValue - lastSqrValue;
-	    T outCrossing = -lastSqrValue / deltaOut;
-	    lastSqrValue = sqrValue;
-	    int outMask =  simd::movemask((0.f < outCrossing) & (outCrossing <= 1.f) & (sqrValue >= 0.f));
-	    if (outMask) {
-	      for (int i = 0; i < channels; i++) {
-	        if (outMask & (1 << i)) {
-	          T mask = simd::movemaskInverse<T>(1 << i);
-	          float p = outCrossing[i] - 1.f;
-	          T x;
-	          x = mask & (sqr(phaseDist+deltaPhase-simd::floor(phaseDist+deltaPhase)) - sqr(phaseDist));
-	          sqrMinBlep.insertDiscontinuity(p, x);
-	        }
-	      }
-	    }
-		}
-
-		sqrValue += sqrMinBlep.process();
-
-		if (analog) {
-			sqrFilter.setCutoffFreq(20.f * deltaTime);
-			sqrFilter.process(sqrValue);
-			sqrValue = sqrFilter.highpass() * 0.95f;
-		}
-
-		sawValue = saw(phaseDist);
-
-		if (lfoFactor == 1) {
-			T deltaOut = sawValue - lastSawValue;
-	    T outCrossing = -lastSawValue / deltaOut;
-	    lastSawValue = sawValue;
-	    int outMask =  simd::movemask((0.f < outCrossing) & (outCrossing <= 1.f) & (sawValue >= 0.f));
-	    if (outMask) {
-	      for (int i = 0; i < channels; i++) {
-	        if (outMask & (1 << i)) {
-	          T mask = simd::movemaskInverse<T>(1 << i);
-	          float p = outCrossing[i] - 1.f;
-	          T x;
-	          x = mask & (saw(phaseDist+deltaPhase-simd::floor(phaseDist+deltaPhase)) - saw(phaseDist));
-	          sawMinBlep.insertDiscontinuity(p, x);
-	        }
-	      }
-	    }
-		}
-
-		sawValue += sawMinBlep.process();
-
-		triValue = tri(phaseDist);
-
-		if (lfoFactor == 1) {
-			T deltaOut = triValue - lastTriValue;
-			T outCrossing = -lastTriValue / deltaOut;
-			lastTriValue = triValue;
-			int outMask =  simd::movemask((0.f < outCrossing) & (outCrossing <= 1.f) & (triValue >= 0.f));
-			if (outMask) {
-				for (int i = 0; i < channels; i++) {
-					if (outMask & (1 << i)) {
-						T mask = simd::movemaskInverse<T>(1 << i);
-						float p = outCrossing[i] - 1.f;
-						T x;
-						x = mask & (tri(phaseDist+deltaPhase-simd::floor(phaseDist+deltaPhase)) - tri(phaseDist));
-						triMinBlep.insertDiscontinuity(p, x);
-					}
-				}
+			for (int w = 0; w < TIARE_WAVES; w++) {
+				if (waves & (1 << w))
+					sub[w][s] = tiareWave<T>(w, distorted, analog, pulseWidth) + blep[w].process();
 			}
 		}
 
-		triValue += triMinBlep.process();
-
-		sinValue = sin(phaseDist);
-
-		if (lfoFactor == 1) {
-			T deltaOut = sinValue - lastSinValue;
-			T outCrossing = -lastSinValue / deltaOut;
-			lastSinValue = sinValue;
-			int outMask =  simd::movemask((0.f < outCrossing) & (outCrossing <= 1.f) & (sinValue >= 0.f));
-			if (outMask) {
-				for (int i = 0; i < channels; i++) {
-					if (outMask & (1 << i)) {
-						T mask = simd::movemaskInverse<T>(1 << i);
-						float p = outCrossing[i] - 1.f;
-						T x;
-						x = mask & (sin(phaseDist+deltaPhase-simd::floor(phaseDist+deltaPhase)) - sin(phaseDist));
-						sinMinBlep.insertDiscontinuity(p, x);
-					}
-				}
-			}
+		for (int w = 0; w < TIARE_WAVES; w++) {
+			if (waves & (1 << w))
+				out[w] = decimator[w].process(sub[w][0], sub[w][1]);
 		}
 
-		sinValue += sinMinBlep.process();
-	}
-
-	T sin(T phase) {
-		T v;
-		if (analog) {
-			// Quadratic approximation of sine, slightly richer harmonics
-			T halfPhase = (phase < 0.5f);
-			T x = phase - simd::ifelse(halfPhase, 0.25f, 0.75f);
-			v = 1.f - 16.f * simd::pow(x, 2);
-			v *= simd::ifelse(halfPhase, 1.f, -1.f);
+		// Analog square: AC-coupled like a real VCO, but not in LFO mode.
+		if (analog && !lfo && (waves & (1 << TIARE_SQR))) {
+			sqrFilter.setCutoffFreq(20.f * sampleTime);
+			sqrFilter.process(out[TIARE_SQR]);
+			out[TIARE_SQR] = sqrFilter.highpass() * 0.95f;
 		}
-		else {
-			v = sin2pi_pade_05_5_4(phase);
-			// v = sin2pi_pade_05_7_6(phase);
-			// v = simd::sin(2 * T(M_PI) * phase);
-		}
-		return v;
-	}
-	T sin() {
-		return sinValue;
-	}
-
-	T tri(T phase) {
-		T v;
-		if (analog) {
-			T x = phase + 0.25f;
-			x -= simd::trunc(x);
-			T halfX = (x >= 0.5f);
-			x *= 2;
-			x -= simd::trunc(x);
-			v = expCurve(x) * simd::ifelse(halfX, 1.f, -1.f);
-		}
-		else {
-			v = 1 - 4 * simd::fmin(simd::fabs(phase - 0.25f), simd::fabs(phase - 1.25f));
-		}
-		return v;
-	}
-	T tri() {
-		return triValue;
-	}
-
-	T saw(T phase) {
-		T v;
-		T x = phase + 0.5f;
-		x -= simd::trunc(x);
-		if (analog) {
-			v = -expCurve(x);
-		}
-		else {
-			v = 2 * x - 1;
-		}
-		return v;
-	}
-	T saw() {
-		return sawValue;
-	}
-
-	T sqr(T phase) {
-		T v = simd::ifelse(phase < pulseWidth, 1.f, -1.f);
-		return v;
-	}
-	T sqr() {
-		return sqrValue;
-	}
-
-	T light() {
-		return simd::sin(2 * T(M_PI) * phase);
 	}
 };
 
@@ -347,6 +296,8 @@ struct TIARE : BidooModule {
 		FM_PARAM,
 		PW_PARAM,
 		PWM_PARAM,
+		DIST_X_PARAM,
+		DIST_Y_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -369,10 +320,14 @@ struct TIARE : BidooModule {
 		NUM_LIGHTS
 	};
 
-	float phaseDist = 0.0f;
-	float phaseDistX = 0.5f, phaseDistY = 0.5f;
+	static constexpr float DIST_MIN = 0.01f;
+	static constexpr float DIST_MAX = 0.99f;
+
 	int freqFactor = 1;
-	Oscillator<16, 16, float_4> oscillators[4];
+	// Phase distortion point of channel 1, for the display.
+	float displayX = 0.5f;
+	float displayY = 0.5f;
+	TiareOscillator<float_4> oscillators[4];
 
 	TIARE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -383,10 +338,14 @@ struct TIARE : BidooModule {
 		configParam(FM_PARAM, 0.f, 1.f, 0.f, "Frequency modulation", "%", 0.f, 100.f);
 		configParam(PW_PARAM, 0.01f, 0.99f, 0.5f, "Pulse width", "%", 0.f, 100.f);
 		configParam(PWM_PARAM, 0.f, 1.f, 0.f, "Pulse width modulation", "%", 0.f, 100.f);
+		configParam(DIST_X_PARAM, DIST_MIN, DIST_MAX, 0.5f, "Phase distortion X", "%", 0.f, 100.f);
+		configParam(DIST_Y_PARAM, DIST_MIN, DIST_MAX, 0.5f, "Phase distortion Y", "%", 0.f, 100.f);
 		configInput(PITCH_INPUT, "1V/oct pitch");
 		configInput(FM_INPUT, "Frequency modulation");
 		configInput(SYNC_INPUT, "Sync");
 		configInput(PW_INPUT, "Pulse width modulation");
+		configInput(DIST_X_INPUT, "Phase distortion X (0-10 V, replaces the slider)");
+		configInput(DIST_Y_INPUT, "Phase distortion Y (0-10 V, replaces the slider)");
 		configOutput(SIN_OUTPUT, "Sine");
 		configOutput(TRI_OUTPUT, "Triangle");
 		configOutput(SAW_OUTPUT, "Sawtooth");
@@ -395,58 +354,36 @@ struct TIARE : BidooModule {
 
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
-		json_object_set_new(rootJ, "phaseDistX", json_real(phaseDistX));
-		json_object_set_new(rootJ, "phaseDistY", json_real(phaseDistY));
 		json_object_set_new(rootJ, "freqFactor", json_integer(freqFactor));
 		return rootJ;
 	}
 
 	void dataFromJson(json_t *rootJ) override {
 		BidooModule::dataFromJson(rootJ);
-		json_t *phaseDistXJ = json_object_get(rootJ, "phaseDistX");
-		if (phaseDistXJ) {
-			phaseDistX = json_number_value(phaseDistXJ);
-		}
-		json_t *phaseDistYJ = json_object_get(rootJ, "phaseDistY");
-		if (phaseDistYJ) {
-			phaseDistY = json_number_value(phaseDistYJ);
-		}
 		json_t *freqFactorJ = json_object_get(rootJ, "freqFactor");
 		if (freqFactorJ) {
-			freqFactor = json_integer_value(freqFactorJ);
+			freqFactor = json_integer_value(freqFactorJ) == 100 ? 100 : 1;
 		}
 	}
 
-	void onRandomize() override {
-		if (!inputs[TIARE::DIST_X_INPUT].isConnected()) {
-			phaseDistX = random::uniform();
+	float_4 distortion(int input, int param, int c) {
+		if (inputs[input].isConnected()) {
+			float_4 v = simd::clamp(inputs[input].getPolyVoltageSimd<float_4>(c), 0.f, 10.f);
+			return DIST_MIN + v * ((DIST_MAX - DIST_MIN) / 10.f);
 		}
-		if (!inputs[TIARE::DIST_Y_INPUT].isConnected()) {
-			phaseDistY = random::uniform();
-		}
-	}
-
-	void onReset() override {
-		if (!inputs[TIARE::DIST_X_INPUT].isConnected()) {
-			phaseDistX = 0.5f;
-		}
-		if (!inputs[TIARE::DIST_Y_INPUT].isConnected()) {
-			phaseDistY = 0.5f;
-		}
+		return params[param].getValue();
 	}
 
 	void process(const ProcessArgs &args) override {
-		if (inputs[DIST_X_INPUT].isConnected())
-			phaseDistX = rescale(clamp(inputs[DIST_X_INPUT].getVoltage(), 0.0f, 10.0f), 0.0f, 10.0f, 0.01f, 0.98f);
-
-		if (inputs[DIST_Y_INPUT].isConnected())
-			phaseDistY = rescale(clamp(inputs[DIST_Y_INPUT].getVoltage(), 0.0f, 10.0f), 0.0f, 10.0f, 0.01f, 0.98f);
-
 		float freqParam = params[FREQ_PARAM].getValue() / 12.f;
 		freqParam += dsp::quadraticBipolar(params[FINE_PARAM].getValue()) * 3.f / 12.f;
 		float fmParam = dsp::quadraticBipolar(params[FM_PARAM].getValue());
 
 		int channels = std::max(inputs[PITCH_INPUT].getChannels(), 1);
+		int waves = 0;
+		for (int w = 0; w < TIARE_WAVES; w++)
+			if (outputs[SIN_OUTPUT + w].isConnected())
+				waves |= 1 << w;
 
 		for (int c = 0; c < channels; c += 4) {
 			auto* oscillator = &oscillators[c / 4];
@@ -461,90 +398,104 @@ struct TIARE : BidooModule {
 			}
 			oscillator->setPitch(pitch, freqFactor);
 			oscillator->setPulseWidth(params[PW_PARAM].getValue() + params[PWM_PARAM].getValue() * inputs[PW_INPUT].getPolyVoltageSimd<float_4>(c) / 10.f);
+			oscillator->distX = distortion(DIST_X_INPUT, DIST_X_PARAM, c);
+			oscillator->distY = distortion(DIST_Y_INPUT, DIST_Y_PARAM, c);
+			if (c == 0) {
+				displayX = oscillator->distX[0];
+				displayY = oscillator->distY[0];
+			}
 
 			oscillator->syncEnabled = inputs[SYNC_INPUT].isConnected();
-			oscillator->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c), phaseDistX, phaseDistY);
+			oscillator->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c), waves);
 
-			// Set output
-			if (outputs[SIN_OUTPUT].isConnected())
-				outputs[SIN_OUTPUT].setVoltageSimd(5.f * oscillator->sin(), c);
-			if (outputs[TRI_OUTPUT].isConnected())
-				outputs[TRI_OUTPUT].setVoltageSimd(5.f * oscillator->tri(), c);
-			if (outputs[SAW_OUTPUT].isConnected())
-				outputs[SAW_OUTPUT].setVoltageSimd(5.f * oscillator->saw(), c);
-			if (outputs[SQR_OUTPUT].isConnected())
-				outputs[SQR_OUTPUT].setVoltageSimd(5.f * oscillator->sqr(), c);
+			for (int w = 0; w < TIARE_WAVES; w++) {
+				if (waves & (1 << w))
+					outputs[SIN_OUTPUT + w].setVoltageSimd(5.f * oscillator->out[w], c);
+			}
 		}
 
-		outputs[SIN_OUTPUT].setChannels(channels);
-		outputs[TRI_OUTPUT].setChannels(channels);
-		outputs[SAW_OUTPUT].setChannels(channels);
-		outputs[SQR_OUTPUT].setChannels(channels);
+		for (int w = 0; w < TIARE_WAVES; w++)
+			outputs[SIN_OUTPUT + w].setChannels(channels);
 	}
 };
 
 struct TIAREDisplay : TransparentWidget {
 	TIARE *module;
-	float initX = 0.0f;
-	float initY = 0.0f;
-	float dragX = 0.0f;
-	float dragY = 0.0f;
+	const float size = 140.f;
 
 	TIAREDisplay() {}
 
-	void onDragStart(const event::DragStart &e) override {
-		dragX = APP->scene->rack->getMousePos().x;
-		dragY = APP->scene->rack->getMousePos().y;
+	void setFromMouse(Vec pos) {
+		if (!module->inputs[TIARE::DIST_X_INPUT].isConnected())
+			module->paramQuantities[TIARE::DIST_X_PARAM]->setValue(clamp(pos.x / size, 0.f, 1.f));
+		if (!module->inputs[TIARE::DIST_Y_INPUT].isConnected())
+			module->paramQuantities[TIARE::DIST_Y_PARAM]->setValue(clamp(1.f - pos.y / size, 0.f, 1.f));
+	}
+
+	// Mouse position in the display, followed here rather than read back from
+	// the module, whose display values only update on the next audio sample.
+	Vec dragPos;
+
+	void onButton(const event::Button &e) override {
+		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
+			e.consume(this);
+			dragPos = e.pos;
+			setFromMouse(dragPos);
+		}
 	}
 
 	void onDragMove(const event::DragMove &e) override {
-		if (!module->inputs[TIARE::DIST_X_INPUT].isConnected()) {
-			float newDragX = APP->scene->rack->getMousePos().x;
-			module->phaseDistX = rescale(clamp(initX + (newDragX - dragX), 0.0f, 140.0f), 0.0f, 140.0f, 0.01f, 0.98f);
-		}
-		if (!module->inputs[TIARE::DIST_Y_INPUT].isConnected()) {
-			float newDragY = APP->scene->rack->getMousePos().y;
-			module->phaseDistY = rescale(clamp(initY - (newDragY - dragY), 0.0f, 140.0f), 0.0f, 140.0f, 0.01f, 1.0f);
-		}
-	}
-
-	void onButton(const event::Button &e) override {
-		if (e.button == GLFW_MOUSE_BUTTON_LEFT) {
-			e.consume(this);
-			e.setTarget(this);
-			initX = e.pos.x;
-			initY = 140.0f - e.pos.y;
-		}
+		// Follow the mouse, whatever the zoom.
+		dragPos = dragPos.plus(e.mouseDelta.div(getAbsoluteZoom()));
+		setFromMouse(dragPos);
 	}
 
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
 			nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x80));
-			{
-				nvgBeginPath(args.vg);
-				nvgMoveTo(args.vg, 0, 70);
-				nvgLineTo(args.vg, 140, 70);
-				nvgMoveTo(args.vg, 70, 0);
-				nvgLineTo(args.vg, 70, 140);
-				nvgClosePath(args.vg);
-			}
+			nvgBeginPath(args.vg);
+			nvgMoveTo(args.vg, 0, size / 2);
+			nvgLineTo(args.vg, size, size / 2);
+			nvgMoveTo(args.vg, size / 2, 0);
+			nvgLineTo(args.vg, size / 2, size);
 			nvgStroke(args.vg);
 
-			// Draw phase distortion
+			// Distortion curve through (X, Y)
+			float px = module->displayX * size;
+			float py = (1.f - module->displayY) * size;
 			nvgStrokeColor(args.vg, nvgRGBA(42, 87, 117, 255));
-			{
-				nvgBeginPath(args.vg);
-				nvgMoveTo(args.vg, 0, 140);
-				nvgLineTo(args.vg, (int)(rescale(module->phaseDistX, 0, 1, 0, 140)), 140 - (int)(rescale(module->phaseDistY, 0, 1, 0.01, 140)));
-				nvgMoveTo(args.vg, (int)(rescale(module->phaseDistX, 0, 1, 0, 140)), 140 - (int)(rescale(module->phaseDistY, 0, 1, 0.01, 140)));
-				nvgLineTo(args.vg, 140, 0);
-				nvgClosePath(args.vg);
-			}
+			nvgBeginPath(args.vg);
+			nvgMoveTo(args.vg, 0, size);
+			nvgLineTo(args.vg, px, py);
+			nvgLineTo(args.vg, size, 0);
 			nvgStroke(args.vg);
+			nvgBeginPath(args.vg);
+			nvgCircle(args.vg, px, py, 2.5f);
+			nvgFillColor(args.vg, nvgRGBA(42, 87, 117, 255));
+			nvgFill(args.vg);
 		}
 		Widget::drawLayer(args, layer);
 	}
+};
 
+// Thin slider along an edge of the display: a real param widget, so X and Y
+// can be typed in, MIDI-mapped and automated.
+struct TiareAxisSlider : app::SliderKnob {
+	void draw(const DrawArgs& args) override {
+		engine::ParamQuantity *pq = getParamQuantity();
+		float v = pq ? pq->getScaledValue() : 0.5f;
+		nvgBeginPath(args.vg);
+		nvgRect(args.vg, 0, 0, box.size.x, box.size.y);
+		nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 0x40));
+		nvgFill(args.vg);
+		nvgBeginPath(args.vg);
+		if (horizontal)
+			nvgRect(args.vg, v * box.size.x - 1.5f, 0, 3.f, box.size.y);
+		else
+			nvgRect(args.vg, 0, (1.f - v) * box.size.y - 1.5f, box.size.x, 3.f);
+		nvgFillColor(args.vg, nvgRGBA(42, 87, 117, 255));
+		nvgFill(args.vg);
+	}
 };
 
 struct moduleModeItem : MenuItem {
@@ -567,14 +518,20 @@ struct TIAREWidget : BidooWidget {
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		if (module) {
-			{
-				TIAREDisplay *display = new TIAREDisplay();
-				display->module = module;
-				display->box.pos = Vec(5, 119);
-				display->box.size = Vec(140, 140);
-				addChild(display);
-			}
+			TIAREDisplay *display = new TIAREDisplay();
+			display->module = module;
+			display->box.pos = Vec(5, 119);
+			display->box.size = Vec(140, 140);
+			addChild(display);
 		}
+
+		TiareAxisSlider *sliderX = createParam<TiareAxisSlider>(Vec(5 + 8, 119 + 140 - 7), module, TIARE::DIST_X_PARAM);
+		sliderX->box.size = Vec(140 - 8, 7);
+		sliderX->horizontal = true;
+		addParam(sliderX);
+		TiareAxisSlider *sliderY = createParam<TiareAxisSlider>(Vec(5, 119), module, TIARE::DIST_Y_PARAM);
+		sliderY->box.size = Vec(7, 140 - 8);
+		addParam(sliderY);
 
 		addParam(createParam<CKSS>(Vec(15, 80), module, TIARE::MODE_PARAM));
 		addParam(createParam<CKSS>(Vec(119, 80), module, TIARE::SYNC_PARAM));
