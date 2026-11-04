@@ -4,6 +4,12 @@
 
 using namespace std;
 
+// One step of a sequencer. A start trigger plays the step: its gates (with
+// ratchets) and its CV go to the bridge outputs, and the end-of-step output
+// starts the next μ. Idle, a μ passes the bridges through, so a chain of μ
+// ends on one gate and one CV. Steps are counted in samples, with the rounding
+// carried to the next step, so a chain keeps the tempo exactly. The BPM is a
+// 1V/oct CV (0 V = 120 BPM) passed from μ to μ; the first one can follow a clock.
 struct MU : BidooModule {
 	enum ParamIds {
 		BPM_PARAM,
@@ -55,165 +61,300 @@ struct MU : BidooModule {
 		NUM_LIGHTS = GATE_LIGHT + 3
 	};
 
+	static constexpr float BPM_MIN = 1.f;
+	static constexpr float BPM_MAX = 1000.f;
+	static constexpr int CLOCK_WINDOW = 96;
+
 	dsp::PulseGenerator eosPulse;
+	dsp::PulseGenerator startLightPulse;
 	dsp::SchmittTrigger activateTrigger;
-	dsp::SchmittTrigger inhibateTrigger;
+	dsp::SchmittTrigger inhibitTrigger;
 	dsp::SchmittTrigger cvModeTrigger;
 	dsp::SchmittTrigger trigModeTrigger;
 	dsp::SchmittTrigger muteTrigger;
 	dsp::SchmittTrigger startTrigger;
+	dsp::SchmittTrigger clockTrigger;
+
 	bool isActive = false;
-	int ticks = 0;
-	int initTicks = 0;
-	int gateTicks = 0;
-	float bpm = 0.1f;
-	int numTrigs = 1;
-	int distRetrig = 0;
+	long count = 0;          // samples since the step started
+	long stepTicks = 0;      // length of the playing step, in samples
+	double carry = 0.0;      // rounding carried to the next step
 	bool play = false;
 	bool alt = false;
-	int count = 0;
-	float displayLength = 0.0f;
-	float displayNoteLength = 0.0f;
-	float displayStepProba = 0.0f;
-	float displayAltProba = 0.0f;
-	float displayNumTrigs = 0.0f;
-	float displayDistTrigs = 0.0f;
-	float displayCV = 0.0f;
-	float displayOffset = 0.0f;
 	bool cvStack = false;
 	bool trigStack = false;
 	bool mute = false;
 
+	// Clock follow: the BPM input takes a clock and its tempo is measured.
+	bool clockFollow = false;
+	int clockPpqn = 1;
+	bool startArmed = false;     // the start button waits for the next beat
+	long sinceClock = -1;
+	long ticks = 0;              // clock ticks since the clock started, a beat every clockPpqn
+	long intervals[CLOCK_WINDOW] = {};
+	int intervalCount = 0, intervalPos = 0;
+	double intervalSum = 0.0;
+	double clockBpm = 0.0;
+
+	double tempo = 120.0;
+	float bpm = 120.f;
+	float displayLength = 100.f;
+	float displayNoteLength = 0.f;
+	float displayStepProba = 100.f;
+	float displayAltProba = 0.f;
+	float displayNumTrigs = 1.f;
+	float displayDistTrigs = 100.f;
+	float displayOffset = 0.f;
+	float displayCV = 0.f;
+
 	MU() : BidooModule() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(BPM_PARAM, 0.0f, 800.0f, 117.0f);
-		configParam(BPMFINE_PARAM, 0.0f, 0.99f, 0.0f);
-		configParam(STEPLENGTH_PARAM, 0.0f, 1600.0f, 100.0f);
-		configParam(STEPLENGTHFINE_PARAM, -0.5f, 0.5f, 0.0f);
-		configParam(NOTELENGTH_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(STEPPROBA_PARAM, 0.0f, 1.0f, 1.0f);
-		configParam(ALTEOSTEPPROBA_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(NUMTRIGS_PARAM, 1.0f, 64.0f, 1.0f);
-		configParam(DISTTRIGS_PARAM, 0.0f, 1.0f, 1.0f);
-		configParam(CV_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(START_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(CVSTACK_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(TRIGSTACK_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(MUTE_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(OFFSET_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(BPM_PARAM, 1.f, 800.f, 120.f, "BPM");
+		paramQuantities[BPM_PARAM]->snapEnabled = true;
+		configParam(BPMFINE_PARAM, 0.f, 0.99f, 0.f, "BPM fine");
+		configParam(STEPLENGTH_PARAM, 0.f, 1600.f, 100.f, "Step length", "% of a beat");
+		paramQuantities[STEPLENGTH_PARAM]->snapEnabled = true;
+		configParam(STEPLENGTHFINE_PARAM, -0.5f, 0.5f, 0.f, "Step length fine", "%", 0.f, 100.f);
+		configParam(NOTELENGTH_PARAM, 0.f, 1.f, 0.f, "Gate length (at least 1 ms)", "% of the step", 0.f, 100.f);
+		configParam(STEPPROBA_PARAM, 0.f, 1.f, 1.f, "Step probability", "%", 0.f, 100.f);
+		configParam(ALTEOSTEPPROBA_PARAM, 0.f, 1.f, 0.f, "Alt end-of-step probability", "%", 0.f, 100.f);
+		configParam(NUMTRIGS_PARAM, 1.f, 64.f, 1.f, "Ratchets");
+		paramQuantities[NUMTRIGS_PARAM]->snapEnabled = true;
+		configParam(DISTTRIGS_PARAM, 0.f, 1.f, 1.f, "Ratchet spacing", "% of the step", 0.f, 100.f);
+		configParam(CV_PARAM, -5.f, 5.f, 0.f, "CV", " V");
+		configButton(START_PARAM, "Start");
+		configButton(CVSTACK_PARAM, "CV stack (adds the incoming CV)");
+		configButton(TRIGSTACK_PARAM, "Gate stack (lets the incoming gates through)");
+		configButton(MUTE_PARAM, "Mute");
+		configParam(OFFSET_PARAM, 0.f, 1.f, 0.f, "Gate offset", "% of the step", 0.f, 100.f);
+		configInput(ACTIVATE_INPUT, "Step start");
+		configInput(INHIBIT_INPUT, "Inhibit (stops the step)");
+		configInput(GATEBRIDGE_INPUT, "Gate bridge");
+		configInput(CVBRIDGE_INPUT, "CV bridge");
+		configInput(BPM_INPUT, "BPM");
+		configInput(NOTELENGTH_INPUT, "Gate length CV (10 V = 100%)");
+		configInput(CV_INPUT, "CV");
+		configInput(NUMTRIGS_INPUT, "Ratchets CV (10 V = 64)");
+		configInput(DISTTRIGS_INPUT, "Ratchet spacing CV (10 V = 100%)");
+		configInput(OFFSET_INPUT, "Gate offset CV (10 V = 100%)");
+		configOutput(EOSTEP_OUTPUT, "End of step");
+		configOutput(ALTEOSTEP_OUTPUT, "Alt end of step");
+		configOutput(GATEBRIDGE_OUTPUT, "Gate bridge");
+		configOutput(CVBRIDGE_OUTPUT, "CV bridge");
+		configOutput(BPM_OUTPUT, "BPM (1V/oct, 0 V = 120 BPM)");
+		configBypass(GATEBRIDGE_INPUT, GATEBRIDGE_OUTPUT);
+		configBypass(CVBRIDGE_INPUT, CVBRIDGE_OUTPUT);
+		updateBpmInputName();
+	}
+
+	void updateBpmInputName() {
+		inputInfos[BPM_INPUT]->name = clockFollow ? string::f("Clock to follow (%d PPQN)", clockPpqn) : "BPM (1V/oct, 0 V = 120 BPM)";
+	}
+
+	void resetClock() {
+		sinceClock = -1;
+		ticks = 0;
+		intervalCount = intervalPos = 0;
+		intervalSum = 0.0;
+		clockBpm = 0.0;
+	}
+
+	void onReset() override {
+		isActive = false;
+		cvStack = trigStack = mute = false;
+		startArmed = false;
+		carry = 0.0;
+		resetClock();
+	}
+
+	json_t *dataToJson() override {
+		json_t *rootJ = BidooModule::dataToJson();
+		json_object_set_new(rootJ, "cvStack", json_boolean(cvStack));
+		json_object_set_new(rootJ, "trigStack", json_boolean(trigStack));
+		json_object_set_new(rootJ, "mute", json_boolean(mute));
+		json_object_set_new(rootJ, "clockFollow", json_boolean(clockFollow));
+		json_object_set_new(rootJ, "clockPpqn", json_integer(clockPpqn));
+		return rootJ;
+	}
+
+	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
+		if (json_t *j = json_object_get(rootJ, "cvStack")) cvStack = json_is_true(j);
+		if (json_t *j = json_object_get(rootJ, "trigStack")) trigStack = json_is_true(j);
+		if (json_t *j = json_object_get(rootJ, "mute")) mute = json_is_true(j);
+		if (json_t *j = json_object_get(rootJ, "clockFollow")) clockFollow = json_is_true(j);
+		if (json_t *j = json_object_get(rootJ, "clockPpqn")) clockPpqn = clamp((int)json_integer_value(j), 1, 96);
+		resetClock();
+		updateBpmInputName();
+	}
+
+	void setClockFollow(bool on, int ppqn) {
+		clockFollow = on;
+		clockPpqn = ppqn;
+		startArmed = false;
+		resetClock();
+		updateBpmInputName();
+	}
+
+	// Measures the clock tempo as the average interval over the last beats,
+	// starting the average again when the tempo jumps by more than 1%. A clock
+	// that stops for 4 intervals starts again on a beat. Returns true on a beat.
+	bool processClock(float v) {
+		if (sinceClock >= 0)
+			sinceClock++;
+		if (intervalCount > 0 && sinceClock > 4.0 * intervalSum / intervalCount)
+			resetClock();
+		if (!clockTrigger.process(v, 0.1f, 1.f))
+			return false;
+		bool beat = sinceClock < 0 || ++ticks % clockPpqn == 0;
+		if (sinceClock > 0) {
+			if (intervalCount > 0 && std::fabs(sinceClock - intervalSum / intervalCount) > 0.01 * intervalSum / intervalCount) {
+				intervalCount = intervalPos = 0;
+				intervalSum = 0.0;
+			}
+			int window = std::min(CLOCK_WINDOW, std::max(4 * clockPpqn, 8));
+			if (intervalCount == window) {
+				intervalSum -= intervals[intervalPos];
+				intervalCount--;
+			}
+			intervals[intervalPos] = sinceClock;
+			intervalSum += sinceClock;
+			intervalCount++;
+			intervalPos = (intervalPos + 1) % window;
+			clockBpm = 60.0 * intervalCount / (intervalSum * clockPpqn);  // per sample, scaled below
+		}
+		sinceClock = 0;
+		return beat;
 	}
 
 	void process(const ProcessArgs &args) override;
 };
 
 void MU::process(const ProcessArgs &args) {
-	const float invLightLambda = 13.333333333333333333333f;
-	float invESR = 1 / args.sampleRate;
+	float dt = args.sampleTime;
 
-	bpm = inputs[BPM_INPUT].active ? rescale(clamp(inputs[BPM_INPUT].value,0.0f,10.0f),0.0f,10.0f,1.0f,800.99f) : (round(params[BPM_PARAM].value)+round(100*params[BPMFINE_PARAM].value)/100);
-	displayLength = round(params[STEPLENGTH_PARAM].value) + round(params[STEPLENGTHFINE_PARAM].value*100) * 0.01f;
-
-	bool wasActive = isActive;
-	if (startTrigger.process(params[START_PARAM].value))
-	{
-		lights[START_LIGHT].value = 10.0f;
-		isActive = true;
+	// Tempo.
+	bool clockBeat = false;
+	double knobBpm = std::round(params[BPM_PARAM].getValue()) + std::round(100.f * params[BPMFINE_PARAM].getValue()) / 100.0;
+	if (clockFollow && inputs[BPM_INPUT].isConnected()) {
+		clockBeat = processClock(inputs[BPM_INPUT].getVoltage());
+		tempo = intervalCount > 0 ? clamp(clockBpm * args.sampleRate, (double)BPM_MIN, (double)BPM_MAX) : knobBpm;
 	}
-	if (activateTrigger.process(inputs[ACTIVATE_INPUT].value))
-	{
-		isActive = true;
+	else {
+		if (sinceClock >= 0)
+			resetClock();
+		// In double: the tempo passed down a chain keeps its precision.
+		tempo = (!clockFollow && inputs[BPM_INPUT].isConnected()) ? clamp(120.0 * std::exp2(clamp((double)inputs[BPM_INPUT].getVoltage(), -7.0, 3.1)), (double)BPM_MIN, (double)BPM_MAX) : knobBpm;
 	}
+	bpm = tempo;
+	displayLength = std::round(params[STEPLENGTH_PARAM].getValue()) + std::round(params[STEPLENGTHFINE_PARAM].getValue() * 100.f) * 0.01f;
 
-	if (!wasActive && isActive) {
-		initTicks = (displayLength/100) * args.sampleRate * 60 / bpm;
-		ticks = initTicks;
+	// Start: the button (on the next clock edge when following a clock) or the start input.
+	bool start = false;
+	if (startTrigger.process(params[START_PARAM].getValue())) {
+		startLightPulse.trigger(0.1f);
+		if (clockFollow && inputs[BPM_INPUT].isConnected())
+			startArmed = true;
+		else
+			start = true;
+	}
+	if (startArmed && clockBeat) {
+		startArmed = false;
+		start = true;
+	}
+	if (activateTrigger.process(inputs[ACTIVATE_INPUT].getVoltage(), 0.1f, 1.f))
+		start = true;
+
+	if (start && !isActive) {
+		isActive = true;
 		count = 0;
-		play = (random::uniform() + params[STEPPROBA_PARAM].value)>=1;
-		alt = (random::uniform() + params[ALTEOSTEPPROBA_PARAM].value)>1;
-		lights[GATE_LIGHT].value = 0.0f;
-		lights[GATE_LIGHT+1].value = 0.0f;
-		lights[GATE_LIGHT+2].value = 10.0f;
+		double exact = displayLength / 100.0 * args.sampleRate * 60.0 / tempo + carry;
+		stepTicks = std::max((long)std::round(exact), 1L);
+		carry = clamp(exact - stepTicks, -1.0, 1.0);
+		play = random::uniform() < params[STEPPROBA_PARAM].getValue();
+		alt = random::uniform() < params[ALTEOSTEPPROBA_PARAM].getValue();
 	}
 
-	if (cvModeTrigger.process(params[CVSTACK_PARAM].value))
-	{
+	if (cvModeTrigger.process(params[CVSTACK_PARAM].getValue()))
 		cvStack = !cvStack;
-	}
-
-	if (trigModeTrigger.process(params[TRIGSTACK_PARAM].value))
-	{
+	if (trigModeTrigger.process(params[TRIGSTACK_PARAM].getValue()))
 		trigStack = !trigStack;
-	}
-
-	if (muteTrigger.process(params[MUTE_PARAM].value))
-	{
+	if (muteTrigger.process(params[MUTE_PARAM].getValue()))
 		mute = !mute;
-	}
 
-	numTrigs = clamp(params[NUMTRIGS_PARAM].value + rescale(clamp(inputs[NUMTRIGS_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-64.0f,64.0f),0.0f,64.0f);
-	distRetrig = clamp(params[DISTTRIGS_PARAM].value + rescale(clamp(inputs[DISTTRIGS_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-1.0f,1.0f), 0.0f,1.0f) * initTicks;
-	gateTicks = initTicks * clamp(params[NOTELENGTH_PARAM].value + rescale(clamp(inputs[NOTELENGTH_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-1.0f,1.0f),0.0f,1.0f);
-	displayNoteLength = clamp(params[NOTELENGTH_PARAM].value + rescale(clamp(inputs[NOTELENGTH_INPUT].value,-10.0f,10.0f),-10.0f,10.0f,-1.0f,1.0f),0.0f,1.0f) * 100;
-	displayStepProba = params[STEPPROBA_PARAM].value * 100;
-	displayAltProba = params[ALTEOSTEPPROBA_PARAM].value * 100;
-	displayDistTrigs = params[DISTTRIGS_PARAM].value * 100;
+	float noteLength = clamp(params[NOTELENGTH_PARAM].getValue() + inputs[NOTELENGTH_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
+	int numTrigs = (int)std::round(clamp(params[NUMTRIGS_PARAM].getValue() + inputs[NUMTRIGS_INPUT].getVoltage() * 6.4f, 1.f, 64.f));
+	float dist = clamp(params[DISTTRIGS_PARAM].getValue() + inputs[DISTTRIGS_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
+	float offset = clamp(params[OFFSET_PARAM].getValue() + inputs[OFFSET_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
+	float cv = clamp(params[CV_PARAM].getValue() + inputs[CV_INPUT].getVoltage(), -10.f, 10.f);
+	displayNoteLength = noteLength * 100.f;
+	displayStepProba = params[STEPPROBA_PARAM].getValue() * 100.f;
+	displayAltProba = params[ALTEOSTEPPROBA_PARAM].getValue() * 100.f;
 	displayNumTrigs = numTrigs;
-	displayOffset = clamp(params[OFFSET_PARAM].value + rescale(clamp(inputs[OFFSET_INPUT].value, 0.0f,10.0f), 0.0f, 10.0f, 0.0f,1.0f), 0.0f, 1.0f) * 100;
+	displayDistTrigs = dist * 100.f;
+	displayOffset = offset * 100.f;
+	displayCV = cv;
 
-	if (inhibateTrigger.process(inputs[INHIBIT_INPUT].value))
-	{
+	if (inhibitTrigger.process(inputs[INHIBIT_INPUT].getVoltage(), 0.1f, 1.f))
 		isActive = false;
-	}
 
-	if (isActive && (ticks >= 0)) {
-		if (ticks <= 0) {
+	bool ownGate = false;
+	if (isActive) {
+		// The step's samples are 0 .. stepTicks - 1 and the next step starts one
+		// sample after the end-of-step, through the cable. The next μ passes
+		// this one's second-to-last sample, so the gate is low from there: the
+		// next step's gate is a new edge. Ratchets keep a low sample between them.
+		long last = stepTicks - 1;
+		long gateEnd = std::max(last - 1, 1L);
+		long offsetTicks = (long)(offset * stepTicks);
+		long distTicks = (long)(dist * stepTicks);
+		long gateTicks = std::max((long)std::round(noteLength * stepTicks), (long)std::round(1e-3f * args.sampleRate));
+		if (play && count >= offsetTicks) {
+			long k = distTicks > 0 ? (count - offsetTicks) / distTicks : 0;
+			long trigStart = offsetTicks + k * distTicks;
+			long len = gateTicks;
+			if (distTicks > 0 && k < numTrigs - 1)
+				len = std::min(len, std::max(distTicks - 1, 1L));
+			ownGate = k < numTrigs && count < trigStart + len && count < gateEnd;
+		}
+		bool upstream = trigStack && !mute && count < gateEnd && inputs[GATEBRIDGE_INPUT].getVoltage() >= 1.f;
+		outputs[GATEBRIDGE_OUTPUT].setVoltage(((ownGate && !mute) || upstream) ? 10.f : 0.f);
+		outputs[CVBRIDGE_OUTPUT].setVoltage(clamp(cv + (cvStack ? inputs[CVBRIDGE_INPUT].getVoltage() : 0.f), -10.f, 10.f));
+		if (count >= last) {
 			isActive = false;
-			eosPulse.trigger(invESR);
-			outputs[GATEBRIDGE_OUTPUT].value = 0.0f;
-			outputs[CVBRIDGE_OUTPUT].value = 0.0f;
+			eosPulse.trigger(1e-3f);
 		}
-		else {
-			int offset = displayOffset * initTicks * 0.01f;
-			int mult = ((distRetrig > 0) && (count>offset))  ? ((count-offset) / distRetrig) : 0;
-			if (play && (mult < numTrigs) && (count >= (offset + mult * distRetrig)) && (count <= (offset + (mult * distRetrig) + gateTicks))) {
-				outputs[GATEBRIDGE_OUTPUT].value = mute ? 0.0f : 10.0f;
-				lights[GATE_LIGHT].value = mute ? 0.0f : 10.0f;
-				lights[GATE_LIGHT+1].value = 0.0f;
-				lights[GATE_LIGHT+2].value = !mute ? 0.0f : 10.0f;
-			}
-			else {
-				outputs[GATEBRIDGE_OUTPUT].value = (trigStack && !mute && (inputs[GATEBRIDGE_INPUT].value > 0.0f)) ? clamp(inputs[GATEBRIDGE_INPUT].value,0.0f,10.0f) : 0.0f;
-				lights[GATE_LIGHT].value = 0.0f;
-				lights[GATE_LIGHT+1].value = 0.0f;
-				lights[GATE_LIGHT+2].value = 10.0f;
-			}
-			outputs[CVBRIDGE_OUTPUT].value = clamp(params[CV_PARAM].value + clamp(inputs[CV_INPUT].value,-10.0f,10.0f) + (cvStack ? inputs[CVBRIDGE_INPUT].value : 0.0f),0.0f,10.0f);
-		}
-		ticks--;
 		count++;
 	}
 	else {
-		outputs[GATEBRIDGE_OUTPUT].value = clamp(inputs[GATEBRIDGE_INPUT].value,0.0f,10.0f);
-		outputs[CVBRIDGE_OUTPUT].value = inputs[CVBRIDGE_INPUT].value;
+		outputs[GATEBRIDGE_OUTPUT].setVoltage(clamp(inputs[GATEBRIDGE_INPUT].getVoltage(), 0.f, 10.f));
+		// The chain's first μ shows its own CV while idle, so the end of the
+		// chain never drops to 0 V where the loop starts again.
+		outputs[CVBRIDGE_OUTPUT].setVoltage(inputs[CVBRIDGE_INPUT].isConnected() ? inputs[CVBRIDGE_INPUT].getVoltage() : cv);
 	}
 
-	bool pulse = eosPulse.process(invESR);
+	bool pulse = eosPulse.process(dt);
+	outputs[EOSTEP_OUTPUT].setVoltage((pulse && !alt) ? 10.f : 0.f);
+	outputs[ALTEOSTEP_OUTPUT].setVoltage((pulse && alt) ? 10.f : 0.f);
+	outputs[BPM_OUTPUT].setVoltage((float)std::log2(tempo / 120.0));
 
-	outputs[EOSTEP_OUTPUT].value = !alt ? (pulse ? 10.0f : 0.0f) : 0.0f;
-	outputs[ALTEOSTEP_OUTPUT].value = alt ? (pulse ? 10.0f : 0.0f) : 0.0f;
-	outputs[BPM_OUTPUT].value = rescale(bpm,1.0f,800.99f,0.0f,10.0f);
-
-	lights[NORMEOS_LIGHT].value = (!alt && pulse) ? 10.0f : (lights[NORMEOS_LIGHT].value - lights[NORMEOS_LIGHT].value * invLightLambda * invESR);
-	lights[ALTEOS_LIGHT].value = (alt && pulse) ? 10.0f : (lights[ALTEOS_LIGHT].value - lights[ALTEOS_LIGHT].value * invLightLambda * invESR);
-	lights[START_LIGHT].value = lights[START_LIGHT].value - lights[START_LIGHT].value * invLightLambda * invESR;
-	if (outputs[GATEBRIDGE_OUTPUT].value == 0.0f) lights[GATE_LIGHT].value -= 4 * lights[GATE_LIGHT].value * invLightLambda * invESR;
-	if (!isActive) lights[GATE_LIGHT+2].value -= 4 * lights[GATE_LIGHT+2].value * invLightLambda * invESR;
-	if (!isActive) lights[GATE_LIGHT].value -= 4 * lights[GATE_LIGHT].value * invLightLambda * invESR;
-	lights[MUTE_LIGHT].value = mute ? 10.0f : 0.0f;
-	lights[CVSTACK_LIGHT].value = cvStack ? 10.0f : 0.0f;
-	lights[TRIGSTACK_LIGHT].value = trigStack ? 10.0f : 0.0f;
+	// Lights.
+	const float lambda = 13.333333f * dt;
+	bool gateLit = ownGate && !mute;
+	float l = lights[NORMEOS_LIGHT].getBrightness();
+	lights[NORMEOS_LIGHT].setBrightness((pulse && !alt) ? 1.f : l - l * lambda);
+	l = lights[ALTEOS_LIGHT].getBrightness();
+	lights[ALTEOS_LIGHT].setBrightness((pulse && alt) ? 1.f : l - l * lambda);
+	lights[START_LIGHT].setBrightness((startArmed || startLightPulse.process(dt)) ? 1.f : 0.f);
+	l = lights[GATE_LIGHT].getBrightness();
+	lights[GATE_LIGHT].setBrightness(gateLit ? 1.f : l - 4.f * l * lambda);
+	lights[GATE_LIGHT + 1].setBrightness(0.f);
+	l = lights[GATE_LIGHT + 2].getBrightness();
+	lights[GATE_LIGHT + 2].setBrightness((isActive && !gateLit) ? 1.f : l - 4.f * l * lambda);
+	lights[MUTE_LIGHT].setBrightness(mute ? 1.f : 0.f);
+	lights[CVSTACK_LIGHT].setBrightness(cvStack ? 1.f : 0.f);
+	lights[TRIGSTACK_LIGHT].setBrightness(trigStack ? 1.f : 0.f);
 }
-
 
 struct LabelMICROWidget : TransparentWidget {
   float *value = NULL;
@@ -343,7 +484,7 @@ struct MUWidget : BidooWidget {
 
 		BidooBlueTrimpotWithDisplay* cv =  createParam<BidooBlueTrimpotWithDisplay>(Vec(portX0[0]+14, portY0[2]+19), module, MU::CV_PARAM);
 		cv->lblDisplay = display;
-		cv->valueForDisplay = module ? &module->params[MU::CV_PARAM].value : NULL;
+		cv->valueForDisplay = module ? &module->displayCV : NULL;
 		cv->format = "%2.2f V";
 		cv->header = "CV";
 		addParam(cv);
@@ -489,6 +630,19 @@ struct MUWidget : BidooWidget {
 		addParam(createParam<MiniLEDButton>(Vec(portX1[1]-11, portY1[7]+5), module, MU::CVSTACK_PARAM));
 		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[1]-11, portY1[7]+5), module, MU::CVSTACK_LIGHT));
   }
+
+	void appendContextMenu(Menu *menu) override {
+		BidooWidget::appendContextMenu(menu);
+		MU *m = dynamic_cast<MU*>(module);
+		if (!m)
+			return;
+		menu->addChild(new MenuSeparator());
+		menu->addChild(createMenuLabel("BPM input"));
+		menu->addChild(createCheckMenuItem("1V/oct CV (0 V = 120 BPM)", "", [=]() { return !m->clockFollow; }, [=]() { m->setClockFollow(false, m->clockPpqn); }));
+		static const int ppqns[] = {1, 2, 4, 8, 12, 24, 48, 96};
+		for (int p : ppqns)
+			menu->addChild(createCheckMenuItem(string::f("Clock to follow, %d PPQN", p), "", [=]() { return m->clockFollow && m->clockPpqn == p; }, [=]() { m->setClockFollow(true, p); }));
+	}
 };
 
 Model *modelMU = createModel<MU, MUWidget>("MU");
