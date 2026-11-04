@@ -166,13 +166,11 @@ void CANARD::calcTransients() {
 		last = playBuffer.begin() + i + size;
 		vector<dsp::Frame<2>> newVec(first, last);
 		float nrgy = 0.0f;
-		float zcRate = 0.0f;
 		unsigned int zcIdx = 0;
 		bool first = true;
 		for (int k = 0; k < size; k++) {
 			nrgy += 100*newVec[k].samples[0]*newVec[k].samples[0]/size;
 			if (newVec[k].samples[0]==0.0f) {
-				zcRate += 1;
 				if (first) {
 					zcIdx = k;
 					first = false;

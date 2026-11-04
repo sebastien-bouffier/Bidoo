@@ -26,7 +26,6 @@ Based on Laurent de Soras resampler for pitch shifting
 #include	"dep/resampler/InterpPack.h"
 #include	"dep/resampler/MipMapFlt.h"
 #include	"dep/resampler/ResamplerFlt.h"
-#include	"dep/resampler/StopWatch.h"
 
 using namespace std;
 

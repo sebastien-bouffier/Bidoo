@@ -74,7 +74,7 @@ public:
 
 	inline long		get_sample_len () const;
 	inline long		get_lev_len (int level) const;
-	inline const int
+	inline int
 						get_nbr_tables () const;
 	inline const float *
 						use_table (int table) const;

@@ -57,7 +57,7 @@ long	MipMapFlt::get_sample_len () const
 
 
 
-const int	MipMapFlt::get_nbr_tables () const
+int	MipMapFlt::get_nbr_tables () const
 {
 	assert (is_ready ());
 

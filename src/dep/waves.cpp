@@ -152,7 +152,7 @@ namespace waves {
 
     drwav wav;
     drwav_init_file_write(&wav, path.c_str(), &format, NULL);
-    drwav_uint64 framesWritten = drwav_write_pcm_frames(&wav, 2*sample.size(), pSamples);
+    drwav_write_pcm_frames(&wav, 2*sample.size(), pSamples);
     drwav_uninit(&wav);
 
     free(pSamples);

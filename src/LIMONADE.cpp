@@ -41,7 +41,7 @@ void tSaveWaveTableAsWave(wtTable &table, int sampleRate, std::string path) {
 
 	drwav wav;
 	drwav_init_file_write(&wav, path.c_str(), &format, NULL);
-	drwav_uint64 framesWritten = drwav_write_pcm_frames(&wav, table.frames.size()*table.frames[0].sample.size(), pSamples);
+	drwav_write_pcm_frames(&wav, table.frames.size()*table.frames[0].sample.size(), pSamples);
 	drwav_uninit(&wav);
 
 	free(pSamples);
@@ -63,7 +63,7 @@ void tSaveFrameAsWave(wtTable &table, int sampleRate, std::string path, int fram
 
 	drwav wav;
 	drwav_init_file_write(&wav, path.c_str(), &format, NULL);
-	drwav_uint64 framesWritten = drwav_write_pcm_frames(&wav, table.frames[frameIndex].sample.size(), pSamples);
+	drwav_write_pcm_frames(&wav, table.frames[frameIndex].sample.size(), pSamples);
 	drwav_uninit(&wav);
 
 	free(pSamples);
