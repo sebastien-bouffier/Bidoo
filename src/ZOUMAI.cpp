@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
+#include <mutex>
 #include "dep/quantizer.hpp"
 
 using namespace std;
@@ -78,24 +79,28 @@ struct TrigAttibutes {
 	inline void setTrigActive(const bool trigActive) {mainAttributes &= ~TRIG_ACTIVE; if (trigActive) mainAttributes |= TRIG_ACTIVE;}
 	inline void setTrigInitialized(const bool trigInitialize) {mainAttributes &= ~TRIG_INITIALIZED; if (trigInitialize) mainAttributes |= TRIG_INITIALIZED;}
 	inline void setTrigSleeping(const bool trigSleep) {mainAttributes &= ~TRIG_SLEEPING; if (trigSleep) mainAttributes |= TRIG_SLEEPING;}
-	inline void setTrigType(const int trigType) {mainAttributes &= ~TRIG_TYPE; mainAttributes |= (trigType << trigTypeShift);}
-	inline void setTrigIndex(const int trigIndex) {mainAttributes &= ~TRIG_INDEX; mainAttributes |= (trigIndex << trigIndexShift);}
-	inline void setTrigPulseCount(const int trigPulseCount) {mainAttributes &= ~TRIG_PULSECOUNT; mainAttributes |= (trigPulseCount << trigPulseCountShift);}
-	inline void setTrigOctave(const int trigOctave) {mainAttributes &= ~TRIG_OCTAVE; mainAttributes |= (trigOctave << trigOctaveShift);}
-	inline void setTrigSemiTones(const int trigSemiTones) {mainAttributes &= ~TRIG_SEMITONES; mainAttributes |= (trigSemiTones << trigSemitonesShift);}
+	inline void setTrigType(const int trigType) {mainAttributes &= ~TRIG_TYPE; mainAttributes |= (((unsigned long)trigType << trigTypeShift) & TRIG_TYPE);}
+	inline void setTrigIndex(const int trigIndex) {mainAttributes &= ~TRIG_INDEX; mainAttributes |= (((unsigned long)trigIndex << trigIndexShift) & TRIG_INDEX);}
+	inline void setTrigPulseCount(const int trigPulseCount) {mainAttributes &= ~TRIG_PULSECOUNT; mainAttributes |= (((unsigned long)trigPulseCount << trigPulseCountShift) & TRIG_PULSECOUNT);}
+	inline void setTrigOctave(const int trigOctave) {mainAttributes &= ~TRIG_OCTAVE; mainAttributes |= (((unsigned long)trigOctave << trigOctaveShift) & TRIG_OCTAVE);}
+	inline void setTrigSemiTones(const int trigSemiTones) {mainAttributes &= ~TRIG_SEMITONES; mainAttributes |= (((unsigned long)trigSemiTones << trigSemitonesShift) & TRIG_SEMITONES);}
 
-	inline void setTrigProba(const int trigProba) {probAttributes &= ~TRIG_PROBA; probAttributes |= trigProba;}
-	inline void setTrigCount(const int trigCount) {probAttributes &= ~TRIG_COUNT; probAttributes |= (trigCount << trigCountShift);}
-	inline void setTrigCountReset(const int trigCountReset) {probAttributes &= ~TRIG_COUNTRESET; probAttributes |= (trigCountReset << trigCountResetShift);}
-	inline void setTrigInCount(const int trigInCount) {probAttributes &= ~TRIG_INCOUNT; probAttributes |= (trigInCount << trigInCountShift);}
+	inline void setTrigProba(const int trigProba) {probAttributes &= ~TRIG_PROBA; probAttributes |= ((unsigned long)trigProba & TRIG_PROBA);}
+	inline void setTrigCount(const int trigCount) {probAttributes &= ~TRIG_COUNT; probAttributes |= (((unsigned long)trigCount << trigCountShift) & TRIG_COUNT);}
+	inline void setTrigCountReset(const int trigCountReset) {probAttributes &= ~TRIG_COUNTRESET; probAttributes |= (((unsigned long)trigCountReset << trigCountResetShift) & TRIG_COUNTRESET);}
+	inline void setTrigInCount(const int trigInCount) {probAttributes &= ~TRIG_INCOUNT; probAttributes |= (((unsigned long)trigInCount << trigInCountShift) & TRIG_INCOUNT);}
 
 	inline void toggleTrigActive() {mainAttributes ^= TRIG_ACTIVE;}
 
 	inline void setMainAttributes(const unsigned long _mainAttributes) {mainAttributes = _mainAttributes;}
 	inline void setProbAttributes(const unsigned long _probAttributes) {probAttributes = _probAttributes;}
 
+	// Octaves 0..6 as on the panel (-3..+3 V).
+	static const int MAX_OCTAVE = 6;
+
 	inline void up() {
 		if (getTrigSemiTones()==11) {
+			if (getTrigOctave() >= MAX_OCTAVE) return;
 			setTrigOctave(getTrigOctave()+1);
 			setTrigSemiTones(0);
 		}
@@ -106,12 +111,21 @@ struct TrigAttibutes {
 
 	inline void down() {
 		if (getTrigSemiTones()==0) {
+			if (getTrigOctave() <= 0) return;
 			setTrigOctave(getTrigOctave()-1);
 			setTrigSemiTones(11);
 		}
 		else {
 			setTrigSemiTones(getTrigSemiTones()-1);
 		}
+	}
+
+	// Sets octave and semitone from a 1V/oct voltage, rounded to the nearest semitone.
+	inline void setVO(const float vo) {
+		int semis = (int)std::round(vo * 12.f);
+		int octave = (int)std::floor(semis / 12.f);
+		setTrigOctave(clamp(octave + 3, 0, MAX_OCTAVE));
+		setTrigSemiTones(semis - octave * 12);
 	}
 
 	inline bool hasProbability() {
@@ -285,14 +299,14 @@ struct TrackAttibutes {
 	inline void setTrackForward(const bool trackForward) {mainAttributes &= ~TRACK_FORWARD; if (trackForward) mainAttributes |= TRACK_FORWARD;}
 	inline void setTrackPre(const bool trackPre) {mainAttributes &= ~TRACK_PRE; if (trackPre) mainAttributes |= TRACK_PRE;}
 	inline void setTrackSolo(const bool trackSolo) {mainAttributes &= ~TRACK_SOLO; if (trackSolo) mainAttributes |= TRACK_SOLO;}
-	inline void setTrackLength(const int trackLength) {mainAttributes &= ~TRACK_LENGTH; mainAttributes |= (trackLength << trackLengthShift);}
-	inline void setTrackReadMode(const int trackReadMode) {mainAttributes &= ~TRACK_READMODE; mainAttributes |= (trackReadMode << trackReadModeShift);}
-	inline void setTrackSpeed(const int trackSpeed) {mainAttributes &= ~TRACK_SPEED; mainAttributes |= (trackSpeed << trackSpeedShift);}
+	inline void setTrackLength(const int trackLength) {mainAttributes &= ~TRACK_LENGTH; mainAttributes |= (((unsigned long)trackLength << trackLengthShift) & TRACK_LENGTH);}
+	inline void setTrackReadMode(const int trackReadMode) {mainAttributes &= ~TRACK_READMODE; mainAttributes |= (((unsigned long)trackReadMode << trackReadModeShift) & TRACK_READMODE);}
+	inline void setTrackSpeed(const int trackSpeed) {mainAttributes &= ~TRACK_SPEED; mainAttributes |= (((unsigned long)trackSpeed << trackSpeedShift) & TRACK_SPEED);}
 
-	inline void setTrackCurrentTrig(const int trackCurrentTrig) {refAttributes &= ~TRACK_CURRENTTRIG; refAttributes |= trackCurrentTrig;}
-	inline void setTrackPlayedTrig(const int trackPlayedTrig) {refAttributes &= ~TRACK_PLAYEDTRIG; refAttributes |= (trackPlayedTrig << trackPlayedTrigShift);}
-	inline void setTrackPrevTrig(const int trackPrevTrig) {refAttributes &= ~TRACK_PREVTRIG; refAttributes |= (trackPrevTrig << trackPrevTrigShift);}
-	inline void setTrackNextTrig(const int trackNextTrig) {refAttributes &= ~TRACK_NEXTTRIG; refAttributes |= (trackNextTrig << trackNextTrigShift);}
+	inline void setTrackCurrentTrig(const int trackCurrentTrig) {refAttributes &= ~TRACK_CURRENTTRIG; refAttributes |= ((unsigned long)trackCurrentTrig & TRACK_CURRENTTRIG);}
+	inline void setTrackPlayedTrig(const int trackPlayedTrig) {refAttributes &= ~TRACK_PLAYEDTRIG; refAttributes |= (((unsigned long)trackPlayedTrig << trackPlayedTrigShift) & TRACK_PLAYEDTRIG);}
+	inline void setTrackPrevTrig(const int trackPrevTrig) {refAttributes &= ~TRACK_PREVTRIG; refAttributes |= (((unsigned long)trackPrevTrig << trackPrevTrigShift) & TRACK_PREVTRIG);}
+	inline void setTrackNextTrig(const int trackNextTrig) {refAttributes &= ~TRACK_NEXTTRIG; refAttributes |= (((unsigned long)trackNextTrig << trackNextTrigShift) & TRACK_NEXTTRIG);}
 
 	inline void toggleTrackActive() {mainAttributes ^= TRACK_ACTIVE;}
 	inline void toggleTrackSolo() {mainAttributes ^= TRACK_SOLO;}
@@ -375,6 +389,7 @@ struct ZOUMAI : BidooModule {
 	dsp::SchmittTrigger trackResetTriggers[8];
 	dsp::SchmittTrigger trackActiveTriggers[8];
 	dsp::SchmittTrigger fillTrigger;
+	dsp::SchmittTrigger fillInputTrigger;
 
 	float rightMessages[2][64] = {{0.0f}};
 
@@ -390,9 +405,13 @@ struct ZOUMAI : BidooModule {
 	int copyTrigId = -1;
 	int copyPageId = -1;
 	bool run = false;
-	int clockMaxCount = 0;
+	// Samples between the last two clocks (0 until two clocks were seen) and
+	// since the last clock (-1 before the first one). Counted while stopped too.
+	float clockInterval = 0.f;
+	long clockCount = -1;
+	// Samples left in which a clock still belongs to the reset before it.
+	long resetHold = 0;
 	bool noteIncoming = false;
-	float currentIncomingVO = -100.0f;
 	bool globalReset = false;
 	bool clockTrigged = false;
 	bool copyPageArmed = false;
@@ -415,8 +434,11 @@ struct ZOUMAI : BidooModule {
 	float trigCV1[8][8][64] = {{{0.0f}}};
 	float trigCV2[8][8][64] = {{{0.0f}}};
 	float trackHead[8][8] = {{0.0f}};
+	// Samples since the track's last clock, and its position at that clock
+	// (steps played, see trackPlayed).
 	float trackCurrentTickCount[8][8] = {{0.0f}};
-	float trackLastTickCount[8][8] = {{22500.0f}};
+	float trackStepPos[8][8] = {{0.0f}};
+	int trackLastWhole[8][8] = {{0}};
 	int rootNote[8][8] = {};
 	int scale[8][8] = {{0}};
 	int quantizeCV1[8][8] = {{0}};
@@ -430,10 +452,26 @@ struct ZOUMAI : BidooModule {
 	int rotLeft[8] = {0};
 	int rotRight[8] = {0};
 	int rotLen[8] = {16,16,16,16,16,16,16,16};
+	// Rotations received while the UI holds the edit lock, applied on the next sample.
+	int pendingRotLeft[8] = {0};
+	int pendingRotRight[8] = {0};
 
 	bool solo = false;
 
-	float powTable[100][10000] = {{0.0f}};
+	// Pattern asked for by the knob and CV. While running it takes over at the
+	// end of the current pattern, when patternClock reaches patternLengthTicks().
+	int requestedPattern = 0;
+	int patternClock = 0;
+
+	// Live recording on the selected track.
+	int recTrig = -1;
+	float recStart = 0.f;
+	float recVO = 0.f;
+
+	// Held by the UI thread while it changes the selection or the pattern data.
+	// The audio thread only try_locks it to copy the trig and track knobs, so a
+	// selection change never mixes the knobs of two trigs.
+	std::recursive_mutex editMutex;
 
   std::string labels[8] = {"Track 1","Track 2","Track 3","Track 4","Track 5","Track 6","Track 7","Track 8"};
 
@@ -494,12 +532,6 @@ struct ZOUMAI : BidooModule {
 				}
 			}
   	}
-
-		for(int i=0; i<100;i++) {
-      for(int j=0; j<10000;j++) {
-				powTable[i][j] = powf(j*0.0001f,i*0.01f);
-			}
-		}
 
 		onReset();
 	}
@@ -645,7 +677,9 @@ struct ZOUMAI : BidooModule {
 				json_object_set_new(trackJ, "scale", json_integer(scale[i][j]));
 				json_object_set_new(trackJ, "quantizeCV1", json_integer(quantizeCV1[i][j]));
 				json_object_set_new(trackJ, "slideMode", json_boolean(slideMode[i][j]));
-				for (int k = 0; k < nTracksAttibutes[i][j].getTrackLength(); k++) {
+				for (int k = 0; k < 64; k++) {
+					if (k >= nTracksAttibutes[i][j].getTrackLength() && trigIsDefault(i, j, k))
+						continue;
 					json_t *trigJ = json_object();
 					json_object_set_new(trigJ, "isActive", json_boolean(nTrigsAttibutes[i][j][k].getTrigActive()));
 					json_object_set_new(trigJ, "slide", json_real(trigSlide[i][j][k]));
@@ -674,6 +708,10 @@ struct ZOUMAI : BidooModule {
 
 	void dataFromJson(json_t *rootJ) override {
     BidooModule::dataFromJson(rootJ);
+		std::lock_guard<std::recursive_mutex> lock(editMutex);
+		for (int i=0; i<8; i++)
+			for (int j=0; j<8; j++)
+				trackInit(i,j);
 		json_t *currentPatternJ = json_object_get(rootJ, "currentPattern");
 		if (currentPatternJ)
 			currentPattern = json_integer_value(currentPatternJ);
@@ -731,7 +769,7 @@ struct ZOUMAI : BidooModule {
 						if (slideModeJ)
 							slideMode[i][j]=json_boolean_value(slideModeJ);
 					}
-					for(int k=0;k<nTracksAttibutes[i][j].getTrackLength();k++) {
+					for(int k=0;k<64;k++) {
 						json_t *trigJ = json_object_get(trackJ, ("trig" + to_string(k)).c_str());
 						if (trigJ) {
 							json_t *isActiveJ = json_object_get(trigJ, "isActive");
@@ -787,8 +825,52 @@ struct ZOUMAI : BidooModule {
 				}
 			}
 		}
+		sanitize();
 		updateTrackToParams();
 		updateTrigToParams();
+	}
+
+	// Brings values read from a patch back into range.
+	void sanitize() {
+		currentPattern = clamp(currentPattern, 0, 7);
+		requestedPattern = currentPattern;
+		currentTrack = clamp(currentTrack, 0, 7);
+		currentTrig = clamp(currentTrig, 0, 63);
+		trigPage = clamp(trigPage, 0, 3);
+		for (int i=0; i<8; i++) {
+			for (int j=0; j<8; j++) {
+				TrackAttibutes &t = nTracksAttibutes[i][j];
+				t.setTrackLength(clamp(t.getTrackLength(), 1, 64));
+				t.setTrackSpeed(clamp(t.getTrackSpeed(), 1, 4));
+				t.setTrackReadMode(clamp(t.getTrackReadMode(), 0, 4));
+				for (int k=0; k<64; k++) {
+					TrigAttibutes &g = nTrigsAttibutes[i][j][k];
+					g.setTrigIndex(k);
+					g.setTrigOctave(clamp(g.getTrigOctave(), 0, (int)TrigAttibutes::MAX_OCTAVE));
+					g.setTrigSemiTones(clamp(g.getTrigSemiTones(), 0, 11));
+					g.setTrigType(clamp(g.getTrigType(), 0, 2));
+					g.setTrigProba(clamp(g.getTrigProba(), 0, 7));
+					trigTrim[i][j][k] = clamp(trigTrim[i][j][k], -1.f, 1.f);
+					trigLength[i][j][k] = clamp(trigLength[i][j][k], 0.f, 64.f);
+					trigPulseDistance[i][j][k] = clamp(trigPulseDistance[i][j][k], 0.f, 64.f);
+				}
+			}
+		}
+	}
+
+	bool trigIsDefault(const int pattern, const int track, const int trig) {
+		TrigAttibutes d;
+		d.init();
+		d.setTrigIndex(trig);
+		const TrigAttibutes &g = nTrigsAttibutes[pattern][track][trig];
+		// Ignore the playback state kept in the same words.
+		const unsigned long mainMask = ~(TrigAttibutes::TRIG_INITIALIZED | TrigAttibutes::TRIG_SLEEPING);
+		const unsigned long probMask = ~TrigAttibutes::TRIG_INCOUNT;
+		return (g.mainAttributes & mainMask) == (d.mainAttributes & mainMask) && (g.probAttributes & probMask) == (d.probAttributes & probMask)
+			&& trigSlide[pattern][track][trig] == 0.0f && trigTrim[pattern][track][trig] == 0
+			&& trigLength[pattern][track][trig] == 0.9f && trigPulseDistance[pattern][track][trig] == 0.5f
+			&& trigCV1[pattern][track][trig] == 0.0f && trigCV2[pattern][track][trig] == 0.0f
+			&& !trigSlideType[pattern][track][trig];
 	}
 
 	void randomizeTrigNote(const int track, const int trig) {
@@ -1000,6 +1082,7 @@ struct ZOUMAI : BidooModule {
 
 
 	void onRandomize() override {
+		std::lock_guard<std::recursive_mutex> lock(editMutex);
 		randomizePattern();
 		updateTrackToParams();
 		updateTrigToParams();
@@ -1010,7 +1093,7 @@ struct ZOUMAI : BidooModule {
 		nTracksAttibutes[toPattern][toTrack].setRefAttributes(nTracksAttibutes[fromPattern][fromTrack].getRefAttributes());
 		trackHead[toPattern][toTrack] = trackHead[fromPattern][fromTrack];
 		trackCurrentTickCount[toPattern][toTrack] = trackCurrentTickCount[fromPattern][fromTrack];
-		trackLastTickCount[toPattern][toTrack] = trackLastTickCount[fromPattern][fromTrack];
+		trackStepPos[toPattern][toTrack] = trackStepPos[fromPattern][fromTrack];
 		rootNote[toPattern][toTrack] = rootNote[fromPattern][fromTrack];
 		scale[toPattern][toTrack] = scale[fromPattern][fromTrack];
 		quantizeCV1[toPattern][toTrack] = quantizeCV1[fromPattern][fromTrack];
@@ -1036,9 +1119,6 @@ struct ZOUMAI : BidooModule {
 	void pastePattern() {
 		for (int i=0; i<8; i++) {
 			pasteTrack(copyPatternId,i,currentPattern,i);
-			for (int j=0; j<64; j++) {
-				pasteTrig(copyPatternId,i,j,currentPattern,i,j);
-			}
 		}
 	}
 
@@ -1071,7 +1151,8 @@ struct ZOUMAI : BidooModule {
 		nTracksAttibutes[pattern][track].init();
 		trackHead[pattern][track] = 0.0f;
 		trackCurrentTickCount[pattern][track] = 0.0f;
-		trackLastTickCount[pattern][track] = 22500.0f;
+		trackStepPos[pattern][track] = 0.0f;
+		trackLastWhole[pattern][track] = 0;
 		rootNote[pattern][track] = 0;
 		scale[pattern][track] = 0;
 		quantizeCV1[pattern][track] = 0;
@@ -1082,6 +1163,7 @@ struct ZOUMAI : BidooModule {
 	}
 
 	void onReset() override {
+		std::lock_guard<std::recursive_mutex> lock(editMutex);
 		for (int i=0; i<8; i++) {
 			for (int j=0; j<8; j++) {
 				trackInit(i,j);
@@ -1093,6 +1175,64 @@ struct ZOUMAI : BidooModule {
 
 	void process(const ProcessArgs &args) override;
 
+	// Live recording into the selected track, at the playhead (in steps).
+	void recordStep(const int i) {
+		int len = nTracksAttibutes[currentPattern][i].getTrackLength();
+		float head = clamp(trackHead[currentPattern][i], 0.f, len - 0.001f);
+		float vo = inputs[VO_INPUT].getVoltage();
+		bool quantize = params[QUANTIZE_PARAM].getValue() != 0.0f;
+
+		auto endNote = [&]() {
+			if (recTrig < 0)
+				return;
+			float length = head - recStart;
+			if (length <= 0.f)
+				length += len;
+			trigLength[currentPattern][i][recTrig] = clamp(length, 0.01f, 64.f);
+			if (recTrig == currentTrig)
+				updateTrigToParams();
+			recTrig = -1;
+		};
+		auto startNote = [&]() {
+			int step;
+			float trim;
+			if (quantize) {
+				step = ((int)std::round(head)) % len;
+				trim = 0.f;
+			}
+			else {
+				step = (int)head;
+				trim = head - step;
+			}
+			TrigAttibutes &t = nTrigsAttibutes[currentPattern][i][step];
+			t.setTrigActive(true);
+			t.setVO(vo);
+			trigTrim[currentPattern][i][step] = trim;
+			trigLength[currentPattern][i][step] = 0.01f;
+			recTrig = step;
+			recStart = step + trim;
+			recVO = vo;
+			if (step == currentTrig)
+				updateTrigToParams();
+		};
+
+		if (inputs[GATE_INPUT].getVoltage() > 0.0f) {
+			if (!noteIncoming) {
+				noteIncoming = true;
+				startNote();
+			}
+			else if (std::fabs(vo - recVO) > 1.f / 24.f) {
+				// Legato: a new pitch under the same gate starts a new note.
+				endNote();
+				startNote();
+			}
+		}
+		else if (noteIncoming) {
+			noteIncoming = false;
+			endNote();
+		}
+	}
+
 	bool patternIsSoloed() {
 		for (size_t i = 0; i < 8; i++) {
 			if (nTracksAttibutes[currentPattern][i].getTrackSolo()) {
@@ -1102,11 +1242,6 @@ struct ZOUMAI : BidooModule {
 		return false;
 	}
 
-	void trackSync(const int track, const float cCount, const float lCount, const float tHead) {
-		trackCurrentTickCount[currentPattern][track] = cCount;
-		trackLastTickCount[currentPattern][track] = lCount;
-		trackHead[currentPattern][track] = fmod(tHead,nTracksAttibutes[currentPattern][track].getTrackLength()) ;
-	}
 
 	float trackGetGate(const int track, const int tPT) {
 		if (nTrigsAttibutes[currentPattern][track][tPT].getTrigActive() && !nTrigsAttibutes[currentPattern][track][tPT].getTrigSleeping()) {
@@ -1146,6 +1281,35 @@ struct ZOUMAI : BidooModule {
 		return nTrigsAttibutes[currentPattern][track][trig].getTrigIndex() + trigTrim[currentPattern][track][trig];
 	}
 
+	// Slide shape: x in 0..1, slide amount in 0..1 sets the exponent.
+	// pow(x, (int)(slide * 99) / 100), from a table shared by every instance.
+	static float slideCurve(const float slide, const float x) {
+		static const int POINTS = 1024;
+		static const std::vector<float> table = [] {
+			std::vector<float> t(100 * (POINTS + 1));
+			for (int i = 0; i < 100; i++)
+				for (int j = 0; j <= POINTS; j++)
+					t[i * (POINTS + 1) + j] = std::pow((float)j / POINTS, i * 0.01f);
+			return t;
+		}();
+		int curve = clamp((int)(slide * 99.0f), 0, 99);
+		float pos = clamp(x, 0.0f, 1.0f) * POINTS;
+		int j = std::min((int)pos, POINTS - 1);
+		const float *row = table.data() + curve * (POINTS + 1);
+		return row[j] + (pos - j) * (row[j + 1] - row[j]);
+	}
+
+	// Clocks until the longest track of the current pattern loops.
+	int patternLengthTicks() {
+		int ticks = 1;
+		for (int i = 0; i < 8; i++) {
+			TrackAttibutes &t = nTracksAttibutes[currentPattern][i];
+			int speed = std::max(t.getTrackSpeed(), 1);
+			ticks = std::max(ticks, (t.getTrackLength() + speed - 1) / speed);
+		}
+		return ticks;
+	}
+
 	float trackGetVO(const int track, const int tPT, const bool quantize = false) {
 		float vo = nTrigsAttibutes[currentPattern][track][tPT].getVO() + trsp[track];
 		if (trigSlide[currentPattern][track][tPT] == 0.0f) {
@@ -1159,23 +1323,23 @@ struct ZOUMAI : BidooModule {
 				if (slideMode[currentPattern][track]) {
           if (trigSlideType[currentPattern][track][tPT]) {
             float subPhase = clamp(trigGetRelativeTrackPosition(track, tPT),0.0f,1.0f);
-  					return voQ - (1.0f - interpolateLinear(powTable[(int)(trigSlide[currentPattern][track][tPT]*99.0f)],9999.0f*subPhase)) * (voQ - prevVO[track]);
+  					return voQ - (1.0f - slideCurve(trigSlide[currentPattern][track][tPT], subPhase)) * (voQ - prevVO[track]);
           }
           else
           {
             float subPhase = clamp(trigGetRelativeTrackPosition(track, tPT),0.0f,fullLength);
-  					return voQ - (1.0f - interpolateLinear(powTable[(int)(trigSlide[currentPattern][track][tPT]*99.0f)],9999.0f*subPhase/fullLength)) * (voQ - prevVO[track]);
+  					return voQ - (1.0f - slideCurve(trigSlide[currentPattern][track][tPT], subPhase/fullLength)) * (voQ - prevVO[track]);
           }
 				}
 				else {
           if (trigSlideType[currentPattern][track][tPT]) {
             float subPhase = clamp(trigGetRelativeTrackPosition(track, tPT)*(1.0f/max((int)abs(voQ - prevVO[track]),1)),0.0f,1.0f);
-  					return voQ - (1.0f - interpolateLinear(powTable[(int)(trigSlide[currentPattern][track][tPT]*99.0f)],9999.0f*subPhase)) * (voQ - prevVO[track]);
+  					return voQ - (1.0f - slideCurve(trigSlide[currentPattern][track][tPT], subPhase)) * (voQ - prevVO[track]);
           }
           else
           {
             float subPhase = clamp(trigGetRelativeTrackPosition(track, tPT)*(1.0f/max((int)abs(voQ - prevVO[track]),1)),0.0f,fullLength);
-  					return voQ - (1.0f - interpolateLinear(powTable[(int)(trigSlide[currentPattern][track][tPT]*99.0f)],9999.0f*subPhase/fullLength)) * (voQ - prevVO[track]);
+  					return voQ - (1.0f - slideCurve(trigSlide[currentPattern][track][tPT], subPhase/fullLength)) * (voQ - prevVO[track]);
           }
 				}
 			}
@@ -1195,6 +1359,10 @@ struct ZOUMAI : BidooModule {
 			nTrigsAttibutes[currentPattern][track][cI].init(fill,nTracksAttibutes[currentPattern][track].getTrackPre(),pNei, forceTrig, killTrig, dice);
 			nTracksAttibutes[currentPattern][track].setTrackPre((nTrigsAttibutes[currentPattern][track][cI].getTrigActive()
 			&& nTrigsAttibutes[currentPattern][track][cI].hasProbability()) ? !nTrigsAttibutes[currentPattern][track][cI].getTrigSleeping() : nTracksAttibutes[currentPattern][track].getTrackPre());
+			// A next trig drawn early (see below) but not reached must draw again later.
+			int oldNext = nTracksAttibutes[currentPattern][track].getTrackNextTrig();
+			if (oldNext != cI)
+				nTrigsAttibutes[currentPattern][track][oldNext].setTrigInitialized(false);
 			trackSetNextTrig(track);
 			nTrigsAttibutes[currentPattern][track][nTracksAttibutes[currentPattern][track].getTrackNextTrig()].init(fill,nTracksAttibutes[currentPattern][track].getTrackPre(),pNei, forceTrig, killTrig, dice);
 		}
@@ -1208,12 +1376,16 @@ struct ZOUMAI : BidooModule {
 		}
 		else {
 			int cNT = nTracksAttibutes[currentPattern][track].getTrackNextTrig();
-			if (trigGetIsRead(track, cNT, trackHead[currentPattern][track]) && (cNT != cPT)
-			&& nTrigsAttibutes[currentPattern][track][cNT].getTrigActive()
-			&& !nTrigsAttibutes[currentPattern][track][cNT].getTrigSleeping())
-			{
-				nTracksAttibutes[currentPattern][track].setTrackPrevTrig(cPT);
-				nTracksAttibutes[currentPattern][track].setTrackPlayedTrig(cNT);
+			if ((cNT != cI) && trigGetIsRead(track, cNT, trackHead[currentPattern][track])) {
+				// A trig trimmed early plays before its step begins: draw its
+				// condition now, once, instead of using the previous loop's result.
+				nTrigsAttibutes[currentPattern][track][cNT].init(fill, nTracksAttibutes[currentPattern][track].getTrackPre(), pNei, forceTrig, killTrig, dice);
+				if ((cNT != cPT) && nTrigsAttibutes[currentPattern][track][cNT].getTrigActive()
+				&& !nTrigsAttibutes[currentPattern][track][cNT].getTrigSleeping())
+				{
+					nTracksAttibutes[currentPattern][track].setTrackPrevTrig(cPT);
+					nTracksAttibutes[currentPattern][track].setTrackPlayedTrig(cNT);
+				}
 			}
 		}
 	}
@@ -1221,19 +1393,18 @@ struct ZOUMAI : BidooModule {
 	void trackReset(const int track, const bool fill, const bool pNei, const bool forceTrig = false, const bool killTrig = false, const float dice = 0.0f) {
 		nTracksAttibutes[currentPattern][track].setTrackPre(false);
 		nTracksAttibutes[currentPattern][track].setTrackForward(true);
+		trackStepPos[currentPattern][track] = 0.0f;
+		trackLastWhole[currentPattern][track] = 0;
+		trackCurrentTickCount[currentPattern][track] = 0.0f;
 
 		if (nTracksAttibutes[currentPattern][track].getTrackReadMode() == 1)
 		{
 			nTracksAttibutes[currentPattern][track].setTrackForward(false);
-			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackLength()-1;
-			trackSetCurrentTrig(track, fill, pNei, true, forceTrig, killTrig, dice);
-			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackLength();
+			trackHead[currentPattern][track] = trackPosition(track, 0.0f);
 		}
 		else
-		{
 			trackHead[currentPattern][track] = 0.0f;
-			trackSetCurrentTrig(track, fill, pNei, false, forceTrig, killTrig, dice);
-		}
+		trackSetCurrentTrig(track, fill, pNei, true, forceTrig, killTrig, dice);
 	}
 
 	void trackSetNextTrig(const int track) {
@@ -1255,7 +1426,7 @@ struct ZOUMAI : BidooModule {
 				}
 			  break;
 			}
-			case 3: nTracksAttibutes[currentPattern][track].setTrackNextTrig((int)(random::uniform()*(nTracksAttibutes[currentPattern][track].getTrackLength() - 1))); break;
+			case 3: nTracksAttibutes[currentPattern][track].setTrackNextTrig(std::min((int)(random::uniform()*nTracksAttibutes[currentPattern][track].getTrackLength()), nTracksAttibutes[currentPattern][track].getTrackLength() - 1)); break;
 			case 4:
 			{
 				float dice = random::uniform();
@@ -1271,109 +1442,99 @@ struct ZOUMAI : BidooModule {
 		}
 	}
 
+	// The playhead. At each clock the track has played `speed` more steps
+	// (trackStepPos); between clocks it moves on at the measured clock rate but
+	// never past the next clock, so a step never starts before its clock. The
+	// steps played v are mapped to the playhead for each read mode.
+	float trackPlayed(const int track, const bool step) {
+		float &pos = trackStepPos[currentPattern][track];
+		float &count = trackCurrentTickCount[currentPattern][track];
+		float speed = nTracksAttibutes[currentPattern][track].getTrackSpeed();
+		if (step) {
+			pos += speed;
+			count = 0.0f;
+		}
+		else
+			count++;
+		float frac = clockInterval > 0.f ? std::min(count / clockInterval, 0.9999f) : 0.0f;
+		return pos + speed * frac;
+	}
+
+	// Backward playhead after v steps played: step len-1 first, from its top.
+	float trackPosition(const int track, const float v) {
+		return nTracksAttibutes[currentPattern][track].getTrackLength() - 0.0001f - v;
+	}
+
+	// Wraps v at the end of the track: the track starts again from the top.
+	float trackWrap(const int track, float v, const bool fill, const bool pNei, const bool forceTrig, const bool killTrig, const float dice) {
+		int len = nTracksAttibutes[currentPattern][track].getTrackLength();
+		if (v < len)
+			return v;
+		float rest = std::fmod(v, (float)len);
+		float pos = trackStepPos[currentPattern][track] - (v - rest);
+		float count = trackCurrentTickCount[currentPattern][track];
+		trackReset(track, fill, pNei, forceTrig, killTrig, dice);
+		trackStepPos[currentPattern][track] = pos;
+		trackCurrentTickCount[currentPattern][track] = count;
+		return rest;
+	}
+
 	void trackMoveNextForward(const int track, const bool step, const bool fill, const bool pNei, const bool forceTrig = false, const bool killTrig = false, const float dice = 0.0f) {
 		nTracksAttibutes[currentPattern][track].setTrackForward(true);
-		if (step) {
-			trackHead[currentPattern][track] = round(trackHead[currentPattern][track]);
-			trackLastTickCount[currentPattern][track] = trackCurrentTickCount[currentPattern][track];
-			trackCurrentTickCount[currentPattern][track] = 0.0f;
-		}
-		else {
-			trackCurrentTickCount[currentPattern][track]++;
-			trackHead[currentPattern][track] += nTracksAttibutes[currentPattern][track].getTrackSpeed()/trackLastTickCount[currentPattern][track];
-		}
-
-		if (trackHead[currentPattern][track] >= nTracksAttibutes[currentPattern][track].getTrackLength()) {
-			trackReset(track, fill, pNei, forceTrig, killTrig, dice);
-			return;
-		}
-
+		float v = trackWrap(track, trackPlayed(track, step), fill, pNei, forceTrig, killTrig, dice);
+		trackHead[currentPattern][track] = v;
 		trackSetCurrentTrig(track, fill, pNei, false, forceTrig, killTrig, dice);
 	}
 
 	void trackMoveNextBackward(const int track, const bool step, const bool fill, const bool pNei, const bool forceTrig = false, const bool killTrig = false, const float dice = 0.0f) {
 		nTracksAttibutes[currentPattern][track].setTrackForward(false);
-		if (step) {
-			trackHead[currentPattern][track] = round(trackHead[currentPattern][track]);
-			trackLastTickCount[currentPattern][track] = trackCurrentTickCount[currentPattern][track];
-			trackCurrentTickCount[currentPattern][track] = 0.0f;
-		}
-		else {
-			trackCurrentTickCount[currentPattern][track]++;
-			trackHead[currentPattern][track] -= nTracksAttibutes[currentPattern][track].getTrackSpeed()/trackLastTickCount[currentPattern][track];
-		}
-
-		if (trackHead[currentPattern][track] <= 0) {
-			trackReset(track, fill, pNei, forceTrig, killTrig, dice);
-			return;
-		}
-
+		float v = trackWrap(track, trackPlayed(track, step), fill, pNei, forceTrig, killTrig, dice);
+		trackHead[currentPattern][track] = trackPosition(track, v);
 		trackSetCurrentTrig(track, fill, pNei, false, forceTrig, killTrig, dice);
 	}
 
+	// 0, 1, .. len-1, len-2, .. 1, then 0 again.
 	void trackMoveNextPendulum(const int track, const bool step, const bool fill, const bool pNei, const bool forceTrig = false, const bool killTrig = false, const float dice = 0.0f) {
-		if (step) {
-			trackHead[currentPattern][track] = round(trackHead[currentPattern][track]);
-			trackLastTickCount[currentPattern][track] = trackCurrentTickCount[currentPattern][track];
-			trackCurrentTickCount[currentPattern][track] = 0.0f;
+		int len = nTracksAttibutes[currentPattern][track].getTrackLength();
+		float v = trackPlayed(track, step);
+		if (len < 2) {
+			trackStepPos[currentPattern][track] = 0.0f;
+			trackHead[currentPattern][track] = 0.0f;
+			trackSetCurrentTrig(track, fill, pNei, false, forceTrig, killTrig, dice);
+			return;
 		}
-		else {
-			trackCurrentTickCount[currentPattern][track]++;
-			trackHead[currentPattern][track] = trackHead[currentPattern][track] + (nTracksAttibutes[currentPattern][track].getTrackForward() ? 1 : -1 ) * nTracksAttibutes[currentPattern][track].getTrackSpeed()/trackLastTickCount[currentPattern][track];
+		float period = 2.0f * len - 2.0f;
+		if (v >= period) {
+			float rest = std::fmod(v, period);
+			trackStepPos[currentPattern][track] -= v - rest;
+			v = rest;
 		}
-
-		if (trackHead[currentPattern][track] >= nTracksAttibutes[currentPattern][track].getTrackLength()) {
-			nTracksAttibutes[currentPattern][track].setTrackForward(false);
-			trackHead[currentPattern][track] = (nTracksAttibutes[currentPattern][track].getTrackLength() == 1) ? 1 : (nTracksAttibutes[currentPattern][track].getTrackLength()-1);
-		}
-		else if (trackHead[currentPattern][track] <= 0) {
-			nTracksAttibutes[currentPattern][track].setTrackForward(true);
-			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackLength() > 1 ? 1 : 0;
-		}
-
+		bool forward = v < len;
+		nTracksAttibutes[currentPattern][track].setTrackForward(forward);
+		trackHead[currentPattern][track] = forward ? v : (2.0f * len - 1.0001f - v);
 		trackSetCurrentTrig(track, fill, pNei, false, forceTrig, killTrig, dice);
 	}
 
-	void trackMoveNextRandom(const int track, const bool step, const bool fill, const bool pNei, const bool forceTrig = false, const bool killTrig = false, const float dice = 0.0f) {
+	// Random and brownian: each whole step played jumps to the next trig drawn.
+	void trackMoveNextJump(const int track, const bool step, const bool fill, const bool pNei, const bool forceTrig = false, const bool killTrig = false, const float dice = 0.0f) {
 		nTracksAttibutes[currentPattern][track].setTrackForward(true);
-		if (step) {
-			trackHead[currentPattern][track] = round(trackHead[currentPattern][track]);
-			trackLastTickCount[currentPattern][track] = trackCurrentTickCount[currentPattern][track];
-			trackCurrentTickCount[currentPattern][track] = 0.0f;
+		float v = trackPlayed(track, step);
+		int &last = trackLastWhole[currentPattern][track];
+		if (trackStepPos[currentPattern][track] >= 1024.0f) {
+			trackStepPos[currentPattern][track] -= 1024.0f;
+			last -= 1024;
+			v -= 1024.0f;
 		}
-		else {
-			trackCurrentTickCount[currentPattern][track]++;
-			trackHead[currentPattern][track] += nTracksAttibutes[currentPattern][track].getTrackSpeed()/trackLastTickCount[currentPattern][track];
-		}
-
-		if (trackHead[currentPattern][track] >= nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()+1) {
-			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackNextTrig();
+		int whole = (int)std::floor(v);
+		float inStep = v - whole;
+		if (whole != last) {
+			last = whole;
+			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackNextTrig() + inStep;
 			trackSetCurrentTrig(track, fill, pNei, true, forceTrig, killTrig, dice);
 			return;
 		}
-
+		trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackCurrentTrig() + inStep;
 		trackSetCurrentTrig(track, fill, pNei, false, forceTrig, killTrig, dice);
-	}
-
-	void trackMoveNextBrownian(const int track, const bool step, const bool fill, const bool pNei, const bool forceTrig = false, const bool killTrig = false, const float dice = 0.0f) {
-		nTracksAttibutes[currentPattern][track].setTrackForward(true);
-		if (step) {
-			trackHead[currentPattern][track] = round(trackHead[currentPattern][track]);
-			trackLastTickCount[currentPattern][track] = trackCurrentTickCount[currentPattern][track];
-			trackCurrentTickCount[currentPattern][track] = 0.0f;
-		}
-		else {
-			trackCurrentTickCount[currentPattern][track]++;
-			trackHead[currentPattern][track] += nTracksAttibutes[currentPattern][track].getTrackSpeed()/trackLastTickCount[currentPattern][track];
-		}
-
-		if (trackHead[currentPattern][track] >= nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()+1) {
-			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackNextTrig();
-			trackSetCurrentTrig(track, fill, pNei, true, forceTrig, killTrig, dice);
-			return;
-		}
-
-		trackSetCurrentTrig(track, fill, pNei, false, forceTrig, killTrig);
 	}
 
 	void trackMoveNext(const int track, const bool step, const bool fill, const bool pNei, const bool forceTrig = false, const bool killTrig = false, const float dice = 0.0f) {
@@ -1381,15 +1542,18 @@ struct ZOUMAI : BidooModule {
 			case 0: trackMoveNextForward(track, step, fill, pNei, forceTrig, killTrig, dice); break;
 			case 1: trackMoveNextBackward(track, step, fill, pNei, forceTrig, killTrig, dice); break;
 			case 2: trackMoveNextPendulum(track, step, fill, pNei, forceTrig, killTrig, dice); break;
-			case 3: trackMoveNextRandom(track, step, fill, pNei, forceTrig, killTrig, dice); break;
-			case 4: trackMoveNextBrownian(track, step, fill, pNei, forceTrig, killTrig, dice); break;
+			case 3:
+			case 4: trackMoveNextJump(track, step, fill, pNei, forceTrig, killTrig, dice); break;
 		}
 	}
 
 };
 
 void ZOUMAI::process(const ProcessArgs &args) {
-	currentPattern = (int)clamp((inputs[PATTERN_INPUT].isConnected() ? rescale(clamp(inputs[PATTERN_INPUT].getVoltage(), 0.0f, 10.0f),0.0f,10.0f,0.0f,8.0f) : 0) + (int)params[PATTERN_PARAM].getValue(), 0.0f, 7.0f);
+	requestedPattern = (int)clamp((inputs[PATTERN_INPUT].isConnected() ? rescale(clamp(inputs[PATTERN_INPUT].getVoltage(), 0.0f, 10.0f),0.0f,10.0f,0.0f,8.0f) : 0) + (int)params[PATTERN_PARAM].getValue(), 0.0f, 7.0f);
+	// Stopped: switch at once. Running: at the end of the pattern, below.
+	if (!run)
+		currentPattern = requestedPattern;
 
 	if (rightExpander.module && rightExpander.module->model == modelZOUMAIExpander) {
 		float *messagesFromExpander = (float*)rightExpander.consumerMessage;
@@ -1401,36 +1565,52 @@ void ZOUMAI::process(const ProcessArgs &args) {
 			dice[i]=messagesFromExpander[i+32];
 			rotLeft[i]=messagesFromExpander[i+40];
 			rotRight[i]=messagesFromExpander[i+48];
-			rotLen[i]=messagesFromExpander[i+56];
+			rotLen[i]=clamp((int)messagesFromExpander[i+56], 0, 64);
 		}
 
 		float *messagesToExpander = (float*)(rightExpander.module->leftExpander.producerMessage);
 		messagesToExpander[0] = currentPattern;
 		rightExpander.module->leftExpander.messageFlipRequested = true;
 	}
-
-	if (inputs[FILL_INPUT].isConnected()) {
-		if (((inputs[FILL_INPUT].getVoltage() > 0.0f) && !fill) || ((inputs[FILL_INPUT].getVoltage() == 0.0f) && fill)) fill=!fill;
+	else {
+		// No expander: nothing it set may stay applied.
+		for (int i=0; i<8; i++) {
+			fills[i] = forceTrigs[i] = killTrigs[i] = false;
+			trsp[i] = dice[i] = 0.0f;
+			rotLeft[i] = rotRight[i] = 0;
+			rotLen[i] = 16;
+		}
 	}
-	if (fillTrigger.process(params[FILL_PARAM].getValue())) {
+
+	// With a cable the input sets fill (high above 1 V, low under 0.1 V);
+	// without one the button toggles it.
+	bool fillPressed = fillTrigger.process(params[FILL_PARAM].getValue());
+	if (inputs[FILL_INPUT].isConnected()) {
+		fillInputTrigger.process(inputs[FILL_INPUT].getVoltage(), 0.1f, 1.f);
+		fill = fillInputTrigger.isHigh();
+	}
+	else if (fillPressed) {
 		fill = !fill;
 	}
 	lights[FILL_LIGHT].setBrightness(fill ? 1.0f : 0.0f);
 
 	solo = patternIsSoloed();
 
-	if (currentPattern != previousPattern) {
-		for (size_t i = 0; i<8; i++) {
-			trackSync(i,trackCurrentTickCount[previousPattern][i], trackLastTickCount[previousPattern][i], trackHead[previousPattern][i]);
+	{
+		// Skipped while the UI is changing the selection or the data.
+		std::unique_lock<std::recursive_mutex> lock(editMutex, std::try_to_lock);
+		if (lock.owns_lock()) {
+			if (currentPattern != previousPattern) {
+				previousPattern = currentPattern;
+				updateTrackToParams();
+				updateTrigToParams();
+			}
+			else {
+				updateTrigVO();
+				updateParamsToTrack();
+				updateParamsToTrig();
+			}
 		}
-		previousPattern = currentPattern;
-		updateTrackToParams();
-		updateTrigToParams();
-	}
-	else {
-		updateTrigVO();
-		updateParamsToTrack();
-		updateParamsToTrig();
 	}
 
 	int pageOffset = trigPage*16;
@@ -1518,126 +1698,90 @@ void ZOUMAI::process(const ProcessArgs &args) {
 		}
 	}
 
+	// Rotations from the expander, also while stopped.
+	{
+		for (int i=0; i<8; i++) {
+			pendingRotLeft[i] += rotLeft[i];
+			pendingRotRight[i] += rotRight[i];
+		}
+		std::unique_lock<std::recursive_mutex> lock(editMutex, std::try_to_lock);
+		if (lock.owns_lock()) {
+			for (int i=0; i<8; i++) {
+				if (pendingRotLeft[i] || pendingRotRight[i]) {
+					int shift = pendingRotLeft[i] - pendingRotRight[i];
+					if (shift > 0)
+						nTrackLeft(i, shift, rotLen[i]);
+					else if (shift < 0)
+						nTrackRight(i, -shift, rotLen[i]);
+					pendingRotLeft[i] = pendingRotRight[i] = 0;
+					if (i == currentTrack)
+						updateTrigToParams();
+				}
+			}
+		}
+	}
+
+	// The clock interval is measured between two clocks, also while stopped.
+	clockTrigged = clockTrigger.process(inputs[EXTCLOCK_INPUT].getVoltage(), 0.1f, 1.f);
+	if (clockCount >= 0)
+		clockCount++;
+	if (clockTrigged) {
+		if (clockCount > 0)
+			clockInterval = clockCount;
+		clockCount = 0;
+	}
+	const long ms = (long)std::round(1e-3f * args.sampleRate);
+
+	bool runStarted = false;
 	if (runTrigger.process(inputs[RUN_INPUT].getVoltage() + params[RUN_PARAM].getValue())) {
 		run = !run;
-		globalReset = true;
+		runStarted = run;
 	}
 
 	if (run) {
-		if (resetTrigger.process(inputs[RESET_INPUT].getVoltage())) {
-			globalReset = true;
-		}
-		else {
-			globalReset = false;
-		}
+		// Starting plays from the top, like the reset input.
+		globalReset = resetTrigger.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f) || runStarted;
+		// A clock up to 1 ms after a reset belongs to it: it does not move on.
+		bool step = clockTrigged && resetHold <= 0 && !globalReset;
+		if (globalReset)
+			resetHold = ms;
+		else if (resetHold > 0)
+			resetHold--;
 
-		if (clockTrigger.process(inputs[EXTCLOCK_INPUT].getVoltage())) {
-			clockTrigged = true;
+		// A requested pattern takes over when the current one ends, and starts
+		// all its tracks from the top.
+		bool patternStart = false;
+		if (globalReset) {
+			currentPattern = requestedPattern;
+			patternClock = 0;
 		}
-		else {
-			clockTrigged = false;
-		}
-
-		if (clockTrigged) {
-			if (clockMaxCount>0) {
-				trackLastTickCount[currentPattern][0] = clockMaxCount;
-				trackLastTickCount[currentPattern][1] = clockMaxCount;
-				trackLastTickCount[currentPattern][2] = clockMaxCount;
-				trackLastTickCount[currentPattern][3] = clockMaxCount;
-				trackLastTickCount[currentPattern][4] = clockMaxCount;
-				trackLastTickCount[currentPattern][5] = clockMaxCount;
-				trackLastTickCount[currentPattern][6] = clockMaxCount;
-				trackLastTickCount[currentPattern][7] = clockMaxCount;
+		else if (step && ++patternClock >= patternLengthTicks()) {
+			patternClock = 0;
+			if (requestedPattern != currentPattern) {
+				currentPattern = requestedPattern;
+				patternStart = true;
 			}
-			clockMaxCount=0;
-		}
-		else {
-			clockMaxCount++;
 		}
 
 		for (int i=0; i<8;i++) {
-			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage())) {
-				if (rotLeft[i]) {
-					nTrackLeft(i,rotLeft[i], rotLen[i]);
-					updateTrigToParams();
-				}
-				else if (rotRight[i]) {
-					nTrackRight(i,rotRight[i], rotLen[i]);
-					updateTrigToParams();
-				}
+			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage(), 0.1f, 1.f)) {
 				trackReset(i, fill || fills[i], i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre(), forceTrigs[i], killTrigs[i], dice[i]);
 			}
-      else if (!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset) {
-				if (rotLeft[i]) {
-					nTrackLeft(i,rotLeft[i], rotLen[i]);
-					updateTrigToParams();
-				}
-				else if (rotRight[i]) {
-					nTrackRight(i,rotRight[i], rotLen[i]);
-					updateTrigToParams();
-				}
+			else if ((!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset) || patternStart) {
 				trackReset(i, fill || fills[i], i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre(), forceTrigs[i], killTrigs[i], dice[i]);
-				trackMoveNext(i, true, fill || fills[i], i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre(), forceTrigs[i], killTrigs[i], dice[i]);
 			}
 			else {
-				if (rotLeft[i]) {
-					nTrackLeft(i,rotLeft[i], rotLen[i]);
-					updateTrigToParams();
-				}
-				else if (rotRight[i]) {
-					nTrackRight(i,rotRight[i], rotLen[i]);
-					updateTrigToParams();
-				}
-				trackMoveNext(i, clockTrigged, fill || fills[i], i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre(), forceTrigs[i], killTrigs[i], dice[i]);
+				trackMoveNext(i, step, fill || fills[i], i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre(), forceTrigs[i], killTrigs[i], dice[i]);
 			}
 
 			int tPT = nTracksAttibutes[currentPattern][i].getTrackPlayedTrig();
 
-			if ((currentTrack == i) && (params[RECORD_PARAM].getValue() == 1.0f)) {
-					if (inputs[GATE_INPUT].getVoltage()>0.0f) {
-						if (!noteIncoming) {
-							noteIncoming = true;
-							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigActive(true);
-							if (params[QUANTIZE_PARAM].getValue() == 0.0f) {
-								trigTrim[currentPattern][i][(long)trackHead[currentPattern][i]] = trackHead[currentPattern][i] - (long)trackHead[currentPattern][i];
-							} else {
-								trigTrim[currentPattern][i][(long)trackHead[currentPattern][i]] = 0.0f;
-							}
-							currentIncomingVO = inputs[VO_INPUT].getVoltage();
-							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigOctave((long)currentIncomingVO+3.0f);
-							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigSemiTones((long)((currentIncomingVO-(long)currentIncomingVO)*12.f));
-						}
-						else if (currentIncomingVO != inputs[VO_INPUT].getVoltage()) {
-							currentIncomingVO = inputs[VO_INPUT].getVoltage();
-							if (trackHead[currentPattern][i]>nTrigsAttibutes[currentPattern][i][tPT].getTrigIndex()) {
-								trigLength[currentPattern][i][tPT] = trackHead[currentPattern][i] - nTrigsAttibutes[currentPattern][i][tPT].getTrigIndex()-0.01f;
-							}
-							else {
-								trigLength[currentPattern][i][tPT] = nTracksAttibutes[currentPattern][i].getTrackLength() - nTrigsAttibutes[currentPattern][i][tPT].getTrigIndex()-0.01f;
-							}
-							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigActive(true);
-							if (params[QUANTIZE_PARAM].getValue() == 0.0f) {
-								trigTrim[currentPattern][i][(long)trackHead[currentPattern][i]] = trackHead[currentPattern][i] - (long)trackHead[currentPattern][i];
-							} else {
-								trigTrim[currentPattern][i][(long)trackHead[currentPattern][i]] = 0.0f;
-							}
-							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigOctave((long)currentIncomingVO+3.0f);
-							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigSemiTones((long)((currentIncomingVO-(long)currentIncomingVO)*12.f));
-						}
-					} else {
-						if (noteIncoming) {
-							noteIncoming = false;
-							if (trackHead[currentPattern][i]>nTrigsAttibutes[currentPattern][i][tPT].getTrigIndex()) {
-								trigLength[currentPattern][i][tPT] = trackHead[currentPattern][i] - nTrigsAttibutes[currentPattern][i][tPT].getTrigIndex();
-							}
-							else {
-								trigLength[currentPattern][i][tPT] = nTracksAttibutes[currentPattern][i].getTrackLength() - nTrigsAttibutes[currentPattern][i][tPT].getTrigIndex()-0.01f;
-							}
-							currentIncomingVO = -100.0f;
-						}
-					}
+			if ((currentTrack == i) && (params[RECORD_PARAM].getValue() == 1.0f))
+				recordStep(i);
+			else if (i == currentTrack && noteIncoming) {
+				noteIncoming = false;
+				recTrig = -1;
 			}
-
 
 			if ((solo && nTracksAttibutes[currentPattern][i].getTrackSolo()) || (!solo && nTracksAttibutes[currentPattern][i].getTrackActive())) {
 				float gate = trackGetGate(i, tPT);
@@ -2466,6 +2610,28 @@ struct BidooProbBlueKnob : BidooBlueSnapKnob {
 
 
 struct ZOUMAIWidget : BidooWidget {
+	// Every button and key handler on the panel edits the module from the UI
+	// thread: run them under the module's edit lock (see ZOUMAI::editMutex).
+	void onButton(const ButtonEvent &e) override {
+		ZOUMAI *m = dynamic_cast<ZOUMAI*>(module);
+		if (!m) {
+			BidooWidget::onButton(e);
+			return;
+		}
+		std::lock_guard<std::recursive_mutex> lock(m->editMutex);
+		BidooWidget::onButton(e);
+	}
+
+	void onHoverKey(const HoverKeyEvent &e) override {
+		ZOUMAI *m = dynamic_cast<ZOUMAI*>(module);
+		if (!m) {
+			BidooWidget::onHoverKey(e);
+			return;
+		}
+		std::lock_guard<std::recursive_mutex> lock(m->editMutex);
+		BidooWidget::onHoverKey(e);
+	}
+
 	ZOUMAIWidget(ZOUMAI *module) {
 		setModule(module);
     prepareThemes(asset::plugin(pluginInstance, "res/ZOUMAI.svg"));
@@ -2592,6 +2758,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouInitPageItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->pageInit(module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2600,6 +2767,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouCopyPageItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->copyPageId = module->trigPage;
 			module->copyPatternArmed = false;
 			module->copyTrackArmed = false;
@@ -2611,6 +2779,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouPastePageItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->pastePage(module->copyPageId, module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2619,6 +2788,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizePageTrigsNotesItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizePageTrigsNotes(module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2627,6 +2797,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizePageTrigsNotesPlusItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizePageTrigsNotesPlus(module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2635,6 +2806,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizePageTrigsProbsItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizePageTrigsProbs(module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2643,6 +2815,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizePageTrigsCV1Item : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizePageTrigsCV1(module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2651,6 +2824,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizePageTrigsCV2Item : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizePageTrigsCV2(module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2659,6 +2833,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouInitTrigItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->trigInit(module->currentPattern,module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2667,6 +2842,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouCopyTrigItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->copyTrigId = module->currentTrig;
 			module->copyTrackId = module->currentTrack;
 			module->copyPatternId = module->currentPattern;
@@ -2679,6 +2855,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouPasteTrigItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->pasteTrig(module->copyPatternId, module->copyTrackId, module->copyTrigId, module->currentPattern, module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2687,6 +2864,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizeTrigNoteItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrigNote(module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2695,6 +2873,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizeTrigNotePlusItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrigNotePlus(module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2703,6 +2882,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizeTrigProbItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrigProb(module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2711,6 +2891,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouFullRandomizeTrigItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->fullRandomizeTrig(module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2719,6 +2900,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizeTrigCV1Item : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrigCV1(module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2727,6 +2909,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizeTrigCV2Item : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrigCV2(module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2735,6 +2918,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouTrigUpItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->trigUp(module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2743,6 +2927,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouTrigDownItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->trigDown(module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2751,6 +2936,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouCopyTrackItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->copyTrackId = module->currentTrack;
 			module->copyPatternId = module->currentPattern;
 			module->copyPatternArmed = false;
@@ -2762,6 +2948,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouPasteTrackItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->pasteTrack(module->copyPatternId, module->copyTrackId, module->currentPattern, module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2771,6 +2958,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouInitTrackItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->trackInit(module->currentPattern, module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2780,6 +2968,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizeTrackItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrack(module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2789,6 +2978,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizeTrackTrigsNotesItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrackTrigsNotes(module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2798,6 +2988,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizeTrackTrigsNotesPlusItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrackTrigsNotesPlus(module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2807,6 +2998,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizeTrackTrigsProbsItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrackTrigsProbs(module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2816,6 +3008,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizeTrackTrigsCV1Item : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrackTrigsCV1(module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2825,6 +3018,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizeTrackTrigsCV2Item : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrackTrigsCV2(module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2834,6 +3028,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouTrackSlideModeItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->slideMode[module->currentPattern][module->currentTrack] = !module->slideMode[module->currentPattern][module->currentTrack];
 		}
 	};
@@ -2841,6 +3036,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouTrackUpItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->trackUp(module->currentTrack);
 			module->updateTrigToParams();
 		}
@@ -2849,6 +3045,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouTrackDownItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->trackDown(module->currentTrack);
 			module->updateTrigToParams();
 		}
@@ -2857,6 +3054,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouTrackLeftItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->nTrackLeft(module->currentTrack,1);
 			module->updateTrigToParams();
 		}
@@ -2865,6 +3063,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouTrackRightItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->nTrackRight(module->currentTrack,1);
 			module->updateTrigToParams();
 		}
@@ -2873,6 +3072,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouCopyPatternItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->copyPatternId = module->currentPattern;
 			module->copyPatternArmed = true;
 			module->copyTrackArmed = false;
@@ -2883,6 +3083,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouPastePatternItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->pastePattern();
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2892,6 +3093,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouInitPatternItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			for (int i=0; i<8; i++) {
 				module->trackInit(module->currentPattern,i);
 			}
@@ -2903,6 +3105,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouRandomizePatternItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizePattern();
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2912,6 +3115,7 @@ struct ZOUMAIWidget : BidooWidget {
 	struct ZouFullRandomizePatternItem : MenuItem {
 		ZOUMAI *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->fullRandomizePattern();
 			module->updateTrackToParams();
 			module->updateTrigToParams();
