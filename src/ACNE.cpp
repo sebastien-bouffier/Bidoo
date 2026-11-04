@@ -50,72 +50,85 @@ struct ACNE : BidooModule {
 		NUM_LIGHTS
 	};
 
+	// Fader gains of every scene, 4 inputs per vector.
+	float_4 snapshots[ACNE_NB_SNAPSHOTS][ACNE_NB_OUTS][ACNE_NB_TRACKS/4] = {{{0.0f}}};
+	// Mutes and solos of every scene, one bit per input or output.
+	uint32_t sceneInMutes[ACNE_NB_SNAPSHOTS] = {0};
+	uint32_t sceneInSolos[ACNE_NB_SNAPSHOTS] = {0};
+	uint32_t sceneOutMutes[ACNE_NB_SNAPSHOTS] = {0};
+
 	int currentSnapshot = 0;
-	int previousSnapshot = 0;
 	int copySnapshot = 0;
 	bool copyState = false;
 	bool autosave = true;
-	float_4 snapshots[ACNE_NB_SNAPSHOTS][ACNE_NB_OUTS][ACNE_NB_TRACKS/4] = {{{0.0f}}};
-	bool  outMutes[ACNE_NB_OUTS] = {0};
-	bool  inMutes[ACNE_NB_TRACKS] = {0};
-	bool  inSolo[ACNE_NB_TRACKS] = {0};
+	// Live state of the current scene.
+	bool outMutes[ACNE_NB_OUTS] = {0};
+	bool inMutes[ACNE_NB_TRACKS] = {0};
+	bool inSolo[ACNE_NB_TRACKS] = {0};
+	bool links[8] = {0,0,0,0,0,0,0,0};
+	bool solo = false;
+
 	dsp::SchmittTrigger outMutesTriggers[ACNE_NB_OUTS];
 	dsp::SchmittTrigger inMutesTriggers[ACNE_NB_TRACKS];
 	dsp::SchmittTrigger inSoloTriggers[ACNE_NB_TRACKS];
 	dsp::SchmittTrigger snapshotTriggers[ACNE_NB_SNAPSHOTS];
-	dsp::SchmittTrigger muteTrigger;
-	dsp::SchmittTrigger soloTrigger;
+	dsp::SchmittTrigger clearMutesTrigger;
+	dsp::SchmittTrigger clearSendMutesTrigger;
+	dsp::SchmittTrigger clearSolosTrigger;
 	dsp::SchmittTrigger copyPasteTrigger;
 	dsp::SchmittTrigger autoSaveTrigger;
 	dsp::SchmittTrigger saveTrigger;
-	int eFader = -1;
 	dsp::SchmittTrigger linksTriggers[8];
-	bool links[8] = {0,0,0,0,0,0,0,0};
+
+	// Set by the fader being dragged (UI thread).
+	int eFader = -1;
 	bool shifted = false;
-	bool solo = false;
-	float_4 ramp = 0.0f;
-	float_4 rampMin = 0.0f;
-	float_4 rampMax = 0.01f;
-	float_4 in = 0.0f;
-	float_4 out = 0.0f;
+
+	// Gains actually applied: they glide to the scene over the morph time,
+	// then follow every change through a 5 ms smoother.
+	float_4 gains[ACNE_NB_OUTS][ACNE_NB_TRACKS/4] = {{0.0f}};
+	float_4 morphFrom[ACNE_NB_OUTS][ACNE_NB_TRACKS/4] = {{0.0f}};
+	float morphPhase = 1.0f;
+	float mainGain = 0.7f;
+	float smoothCoef = 0.f;
+	float smoothRate = 0.f;
+	float saveLight = 0.f;
 
 	ACNE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(MAIN_OUT_GAIN_PARAM, 0.f, 1.f, 0.7f, "Out gain", "%", 0.f, 100.f);
-		configSwitch(COPY_PARAM, 0.f, 1.f, 0.f, "Copy/Paste");
-		configParam(RAMP_PARAM, 0.f, 0.01f, 0.001f, "Snapshots ramp", "%", 0.f, 100.f);
-		configSwitch(SEND_MUTE_PARAM, 0.f, 1.f, 0.f, "Sends mute");
-		configSwitch(MUTE_PARAM, 0.f, 1.f, 0.f, "Mute track");
-		configSwitch(SOLO_PARAM, 0.f, 1.f, 0.f, "Solo track");
-		configSwitch(AUTOSAVE_PARAM, 0.f, 1.f, 1.f, "Auto save");
-		configSwitch(SAVE_PARAM, 0.f, 1.f, 0.f, "Save");
+		configParam(MAIN_OUT_GAIN_PARAM, 0.f, 1.f, 0.7f, "Out 1-2 gain", "%", 0.f, 100.f);
+		configButton(COPY_PARAM, "Copy / paste scene");
+		configParam(RAMP_PARAM, 0.f, 10.f, 0.f, "Scene morph time", " s");
+		configButton(SEND_MUTE_PARAM, "Unmute all outputs");
+		configButton(MUTE_PARAM, "Unmute all inputs");
+		configButton(SOLO_PARAM, "Clear all solos");
+		configButton(AUTOSAVE_PARAM, "Auto save scene");
+		configButton(SAVE_PARAM, "Save scene");
 
 		for (int i = 0; i < ACNE_NB_OUTS; i++) {
-			configParam(OUT_MUTE_PARAMS + i, 0.f, 1.f, 0.f, "Mute output " + std::to_string(i+1));
+			configButton(OUT_MUTE_PARAMS + i, "Mute output " + std::to_string(i+1));
 			configOutput(TRACKS_OUTPUTS+i, "Output " + std::to_string(i+1));
 		}
 
 		for (int i = 0; i < ACNE_NB_TRACKS; i++) {
-			configSwitch(SNAPSHOT_PARAMS + i, 0.f, 1.f, 0.f, "Snapshot " + std::to_string(i+1));
-			configSwitch(IN_MUTE_PARAMS + i, 0.f, 1.f, 0.f, "Mute track " + std::to_string(i+1));
-			configSwitch(IN_SOLO_PARAMS + i, 0.f, 1.f, 0.f, "Solo track " + std::to_string(i+1));
-			configLight(SNAPSHOT_LIGHTS + i, "Snapshot " + std::to_string(i+1));
+			configButton(SNAPSHOT_PARAMS + i, "Scene " + std::to_string(i+1));
+			configButton(IN_MUTE_PARAMS + i, "Mute input " + std::to_string(i+1));
+			configButton(IN_SOLO_PARAMS + i, "Solo input " + std::to_string(i+1));
+			configLight(SNAPSHOT_LIGHTS + i, "Scene " + std::to_string(i+1));
 			configInput(TRACKS_INPUTS + i, "Input " + std::to_string(i+1));
 		}
 
 		for (int i = 0; i < 8; i++) {
-			configParam(TRACKLINK_PARAMS + i, 0.f, 1.f, 0.f, "Track link " + std::to_string(i+1) + "/" + std::to_string((i+1)/2));
+			configButton(TRACKLINK_PARAMS + i, "Link inputs " + std::to_string(2*i+1) + "-" + std::to_string(2*i+2));
 		}
 
 		for (int i = 0; i < ACNE_NB_OUTS; i++) {
 			for (int j = 0; j < ACNE_NB_TRACKS; j++) {
-				configParam(FADERS_PARAMS + j + i * (ACNE_NB_TRACKS), 0.f, 1.f, 0.f, "Volume " + std::to_string(j+1) + "/" + std::to_string(i+1));
+				configParam(FADERS_PARAMS + j + i * (ACNE_NB_TRACKS), 0.f, 1.f, 0.f, "Input " + std::to_string(j+1) + " to output " + std::to_string(i+1), "%", 0.f, 100.f);
 			}
 		}
 
-		configInput(SNAPSHOT_INPUT, "Snapshot input");
-		lights[SNAPSHOT_LIGHTS + currentSnapshot].setBrightness(1);
-
+		configInput(SNAPSHOT_INPUT, "Scene (0.625 V per scene)");
 	}
 
 	void process(const ProcessArgs &args) override;
@@ -123,7 +136,11 @@ struct ACNE : BidooModule {
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "autosave", json_boolean(autosave));
+		json_object_set_new(rootJ, "currentSnapshot", json_integer(currentSnapshot));
 		json_t *snapShotsJ = json_array();
+		json_t *inMutesJ = json_array();
+		json_t *inSolosJ = json_array();
+		json_t *outMutesJ = json_array();
 		for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
 			json_t *snapshotJ = json_array();
 			for (int j = 0; j < ACNE_NB_OUTS; j++) {
@@ -135,8 +152,14 @@ struct ACNE : BidooModule {
 				json_array_append_new(snapshotJ, outJ);
 			}
 			json_array_append_new(snapShotsJ, snapshotJ);
+			json_array_append_new(inMutesJ, json_integer(sceneInMutes[i]));
+			json_array_append_new(inSolosJ, json_integer(sceneInSolos[i]));
+			json_array_append_new(outMutesJ, json_integer(sceneOutMutes[i]));
 		}
 		json_object_set_new(rootJ, "snapshots", snapShotsJ);
+		json_object_set_new(rootJ, "sceneInMutes", inMutesJ);
+		json_object_set_new(rootJ, "sceneInSolos", inSolosJ);
+		json_object_set_new(rootJ, "sceneOutMutes", outMutesJ);
 
 		for (int i = 0; i < 8; i++) {
 			json_object_set_new(rootJ, ("link" + to_string(i)).c_str(), json_boolean(links[i]));
@@ -149,109 +172,158 @@ struct ACNE : BidooModule {
 		BidooModule::dataFromJson(rootJ);
 		json_t *autosaveJ = json_object_get(rootJ, "autosave");
 		if (autosaveJ) autosave = json_is_true(autosaveJ);
+		json_t *currentJ = json_object_get(rootJ, "currentSnapshot");
+		currentSnapshot = currentJ ? clamp((int)json_integer_value(currentJ), 0, ACNE_NB_SNAPSHOTS-1) : 0;
 		json_t *snapShotsJ = json_object_get(rootJ, "snapshots");
-		if (snapShotsJ) {
-			for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
-				json_t *snapshotJ = json_array_get(snapShotsJ, i);
-				if (snapshotJ) {
-					for (int j = 0; j < ACNE_NB_OUTS; j++) {
-						json_t *outJ = json_array_get(snapshotJ, j);
-						if (outJ) {
-							for (int k = 0; k < ACNE_NB_TRACKS/4; k++) {
-								json_t *inJ = json_array_get(outJ, k);
-								if (inJ) {
-									double s0,s1,s2,s3;
-									json_unpack(inJ, "[f, f, f, f]", &s0, &s1, &s2, &s3);
-									snapshots[i][j][k][0] = s0;
-									snapshots[i][j][k][1] = s1;
-									snapshots[i][j][k][2] = s2;
-									snapshots[i][j][k][3] = s3;
-								}
-							}
-						}
-					}
+		json_t *inMutesJ = json_object_get(rootJ, "sceneInMutes");
+		json_t *inSolosJ = json_object_get(rootJ, "sceneInSolos");
+		json_t *outMutesJ = json_object_get(rootJ, "sceneOutMutes");
+		for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
+			json_t *snapshotJ = json_array_get(snapShotsJ, i);
+			for (int j = 0; j < ACNE_NB_OUTS; j++) {
+				json_t *outJ = json_array_get(snapshotJ, j);
+				for (int k = 0; k < ACNE_NB_TRACKS/4; k++) {
+					json_t *inJ = json_array_get(outJ, k);
+					for (int l = 0; l < 4; l++)
+						snapshots[i][j][k][l] = clamp((float)json_number_value(json_array_get(inJ, l)), 0.f, 1.f);
 				}
 			}
+			sceneInMutes[i] = json_integer_value(json_array_get(inMutesJ, i));
+			sceneInSolos[i] = json_integer_value(json_array_get(inSolosJ, i));
+			sceneOutMutes[i] = json_integer_value(json_array_get(outMutesJ, i));
 		}
 
 		for (int i = 0; i < 8; i++) {
 			json_t *linkJ = json_object_get(rootJ, ("link" + to_string(i)).c_str());
-			if (linkJ)
-				links[i] = json_boolean_value(linkJ);
+			links[i] = linkJ && json_boolean_value(linkJ);
 		}
 
-		updateFaders();
+		loadScene();
+		// Start at the stored levels instead of fading in.
+		morphPhase = 1.f;
+		for (int i = 0; i < ACNE_NB_OUTS; i++)
+			for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
+				gains[i][j] = targetGain(i, j);
 	}
 
-
-	void updateFaders() {
+	// Faders and mutes of the current scene become the live state.
+	void loadScene() {
 		for (int i = 0; i < ACNE_NB_OUTS; i++) {
+			outMutes[i] = (sceneOutMutes[currentSnapshot] >> i) & 1;
 			for (int j = 0; j < ACNE_NB_TRACKS/4; j++) {
-				if (eFader != i*ACNE_NB_TRACKS+j*4) params[FADERS_PARAMS+i*ACNE_NB_TRACKS+j*4].setValue(snapshots[currentSnapshot][i][j][0]);
-				if (eFader != i*ACNE_NB_TRACKS+j*4+1) params[FADERS_PARAMS+i*ACNE_NB_TRACKS+j*4+1].setValue(snapshots[currentSnapshot][i][j][1]);
-				if (eFader != i*ACNE_NB_TRACKS+j*4+2) params[FADERS_PARAMS+i*ACNE_NB_TRACKS+j*4+2].setValue(snapshots[currentSnapshot][i][j][2]);
-				if (eFader != i*ACNE_NB_TRACKS+j*4+3) params[FADERS_PARAMS+i*ACNE_NB_TRACKS+j*4+3].setValue(snapshots[currentSnapshot][i][j][3]);
+				for (int l = 0; l < 4; l++) {
+					int f = i*ACNE_NB_TRACKS + j*4 + l;
+					if (eFader != f)
+						params[FADERS_PARAMS + f].setValue(snapshots[currentSnapshot][i][j][l]);
+				}
 			}
 		}
+		for (int i = 0; i < ACNE_NB_TRACKS; i++) {
+			inMutes[i] = (sceneInMutes[currentSnapshot] >> i) & 1;
+			inSolo[i] = (sceneInSolos[currentSnapshot] >> i) & 1;
+		}
+	}
+
+	// Live faders and mutes are written into the current scene.
+	void storeScene() {
+		uint32_t im = 0, is = 0, om = 0;
+		for (int i = 0; i < ACNE_NB_OUTS; i++) {
+			if (outMutes[i]) om |= 1u << i;
+			for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
+				for (int l = 0; l < 4; l++)
+					snapshots[currentSnapshot][i][j][l] = params[FADERS_PARAMS + i*ACNE_NB_TRACKS + j*4 + l].getValue();
+		}
+		for (int i = 0; i < ACNE_NB_TRACKS; i++) {
+			if (inMutes[i]) im |= 1u << i;
+			if (inSolo[i]) is |= 1u << i;
+		}
+		sceneInMutes[currentSnapshot] = im;
+		sceneInSolos[currentSnapshot] = is;
+		sceneOutMutes[currentSnapshot] = om;
+	}
+
+	// Gain the live faders and mutes ask for, for 4 inputs of one output.
+	float_4 targetGain(int out, int group) {
+		if (outMutes[out])
+			return 0.f;
+		float_4 g;
+		for (int l = 0; l < 4; l++) {
+			int track = group*4 + l;
+			bool open = !inMutes[track] && (!solo || inSolo[track]);
+			g[l] = open ? params[FADERS_PARAMS + out*ACNE_NB_TRACKS + track].getValue() : 0.f;
+		}
+		return g;
 	}
 
 	void onReset() override {
 		for (int k = 0; k < ACNE_NB_SNAPSHOTS; k++) {
-			for (int i = 0; i < ACNE_NB_OUTS; i++) {
-				for (int j = 0; j < ACNE_NB_TRACKS/4; j++) {
-					snapshots[k][i][j]=0.0f;
-				}
-			}
+			for (int i = 0; i < ACNE_NB_OUTS; i++)
+				for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
+					snapshots[k][i][j] = 0.0f;
+			sceneInMutes[k] = sceneInSolos[k] = sceneOutMutes[k] = 0;
 		}
-		updateFaders();
+		for (int i = 0; i < 8; i++)
+			links[i] = false;
+		currentSnapshot = 0;
+		copyState = false;
+		autosave = true;
+		loadScene();
 	}
 
 	void switchSnapshot(int snapshot) {
-		previousSnapshot = currentSnapshot;
+		if (snapshot == currentSnapshot)
+			return;
+		if (autosave)
+			storeScene();
 		currentSnapshot = snapshot;
-		lights[SNAPSHOT_LIGHTS + previousSnapshot].setBrightness(0);
-		lights[SNAPSHOT_LIGHTS + currentSnapshot].setBrightness(1);
-		ramp = params[RAMP_PARAM].getValue();
-		rampMax = params[RAMP_PARAM].getValue();
-		updateFaders();
+		loadScene();
+		// Morph from what is playing now, even in the middle of another morph.
+		for (int i = 0; i < ACNE_NB_OUTS; i++)
+			for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
+				morphFrom[i][j] = gains[i][j];
+		morphPhase = params[RAMP_PARAM].getValue() > 0.f ? 0.f : 1.f;
 	}
 };
 
 void ACNE::process(const ProcessArgs &args) {
+	if (args.sampleRate != smoothRate) {
+		smoothCoef = 1.f - std::exp(-args.sampleTime / 0.005f);
+		smoothRate = args.sampleRate;
+	}
 
 	bool save = saveTrigger.process(params[SAVE_PARAM].getValue());
-	lights[SAVE_LIGHT].setBrightness(lights[SAVE_LIGHT].getBrightness()-0.0001f*lights[SAVE_LIGHT].getBrightness());
-
-	if (save == true) {
-		lights[SAVE_LIGHT].setBrightness(1.0f);
-	}
+	if (save)
+		saveLight = 1.f;
+	saveLight = std::max(0.f, saveLight - args.sampleTime * 2.f);
+	lights[SAVE_LIGHT].setBrightness(saveLight);
 
 	if (autoSaveTrigger.process(params[AUTOSAVE_PARAM].getValue())) {
 		autosave = !autosave;
 	}
-	lights[AUTOSAVE_LIGHT].setBrightness(autosave == true ? 1 : 0);
+	lights[AUTOSAVE_LIGHT].setBrightness(autosave ? 1 : 0);
 
 	if (copyPasteTrigger.process(params[COPY_PARAM].getValue())) {
 		if (!copyState) {
+			if (autosave)
+				storeScene();
 			copySnapshot = currentSnapshot;
 			copyState = true;
-		} else if ((copyState) && (copySnapshot != currentSnapshot)) {
-			for (int i = 0; i < ACNE_NB_OUTS; i++) {
-				for (int j = 0; j < ACNE_NB_TRACKS/4; j++) {
+		} else if (copySnapshot != currentSnapshot) {
+			for (int i = 0; i < ACNE_NB_OUTS; i++)
+				for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
 					snapshots[currentSnapshot][i][j] = snapshots[copySnapshot][i][j];
-				}
-			}
+			sceneInMutes[currentSnapshot] = sceneInMutes[copySnapshot];
+			sceneInSolos[currentSnapshot] = sceneInSolos[copySnapshot];
+			sceneOutMutes[currentSnapshot] = sceneOutMutes[copySnapshot];
 			copyState = false;
-			updateFaders();
+			loadScene();
 		}
 	}
-	lights[COPY_LIGHT].setBrightness(copyState == true ? 1 : 0);
+	lights[COPY_LIGHT].setBrightness(copyState ? 1 : 0);
 
 	if (inputs[SNAPSHOT_INPUT].isConnected()) {
 		int newSnapshot = clamp((int)(inputs[SNAPSHOT_INPUT].getVoltage() * 16 * 0.1f),0,ACNE_NB_SNAPSHOTS-1);
-		if (currentSnapshot != newSnapshot) {
-			switchSnapshot(newSnapshot);
-		}
+		switchSnapshot(newSnapshot);
 	}
 	else {
 		for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
@@ -260,6 +332,8 @@ void ACNE::process(const ProcessArgs &args) {
 			}
 		}
 	}
+	for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++)
+		lights[SNAPSHOT_LIGHTS + i].setBrightness(i == currentSnapshot ? 1 : 0);
 
 	if ((eFader>-1) && shifted) {
 		int index = eFader%ACNE_NB_TRACKS;
@@ -269,98 +343,78 @@ void ACNE::process(const ProcessArgs &args) {
 		params[FADERS_PARAMS+relative].setValue(params[FADERS_PARAMS+eFader].getValue());
 	}
 
-	if (muteTrigger.process(params[MUTE_PARAM].getValue())) {
-		for (int i = 0; i < ACNE_NB_TRACKS; i++) {
+	if (clearMutesTrigger.process(params[MUTE_PARAM].getValue())) {
+		for (int i = 0; i < ACNE_NB_TRACKS; i++)
 			inMutes[i] = false;
-		}
 	}
-
-	if (muteTrigger.process(params[SEND_MUTE_PARAM].getValue())) {
-		for (int i = 0; i < ACNE_NB_OUTS; i++) {
+	if (clearSendMutesTrigger.process(params[SEND_MUTE_PARAM].getValue())) {
+		for (int i = 0; i < ACNE_NB_OUTS; i++)
 			outMutes[i] = false;
-		}
 	}
-
-	if (soloTrigger.process(params[SOLO_PARAM].getValue())) {
-		for (int i = 0; i < ACNE_NB_TRACKS; i++) {
+	if (clearSolosTrigger.process(params[SOLO_PARAM].getValue())) {
+		for (int i = 0; i < ACNE_NB_TRACKS; i++)
 			inSolo[i] = false;
-		}
 	}
 
 	solo = false;
-
 	for (int i = 0; i < ACNE_NB_TRACKS; i++) {
 		int linkIndex = i/2;
 		int linkSwitch = i%2;
 
 		if (linksTriggers[linkIndex].process(params[TRACKLINK_PARAMS + linkIndex].getValue()))	links[linkIndex] = !links[linkIndex];
-		lights[TRACKLINK_LIGHTS + linkIndex].setBrightness(links[linkIndex] == true ? 1 : 0);
+		lights[TRACKLINK_LIGHTS + linkIndex].setBrightness(links[linkIndex] ? 1 : 0);
 
 		if (inMutesTriggers[i].process(params[IN_MUTE_PARAMS + i].getValue())) {
 			inMutes[i] = !inMutes[i];
-			if (links[linkIndex]) {
-				if (linkSwitch == 0)
-					inMutes[i+1] = inMutes[i];
-				else
-					inMutes[i-1] = inMutes[i];
-			}
+			if (links[linkIndex])
+				inMutes[linkSwitch == 0 ? i+1 : i-1] = inMutes[i];
 		}
 
 		if (inSoloTriggers[i].process(params[IN_SOLO_PARAMS + i].getValue())) {
 			inSolo[i] = !inSolo[i];
-			if (links[linkIndex]) {
-				if (linkSwitch == 0)
-					inSolo[i+1] = inSolo[i];
-				else
-					inSolo[i-1] = inSolo[i];
-			}
+			if (links[linkIndex])
+				inSolo[linkSwitch == 0 ? i+1 : i-1] = inSolo[i];
 		}
-		lights[IN_MUTE_LIGHTS + i].setBrightness(inMutes[i] == true ? 1 : 0);
-		lights[IN_SOLO_LIGHTS + i].setBrightness(inSolo[i] == true ? 1 : 0);
+		lights[IN_MUTE_LIGHTS + i].setBrightness(inMutes[i] ? 1 : 0);
+		lights[IN_SOLO_LIGHTS + i].setBrightness(inSolo[i] ? 1 : 0);
 		solo = solo || inSolo[i];
 	}
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
-		outputs[TRACKS_OUTPUTS + i].setVoltage(0.0f);
 		if (outMutesTriggers[i].process(params[OUT_MUTE_PARAMS + i].getValue())) {
 			outMutes[i] = !outMutes[i];
 		}
-		lights[OUT_MUTE_LIGHTS + i].setBrightness(outMutes[i] == true ? 1 : 0);
-
-		if (!outMutes[i]) {
-			for (int j = 0; j < ACNE_NB_TRACKS/4; j++) {
-				if (autosave || save) {
-					snapshots[currentSnapshot][i][j][0] = params[FADERS_PARAMS+i*ACNE_NB_TRACKS+j*4].getValue();
-					snapshots[currentSnapshot][i][j][1] = params[FADERS_PARAMS+i*ACNE_NB_TRACKS+j*4+1].getValue();
-					snapshots[currentSnapshot][i][j][2] = params[FADERS_PARAMS+i*ACNE_NB_TRACKS+j*4+2].getValue();
-					snapshots[currentSnapshot][i][j][3] = params[FADERS_PARAMS+i*ACNE_NB_TRACKS+j*4+3].getValue();
-				}
-
-				float_4 mutesNSolo;
-				mutesNSolo[0] = inMutes[j*4] ? 0 : ((solo&&!inSolo[j*4]) ? 0 : 1);
-				mutesNSolo[1] = inMutes[j*4+1] ? 0 : ((solo&&!inSolo[j*4+1]) ? 0 : 1);
-				mutesNSolo[2] = inMutes[j*4+2] ? 0 : ((solo&&!inSolo[j*4+2]) ? 0 : 1);
-				mutesNSolo[3] = inMutes[j*4+3] ? 0 : ((solo&&!inSolo[j*4+3]) ? 0 : 1);
-
-				in = {inputs[TRACKS_INPUTS + j*4].getVoltage(), inputs[TRACKS_INPUTS + j*4+1].getVoltage(), inputs[TRACKS_INPUTS + j*4+2].getVoltage(), inputs[TRACKS_INPUTS + j*4+3].getVoltage()};
-				if (ramp[0]>0) {
-					out = simd::rescale(ramp,rampMin,rampMax,snapshots[currentSnapshot][i][j],snapshots[previousSnapshot][i][j])*mutesNSolo*in;
-				}
-				else {
-					out = snapshots[currentSnapshot][i][j]*mutesNSolo*in;
-				}
-
-				outputs[TRACKS_OUTPUTS + i].setVoltage(outputs[TRACKS_OUTPUTS + i].getVoltage() + out[0] + out[1]	+ out[2] + out[3]);
-
-			}
-			outputs[TRACKS_OUTPUTS + i].setVoltage(outputs[TRACKS_OUTPUTS + i].getVoltage());
-		}
+		lights[OUT_MUTE_LIGHTS + i].setBrightness(outMutes[i] ? 1 : 0);
 	}
 
-	outputs[TRACKS_OUTPUTS].setVoltage(outputs[TRACKS_OUTPUTS].getVoltage() * params[MAIN_OUT_GAIN_PARAM].value);
-	outputs[TRACKS_OUTPUTS + 1].setVoltage(outputs[TRACKS_OUTPUTS + 1].getVoltage() * params[MAIN_OUT_GAIN_PARAM].value);
+	if (autosave || save)
+		storeScene();
 
-	ramp = simd::fmax(ramp-args.sampleTime,0.f);
+	// Morph progress, then the 5 ms smoother towards it.
+	float morphTime = params[RAMP_PARAM].getValue();
+	if (morphPhase < 1.f)
+		morphPhase = morphTime > 0.f ? std::min(1.f, morphPhase + args.sampleTime / morphTime) : 1.f;
+
+	float_4 in[ACNE_NB_TRACKS/4];
+	for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
+		for (int l = 0; l < 4; l++)
+			in[j][l] = inputs[TRACKS_INPUTS + j*4 + l].getVoltageSum();
+
+	for (int i = 0; i < ACNE_NB_OUTS; i++) {
+		float_4 sum = 0.f;
+		for (int j = 0; j < ACNE_NB_TRACKS/4; j++) {
+			float_4 target = targetGain(i, j);
+			if (morphPhase < 1.f)
+				target = morphFrom[i][j] + (target - morphFrom[i][j]) * morphPhase;
+			gains[i][j] += (target - gains[i][j]) * smoothCoef;
+			sum += gains[i][j] * in[j];
+		}
+		outputs[TRACKS_OUTPUTS + i].setVoltage(sum[0] + sum[1] + sum[2] + sum[3]);
+	}
+
+	mainGain += (params[MAIN_OUT_GAIN_PARAM].getValue() - mainGain) * smoothCoef;
+	outputs[TRACKS_OUTPUTS].setVoltage(outputs[TRACKS_OUTPUTS].getVoltage() * mainGain);
+	outputs[TRACKS_OUTPUTS + 1].setVoltage(outputs[TRACKS_OUTPUTS + 1].getVoltage() * mainGain);
 }
 
 struct ACNEWidget : BidooWidget {
