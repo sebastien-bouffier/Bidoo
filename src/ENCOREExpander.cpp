@@ -38,6 +38,9 @@ struct ENCOREExpander : BidooModule {
 	dsp::SchmittTrigger fillTrigger[8];
 	dsp::SchmittTrigger forceTrigger[8];
 	dsp::SchmittTrigger killTrigger[8];
+	dsp::SchmittTrigger fillInput[8];
+	dsp::SchmittTrigger forceInput[8];
+	dsp::SchmittTrigger killInput[8];
 	dsp::SchmittTrigger rotLeftTrigger[8];
 	dsp::SchmittTrigger rotRightTrigger[8];
 	dsp::SchmittTrigger trspTypeTrigger[8];
@@ -59,13 +62,21 @@ struct ENCOREExpander : BidooModule {
 		leftExpander.consumerMessage = leftMessages[1];
 
 		for (int i=0; i<8; i++) {
-			configParam(FILL_PARAM+i, 0.0f, 1.0f, 0.0f);
-			configParam(FORCE_PARAM+i, 0.0f, 1.0f, 0.0f);
-			configParam(KILL_PARAM+i, 0.0f, 1.0f, 0.0f);
-			configParam(DICE_PARAM+i, -1.0f, 1.0f, 0.0f);
-			configParam(ROTSHIFT_PARAM+i, 1.0f, 64.0f, 1.0f);
-			configParam(ROTLEN_PARAM+i, 1.0f, 64.0f, 16.0f);
-			configParam(TRSPTYPE_PARAM+i, 0.0f, 1.0f, 0.0f);
+			std::string t = "Track " + std::to_string(i + 1) + " ";
+			configButton(FILL_PARAM+i, t + "fill");
+			configButton(FORCE_PARAM+i, t + "force trigs");
+			configButton(KILL_PARAM+i, t + "kill trigs");
+			configParam(DICE_PARAM+i, -1.0f, 1.0f, 0.0f, t + "dice offset", "%", 0.f, 100.f);
+			configParam(ROTSHIFT_PARAM+i, 1.0f, 64.0f, 1.0f, t + "rotation steps")->snapEnabled = true;
+			configParam(ROTLEN_PARAM+i, 1.0f, 64.0f, 16.0f, t + "rotation length")->snapEnabled = true;
+			configButton(TRSPTYPE_PARAM+i, t + "transpose mode (octaves / semitones)");
+			configInput(FILL_INPUT+i, t + "fill gate");
+			configInput(FORCE_INPUT+i, t + "force gate");
+			configInput(KILL_INPUT+i, t + "kill gate");
+			configInput(TRSP_INPUT+i, t + "transpose");
+			configInput(DICE_INPUT+i, t + "dice offset");
+			configInput(ROTLEFT_INPUT+i, t + "rotate left");
+			configInput(ROTRIGHT_INPUT+i, t + "rotate right");
 		}
 
 	}
@@ -78,20 +89,11 @@ struct ENCOREExpander : BidooModule {
 			}
 			params[ROTLEN_PARAM+i].setValue(16);
 			params[ROTSHIFT_PARAM+i].setValue(1);
+			fills[i] = forceTrigs[i] = killTrigs[i] = false;
+			trspType[i] = 1.0f;
 		}
 
 		Module::onReset(e);
-	}
-
-	void onRandomize(const RandomizeEvent& e) override {
-		for (int i=0; i<8; i++) {
-			rotLen[currentPattern][i] = 1+random::uniform()*63.0f;
-			rotShift[currentPattern][i] = 1+random::uniform()*63.0f;
-			params[ROTLEN_PARAM+i].setValue(rotLen[currentPattern][i]);
-			params[ROTSHIFT_PARAM+i].setValue(rotShift[currentPattern][i]);
-		}
-
-		Module::onRandomize(e);
 	}
 
 	json_t *dataToJson() override {
@@ -115,12 +117,12 @@ struct ENCOREExpander : BidooModule {
 		BidooModule::dataFromJson(rootJ);
 		json_t *currentPatternJ = json_object_get(rootJ, "currentPattern");
 		if (currentPatternJ)
-			currentPattern = json_integer_value(currentPatternJ);
+			currentPattern = clamp((int)json_integer_value(currentPatternJ), 0, 7);
 
 		for (size_t i=0; i<8;i++) {
 			json_t *trspTypeJ = json_object_get(rootJ, ("trspType" + to_string(i)).c_str());
 			if (trspTypeJ)
-				trspType[i] = json_number_value(trspTypeJ);
+				trspType[i] = json_number_value(trspTypeJ) == 12.0 ? 12.0f : 1.0f;
 			json_t *patternJ = json_object_get(rootJ, ("pattern" + to_string(i)).c_str());
 			if (patternJ){
 				for(size_t j=0; j<8;j++) {
@@ -128,10 +130,10 @@ struct ENCOREExpander : BidooModule {
 					if (trackJ) {
 						json_t *rotLenJ = json_object_get(trackJ, "rotLen");
 						if (rotLenJ)
-							rotLen[i][j] = json_integer_value(rotLenJ);
+							rotLen[i][j] = clamp((int)json_integer_value(rotLenJ), 1, 64);
 						json_t *rotShiftJ = json_object_get(trackJ, "rotShift");
 						if (rotShiftJ)
-							rotShift[i][j] = json_integer_value(rotShiftJ);
+							rotShift[i][j] = clamp((int)json_integer_value(rotShiftJ), 1, 64);
 					}
 				}
 			}
@@ -153,6 +155,17 @@ struct ENCOREExpander : BidooModule {
 		}
 	}
 
+	// With a cable the input sets the state (high above 1 V, low under 0.1 V);
+	// without one the button toggles it. Returns true when the state must flip.
+	bool gateState(dsp::SchmittTrigger &input, dsp::SchmittTrigger &button, int inputId, int paramId, bool state) {
+		bool pressed = button.process(params[paramId].getValue());
+		if (inputs[inputId].isConnected()) {
+			input.process(inputs[inputId].getVoltage(), 0.1f, 1.f);
+			return input.isHigh() != state;
+		}
+		return pressed;
+	}
+
 	void process(const ProcessArgs &args) override {
 		if (leftExpander.module && (leftExpander.module->model == modelENCORE)) {
 			float *messagesFromZou = (float*)leftExpander.consumerMessage;
@@ -166,30 +179,18 @@ struct ENCOREExpander : BidooModule {
 
 			float *messagesToZou = (float*)leftExpander.module->rightExpander.producerMessage;
 			for (int i=0; i<8; i++) {
-				if (inputs[FILL_INPUT+i].isConnected()) {
-					if (((inputs[FILL_INPUT+i].getVoltage() > 0.0f) && !fills[i]) || ((inputs[FILL_INPUT+i].getVoltage() == 0.0f) && fills[i])) fills[i]=!fills[i];
-				}
-				if (fillTrigger[i].process(params[FILL_PARAM+i].getValue())) {
+				if (gateState(fillInput[i], fillTrigger[i], FILL_INPUT+i, FILL_PARAM+i, fills[i]))
 					fills[i] = !fills[i];
-				}
 				messagesToZou[i]=fills[i];
 				lights[FILL_LIGHT+i*3+1].setBrightness(fills[i]?1.0f:0.0f);
 
-				if (inputs[FORCE_INPUT+i].isConnected()) {
-					if (((inputs[FORCE_INPUT+i].getVoltage() > 0.0f) && !forceTrigs[i]) || ((inputs[FORCE_INPUT+i].getVoltage() == 0.0f) && forceTrigs[i])) forceTrigs[i]=!forceTrigs[i];
-				}
-				if (forceTrigger[i].process(params[FORCE_PARAM+i].getValue())) {
+				if (gateState(forceInput[i], forceTrigger[i], FORCE_INPUT+i, FORCE_PARAM+i, forceTrigs[i]))
 					forceTrigs[i] = !forceTrigs[i];
-				}
 				messagesToZou[i+8]=forceTrigs[i];
 				lights[FORCE_LIGHT+i*3+1].setBrightness(forceTrigs[i]?1.0f:0.0f);
 
-				if (inputs[KILL_INPUT+i].isConnected()) {
-					if (((inputs[KILL_INPUT+i].getVoltage() > 0.0f) && !killTrigs[i]) || ((inputs[KILL_INPUT+i].getVoltage() == 0.0f) && killTrigs[i])) killTrigs[i]=!killTrigs[i];
-				}
-				if (killTrigger[i].process(params[KILL_PARAM+i].getValue())) {
+				if (gateState(killInput[i], killTrigger[i], KILL_INPUT+i, KILL_PARAM+i, killTrigs[i]))
 					killTrigs[i] = !killTrigs[i];
-				}
 				messagesToZou[i+16]=killTrigs[i];
 				lights[KILL_LIGHT+i*3+1].setBrightness(killTrigs[i]?1.0f:0.0f);
 

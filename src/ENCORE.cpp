@@ -387,6 +387,7 @@ struct ENCORE : BidooModule {
 	dsp::SchmittTrigger trackResetTriggers[8];
 	dsp::SchmittTrigger trackActiveTriggers[8];
 	dsp::SchmittTrigger fillTrigger;
+	dsp::SchmittTrigger fillInputTrigger;
 
 	float rightMessages[2][64] = {{0.0f}};
 
@@ -440,6 +441,9 @@ struct ENCORE : BidooModule {
 	int rotLeft[8] = {0};
 	int rotRight[8] = {0};
 	int rotLen[8] = {16,16,16,16,16,16,16,16};
+	// Rotations received while the UI holds the edit lock, applied on the next sample.
+	int pendingRotLeft[8] = {0};
+	int pendingRotRight[8] = {0};
 
 	bool solo = false;
 
@@ -1518,18 +1522,31 @@ void ENCORE::process(const ProcessArgs &args) {
 			dice[i]=messagesFromExpander[i+32];
 			rotLeft[i]=messagesFromExpander[i+40];
 			rotRight[i]=messagesFromExpander[i+48];
-			rotLen[i]=messagesFromExpander[i+56];
+			rotLen[i]=clamp((int)messagesFromExpander[i+56], 0, 64);
 		}
 
 		float *messagesToExpander = (float*)(rightExpander.module->leftExpander.producerMessage);
 		messagesToExpander[0] = currentPattern;
 		rightExpander.module->leftExpander.messageFlipRequested = true;
 	}
-
-	if (inputs[FILL_INPUT].isConnected()) {
-		if (((inputs[FILL_INPUT].getVoltage() > 0.0f) && !fill) || ((inputs[FILL_INPUT].getVoltage() == 0.0f) && fill)) fill=!fill;
+	else {
+		// No expander: nothing it set may stay applied.
+		for (int i=0; i<8; i++) {
+			fills[i] = forceTrigs[i] = killTrigs[i] = false;
+			trsp[i] = dice[i] = 0.0f;
+			rotLeft[i] = rotRight[i] = 0;
+			rotLen[i] = 16;
+		}
 	}
-	if (fillTrigger.process(params[FILL_PARAM].getValue())) {
+
+	// With a cable the input sets fill (high above 1 V, low under 0.1 V);
+	// without one the button toggles it.
+	bool fillPressed = fillTrigger.process(params[FILL_PARAM].getValue());
+	if (inputs[FILL_INPUT].isConnected()) {
+		fillInputTrigger.process(inputs[FILL_INPUT].getVoltage(), 0.1f, 1.f);
+		fill = fillInputTrigger.isHigh();
+	}
+	else if (fillPressed) {
 		fill = !fill;
 	}
 	lights[FILL_LIGHT].setBrightness(fill ? 1.0f : 0.0f);
@@ -1638,6 +1655,29 @@ void ENCORE::process(const ProcessArgs &args) {
 		}
 	}
 
+	// Rotations from the expander, also while stopped.
+	{
+		for (int i=0; i<8; i++) {
+			pendingRotLeft[i] += rotLeft[i];
+			pendingRotRight[i] += rotRight[i];
+		}
+		std::unique_lock<std::recursive_mutex> lock(editMutex, std::try_to_lock);
+		if (lock.owns_lock()) {
+			for (int i=0; i<8; i++) {
+				if (pendingRotLeft[i] || pendingRotRight[i]) {
+					int shift = pendingRotLeft[i] - pendingRotRight[i];
+					if (shift > 0)
+						nTrackLeft(i, shift, rotLen[i]);
+					else if (shift < 0)
+						nTrackRight(i, -shift, rotLen[i]);
+					pendingRotLeft[i] = pendingRotRight[i] = 0;
+					if (i == currentTrack)
+						updateTrigToParams();
+				}
+			}
+		}
+	}
+
 	bool runStarted = false;
 	if (runTrigger.process(inputs[RUN_INPUT].getVoltage() + params[RUN_PARAM].getValue())) {
 		run = !run;
@@ -1666,36 +1706,12 @@ void ENCORE::process(const ProcessArgs &args) {
 
 		for (int i=0; i<8;i++) {
 			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage())) {
-				if (rotLeft[i]) {
-					nTrackLeft(i,rotLeft[i], rotLen[i]);
-					updateTrigToParams();
-				}
-				else if (rotRight[i]) {
-					nTrackRight(i,rotRight[i], rotLen[i]);
-					updateTrigToParams();
-				}
 				trackReset(i, fill || fills[i], i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre(), forceTrigs[i], killTrigs[i], dice[i]);
 			}
       else if ((!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset) || patternStart) {
-				if (rotLeft[i]) {
-					nTrackLeft(i,rotLeft[i], rotLen[i]);
-					updateTrigToParams();
-				}
-				else if (rotRight[i]) {
-					nTrackRight(i,rotRight[i], rotLen[i]);
-					updateTrigToParams();
-				}
 				trackReset(i, fill || fills[i], i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre(), forceTrigs[i], killTrigs[i], dice[i]);
 			}
 			else {
-				if (rotLeft[i]) {
-					nTrackLeft(i,rotLeft[i], rotLen[i]);
-					updateTrigToParams();
-				}
-				else if (rotRight[i]) {
-					nTrackRight(i,rotRight[i], rotLen[i]);
-					updateTrigToParams();
-				}
 				trackMoveNext(i, clockTrigged, fill || fills[i], i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre(), forceTrigs[i], killTrigs[i], dice[i]);
 			}
 
