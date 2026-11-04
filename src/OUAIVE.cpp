@@ -7,9 +7,39 @@
 #include <iomanip>
 #include <sstream>
 #include <mutex>
+#include <atomic>
+#include <condition_variable>
+#include <thread>
 #include "dep/waves.hpp"
 
 using namespace std;
+
+// A loaded sample, resampled to the engine rate, with a small overview for
+// the display.
+struct OuaiveSample {
+	static constexpr int OVERVIEW = 1024;
+	std::vector<dsp::Frame<2>> frames;
+	int channels = 0;
+	int count = 0;
+	float sampleRate = 0.f;
+	float overviewMin[2][OVERVIEW] = {};
+	float overviewMax[2][OVERVIEW] = {};
+
+	void buildOverview() {
+		for (int b = 0; b < OVERVIEW; b++) {
+			int i0 = (int)((long long)b * count / OVERVIEW), i1 = std::max((int)((long long)(b + 1) * count / OVERVIEW), i0 + 1);
+			for (int c = 0; c < 2; c++) {
+				float lo = 0.f, hi = 0.f;
+				for (int i = i0; i < i1 && i < count; i++) {
+					lo = std::min(lo, frames[i].samples[c]);
+					hi = std::max(hi, frames[i].samples[c]);
+				}
+				overviewMin[c][b] = lo;
+				overviewMax[c][b] = hi;
+			}
+		}
+	}
+};
 
 struct OUAIVE : BidooModule {
 	enum ParamIds {
@@ -41,46 +71,141 @@ struct OUAIVE : BidooModule {
 	};
 
 	bool play = false;
-	int channels;
-  int sampleRate;
-  int totalSampleCount=0;
 	float samplePos = 0.0f;
-	vector<dsp::Frame<2>> playBuffer;
 	std::string lastPath;
-	std::string waveFileName;
-	std::string waveExtension;
-	bool loading = false;
-	int trigMode = 0; // 0 trig 1 gate, 2 sliced
+	int trigMode = 0; // 0 trig, 1 gate, 2 sliced
 	int sliceIndex = -1;
 	int sliceLength = 0;
 	int nbSlices = 1;
-	int readMode = 0; // 0 formward, 1 backward, 2 repeat
-	float speed;
+	int readMode = 0; // 0 forward, 1 backward, 2 repeat
+	float speed = 1.0f;
+	bool gateWasHigh = false;
 	dsp::SchmittTrigger playTrigger;
 	dsp::SchmittTrigger trigModeTrigger;
 	dsp::SchmittTrigger readModeTrigger;
 	dsp::SchmittTrigger posResetTrigger;
-	std::mutex mylock;
-	bool first = true;
-	int eoc=0;
-	bool pulse = false;
+	int eoc = 0;
 	dsp::PulseGenerator eocPulse;
 
-	OUAIVE() {
-    config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(TRIG_MODE_PARAM, 0.0, 2.0, 0.0);
-		configParam(OUAIVE::READ_MODE_PARAM, 0.0, 2.0, 0.0);
-		configParam(NB_SLICES_PARAM, 1.0, 128.01, 1.0);
-		configParam(CVSLICES_PARAM, -1.0f, 1.0f, 0.0f);
-		configParam(SPEED_PARAM, -0.05, 10, 1.0);
-		configParam(CVSPEED_PARAM, -1.0f, 1.0f, 0.0f);
+	// Audio thread: the sample it plays. The worker loads new ones into
+	// `pending`; the audio thread takes it and moves its old one to `retired`,
+	// which the worker frees.
+	OuaiveSample *sample = nullptr;
+	std::atomic<OuaiveSample*> pending{nullptr};
+	std::atomic<OuaiveSample*> retired{nullptr};
 
-		playBuffer.resize(0);
+	// Worker thread: loads the file asked for, at the rate asked for.
+	std::thread worker;
+	std::mutex jobMutex;
+	std::condition_variable jobCv;
+	std::string jobPath;
+	float jobRate = 0.f;
+	bool jobRequested = false;
+	std::atomic<bool> quit{false};
+	std::atomic<float> reloadRate{0.f};  // set by the audio thread when the engine rate changes
+
+	// UI thread: what the display shows, copied by the worker.
+	std::mutex uiMutex;
+	std::shared_ptr<OuaiveSample> uiSample;
+	std::string waveFileName;
+	std::atomic<bool> loading{false};
+
+	OUAIVE() {
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configButton(TRIG_MODE_PARAM, "Trigger mode (trig, gate, slice)");
+		configButton(READ_MODE_PARAM, "Read mode (forward, backward, repeat)");
+		configParam(NB_SLICES_PARAM, 1.0f, 128.0f, 1.0f, "Slices");
+		paramQuantities[NB_SLICES_PARAM]->snapEnabled = true;
+		configParam(CVSLICES_PARAM, -1.0f, 1.0f, 0.0f, "Slices CV amount", "%", 0.f, 100.f);
+		configParam(SPEED_PARAM, -4.0f, 4.0f, 0.0f, "Speed", "x", 2.0f);
+		configParam(CVSPEED_PARAM, -1.0f, 1.0f, 0.0f, "Speed CV amount (100% = 1V/oct)", "%", 0.f, 100.f);
+		configInput(GATE_INPUT, "Trigger / gate");
+		configInput(POS_INPUT, "Position (0-10 V = start-end, or the slice)");
+		configInput(NB_SLICES_INPUT, "Slices CV");
+		configInput(READ_MODE_INPUT, "Read mode (0, 5, 10 V)");
+		configInput(SPEED_INPUT, "Speed CV (1V/oct)");
+		configInput(POS_RESET_INPUT, "Position reset");
+		configOutput(OUTL_OUTPUT, "Left");
+		configOutput(OUTR_OUTPUT, "Right");
+		configOutput(EOC_OUTPUT, "End of cycle");
+		worker = std::thread(&OUAIVE::workerLoop, this);
+	}
+
+	~OUAIVE() {
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			quit = true;
+		}
+		jobCv.notify_all();
+		if (worker.joinable())
+			worker.join();
+		delete pending.load();
+		delete retired.load();
+		delete sample;
+	}
+
+	float engineRate() {
+		return (APP && APP->engine) ? APP->engine->getSampleRate() : 48000.f;
+	}
+
+	// Any thread but the audio thread.
+	void requestLoad(const std::string &path, float rate) {
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			jobPath = path;
+			jobRate = rate;
+			jobRequested = true;
+		}
+		loading = true;
+		jobCv.notify_all();
+	}
+
+	void workerLoop() {
+		std::unique_lock<std::mutex> lock(jobMutex);
+		while (!quit) {
+			// The audio thread cannot notify without locking: poll for its requests.
+			jobCv.wait_for(lock, std::chrono::milliseconds(50));
+			delete retired.exchange(nullptr, std::memory_order_acq_rel);
+			float rr = reloadRate.exchange(0.f);
+			if (rr > 0.f && !jobRequested && !lastPath.empty()) {
+				jobPath = lastPath;
+				jobRate = rr;
+				jobRequested = true;
+			}
+			if (!jobRequested || quit)
+				continue;
+			std::string path = jobPath;
+			float rate = jobRate;
+			jobRequested = false;
+			lock.unlock();
+
+			OuaiveSample *s = new OuaiveSample();
+			std::string name, ext;
+			int sr = 0;
+			s->frames = waves::getStereoWav(path, rate, name, ext, s->channels, sr, s->count);
+			s->count = s->frames.size();
+			s->sampleRate = rate;
+			s->buildOverview();
+			{
+				std::lock_guard<std::mutex> ui(uiMutex);
+				auto shown = std::make_shared<OuaiveSample>();
+				shown->count = s->count;
+				shown->channels = s->channels;
+				std::copy(&s->overviewMin[0][0], &s->overviewMin[0][0] + 2 * OuaiveSample::OVERVIEW, &shown->overviewMin[0][0]);
+				std::copy(&s->overviewMax[0][0], &s->overviewMax[0][0] + 2 * OuaiveSample::OVERVIEW, &shown->overviewMax[0][0]);
+				uiSample = shown;
+				waveFileName = name;
+			}
+			// Wait until the audio thread has taken the previous one.
+			while (pending.load() && !quit)
+				std::this_thread::sleep_for(std::chrono::milliseconds(5));
+			delete pending.exchange(s, std::memory_order_acq_rel);
+			loading = false;
+			lock.lock();
+		}
 	}
 
 	void process(const ProcessArgs &args) override;
-
-	void loadSample();
 
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
@@ -92,154 +217,140 @@ struct OUAIVE : BidooModule {
 
 	void dataFromJson(json_t *rootJ) override {
 		BidooModule::dataFromJson(rootJ);
+		if (json_t *j = json_object_get(rootJ, "trigMode")) trigMode = clamp((int)json_integer_value(j), 0, 2);
+		if (json_t *j = json_object_get(rootJ, "readMode")) readMode = clamp((int)json_integer_value(j), 0, 2);
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		if (lastPathJ) {
-			lastPath = json_string_value(lastPathJ);
-			if (!lastPath.empty()) loadSample();
-		}
-		json_t *trigModeJ = json_object_get(rootJ, "trigMode");
-		if (trigModeJ) {
-			trigMode = json_integer_value(trigModeJ);
-		}
-		json_t *readModeJ = json_object_get(rootJ, "readMode");
-		if (readModeJ) {
-			readMode = json_integer_value(readModeJ);
+			std::string p = json_string_value(lastPathJ);
+			if (!p.empty())
+				loadFile(p);
 		}
 	}
 
-	void onSampleRateChange() override {
-		if (!lastPath.empty()) loadSample();
+	// UI thread: load a file.
+	void loadFile(const std::string &path) {
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			lastPath = path;
+		}
+		sliceIndex = -1;
+		requestLoad(path, engineRate());
 	}
 };
 
-void OUAIVE::loadSample() {
-	APP->engine->yieldWorkers();
-	mylock.lock();
-	playBuffer = waves::getStereoWav(lastPath, APP->engine->getSampleRate(), waveFileName, waveExtension, channels, sampleRate, totalSampleCount);
-	mylock.unlock();
-	loading = false;
-}
-
 void OUAIVE::process(const ProcessArgs &args) {
-	if (loading) {
-		loadSample();
-	}
-	if (trigModeTrigger.process(params[TRIG_MODE_PARAM].getValue())) {
-		trigMode = (((int)trigMode + 1) % 3);
-	}
-	if (inputs[READ_MODE_INPUT].isConnected()) {
-		readMode = round(rescale(inputs[READ_MODE_INPUT].getVoltage(), 0.0f,10.0f,0.0f,2.0f));
-	} else if (readModeTrigger.process(params[READ_MODE_PARAM].getValue() + inputs[READ_MODE_INPUT].getVoltage())) {
-		readMode = (((int)readMode + 1) % 3);
-	}
-	nbSlices = clamp(roundl(params[NB_SLICES_PARAM].getValue() + params[CVSLICES_PARAM].getValue() * inputs[NB_SLICES_INPUT].getVoltage()), 1, 128);
-	speed = clamp(params[SPEED_PARAM].getValue() + params[CVSPEED_PARAM].getValue() * inputs[SPEED_INPUT].getVoltage(), 0.2f, 10.0f);
-
-	sliceLength = clamp(totalSampleCount / nbSlices, 1, totalSampleCount);
-
-	if ((trigMode == 0) && (playTrigger.process(inputs[GATE_INPUT].getVoltage()))) {
-		play = true;
-		if (inputs[POS_INPUT].isConnected())
-			samplePos = clamp(inputs[POS_INPUT].getVoltage() * (totalSampleCount-1.0f) * 0.1f, 0.0f , totalSampleCount - 1.0f);
-		else {
-			if (readMode != 1)
-				samplePos = 0.0f;
-			else
-				samplePos = totalSampleCount - 1.0f;
+	// Take a newly loaded sample, once the worker has freed the previous one.
+	if (pending.load(std::memory_order_relaxed) && !retired.load(std::memory_order_acquire)) {
+		OuaiveSample *s = pending.exchange(nullptr, std::memory_order_acq_rel);
+		if (s) {
+			retired.store(sample, std::memory_order_release);
+			sample = s;
+			samplePos = 0.f;
+			play = false;
 		}
-	}	else if (trigMode == 1) {
-		play = (inputs[GATE_INPUT].getVoltage() > 0);
-		samplePos = clamp(inputs[POS_INPUT].getVoltage() * (totalSampleCount-1.0f) * 0.1f, 0.0f , totalSampleCount - 1.0f);
-	} else if ((trigMode == 2) && (playTrigger.process(inputs[GATE_INPUT].getVoltage()))) {
+	}
+	// The engine rate changed: load the file again at the new rate.
+	if (sample && sample->count > 0 && sample->sampleRate != args.sampleRate && !loading)
+		reloadRate = args.sampleRate;
+
+	const int total = sample ? sample->count : 0;
+
+	if (trigModeTrigger.process(params[TRIG_MODE_PARAM].getValue()))
+		trigMode = (trigMode + 1) % 3;
+	if (inputs[READ_MODE_INPUT].isConnected())
+		readMode = clamp((int)std::round(inputs[READ_MODE_INPUT].getVoltage() * 0.2f), 0, 2);
+	else if (readModeTrigger.process(params[READ_MODE_PARAM].getValue()))
+		readMode = (readMode + 1) % 3;
+	nbSlices = clamp((int)std::round(params[NB_SLICES_PARAM].getValue() + params[CVSLICES_PARAM].getValue() * inputs[NB_SLICES_INPUT].getVoltage()), 1, 128);
+	speed = clamp(std::exp2(params[SPEED_PARAM].getValue() + params[CVSPEED_PARAM].getValue() * inputs[SPEED_INPUT].getVoltage()), 1.f / 16.f, 16.f);
+	sliceLength = std::max(total / nbSlices, 1);
+
+	float posCv = clamp(inputs[POS_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
+	bool trig = playTrigger.process(inputs[GATE_INPUT].getVoltage(), 0.1f, 1.f);
+	bool gate = playTrigger.isHigh();
+	if (trigMode == 0 && trig) {
 		play = true;
 		if (inputs[POS_INPUT].isConnected())
-			sliceIndex = clamp((int)(inputs[POS_INPUT].getVoltage() * nbSlices * 0.1f), 0, nbSlices);
-		 else
-			sliceIndex = (sliceIndex+1)%nbSlices;
-		if (readMode != 1)
-			samplePos = clamp(sliceIndex*sliceLength, 0, totalSampleCount-1);
+			samplePos = posCv * (total - 1.0f);
 		else
-			samplePos = clamp((sliceIndex + 1) * sliceLength - 1, 0 , totalSampleCount-1);
+			samplePos = (readMode != 1) ? 0.0f : total - 1.0f;
 	}
+	else if (trigMode == 1) {
+		// Gate: plays while the gate is high. With a position CV it follows the
+		// CV (scrubbing); without one it plays from the start.
+		if (inputs[POS_INPUT].isConnected()) {
+			samplePos = posCv * (total - 1.0f);
+			play = gate;
+		}
+		else if (gate && !gateWasHigh) {
+			samplePos = (readMode != 1) ? 0.0f : total - 1.0f;
+			play = true;
+		}
+		else if (!gate)
+			play = false;
+	}
+	else if (trigMode == 2 && trig) {
+		play = true;
+		if (inputs[POS_INPUT].isConnected())
+			sliceIndex = clamp((int)(posCv * nbSlices), 0, nbSlices - 1);
+		else
+			sliceIndex = (sliceIndex + 1) % nbSlices;
+		samplePos = clamp((float)((readMode != 1) ? sliceIndex * sliceLength : (sliceIndex + 1) * sliceLength - 1), 0.0f, total - 1.0f);
+	}
+	gateWasHigh = gate;
 
-	if (posResetTrigger.process(inputs[POS_RESET_INPUT].getVoltage())) {
+	if (posResetTrigger.process(inputs[POS_RESET_INPUT].getVoltage(), 0.1f, 1.f)) {
 		sliceIndex = 0;
 		samplePos = 0.0f;
 	}
 
-	if (play && (samplePos>=0) && (samplePos < totalSampleCount)) {
-		if (channels == 1) {
-			int xi = samplePos;
-			float xf = samplePos - xi;
-			float crossfaded = crossfade(playBuffer[xi].samples[0], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0], xf);
-			outputs[OUTL_OUTPUT].setVoltage(5.0f * crossfaded);
-			outputs[OUTR_OUTPUT].setVoltage(5.0f * crossfaded);
-		}
-		else if (channels == 2) {
-			if (outputs[OUTL_OUTPUT].isConnected() && outputs[OUTR_OUTPUT].isConnected()) {
-				int xi = samplePos;
-				float xf = samplePos - xi;
-				float crossfaded = crossfade(playBuffer[xi].samples[0], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0], xf);
-				outputs[OUTL_OUTPUT].setVoltage(5.0f * crossfaded);
-				crossfaded = crossfade(playBuffer[xi].samples[1], playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[1], xf);
-				outputs[OUTR_OUTPUT].setVoltage(5.0f * crossfaded);
+	float outL = 0.f, outR = 0.f;
+	if (play && total > 0 && samplePos >= 0 && samplePos < total) {
+		const std::vector<dsp::Frame<2>> &buf = sample->frames;
+		int xi = (int)samplePos;
+		float xf = samplePos - xi;
+		int xn = std::min(xi + 1, total - 1);
+		float l = crossfade(buf[xi].samples[0], buf[xn].samples[0], xf);
+		float r = crossfade(buf[xi].samples[1], buf[xn].samples[1], xf);
+		if (sample->channels >= 2 && !(outputs[OUTL_OUTPUT].isConnected() && outputs[OUTR_OUTPUT].isConnected()))
+			l = r = 0.5f * (l + r);
+		outL = 5.0f * l;
+		outR = 5.0f * r;
+
+		bool scrub = (trigMode == 1) && inputs[POS_INPUT].isConnected();
+		if (!scrub) {
+			samplePos += (readMode != 1) ? speed : -speed;
+			if (trigMode == 2) {
+				float start = sliceIndex * sliceLength, end = std::min((float)((sliceIndex + 1) * sliceLength), (float)total);
+				if (readMode == 0 && samplePos >= end)
+					play = false;
+				else if (readMode == 1 && samplePos < start)
+					play = false;
+				else if (readMode == 2 && samplePos >= end)
+					samplePos = start;
 			}
 			else {
-				int xi = samplePos;
-				float xf = samplePos - xi;
-				float crossfaded = crossfade(0.5f*(playBuffer[xi].samples[0]+playBuffer[xi].samples[1]), 0.5f*(playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[0]+playBuffer[min(xi + 1,(int)totalSampleCount-1)].samples[1]), xf);
-				outputs[OUTL_OUTPUT].setVoltage(5.0f * crossfaded);
-				outputs[OUTR_OUTPUT].setVoltage(5.0f * crossfaded);
+				if (readMode == 0 && samplePos >= total)
+					play = false;
+				else if (readMode == 1 && samplePos < 0)
+					play = false;
+				else if (readMode == 2 && samplePos >= total)
+					samplePos = inputs[POS_INPUT].isConnected() ? posCv * (total - 1.0f) : 0.0f;
 			}
 		}
-
-		if (trigMode == 0) {
-			if (readMode != 1)
-				samplePos = samplePos + speed;
-			else
-				samplePos = samplePos - speed;
-			//manage eof readMode
-			if ((readMode == 0) && (samplePos >= totalSampleCount))
-					play = false;
-			else if ((readMode == 1) && (samplePos <=0))
-					play = false;
-			else if ((readMode == 2) && (samplePos >= totalSampleCount))
-				samplePos = clamp(inputs[POS_INPUT].getVoltage() * (totalSampleCount-1.0f) * 0.1f , 0.0f ,totalSampleCount - 1.0f);
-		}
-		else if (trigMode == 2)
-		{
-			if (readMode != 1)
-				samplePos = samplePos + speed;
-			else
-				samplePos = samplePos - speed;
-
-			//manage eof readMode
-			if ((readMode == 0) && ((samplePos >= (sliceIndex+1) * sliceLength) || (samplePos >= totalSampleCount)))
-					play = false;
-			if ((readMode == 1) && ((samplePos <= (sliceIndex) * sliceLength) || (samplePos <= 0)))
-					play = false;
-			if ((readMode == 2) && ((samplePos >= (sliceIndex+1) * sliceLength) || (samplePos >= totalSampleCount)))
-				samplePos = clamp(sliceIndex*sliceLength, 0 , totalSampleCount);
-		}
 	}
-	else if (samplePos == totalSampleCount) {
+	else if (!(trigMode == 1 && inputs[POS_INPUT].isConnected() && total > 0))
 		play = false;
-	}
+	outputs[OUTL_OUTPUT].setVoltage(outL);
+	outputs[OUTR_OUTPUT].setVoltage(outR);
 
-	if ((eoc == 0) && (play)) {
+	if (eoc == 0 && play)
 		eoc = 1;
-	}
-
-	if ((eoc == 1) && (!play)) {
+	if (eoc == 1 && !play) {
 		eoc = 0;
-		eocPulse.reset();
 		eocPulse.trigger(1e-3f);
 	}
-
-	pulse = eocPulse.process(args.sampleTime);
-
-	outputs[EOC_OUTPUT].setVoltage(pulse ? 10 : 0);
-
+	outputs[EOC_OUTPUT].setVoltage(eocPulse.process(args.sampleTime) ? 10.f : 0.f);
 }
 
 struct OUAIVEDisplay : OpaqueWidget {
@@ -278,18 +389,37 @@ struct OUAIVEDisplay : OpaqueWidget {
     OpaqueWidget::onDragEnd(e);
   }
 
+	void drawWave(const DrawArgs& args, const OuaiveSample &s, int c, float top) {
+		Rect b = Rect(Vec(zoomLeftAnchor, top), Vec(zoomWidth, height));
+		nvgScissor(args.vg, 0, b.pos.y, width, height);
+		nvgBeginPath(args.vg);
+		for (int i = 0; i < OuaiveSample::OVERVIEW; i++) {
+			float x = b.pos.x + b.size.x * (i + 0.5f) / OuaiveSample::OVERVIEW;
+			float y = b.pos.y + b.size.y * (0.5f - 0.5f * s.overviewMax[c][i]);
+			if (i == 0)
+				nvgMoveTo(args.vg, x, y);
+			else
+				nvgLineTo(args.vg, x, y);
+		}
+		for (int i = OuaiveSample::OVERVIEW - 1; i >= 0; i--) {
+			float x = b.pos.x + b.size.x * (i + 0.5f) / OuaiveSample::OVERVIEW;
+			nvgLineTo(args.vg, x, b.pos.y + b.size.y * (0.5f - 0.5f * s.overviewMin[c][i]));
+		}
+		nvgLineCap(args.vg, NVG_MITER);
+		nvgStrokeWidth(args.vg, 1);
+		nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+		nvgStroke(args.vg);
+	}
+
 	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer == 1) {
-			if (module && (module->playBuffer.size()>0)) {
-				module->mylock.lock();
-				std::vector<float> vL;
-				std::vector<float> vR;
-				for (int i=0;i<module->totalSampleCount;i++) {
-					vL.push_back(module->playBuffer[i].samples[0]);
-					vR.push_back(module->playBuffer[i].samples[1]);
-				}
-				module->mylock.unlock();
-				size_t nbSample = vL.size();
+		if (layer == 1 && module) {
+			std::shared_ptr<OuaiveSample> s;
+			{
+				std::lock_guard<std::mutex> lock(module->uiMutex);
+				s = module->uiSample;
+			}
+			if (s && s->count > 0) {
+				size_t nbSample = s->count;
 
 				nvgFontSize(args.vg, 14);
 				nvgFillColor(args.vg, YELLOW_BIDOO);
@@ -324,120 +454,61 @@ struct OUAIVEDisplay : OpaqueWidget {
 				nvgTextBox(args.vg, 40, -15, 40, readMode.c_str(), NULL);
 
 				stringstream stream;
-				stream << fixed << setprecision(1) << module->speed;
-				std::string s = stream.str();
-				std::string speed = "x" + s;
+				stream << fixed << setprecision(module->speed < 1.f ? 2 : 1) << module->speed;
+				std::string speed = "x" + stream.str();
 
 				nvgTextBox(args.vg, 90, -15, 40, speed.c_str(), NULL);
 
 				//Draw play line
-				if ((module->play) && (nbSample>0)) {
+				if (module->play) {
 					nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
-					{
-						nvgBeginPath(args.vg);
-						nvgStrokeWidth(args.vg, 2);
-						if (module->totalSampleCount>0) {
-							nvgMoveTo(args.vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 0);
-							nvgLineTo(args.vg, module->samplePos * zoomWidth / nbSample + zoomLeftAnchor, 2 * height+10);
-						}
-						else {
-							nvgMoveTo(args.vg, 0, 0);
-							nvgLineTo(args.vg, 0, 2 * height+10);
-						}
-						nvgClosePath(args.vg);
-					}
+					nvgBeginPath(args.vg);
+					nvgStrokeWidth(args.vg, 2);
+					float x = module->samplePos * zoomWidth / nbSample + zoomLeftAnchor;
+					nvgMoveTo(args.vg, x, 0);
+					nvgLineTo(args.vg, x, 2 * height+10);
+					nvgClosePath(args.vg);
 					nvgStroke(args.vg);
 				}
 
 				//Draw ref line
 				nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
 				nvgStrokeWidth(args.vg, 1);
-				{
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, 0, height * 0.5f);
-					nvgLineTo(args.vg, width, height * 0.5f);
-					nvgClosePath(args.vg);
-				}
+				nvgBeginPath(args.vg);
+				nvgMoveTo(args.vg, 0, height * 0.5f);
+				nvgLineTo(args.vg, width, height * 0.5f);
+				nvgClosePath(args.vg);
 				nvgStroke(args.vg);
 
-				nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
-				nvgStrokeWidth(args.vg, 1);
-				{
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, 0, 3*height * 0.5f + 10);
-					nvgLineTo(args.vg, width, 3*height * 0.5f + 10);
-					nvgClosePath(args.vg);
-				}
+				nvgBeginPath(args.vg);
+				nvgMoveTo(args.vg, 0, 3*height * 0.5f + 10);
+				nvgLineTo(args.vg, width, 3*height * 0.5f + 10);
+				nvgClosePath(args.vg);
 				nvgStroke(args.vg);
 
-				if ((!module->loading) && (nbSample>0)) {
-					//Draw waveform
-					nvgStrokeColor(args.vg, PINK_BIDOO);
-					nvgSave(args.vg);
-					Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, height));
-					size_t inc = std::max(vL.size()/zoomWidth/4,1.f);
-					nvgScissor(args.vg, 0, b.pos.y, width, height);
-					nvgBeginPath(args.vg);
-					for (size_t i = 0; i < vL.size(); i+=inc) {
-						float x, y;
-						x = (float)i/vL.size();
-						y = (-1.f)*vL[i] / 2.0f + 0.5f;
-						Vec p;
-						p.x = b.pos.x + b.size.x * x;
-						p.y = b.pos.y + b.size.y * (1.0f - y);
-						if (i == 0) {
-							nvgMoveTo(args.vg, p.x, p.y);
-						}
-						else {
-							nvgLineTo(args.vg, p.x, p.y);
-						}
-					}
-					nvgLineCap(args.vg, NVG_MITER);
-					nvgStrokeWidth(args.vg, 1);
-					nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-					nvgStroke(args.vg);
+				//Draw waveform
+				nvgStrokeColor(args.vg, PINK_BIDOO);
+				nvgSave(args.vg);
+				drawWave(args, *s, 0, 0);
+				drawWave(args, *s, 1, height + 10);
+				nvgResetScissor(args.vg);
 
-					b = Rect(Vec(zoomLeftAnchor, height+10), Vec(zoomWidth, height));
-					nvgScissor(args.vg, 0, b.pos.y, width, height);
-					nvgBeginPath(args.vg);
-					for (size_t i = 0; i < vR.size(); i+=inc) {
-						float x, y;
-						x = (float)i/vR.size();
-						y = (-1.f)*vR[i] / 2.0f + 0.5f;
-						Vec p;
-						p.x = b.pos.x + b.size.x * x;
-						p.y = b.pos.y + b.size.y * (1.0f - y);
-						if (i == 0)
-							nvgMoveTo(args.vg, p.x, p.y);
-						else
-							nvgLineTo(args.vg, p.x, p.y);
+				//draw slices
+				if (module->trigMode == 2) {
+					nvgScissor(args.vg, 0, 0, width, 2*height+10);
+					for (int i = 1; i < module->nbSlices; i++) {
+						nvgStrokeColor(args.vg, YELLOW_BIDOO);
+						nvgStrokeWidth(args.vg, 1);
+						nvgBeginPath(args.vg);
+						nvgMoveTo(args.vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 0);
+						nvgLineTo(args.vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 2*height+10);
+						nvgClosePath(args.vg);
+						nvgStroke(args.vg);
 					}
-					nvgLineCap(args.vg, NVG_MITER);
-					nvgStrokeWidth(args.vg, 1);
-					nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-					nvgStroke(args.vg);
 					nvgResetScissor(args.vg);
-
-					//draw slices
-
-					if (module->trigMode == 2) {
-						nvgScissor(args.vg, 0, 0, width, 2*height+10);
-						for (int i = 1; i < module->nbSlices; i++) {
-							nvgStrokeColor(args.vg, YELLOW_BIDOO);
-							nvgStrokeWidth(args.vg, 1);
-							{
-								nvgBeginPath(args.vg);
-								nvgMoveTo(args.vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 0);
-								nvgLineTo(args.vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 2*height+10);
-								nvgClosePath(args.vg);
-							}
-							nvgStroke(args.vg);
-						}
-						nvgResetScissor(args.vg);
-					}
-
-					nvgRestore(args.vg);
 				}
+
+				nvgRestore(args.vg);
 			}
 		}
 		Widget::drawLayer(args, layer);
@@ -494,10 +565,7 @@ struct OUAIVEWidget : BidooWidget {
   		std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
-  			module->samplePos = 0;
-  			module->lastPath = path;
-  			module->sliceIndex = -1;
-				module->loading=true;
+  			module->loadFile(path);
   			free(path);
   		}
   	}
@@ -506,7 +574,8 @@ struct OUAIVEWidget : BidooWidget {
   void appendContextMenu(ui::Menu *menu) override {
 		BidooWidget::appendContextMenu(menu);
 		OUAIVE *module = dynamic_cast<OUAIVE*>(this->module);
-		assert(module);
+		if (!module)
+			return;
 
 		menu->addChild(new MenuSeparator());
 		menu->addChild(construct<OUAIVEItem>(&MenuItem::text, "Load sample", &OUAIVEItem::module, module));
@@ -515,10 +584,8 @@ struct OUAIVEWidget : BidooWidget {
 	void onPathDrop(const PathDropEvent& e) override {
 		Widget::onPathDrop(e);
 		OUAIVE *module = dynamic_cast<OUAIVE*>(this->module);
-		module->samplePos = 0;
-		module->lastPath = e.paths[0];
-		module->sliceIndex = -1;
-		module->loading=true;
+		if (module && !e.paths.empty())
+			module->loadFile(e.paths[0]);
 	}
 };
 

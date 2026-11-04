@@ -2,61 +2,48 @@
 
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
-#include "dsp/resampler.hpp"
 
 using namespace std;
 
-#define pi 3.14159265359
-
+// One-pole zero-delay-feedback stage. G = g / (1 + g) with g = tan(pi fc / fs).
 struct FilterStage {
-	float mem = 0.0;
+	float mem = 0.0f;
 
-	float Filter(float sample, float freq, float smpRate, float gain, int mode) {
-		float g = std::tan(pi*freq / smpRate);
-		float G = g / (1.0 + g);
-		float out;
-		if (mode == 0) {
-			out = (sample - mem) * G + mem;
-		} else {
-			out = (std::tanh(sample*gain) / std::tanh(gain) - mem) * G + mem;
-		}
-		mem = out + (sample - mem) * G;
+	float filter(float sample, float G, float gain, bool nonLinear) {
+		float in = nonLinear ? std::tanh(sample * gain) / std::tanh(gain) : sample;
+		float v = (in - mem) * G;
+		float out = v + mem;
+		mem = out + v;
 		return out;
 	}
 };
 
+// 4-pole ladder (Zavalishin): the feedback is solved from the stages' states,
+// S = G^3 s1 + G^2 s2 + G s3 + s4 (each s divided by 1 + g).
 struct LadderFilter {
-	FilterStage stage1;
-	FilterStage stage2;
-	FilterStage stage3;
-	FilterStage stage4;
-	float q;
-	float freq;
-	float smpRate;
-	int mode = 0;
-	float gain = 1.0f;
+	FilterStage stages[4];
 
-	void setParams(float freq, float q, float smpRate, float gain, int mode) {
-		this->freq = freq;
-		this->q = q;
-		this->smpRate = smpRate;
-		this->mode = mode;
-		this->gain = gain;
-	}
-
-	float calcOutput(float sample) {
-		float g = std::tan(pi*freq / smpRate);
+	float process(float sample, float g, float k, float gain, bool nonLinear) {
 		float G = g / (1.0f + g);
-		G = G*G*G*G;
-		float S1 = stage1.mem / (1.0f + g);
-		float S2 = stage2.mem / (1.0f + g);
-		float S3 = stage3.mem / (1.0f + g);
-		float S4 = stage4.mem / (1.0f + g);
-		float S = G*G*G*S1 + G*G*S2 + G*S3 + S4;
-		return stage4.Filter(stage3.Filter(stage2.Filter(stage1.Filter((sample - q * S) / (1.0f + q * G),
-			freq, smpRate, gain, mode), freq, smpRate, gain, mode), freq, smpRate, gain, mode), freq, smpRate, gain, mode);
+		float inv = 1.0f / (1.0f + g);
+		float S = 0.0f;
+		for (int i = 0; i < 4; i++)
+			S = S * G + stages[i].mem * inv;
+		float G4 = G * G * G * G;
+		float u = (sample - k * S) / (1.0f + k * G4);
+		for (int i = 0; i < 4; i++)
+			u = stages[i].filter(u, G, gain, nonLinear);
+		return u;
 	}
 };
+
+// Linear up to 8 V, then bends to stay under 10 V (9.95 V at most).
+inline float softLimit(float x) {
+	float a = std::fabs(x);
+	if (a <= 8.0f)
+		return x;
+	return std::copysign(8.0f + 1.95f * std::tanh((a - 8.0f) * 0.5f), x);
+}
 
 struct LIMBO : BidooModule {
 	enum ParamIds {
@@ -85,43 +72,50 @@ struct LIMBO : BidooModule {
 		NUM_LIGHTS
 	};
 
-	LadderFilter lFilter, rFilter;
-
-	///Tooltip
-	struct tpOnOff : ParamQuantity {
-		std::string getDisplayValueString() override {
-			if (getValue() < 1.f)
-				return "On";
-			else
-				return "Off";
-		}
-	};
-	///Tooltip
+	LadderFilter lFilter[16], rFilter[16];
 
 	LIMBO() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(CUTOFF_PARAM, 0.0f, 1.0f, 1.0f, "Frequency","Hz", std::pow(2, 10.f), dsp::FREQ_C4 / std::pow(2, 5.f));
-		configParam(Q_PARAM, 0.0f, 1.0f, 0.0f, "Q", "%", 0.f, 100.f);
-		configParam(MUG_PARAM, 0.0f, 1.0f, 0.0f, "Gain Boost", "%", 0.f, 100.f);
-		configParam(CMOD_PARAM, -1.0f, 1.0f, 0.0f, "Freq. Mod", "%", 0.f, 100.f);
-		configParam<tpOnOff>(MODE_PARAM, 0.0f, 1.0f, 0.0f, "Linear");
+		configParam(CUTOFF_PARAM, 0.0f, 1.0f, 1.0f, "Cutoff", " Hz", std::pow(2.0f, 9.5f), std::pow(2.0f, 4.5f));
+		configParam(Q_PARAM, 0.0f, 1.0f, 0.0f, "Resonance", "%", 0.f, 100.f);
+		configParam(MUG_PARAM, 0.0f, 1.0f, 0.0f, "Gain boost", "%", 0.f, 100.f);
+		configParam(CMOD_PARAM, -1.0f, 1.0f, 0.0f, "Cutoff CV amount (100% = 1V/oct)", "%", 0.f, 100.f);
+		configSwitch(MODE_PARAM, 0.0f, 1.0f, 0.0f, "Mode", {"Linear", "Saturated"});
+		configInput(IN_L, "Left (polyphonic)");
+		configInput(IN_R, "Right (normalled to left)");
+		configInput(CUTOFF_INPUT, "Cutoff CV (1V/oct at 100%)");
+		configInput(Q_INPUT, "Resonance CV (10 V = 200%)");
+		configInput(MUG_INPUT, "Gain boost CV (10 V = 200%)");
+		configOutput(OUT_L, "Left");
+		configOutput(OUT_R, "Right");
+		configBypass(IN_L, OUT_L);
+		configBypass(IN_R, OUT_R);
 	}
 
 	void process(const ProcessArgs &args) override {
-		float cfreq = std::pow(2.0f, rescale(clamp(params[CUTOFF_PARAM].getValue() + params[CMOD_PARAM].getValue() * inputs[CUTOFF_INPUT].getVoltage() * 0.2f, 0.0f, 1.0f), 0.0f, 1.0f, 4.5f, 14.0f));
-		float q = 3.5f * clamp(params[Q_PARAM].getValue() + inputs[Q_INPUT].getVoltage() * 0.2f, 0.0f, 1.0f);
-		float g = pow(2.0f, rescale(clamp(params[MUG_PARAM].getValue() + inputs[MUG_INPUT].getVoltage() * 0.2f, 0.0f, 1.0f), 0.0f, 1.0f, 0.0f, 3.0f));
-		int mode = (int)params[MODE_PARAM].getValue();
-		lFilter.setParams(cfreq, q, args.sampleRate, g / 3, mode);
-		rFilter.setParams(cfreq, q, args.sampleRate, g / 3, mode);
-		float inL = inputs[IN_L].getVoltage() * 0.2f;
-		float inR = inputs[IN_R].getVoltage() * 0.2f;
-		inL = lFilter.calcOutput(inL)*5.0f*(mode == 0 ? g : 1);
-		inR = rFilter.calcOutput(inR)*5.0f*(mode == 0 ? g : 1);
-		outputs[OUT_L].setVoltage(inL);
-		outputs[OUT_R].setVoltage(inR);
-	}
+		int channels = std::max(std::max(inputs[IN_L].getChannels(), inputs[IN_R].getChannels()), 1);
+		bool rightIn = inputs[IN_R].isConnected();
+		bool nonLinear = params[MODE_PARAM].getValue() > 0.5f;
+		float fMax = 0.45f * args.sampleRate;
+		float knobOct = 4.5f + 9.5f * params[CUTOFF_PARAM].getValue();
+		float cmod = params[CMOD_PARAM].getValue();
 
+		for (int c = 0; c < channels; c++) {
+			float fc = clamp(dsp::exp2_taylor5(clamp(knobOct + cmod * inputs[CUTOFF_INPUT].getPolyVoltage(c), 3.0f, 15.0f)), 10.0f, fMax);
+			float g = std::tan(float(M_PI) * fc * args.sampleTime);
+			float k = 3.5f * clamp(params[Q_PARAM].getValue() + inputs[Q_INPUT].getPolyVoltage(c) * 0.2f, 0.0f, 1.0f);
+			float boost = dsp::exp2_taylor5(3.0f * clamp(params[MUG_PARAM].getValue() + inputs[MUG_INPUT].getPolyVoltage(c) * 0.2f, 0.0f, 1.0f));
+			float gain = boost / 3.0f;
+			float outGain = 5.0f * (nonLinear ? 1.0f : boost);
+
+			float inL = inputs[IN_L].getVoltage(c) * 0.2f;
+			float inR = (rightIn ? inputs[IN_R].getVoltage(c) : inputs[IN_L].getVoltage(c)) * 0.2f;
+			outputs[OUT_L].setVoltage(softLimit(lFilter[c].process(inL, g, k, gain, nonLinear) * outGain), c);
+			outputs[OUT_R].setVoltage(softLimit(rFilter[c].process(inR, g, k, gain, nonLinear) * outGain), c);
+		}
+		outputs[OUT_L].setChannels(channels);
+		outputs[OUT_R].setChannels(channels);
+	}
 };
 
 struct LIMBOWidget : BidooWidget {
