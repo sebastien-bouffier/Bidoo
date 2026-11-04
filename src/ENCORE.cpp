@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
+#include <mutex>
 #include "dep/quantizer.hpp"
 
 using namespace std;
@@ -76,24 +77,28 @@ struct TrigAttibutes {
 	inline void setTrigActive(const bool trigActive) {mainAttributes &= ~TRIG_ACTIVE; if (trigActive) mainAttributes |= TRIG_ACTIVE;}
 	inline void setTrigInitialized(const bool trigInitialize) {mainAttributes &= ~TRIG_INITIALIZED; if (trigInitialize) mainAttributes |= TRIG_INITIALIZED;}
 	inline void setTrigSleeping(const bool trigSleep) {mainAttributes &= ~TRIG_SLEEPING; if (trigSleep) mainAttributes |= TRIG_SLEEPING;}
-	inline void setTrigType(const int trigType) {mainAttributes &= ~TRIG_TYPE; mainAttributes |= (trigType << trigTypeShift);}
-	inline void setTrigIndex(const int trigIndex) {mainAttributes &= ~TRIG_INDEX; mainAttributes |= (trigIndex << trigIndexShift);}
-	inline void setTrigPulseCount(const int trigPulseCount) {mainAttributes &= ~TRIG_PULSECOUNT; mainAttributes |= (trigPulseCount << trigPulseCountShift);}
-	inline void setTrigOctave(const int trigOctave) {mainAttributes &= ~TRIG_OCTAVE; mainAttributes |= (trigOctave << trigOctaveShift);}
-	inline void setTrigSemiTones(const int trigSemiTones) {mainAttributes &= ~TRIG_SEMITONES; mainAttributes |= (trigSemiTones << trigSemitonesShift);}
+	inline void setTrigType(const int trigType) {mainAttributes &= ~TRIG_TYPE; mainAttributes |= (((unsigned long)trigType << trigTypeShift) & TRIG_TYPE);}
+	inline void setTrigIndex(const int trigIndex) {mainAttributes &= ~TRIG_INDEX; mainAttributes |= (((unsigned long)trigIndex << trigIndexShift) & TRIG_INDEX);}
+	inline void setTrigPulseCount(const int trigPulseCount) {mainAttributes &= ~TRIG_PULSECOUNT; mainAttributes |= (((unsigned long)trigPulseCount << trigPulseCountShift) & TRIG_PULSECOUNT);}
+	inline void setTrigOctave(const int trigOctave) {mainAttributes &= ~TRIG_OCTAVE; mainAttributes |= (((unsigned long)trigOctave << trigOctaveShift) & TRIG_OCTAVE);}
+	inline void setTrigSemiTones(const int trigSemiTones) {mainAttributes &= ~TRIG_SEMITONES; mainAttributes |= (((unsigned long)trigSemiTones << trigSemitonesShift) & TRIG_SEMITONES);}
 
-	inline void setTrigProba(const int trigProba) {probAttributes &= ~TRIG_PROBA; probAttributes |= trigProba;}
-	inline void setTrigCount(const int trigCount) {probAttributes &= ~TRIG_COUNT; probAttributes |= (trigCount << trigCountShift);}
-	inline void setTrigCountReset(const int trigCountReset) {probAttributes &= ~TRIG_COUNTRESET; probAttributes |= (trigCountReset << trigCountResetShift);}
-	inline void setTrigInCount(const int trigInCount) {probAttributes &= ~TRIG_INCOUNT; probAttributes |= (trigInCount << trigInCountShift);}
+	inline void setTrigProba(const int trigProba) {probAttributes &= ~TRIG_PROBA; probAttributes |= ((unsigned long)trigProba & TRIG_PROBA);}
+	inline void setTrigCount(const int trigCount) {probAttributes &= ~TRIG_COUNT; probAttributes |= (((unsigned long)trigCount << trigCountShift) & TRIG_COUNT);}
+	inline void setTrigCountReset(const int trigCountReset) {probAttributes &= ~TRIG_COUNTRESET; probAttributes |= (((unsigned long)trigCountReset << trigCountResetShift) & TRIG_COUNTRESET);}
+	inline void setTrigInCount(const int trigInCount) {probAttributes &= ~TRIG_INCOUNT; probAttributes |= (((unsigned long)trigInCount << trigInCountShift) & TRIG_INCOUNT);}
 
 	inline void toggleTrigActive() {mainAttributes ^= TRIG_ACTIVE;}
 
 	inline void setMainAttributes(const unsigned long _mainAttributes) {mainAttributes = _mainAttributes;}
 	inline void setProbAttributes(const unsigned long _probAttributes) {probAttributes = _probAttributes;}
 
+	// Octaves 0..6 as on the panel (-3..+3 V).
+	static const int MAX_OCTAVE = 6;
+
 	inline void up() {
 		if (getTrigSemiTones()==11) {
+			if (getTrigOctave() >= MAX_OCTAVE) return;
 			setTrigOctave(getTrigOctave()+1);
 			setTrigSemiTones(0);
 		}
@@ -104,12 +109,21 @@ struct TrigAttibutes {
 
 	inline void down() {
 		if (getTrigSemiTones()==0) {
+			if (getTrigOctave() <= 0) return;
 			setTrigOctave(getTrigOctave()-1);
 			setTrigSemiTones(11);
 		}
 		else {
 			setTrigSemiTones(getTrigSemiTones()-1);
 		}
+	}
+
+	// Sets octave and semitone from a 1V/oct voltage, rounded to the nearest semitone.
+	inline void setVO(const float vo) {
+		int semis = (int)std::round(vo * 12.f);
+		int octave = (int)std::floor(semis / 12.f);
+		setTrigOctave(clamp(octave + 3, 0, MAX_OCTAVE));
+		setTrigSemiTones(semis - octave * 12);
 	}
 
 	inline bool hasProbability() {
@@ -283,14 +297,14 @@ struct TrackAttibutes {
 	inline void setTrackForward(const bool trackForward) {mainAttributes &= ~TRACK_FORWARD; if (trackForward) mainAttributes |= TRACK_FORWARD;}
 	inline void setTrackPre(const bool trackPre) {mainAttributes &= ~TRACK_PRE; if (trackPre) mainAttributes |= TRACK_PRE;}
 	inline void setTrackSolo(const bool trackSolo) {mainAttributes &= ~TRACK_SOLO; if (trackSolo) mainAttributes |= TRACK_SOLO;}
-	inline void setTrackLength(const int trackLength) {mainAttributes &= ~TRACK_LENGTH; mainAttributes |= (trackLength << trackLengthShift);}
-	inline void setTrackReadMode(const int trackReadMode) {mainAttributes &= ~TRACK_READMODE; mainAttributes |= (trackReadMode << trackReadModeShift);}
-	inline void setTrackSpeed(const int trackSpeed) {mainAttributes &= ~TRACK_SPEED; mainAttributes |= (trackSpeed << trackSpeedShift);}
+	inline void setTrackLength(const int trackLength) {mainAttributes &= ~TRACK_LENGTH; mainAttributes |= (((unsigned long)trackLength << trackLengthShift) & TRACK_LENGTH);}
+	inline void setTrackReadMode(const int trackReadMode) {mainAttributes &= ~TRACK_READMODE; mainAttributes |= (((unsigned long)trackReadMode << trackReadModeShift) & TRACK_READMODE);}
+	inline void setTrackSpeed(const int trackSpeed) {mainAttributes &= ~TRACK_SPEED; mainAttributes |= (((unsigned long)trackSpeed << trackSpeedShift) & TRACK_SPEED);}
 
-	inline void setTrackCurrentTrig(const int trackCurrentTrig) {refAttributes &= ~TRACK_CURRENTTRIG; refAttributes |= trackCurrentTrig;}
-	inline void setTrackPlayedTrig(const int trackPlayedTrig) {refAttributes &= ~TRACK_PLAYEDTRIG; refAttributes |= (trackPlayedTrig << trackPlayedTrigShift);}
-	inline void setTrackPrevTrig(const int trackPrevTrig) {refAttributes &= ~TRACK_PREVTRIG; refAttributes |= (trackPrevTrig << trackPrevTrigShift);}
-	inline void setTrackNextTrig(const int trackNextTrig) {refAttributes &= ~TRACK_NEXTTRIG; refAttributes |= (trackNextTrig << trackNextTrigShift);}
+	inline void setTrackCurrentTrig(const int trackCurrentTrig) {refAttributes &= ~TRACK_CURRENTTRIG; refAttributes |= ((unsigned long)trackCurrentTrig & TRACK_CURRENTTRIG);}
+	inline void setTrackPlayedTrig(const int trackPlayedTrig) {refAttributes &= ~TRACK_PLAYEDTRIG; refAttributes |= (((unsigned long)trackPlayedTrig << trackPlayedTrigShift) & TRACK_PLAYEDTRIG);}
+	inline void setTrackPrevTrig(const int trackPrevTrig) {refAttributes &= ~TRACK_PREVTRIG; refAttributes |= (((unsigned long)trackPrevTrig << trackPrevTrigShift) & TRACK_PREVTRIG);}
+	inline void setTrackNextTrig(const int trackNextTrig) {refAttributes &= ~TRACK_NEXTTRIG; refAttributes |= (((unsigned long)trackNextTrig << trackNextTrigShift) & TRACK_NEXTTRIG);}
 
 	inline void toggleTrackActive() {mainAttributes ^= TRACK_ACTIVE;}
 	inline void toggleTrackSolo() {mainAttributes ^= TRACK_SOLO;}
@@ -429,7 +443,20 @@ struct ENCORE : BidooModule {
 
 	bool solo = false;
 
-	float powTable[100][10000] = {{0.0f}};
+	// Pattern asked for by the knob and CV. While running it takes over at the
+	// end of the current pattern, when patternClock reaches patternLengthTicks().
+	int requestedPattern = 0;
+	int patternClock = 0;
+
+	// Live recording on the selected track.
+	int recTrig = -1;
+	int recStartTick = 0;
+	float recVO = 0.f;
+
+	// Held by the UI thread while it changes the selection or the pattern data.
+	// The audio thread only try_locks it to copy the trig and track knobs, so a
+	// selection change never mixes the knobs of two trigs.
+	std::recursive_mutex editMutex;
 
   std::string labels[8] = {"Track 1","Track 2","Track 3","Track 4","Track 5","Track 6","Track 7","Track 8"};
 
@@ -489,12 +516,6 @@ struct ENCORE : BidooModule {
 				}
 			}
   	}
-
-		for(int i=0; i<100;i++) {
-      for(int j=0; j<10000;j++) {
-				powTable[i][j] = powf(j*0.0001f,i*0.01f);
-			}
-		}
 
 		onReset();
 	}
@@ -640,7 +661,9 @@ struct ENCORE : BidooModule {
 				json_object_set_new(trackJ, "scale", json_integer(scale[i][j]));
 				json_object_set_new(trackJ, "quantizeCV1", json_integer(quantizeCV1[i][j]));
 				json_object_set_new(trackJ, "slideMode", json_boolean(slideMode[i][j]));
-				for (int k = 0; k < nTracksAttibutes[i][j].getTrackLength(); k++) {
+				for (int k = 0; k < 64; k++) {
+					if (k >= nTracksAttibutes[i][j].getTrackLength() && trigIsDefault(i, j, k))
+						continue;
 					json_t *trigJ = json_object();
 					json_object_set_new(trigJ, "isActive", json_boolean(nTrigsAttibutes[i][j][k].getTrigActive()));
 					json_object_set_new(trigJ, "slide", json_real(trigSlide[i][j][k]));
@@ -669,6 +692,10 @@ struct ENCORE : BidooModule {
 
 	void dataFromJson(json_t *rootJ) override {
     BidooModule::dataFromJson(rootJ);
+		std::lock_guard<std::recursive_mutex> lock(editMutex);
+		for (int i=0; i<8; i++)
+			for (int j=0; j<8; j++)
+				trackInit(i,j);
 		json_t *currentPatternJ = json_object_get(rootJ, "currentPattern");
 		if (currentPatternJ)
 			currentPattern = json_integer_value(currentPatternJ);
@@ -726,7 +753,7 @@ struct ENCORE : BidooModule {
 						if (slideModeJ)
 							slideMode[i][j]=json_boolean_value(slideModeJ);
 					}
-					for(int k=0;k<nTracksAttibutes[i][j].getTrackLength();k++) {
+					for(int k=0;k<64;k++) {
 						json_t *trigJ = json_object_get(trackJ, ("trig" + to_string(k)).c_str());
 						if (trigJ) {
 							json_t *isActiveJ = json_object_get(trigJ, "isActive");
@@ -782,8 +809,52 @@ struct ENCORE : BidooModule {
 				}
 			}
 		}
+		sanitize();
 		updateTrackToParams();
 		updateTrigToParams();
+	}
+
+	// Brings values read from a patch back into range.
+	void sanitize() {
+		currentPattern = clamp(currentPattern, 0, 7);
+		requestedPattern = currentPattern;
+		currentTrack = clamp(currentTrack, 0, 7);
+		currentTrig = clamp(currentTrig, 0, 63);
+		trigPage = clamp(trigPage, 0, 3);
+		for (int i=0; i<8; i++) {
+			for (int j=0; j<8; j++) {
+				TrackAttibutes &t = nTracksAttibutes[i][j];
+				t.setTrackLength(clamp(t.getTrackLength(), 1, 64));
+				t.setTrackSpeed(clamp(t.getTrackSpeed(), 1, 8));
+				t.setTrackReadMode(clamp(t.getTrackReadMode(), 0, 4));
+				for (int k=0; k<64; k++) {
+					TrigAttibutes &g = nTrigsAttibutes[i][j][k];
+					g.setTrigIndex(k);
+					g.setTrigOctave(clamp(g.getTrigOctave(), 0, (int)TrigAttibutes::MAX_OCTAVE));
+					g.setTrigSemiTones(clamp(g.getTrigSemiTones(), 0, 11));
+					g.setTrigType(clamp(g.getTrigType(), 0, 2));
+					g.setTrigProba(clamp(g.getTrigProba(), 0, 7));
+					trigTrim[i][j][k] = clamp(trigTrim[i][j][k], -31, 31);
+					trigLength[i][j][k] = clamp(trigLength[i][j][k], 1, 2048);
+					trigPulseDistance[i][j][k] = clamp(trigPulseDistance[i][j][k], 0, 32);
+				}
+			}
+		}
+	}
+
+	bool trigIsDefault(const int pattern, const int track, const int trig) {
+		TrigAttibutes d;
+		d.init();
+		d.setTrigIndex(trig);
+		const TrigAttibutes &g = nTrigsAttibutes[pattern][track][trig];
+		// Ignore the playback state kept in the same words.
+		const unsigned long mainMask = ~(TrigAttibutes::TRIG_INITIALIZED | TrigAttibutes::TRIG_SLEEPING);
+		const unsigned long probMask = ~TrigAttibutes::TRIG_INCOUNT;
+		return (g.mainAttributes & mainMask) == (d.mainAttributes & mainMask) && (g.probAttributes & probMask) == (d.probAttributes & probMask)
+			&& trigSlide[pattern][track][trig] == 0.0f && trigTrim[pattern][track][trig] == 0
+			&& trigLength[pattern][track][trig] == 15 && trigPulseDistance[pattern][track][trig] == 1
+			&& trigCV1[pattern][track][trig] == 0.0f && trigCV2[pattern][track][trig] == 0.0f
+			&& !trigSlideType[pattern][track][trig];
 	}
 
 	void randomizeTrigNote(const int track, const int trig) {
@@ -995,6 +1066,7 @@ struct ENCORE : BidooModule {
 
 
 	void onRandomize() override {
+		std::lock_guard<std::recursive_mutex> lock(editMutex);
 		randomizePattern();
 		updateTrackToParams();
 		updateTrigToParams();
@@ -1029,9 +1101,6 @@ struct ENCORE : BidooModule {
 	void pastePattern() {
 		for (int i=0; i<8; i++) {
 			pasteTrack(copyPatternId,i,currentPattern,i);
-			for (int j=0; j<64; j++) {
-				pasteTrig(copyPatternId,i,j,currentPattern,i,j);
-			}
 		}
 	}
 	
@@ -1073,6 +1142,7 @@ struct ENCORE : BidooModule {
 	}
 
 	void onReset() override {
+		std::lock_guard<std::recursive_mutex> lock(editMutex);
 		for (int i=0; i<8; i++) {
 			for (int j=0; j<8; j++) {
 				trackInit(i,j);
@@ -1083,6 +1153,63 @@ struct ENCORE : BidooModule {
 	}
 
 	void process(const ProcessArgs &args) override;
+
+	// Live recording into the selected track, at the playhead (in ticks).
+	void recordStep(const int i) {
+		int len = nTracksAttibutes[currentPattern][i].getTrackLength();
+		int head = clamp(trackHead[currentPattern][i], 0, len * 32 - 1);
+		float vo = inputs[VO_INPUT].getVoltage();
+		bool quantize = params[QUANTIZE_PARAM].getValue() != 0.0f;
+
+		auto endNote = [&]() {
+			if (recTrig < 0)
+				return;
+			int length = head - recStartTick;
+			if (length <= 0)
+				length += len * 32;
+			trigLength[currentPattern][i][recTrig] = clamp(length, 1, 2048);
+			if (recTrig == currentTrig)
+				updateTrigToParams();
+			recTrig = -1;
+		};
+		auto startNote = [&]() {
+			int step, trim;
+			if (quantize) {
+				step = ((head + 16) / 32) % len;
+				trim = 0;
+			}
+			else {
+				step = head / 32;
+				trim = head - step * 32;
+			}
+			TrigAttibutes &t = nTrigsAttibutes[currentPattern][i][step];
+			t.setTrigActive(true);
+			t.setVO(vo);
+			trigTrim[currentPattern][i][step] = trim;
+			trigLength[currentPattern][i][step] = 1;
+			recTrig = step;
+			recStartTick = step * 32 + trim;
+			recVO = vo;
+			if (step == currentTrig)
+				updateTrigToParams();
+		};
+
+		if (inputs[GATE_INPUT].getVoltage() > 0.0f) {
+			if (!noteIncoming) {
+				noteIncoming = true;
+				startNote();
+			}
+			else if (std::fabs(vo - recVO) > 1.f / 24.f) {
+				// Legato: a new pitch under the same gate starts a new note.
+				endNote();
+				startNote();
+			}
+		}
+		else if (noteIncoming) {
+			noteIncoming = false;
+			endNote();
+		}
+	}
 
 	bool patternIsSoloed() {
 		for (size_t i = 0; i < 8; i++) {
@@ -1135,6 +1262,35 @@ struct ENCORE : BidooModule {
 		return nTrigsAttibutes[currentPattern][track][trig].getTrigIndex()*32 + trigTrim[currentPattern][track][trig];
 	}
 
+	// Slide shape: x in 0..1, slide amount in 0..1 sets the exponent.
+	// pow(x, (int)(slide * 99) / 100), from a table shared by every instance.
+	static float slideCurve(const float slide, const float x) {
+		static const int POINTS = 1024;
+		static const std::vector<float> table = [] {
+			std::vector<float> t(100 * (POINTS + 1));
+			for (int i = 0; i < 100; i++)
+				for (int j = 0; j <= POINTS; j++)
+					t[i * (POINTS + 1) + j] = std::pow((float)j / POINTS, i * 0.01f);
+			return t;
+		}();
+		int curve = clamp((int)(slide * 99.0f), 0, 99);
+		float pos = clamp(x, 0.0f, 1.0f) * POINTS;
+		int j = std::min((int)pos, POINTS - 1);
+		const float *row = table.data() + curve * (POINTS + 1);
+		return row[j] + (pos - j) * (row[j + 1] - row[j]);
+	}
+
+	// Clock ticks until the longest track of the current pattern loops.
+	int patternLengthTicks() {
+		int ticks = 1;
+		for (int i = 0; i < 8; i++) {
+			TrackAttibutes &t = nTracksAttibutes[currentPattern][i];
+			int speed = std::max(t.getTrackSpeed(), 1);
+			ticks = std::max(ticks, (t.getTrackLength() * 32 + speed - 1) / speed);
+		}
+		return ticks;
+	}
+
 	float trackGetVO(const int track, const int tPT, const bool quantize = false) {
 		float vo = nTrigsAttibutes[currentPattern][track][tPT].getVO() + trsp[track];
 		if (trigSlide[currentPattern][track][tPT] == 0) {
@@ -1148,23 +1304,23 @@ struct ENCORE : BidooModule {
 				if (slideMode[currentPattern][track]) {
           if (trigSlideType[currentPattern][track][tPT]) {
             float subPhase = clamp(trigGetRelativeTrackPosition(track, tPT),0.0f,32.0f)/32.0f;
-  					return voQ - (1.0f - interpolateLinear(powTable[(int)(trigSlide[currentPattern][track][tPT]*99.0f)],9999.0f*subPhase)) * (voQ - prevVO[track]);
+  					return voQ - (1.0f - slideCurve(trigSlide[currentPattern][track][tPT], subPhase)) * (voQ - prevVO[track]);
           }
           else
           {
             float subPhase = clamp(trigGetRelativeTrackPosition(track, tPT),0.0f,fullLength);
-  					return voQ - (1.0f - interpolateLinear(powTable[(int)(trigSlide[currentPattern][track][tPT]*99.0f)],9999.0f*subPhase/fullLength)) * (voQ - prevVO[track]);
+  					return voQ - (1.0f - slideCurve(trigSlide[currentPattern][track][tPT], subPhase/fullLength)) * (voQ - prevVO[track]);
           }
 				}
 				else {
           if (trigSlideType[currentPattern][track][tPT]) {
             float subPhase = clamp(trigGetRelativeTrackPosition(track, tPT)/32.0f*(1.0f/max((int)abs(voQ - prevVO[track]),1)),0.0f,1.0f);
-  					return voQ - (1.0f - interpolateLinear(powTable[(int)(trigSlide[currentPattern][track][tPT]*99.0f)],9999.0f*subPhase)) * (voQ - prevVO[track]);
+  					return voQ - (1.0f - slideCurve(trigSlide[currentPattern][track][tPT], subPhase)) * (voQ - prevVO[track]);
           }
           else
           {
             float subPhase = clamp(trigGetRelativeTrackPosition(track, tPT)*(1.0f/max((int)abs(voQ - prevVO[track]),1)),0.0f,fullLength);
-  					return voQ - (1.0f - interpolateLinear(powTable[(int)(trigSlide[currentPattern][track][tPT]*99.0f)],9999.0f*subPhase/fullLength)) * (voQ - prevVO[track]);
+  					return voQ - (1.0f - slideCurve(trigSlide[currentPattern][track][tPT], subPhase/fullLength)) * (voQ - prevVO[track]);
           }
 				}
 			}
@@ -1184,6 +1340,10 @@ struct ENCORE : BidooModule {
 			nTrigsAttibutes[currentPattern][track][cI].init(fill,nTracksAttibutes[currentPattern][track].getTrackPre(),pNei, forceTrig, killTrig, dice);
 			nTracksAttibutes[currentPattern][track].setTrackPre((nTrigsAttibutes[currentPattern][track][cI].getTrigActive()
 			&& nTrigsAttibutes[currentPattern][track][cI].hasProbability()) ? !nTrigsAttibutes[currentPattern][track][cI].getTrigSleeping() : nTracksAttibutes[currentPattern][track].getTrackPre());
+			// A next trig drawn early (see below) but not reached must draw again later.
+			int oldNext = nTracksAttibutes[currentPattern][track].getTrackNextTrig();
+			if (oldNext != cI)
+				nTrigsAttibutes[currentPattern][track][oldNext].setTrigInitialized(false);
 			trackSetNextTrig(track);
 			//nTrigsAttibutes[currentPattern][track][nTracksAttibutes[currentPattern][track].getTrackNextTrig()].init(fill,nTracksAttibutes[currentPattern][track].getTrackPre(), pNei, forceTrig, killTrig, dice);
 		}
@@ -1197,12 +1357,16 @@ struct ENCORE : BidooModule {
 		}
 		else {
 			int cNT = nTracksAttibutes[currentPattern][track].getTrackNextTrig();
-			if (trigGetIsRead(track, cNT, trackHead[currentPattern][track]) && (cNT != cPT)
-			&& nTrigsAttibutes[currentPattern][track][cNT].getTrigActive()
-			&& !nTrigsAttibutes[currentPattern][track][cNT].getTrigSleeping())
-			{
-				nTracksAttibutes[currentPattern][track].setTrackPrevTrig(cPT);
-				nTracksAttibutes[currentPattern][track].setTrackPlayedTrig(cNT);
+			if ((cNT != cI) && trigGetIsRead(track, cNT, trackHead[currentPattern][track])) {
+				// A trig trimmed early plays before its step begins: draw its
+				// condition now, once, instead of using the previous loop's result.
+				nTrigsAttibutes[currentPattern][track][cNT].init(fill, nTracksAttibutes[currentPattern][track].getTrackPre(), pNei, forceTrig, killTrig, dice);
+				if ((cNT != cPT) && nTrigsAttibutes[currentPattern][track][cNT].getTrigActive()
+				&& !nTrigsAttibutes[currentPattern][track][cNT].getTrigSleeping())
+				{
+					nTracksAttibutes[currentPattern][track].setTrackPrevTrig(cPT);
+					nTracksAttibutes[currentPattern][track].setTrackPlayedTrig(cNT);
+				}
 			}
 		}
 	}
@@ -1214,7 +1378,8 @@ struct ENCORE : BidooModule {
 		if (nTracksAttibutes[currentPattern][track].getTrackReadMode() == 1)
 		{
 			nTracksAttibutes[currentPattern][track].setTrackForward(false);
-			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackLength()*32;
+			// Last tick of the last step: length*32 would be the step after the end.
+			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackLength()*32 - 1;
 			trackSetCurrentTrig(track, fill, pNei, true, forceTrig, killTrig, dice);
 		}
 		else
@@ -1243,7 +1408,7 @@ struct ENCORE : BidooModule {
 				}
 			  break;
 			}
-			case 3: nTracksAttibutes[currentPattern][track].setTrackNextTrig((int)(random::uniform()*(nTracksAttibutes[currentPattern][track].getTrackLength() - 1))); break;
+			case 3: nTracksAttibutes[currentPattern][track].setTrackNextTrig(std::min((int)(random::uniform()*nTracksAttibutes[currentPattern][track].getTrackLength()), nTracksAttibutes[currentPattern][track].getTrackLength() - 1)); break;
 			case 4:
 			{
 				float dice = random::uniform();
@@ -1277,7 +1442,7 @@ struct ENCORE : BidooModule {
 
     if (clock) {trackHead[currentPattern][track] -= nTracksAttibutes[currentPattern][track].getTrackSpeed();}
 
-		if (trackHead[currentPattern][track] <= 0) {
+		if (trackHead[currentPattern][track] < 0) {
 			trackReset(track, fill, pNei, forceTrig, killTrig, dice);
 			return;
 		}
@@ -1338,7 +1503,10 @@ struct ENCORE : BidooModule {
 };
 
 void ENCORE::process(const ProcessArgs &args) {
-	currentPattern = (int)clamp((inputs[PATTERN_INPUT].isConnected() ? rescale(clamp(inputs[PATTERN_INPUT].getVoltage(), 0.0f, 10.0f),0.0f,10.0f,0.0f,8.0f) : 0) + (int)params[PATTERN_PARAM].getValue(), 0.0f, 7.0f);
+	requestedPattern = (int)clamp((inputs[PATTERN_INPUT].isConnected() ? rescale(clamp(inputs[PATTERN_INPUT].getVoltage(), 0.0f, 10.0f),0.0f,10.0f,0.0f,8.0f) : 0) + (int)params[PATTERN_PARAM].getValue(), 0.0f, 7.0f);
+	// Stopped: switch at once. Running: at the end of the pattern, below.
+	if (!run)
+		currentPattern = requestedPattern;
 
 	if (rightExpander.module && rightExpander.module->model == modelENCOREExpander) {
 		float *messagesFromExpander = (float*)rightExpander.consumerMessage;
@@ -1368,18 +1536,21 @@ void ENCORE::process(const ProcessArgs &args) {
 
 	solo = patternIsSoloed();
 
-	if (currentPattern != previousPattern) {
-		for (size_t i = 0; i<8; i++) {
-			trackSync(i, trackHead[previousPattern][i]);
+	{
+		// Skipped while the UI is changing the selection or the data.
+		std::unique_lock<std::recursive_mutex> lock(editMutex, std::try_to_lock);
+		if (lock.owns_lock()) {
+			if (currentPattern != previousPattern) {
+				previousPattern = currentPattern;
+				updateTrackToParams();
+				updateTrigToParams();
+			}
+			else {
+				updateTrigVO();
+				updateParamsToTrack();
+				updateParamsToTrig();
+			}
 		}
-		previousPattern = currentPattern;
-		updateTrackToParams();
-		updateTrigToParams();
-	}
-	else {
-		updateTrigVO();
-		updateParamsToTrack();
-		updateParamsToTrig();
 	}
 
 	int pageOffset = trigPage*16;
@@ -1467,24 +1638,30 @@ void ENCORE::process(const ProcessArgs &args) {
 		}
 	}
 
+	bool runStarted = false;
 	if (runTrigger.process(inputs[RUN_INPUT].getVoltage() + params[RUN_PARAM].getValue())) {
 		run = !run;
-		globalReset = true;
+		runStarted = run;
 	}
 
 	if (run) {
-		if (resetTrigger.process(rescale(inputs[RESET_INPUT].getVoltage(), 0.1f, 2.f, 0.f, 1.f))) {
-			globalReset = true;
-		}
-		else {
-			globalReset = false;
-		}
+		// Starting plays from the top, like the reset input.
+		globalReset = resetTrigger.process(rescale(inputs[RESET_INPUT].getVoltage(), 0.1f, 2.f, 0.f, 1.f)) || runStarted;
+		clockTrigged = clockTrigger.process(rescale(inputs[EXTCLOCK_INPUT].getVoltage(), 0.1f, 2.f, 0.f, 1.f));
 
-		if (clockTrigger.process(rescale(inputs[EXTCLOCK_INPUT].getVoltage(), 0.1f, 2.f, 0.f, 1.f))) {
-			clockTrigged = true;
+		// A requested pattern takes over when the current one ends, and starts
+		// all its tracks from the top.
+		bool patternStart = false;
+		if (globalReset) {
+			currentPattern = requestedPattern;
+			patternClock = 0;
 		}
-		else {
-			clockTrigged = false;
+		else if (clockTrigged && ++patternClock >= patternLengthTicks()) {
+			patternClock = 0;
+			if (requestedPattern != currentPattern) {
+				currentPattern = requestedPattern;
+				patternStart = true;
+			}
 		}
 
 		for (int i=0; i<8;i++) {
@@ -1499,7 +1676,7 @@ void ENCORE::process(const ProcessArgs &args) {
 				}
 				trackReset(i, fill || fills[i], i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre(), forceTrigs[i], killTrigs[i], dice[i]);
 			}
-      else if (!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset) {
+      else if ((!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset) || patternStart) {
 				if (rotLeft[i]) {
 					nTrackLeft(i,rotLeft[i], rotLen[i]);
 					updateTrigToParams();
@@ -1524,51 +1701,12 @@ void ENCORE::process(const ProcessArgs &args) {
 
 			int tPT = nTracksAttibutes[currentPattern][i].getTrackPlayedTrig();
 
-			if ((currentTrack == i) && (params[RECORD_PARAM].getValue() == 1.0f)) {
-					if (inputs[GATE_INPUT].getVoltage()>0.0f) {
-						if (!noteIncoming) {
-							noteIncoming = true;
-							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigActive(true);
-							if (params[QUANTIZE_PARAM].getValue() == 0.0f) {
-								trigTrim[currentPattern][i][(long)trackHead[currentPattern][i]] = trackHead[currentPattern][i] - (long)trackHead[currentPattern][i];
-							} else {
-								trigTrim[currentPattern][i][(long)trackHead[currentPattern][i]] = 0.0f;
-							}
-							currentIncomingVO = inputs[VO_INPUT].getVoltage();
-							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigOctave((long)currentIncomingVO+3.0f);
-							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigSemiTones((long)((currentIncomingVO-(long)currentIncomingVO)*12.f));
-						}
-						else if (currentIncomingVO != inputs[VO_INPUT].getVoltage()) {
-							currentIncomingVO = inputs[VO_INPUT].getVoltage();
-							if (trackHead[currentPattern][i]>nTrigsAttibutes[currentPattern][i][tPT].getTrigIndex()) {
-								trigLength[currentPattern][i][tPT] = trackHead[currentPattern][i] - nTrigsAttibutes[currentPattern][i][tPT].getTrigIndex()-0.01f;
-							}
-							else {
-								trigLength[currentPattern][i][tPT] = nTracksAttibutes[currentPattern][i].getTrackLength() - nTrigsAttibutes[currentPattern][i][tPT].getTrigIndex()-0.01f;
-							}
-							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigActive(true);
-							if (params[QUANTIZE_PARAM].getValue() == 0.0f) {
-								trigTrim[currentPattern][i][(long)trackHead[currentPattern][i]] = trackHead[currentPattern][i] - (long)trackHead[currentPattern][i];
-							} else {
-								trigTrim[currentPattern][i][(long)trackHead[currentPattern][i]] = 0.0f;
-							}
-							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigOctave((long)currentIncomingVO+3.0f);
-							nTrigsAttibutes[currentPattern][i][(long)trackHead[currentPattern][i]].setTrigSemiTones((long)((currentIncomingVO-(long)currentIncomingVO)*12.f));
-						}
-					} else {
-						if (noteIncoming) {
-							noteIncoming = false;
-							if (trackHead[currentPattern][i]>nTrigsAttibutes[currentPattern][i][tPT].getTrigIndex()) {
-								trigLength[currentPattern][i][tPT] = trackHead[currentPattern][i] - nTrigsAttibutes[currentPattern][i][tPT].getTrigIndex();
-							}
-							else {
-								trigLength[currentPattern][i][tPT] = nTracksAttibutes[currentPattern][i].getTrackLength() - nTrigsAttibutes[currentPattern][i][tPT].getTrigIndex()-0.01f;
-							}
-							currentIncomingVO = -100.0f;
-						}
-					}
+			if ((currentTrack == i) && (params[RECORD_PARAM].getValue() == 1.0f))
+				recordStep(i);
+			else if (i == currentTrack && noteIncoming) {
+				noteIncoming = false;
+				recTrig = -1;
 			}
-
 
 			if ((solo && nTracksAttibutes[currentPattern][i].getTrackSolo()) || (!solo && nTracksAttibutes[currentPattern][i].getTrackActive())) {
 				float gate = trackGetGate(i, tPT);
@@ -2397,6 +2535,28 @@ struct EncoreBidooProbBlueKnob : BidooBlueSnapKnob {
 
 
 struct ENCOREWidget : BidooWidget {
+	// Every button and key handler on the panel edits the module from the UI
+	// thread: run them under the module's edit lock (see ENCORE::editMutex).
+	void onButton(const ButtonEvent &e) override {
+		ENCORE *m = dynamic_cast<ENCORE*>(module);
+		if (!m) {
+			BidooWidget::onButton(e);
+			return;
+		}
+		std::lock_guard<std::recursive_mutex> lock(m->editMutex);
+		BidooWidget::onButton(e);
+	}
+
+	void onHoverKey(const HoverKeyEvent &e) override {
+		ENCORE *m = dynamic_cast<ENCORE*>(module);
+		if (!m) {
+			BidooWidget::onHoverKey(e);
+			return;
+		}
+		std::lock_guard<std::recursive_mutex> lock(m->editMutex);
+		BidooWidget::onHoverKey(e);
+	}
+
 	ENCOREWidget(ENCORE *module) {
 		setModule(module);
     prepareThemes(asset::plugin(pluginInstance, "res/ENCORE.svg"));
@@ -2523,6 +2683,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreInitPageItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->pageInit(module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2531,6 +2692,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreCopyPageItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->copyPageId = module->trigPage;
 			module->copyPatternArmed = false;
 			module->copyTrackArmed = false;
@@ -2542,6 +2704,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncorePastePageItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->pastePage(module->copyPageId, module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2550,6 +2713,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizePageTrigsNotesItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizePageTrigsNotes(module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2558,6 +2722,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizePageTrigsNotesPlusItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizePageTrigsNotesPlus(module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2566,6 +2731,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizePageTrigsProbsItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizePageTrigsProbs(module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2574,6 +2740,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizePageTrigsCV1Item : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizePageTrigsCV1(module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2582,6 +2749,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizePageTrigsCV2Item : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizePageTrigsCV2(module->trigPage);
 			module->updateTrigToParams();
 		}
@@ -2590,6 +2758,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreInitTrigItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->trigInit(module->currentPattern,module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2598,6 +2767,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreCopyTrigItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->copyTrigId = module->currentTrig;
 			module->copyTrackId = module->currentTrack;
 			module->copyPatternId = module->currentPattern;
@@ -2610,6 +2780,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncorePasteTrigItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->pasteTrig(module->copyPatternId, module->copyTrackId, module->copyTrigId, module->currentPattern, module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2618,6 +2789,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizeTrigNoteItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrigNote(module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2626,6 +2798,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizeTrigNotePlusItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrigNotePlus(module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2634,6 +2807,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizeTrigProbItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrigProb(module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2642,6 +2816,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreFullRandomizeTrigItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->fullRandomizeTrig(module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2650,6 +2825,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizeTrigCV1Item : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrigCV1(module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2658,6 +2834,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizeTrigCV2Item : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrigCV2(module->currentTrack, module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2666,6 +2843,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreTrigUpItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->trigUp(module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2674,6 +2852,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreTrigDownItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->trigDown(module->currentTrig);
 			module->updateTrigToParams();
 		}
@@ -2682,6 +2861,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreCopyTrackItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->copyTrackId = module->currentTrack;
 			module->copyPatternId = module->currentPattern;
 			module->copyPatternArmed = false;
@@ -2693,6 +2873,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncorePasteTrackItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->pasteTrack(module->copyPatternId, module->copyTrackId, module->currentPattern, module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2702,6 +2883,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreInitTrackItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->trackInit(module->currentPattern, module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2711,6 +2893,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizeTrackItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrack(module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2720,6 +2903,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizeTrackTrigsNotesItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrackTrigsNotes(module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2729,6 +2913,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizeTrackTrigsNotesPlusItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrackTrigsNotesPlus(module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2738,6 +2923,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizeTrackTrigsProbsItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrackTrigsProbs(module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2747,6 +2933,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizeTrackTrigsCV1Item : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrackTrigsCV1(module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2756,6 +2943,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizeTrackTrigsCV2Item : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizeTrackTrigsCV2(module->currentTrack);
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2765,6 +2953,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreTrackSlideModeItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->slideMode[module->currentPattern][module->currentTrack] = !module->slideMode[module->currentPattern][module->currentTrack];
 		}
 	};
@@ -2772,6 +2961,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreTrackUpItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->trackUp(module->currentTrack);
 			module->updateTrigToParams();
 		}
@@ -2780,6 +2970,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreTrackDownItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->trackDown(module->currentTrack);
 			module->updateTrigToParams();
 		}
@@ -2788,6 +2979,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreTrackLeftItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->nTrackLeft(module->currentTrack,1);
 			module->updateTrigToParams();
 		}
@@ -2796,6 +2988,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreTrackRightItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->nTrackRight(module->currentTrack,1);
 			module->updateTrigToParams();
 		}
@@ -2804,6 +2997,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreCopyPatternItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->copyPatternId = module->currentPattern;
 			module->copyPatternArmed = true;
 			module->copyTrackArmed = false;
@@ -2814,6 +3008,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncorePastePatternItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->pastePattern();
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2823,6 +3018,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreInitPatternItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			for (int i=0; i<8; i++) {
 				module->trackInit(module->currentPattern,i);
 			}
@@ -2834,6 +3030,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreRandomizePatternItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->randomizePattern();
 			module->updateTrackToParams();
 			module->updateTrigToParams();
@@ -2843,6 +3040,7 @@ struct ENCOREWidget : BidooWidget {
 	struct EncoreFullRandomizePatternItem : MenuItem {
 		ENCORE *module;
 		void onAction(const event::Action &e) override {
+			std::lock_guard<std::recursive_mutex> lock(module->editMutex);
 			module->fullRandomizePattern();
 			module->updateTrackToParams();
 			module->updateTrigToParams();
