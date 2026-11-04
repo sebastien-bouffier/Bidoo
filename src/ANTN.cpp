@@ -1,3 +1,5 @@
+// curl pulls in windows.h: include it before any "using namespace std" (C++17 std::byte clash)
+#include "curl/curl.h"
 #include "plugin.hpp"
 #include "dsp/digital.hpp"
 #include "dsp/resampler.hpp"
@@ -8,7 +10,6 @@
 #include <atomic>
 #include <sstream>
 #include <thread>
-#include "curl/curl.h"
 #define MINIMP3_IMPLEMENTATION
 #include "dep/minimp3/minimp3.h"
 

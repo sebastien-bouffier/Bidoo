@@ -8,3 +8,6 @@ SOURCES = $(wildcard src/*.cpp src/dep/filters/*.cpp src/dep/freeverb/*.cpp src/
 SOURCES := $(filter-out src/dep/resampler/main.cpp src/dep/resampler/StopWatch.cpp src/dep/pffft/test_pffft.c src/dep/lodepng/pngdetail.cpp src/dep/lodepng/lodepng_util.cpp, $(SOURCES))
 
 include $(RACK_DIR)/plugin.mk
+
+# AudioFile 1.1.x needs C++17
+CXXFLAGS := $(filter-out -std=c++11,$(CXXFLAGS)) -std=c++17
