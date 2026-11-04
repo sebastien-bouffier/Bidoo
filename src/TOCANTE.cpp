@@ -44,32 +44,25 @@ struct TOCANTE : BidooModule {
 		NUM_LIGHTS
 	};
 
-	int ref = 2;
-	int beats = 1;
-	int currentStep = 0;
-	int stepsPerMeasure = 1;
-	int stepsPerBeat = 1;
-	int stepsPerOneHundredTwentyEighth = 1;
-	int stepsPerSixtyFourth = 1;
-	int stepsPerThirtySecond = 1;
-	int stepsPerSixteenth = 1;
-	int stepsPerEighth = 1;
-	int stepsPerQuarter = 1;
-	int stepsPerTriplet = 1;
+	// Outputs that tick on a grid, OUT_MEASURE..OUT_ONEHUNDREDTWENTYEIGHTH.
+	static const int NUM_GRIDS = OUT_ONEHUNDREDTWENTYEIGHTH + 1;
 
+	// Shown by the displays.
+	int ref = 4;
+	int beats = 4;
 	int count = 0;
-	dsp::PulseGenerator gatePulse;
-	dsp::PulseGenerator gatePulse_triplets;
-	dsp::PulseGenerator gatePulse_Measure;
-	dsp::PulseGenerator resetPulse;
-	dsp::PulseGenerator runPulse;
+	float bpm = 60.f;
+
+	bool running = false;
+	bool restart = false;
+	// Position in the bar, in quarter notes. Kept across tempo changes.
+	double position = 0.0;
+	float resetLight = 0.f;
+
 	dsp::SchmittTrigger runningTrigger;
 	dsp::SchmittTrigger resetTrigger;
-	bool running = false;
-	bool reset = false;
-	float runningLight = 0.0f;
-	bool pulseEven = false, pulseTriplets = false, pulseMeasure = false, pulseReset = false, pulseRun = false;
-	float bpm = 0.0f;
+	dsp::PulseGenerator pulses[NUM_GRIDS];
+	dsp::PulseGenerator resetPulse;
 
 	TOCANTE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -77,90 +70,116 @@ struct TOCANTE : BidooModule {
 		configParam(BPMFINE_PARAM, 0.f, 0.99f, 0.f, "Fine");
 		configParam(BEATS_PARAM,  1.f, 32.f, 4.f, "Beats per measure");
 		configParam(REF_PARAM, 1.f, 4.f, 2.f, "Note value");
+		configButton(RUN_PARAM, "Run");
+		configButton(RESET_PARAM, "Reset");
+		configInput(BPM_INPUT, "BPM (1V/oct, 0 V = 120 BPM, replaces the knob)");
+		configInput(BPMFINE_INPUT, "Fine");
+		configInput(BEATS_INPUT, "Beats per measure");
+		configInput(REF_INPUT, "Note value");
+		configOutput(OUT_MEASURE, "Measure");
+		configOutput(OUT_BEAT, "Beat");
+		configOutput(OUT_TRIPLET, "Eighth triplet");
+		configOutput(OUT_QUARTER, "Quarter");
+		configOutput(OUT_EIGHTH, "Eighth");
+		configOutput(OUT_SIXTEENTH, "Sixteenth");
+		configOutput(OUT_THIRTYSECOND, "Thirty-second");
+		configOutput(OUT_SIXTYFOURTH, "Sixty-fourth");
+		configOutput(OUT_ONEHUNDREDTWENTYEIGHTH, "enCORE clock (128 per quarter)");
+		configOutput(OUT_RESET, "Reset");
+		configOutput(OUT_RUN, "Run gate");
+	}
+
+	json_t *dataToJson() override {
+		json_t *rootJ = BidooModule::dataToJson();
+		json_object_set_new(rootJ, "running", json_boolean(running));
+		return rootJ;
+	}
+
+	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
+		json_t *runningJ = json_object_get(rootJ, "running");
+		if (runningJ) {
+			running = json_is_true(runningJ);
+			restart = running;
+		}
+	}
+
+	void onReset() override {
+		running = false;
+		position = 0.0;
 	}
 
 	void process(const ProcessArgs &args) override;
-
 };
 
 void TOCANTE::process(const ProcessArgs &args) {
-	ref = clamp(powf(2.0f,params[REF_PARAM].getValue()+(int)rescale(clamp(inputs[REF_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,3.0f)),2.0f,16.0f);
-	beats = clamp(params[BEATS_PARAM].getValue()+rescale(clamp(inputs[BEATS_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,32.0f),1.0f,32.0f);
-	bpm = clamp(round(params[BPM_PARAM].getValue()+rescale(clamp(inputs[BPM_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,350.0f)) + round(100*(params[BPMFINE_PARAM].getValue()+rescale(clamp(inputs[BPMFINE_INPUT].getVoltage(),0.0f,10.0f),0.0f,10.0f,0.0f,0.99f))) * 0.01f, 1.0f, 350.0f);
-	stepsPerOneHundredTwentyEighth = (ref/4.0f) * 60.0f * args.sampleRate / bpm / 128.0f;
-	stepsPerSixtyFourth = stepsPerOneHundredTwentyEighth * 8;
-	stepsPerThirtySecond = stepsPerSixtyFourth * 2;
-	stepsPerSixteenth =  stepsPerThirtySecond * 2;
-	stepsPerEighth = stepsPerSixteenth * 2;
-	stepsPerQuarter = stepsPerEighth * 2;
-	stepsPerTriplet = stepsPerQuarter / 3;
-	stepsPerBeat = stepsPerOneHundredTwentyEighth* 128 * 4 / ref;
-	stepsPerMeasure = beats*stepsPerBeat;
+	ref = 1 << clamp((int)std::round(params[REF_PARAM].getValue()) + (int)rescale(clamp(inputs[REF_INPUT].getVoltage(), 0.f, 10.f), 0.f, 10.f, 0.f, 3.f), 1, 4);
+	beats = clamp((int)(params[BEATS_PARAM].getValue() + rescale(clamp(inputs[BEATS_INPUT].getVoltage(), 0.f, 10.f), 0.f, 10.f, 0.f, 32.f)), 1, 32);
+	float base = inputs[BPM_INPUT].isConnected() ? 120.f * std::exp2(clamp(inputs[BPM_INPUT].getVoltage(), -10.f, 10.f)) : std::round(params[BPM_PARAM].getValue());
+	float fine = std::round(100.f * (params[BPMFINE_PARAM].getValue() + rescale(clamp(inputs[BPMFINE_INPUT].getVoltage(), 0.f, 10.f), 0.f, 10.f, 0.f, 0.99f))) * 0.01f;
+	bpm = clamp(base + fine, 1.f, 350.f);
 
-	lights[RESET_LIGHT].setBrightness(lights[RESET_LIGHT].getBrightness()-0.0001f*lights[RESET_LIGHT].getBrightness());
+	// Grid of each output, in quarter notes. The bar and the beat follow the
+	// note value; the enCORE clock ticks 128 times per quarter (32 per step).
+	double beatLength = 4.0 / ref;
+	double barLength = beats * beatLength;
+	const double grids[NUM_GRIDS] = {barLength, beatLength, 1.0 / 3.0, 1.0, 1.0 / 2.0, 1.0 / 4.0, 1.0 / 8.0, 1.0 / 16.0, 1.0 / 128.0};
+	double quartersPerSecond = bpm / 60.0 * beatLength;
 
 	if (runningTrigger.process(params[RUN_PARAM].getValue())) {
 		running = !running;
-		if (running) {
-			currentStep = 0;
-			count = beats;
-			resetPulse.trigger(1e-3f);
-			lights[RESET_LIGHT].setBrightness(1.0);
-		}
-		runPulse.trigger(1e-3f);
+		if (running)
+			restart = true;
 	}
+	if (resetTrigger.process(params[RESET_PARAM].getValue()))
+		restart = true;
 
-	if (resetTrigger.process(params[RESET_PARAM].getValue())){
-		currentStep = 0;
-		count = beats;
+	bool fire[NUM_GRIDS] = {};
+	if (restart) {
+		restart = false;
+		position = 0.0;
 		resetPulse.trigger(1e-3f);
-		lights[RESET_LIGHT].setBrightness(1.0);
+		resetLight = 1.f;
+		if (running)
+			std::fill(fire, fire + NUM_GRIDS, true);
+	}
+	else if (running) {
+		double previous = position;
+		position += quartersPerSecond * args.sampleTime;
+		if (position >= barLength) {
+			// Bar line: every grid starts again from here.
+			position -= barLength;
+			if (position >= barLength)
+				position = 0.0;
+			std::fill(fire, fire + NUM_GRIDS, true);
+		}
+		else {
+			for (int i = 0; i < NUM_GRIDS; i++)
+				fire[i] = std::floor(position / grids[i]) > std::floor(previous / grids[i]);
+		}
+	}
+	else {
+		// A bar length change while stopped must not leave the position past the end.
+		if (position >= barLength)
+			position = 0.0;
 	}
 
-	if ((stepsPerSixteenth>0) && ((currentStep % stepsPerOneHundredTwentyEighth) == 0)) {
-		gatePulse.trigger(1e-3f);
+	for (int i = 0; i < NUM_GRIDS; i++) {
+		if (fire[i]) {
+			// 1 ms, but never more than half the period so fast clocks still drop low.
+			float period = grids[i] / quartersPerSecond;
+			pulses[i].trigger(std::min(1e-3f, 0.5f * period));
+		}
+		bool high = pulses[i].process(args.sampleTime);
+		outputs[i].setVoltage(running && high ? 10.f : 0.f);
 	}
+	outputs[OUT_RESET].setVoltage(resetPulse.process(args.sampleTime) ? 10.f : 0.f);
+	outputs[OUT_RUN].setVoltage(running ? 10.f : 0.f);
 
-	if ((stepsPerTriplet>0) && ((currentStep % stepsPerTriplet) == 0) && (currentStep <= (stepsPerMeasure-100))) {
-		gatePulse_triplets.trigger(1e-3f);
-	}
-
-	if (currentStep == 0) {
-		gatePulse_Measure.trigger(1e-3f);
-	}
-
-	pulseEven = gatePulse.process(args.sampleTime);
-	pulseTriplets = gatePulse_triplets.process(args.sampleTime);
-	pulseMeasure = gatePulse_Measure.process(args.sampleTime);
-	pulseReset = resetPulse.process(args.sampleTime);
-	pulseRun = runPulse.process(args.sampleTime);
-
-	if (currentStep % stepsPerBeat == 0) {
-		count--;
-	}
-
-	if (pulseMeasure) {
-		count = beats;
-	}
-
-	outputs[OUT_MEASURE].setVoltage((running && pulseMeasure) ? 10.0f : 0.0f);
-	outputs[OUT_BEAT].setVoltage((running && (currentStep % stepsPerBeat == 0)) ? 10.0f : 0.0f);
-	outputs[OUT_TRIPLET].setVoltage((running && pulseTriplets && (currentStep % stepsPerTriplet == 0)) ? 10.0f : 0.0f);
-	outputs[OUT_QUARTER].setVoltage((running && pulseEven && (currentStep % stepsPerQuarter == 0)) ? 10.0f : 0.0f);
-	outputs[OUT_EIGHTH].setVoltage((running && pulseEven && (currentStep % stepsPerEighth == 0)) ? 10.0f : 0.0f);
-	outputs[OUT_SIXTEENTH].setVoltage((running && pulseEven && (currentStep % stepsPerSixteenth == 0)) ? 10.0f : 0.0f);
-	outputs[OUT_THIRTYSECOND].setVoltage((running && pulseEven && (currentStep % stepsPerThirtySecond == 0)) ? 10.0f : 0.0f);
-	outputs[OUT_SIXTYFOURTH].setVoltage((running && pulseEven && (currentStep % stepsPerSixtyFourth == 0)) ? 10.0f : 0.0f);
-	outputs[OUT_ONEHUNDREDTWENTYEIGHTH].setVoltage((running && pulseEven && (currentStep % stepsPerOneHundredTwentyEighth == 0)) ? 10.0f : 0.0f);
-
-	outputs[OUT_RESET].setVoltage(pulseReset ? 10.0f : 0.0f);
-	outputs[OUT_RUN].setVoltage(pulseRun ? 10.0f : 0.0f);
-
-
-	if (running) {
-		currentStep = floor((currentStep + 1) % stepsPerMeasure);
-	}
-	lights[RUNNING_LIGHT].setBrightness(running ? 1.0 : 0.0);
+	count = beats - std::min((int)(position / beatLength), beats - 1);
+	resetLight = std::max(0.f, resetLight - args.sampleTime * 4.f);
+	lights[RESET_LIGHT].setBrightness(resetLight);
+	lights[RUNNING_LIGHT].setBrightness(running ? 1.f : 0.f);
 }
 
 struct TOCANTEDisplay : TransparentWidget {
