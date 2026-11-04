@@ -65,7 +65,8 @@ namespace quantizer {
   }
 
   std::tuple<float, int> Quantizer::quantize(float voltsIn) {
-    return getNearestElement(map[0][26], scales[26].numNotes*10, voltsIn);
+    // No root: the nearest semitone (the Chromatic scale).
+    return getNearestElement(map[0][CHROMATIC], scales[CHROMATIC].numNotes*10, voltsIn);
   }
 
   std::string Quantizer::noteName(float voltsIn) {

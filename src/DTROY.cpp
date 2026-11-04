@@ -1,197 +1,158 @@
 #include "plugin.hpp"
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
-#include <iostream>
 #include <vector>
-#include <random>
-#include <algorithm>
 #include "dep/quantizer.hpp"
 
 using namespace std;
 
+// 8 stages played as up to 16 steps. Each stage has a pitch, a number of
+// pulses (clocks it lasts), a gate type, a slide and a skip. 16 patterns: the
+// panel edits the selected one, the pattern CV can play any other.
+
 struct Step {
-	int index = 0;
-	int number = 0;
+	int index = 0;     // stage 0..7
+	int number = 0;    // step 0..15
 	bool skip = false;
-	bool skipParam = false;
 	bool slide = false;
 	int pulses = 1;
-	int pulsesParam = 1;
-	float pitch = 3.0f;
+	float pitch = 0.f;
 	int type = 2;
 };
 
 struct Pattern {
-	int playMode = 0;
-	int countMode = 0;
-	int numberOfSteps = 8;
+	enum GateType { REST, SINGLE, MULTIPLE, HOLD, EXT1, EXT2 };
+
+	// Settings, saved with the patch.
+	int playMode = 0;    // 0 forward, 1 backward, 2 ping-pong, 3 random, 4 brownian
+	int countMode = 0;   // 0 steps, 1 pulses
 	int numberOfStepsParam = 8;
-	int rootNote = 0;
-	int rootNoteParam = 0;
+	int rootNote = 0;    // -1 none
 	int scale = 0;
-	int scaleParam = 0;
 	float gateTime = 0.5f;
 	float slideTime = 0.2f;
-	float sensitivity = 1.0f;
+	float sensitivity = 1.f;
+	float stagePitch[8] = {};
+	int stagePulses[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+	int stageType[8] = {2, 2, 2, 2, 2, 2, 2, 2};
+	bool stageSlide[8] = {};
+	bool stageSkip[8] = {};
+
+	// Play position.
 	int currentStep = 0;
 	int currentPulse = 0;
 	bool forward = true;
-	std::vector<Step> steps {16};
 
-	void Update(int playMode, int countMode, int numberOfSteps, int numberOfStepsParam, int rootNote, int scale, float gateTime, float slideTime, float sensitivity, vector<char> skips, vector<char> slides, Param *pulses, Param *pitches, Param *types) {
-		this->playMode = playMode;
-		this->countMode = countMode;
-		this->numberOfSteps = numberOfSteps;
-		this->numberOfStepsParam = numberOfStepsParam;
-		this->rootNote = rootNote;
-		this->scale = scale;
-		this->rootNoteParam = rootNote;
-		this->scaleParam = scale;
-		this->gateTime = gateTime;
-		this->slideTime = slideTime;
-		this->sensitivity = sensitivity;
+	// The steps, built from the settings.
+	Step steps[16];
+
+	Pattern() {
+		build(numberOfStepsParam);
+	}
+
+	void copySettings(const Pattern &o) {
+		int s = currentStep, p = currentPulse;
+		bool f = forward;
+		*this = o;
+		currentStep = s;
+		currentPulse = p;
+		forward = f;
+	}
+
+	// In steps mode the first n steps play; in pulses mode the steps play
+	// until n pulses are counted, skipped stages counting none.
+	void build(int n) {
 		int pCount = 0;
 		for (int i = 0; i < 16; i++) {
-			steps[i].index = i%8;
-			steps[i].number = i;
-			if (((countMode == 0) && (i < numberOfSteps)) || ((countMode == 1) && (pCount < numberOfSteps))) {
-				steps[i].skip = (skips[steps[i].index] == 't');
-			}	else {
-				steps[i].skip = true;
+			Step &s = steps[i];
+			int idx = i % 8;
+			s.index = idx;
+			s.number = i;
+			s.slide = stageSlide[idx];
+			s.pitch = stagePitch[idx];
+			s.type = stageType[idx];
+			s.pulses = stagePulses[idx];
+			if (countMode == 0)
+				s.skip = stageSkip[idx] || i >= n;
+			else if (stageSkip[idx] || pCount >= n)
+				s.skip = true;
+			else {
+				s.skip = false;
+				s.pulses = std::min(s.pulses, n - pCount);
+				pCount += s.pulses;
 			}
-			steps[i].skipParam = (skips[steps[i].index] == 't');
-			steps[i].slide = (slides[steps[i].index] == 't');
-			if ((countMode == 1) && ((pCount + (int)pulses[steps[i].index].getValue()) >= numberOfSteps)) {
-				steps[i].pulses = max(numberOfSteps - pCount, 0);
-			}	else {
-				steps[i].pulses = (int)(pulses + steps[i].index)->getValue();
-			}
-			steps[i].pulsesParam = (int)(pulses + steps[i].index)->getValue();
-			steps[i].pitch = (pitches + steps[i].index)->getValue();
-			steps[i].type = (int)(types + steps[i].index)->getValue();
-
-			pCount = pCount + steps[i].pulses;
 		}
 	}
 
-	std::tuple<int, int> GetNextStep(bool reset)
-	{
+	int firstStep() {
+		for (int i = 0; i < 16; i++)
+			if (!steps[i].skip)
+				return i;
+		return 0;
+	}
+
+	int lastStep() {
+		for (int i = 15; i >= 0; i--)
+			if (!steps[i].skip)
+				return i;
+		return 15;
+	}
+
+	int nextForward(int pos) {
+		for (int i = 1; i < 16; i++)
+			if (!steps[(pos + i) % 16].skip)
+				return (pos + i) % 16;
+		return pos;
+	}
+
+	int nextBackward(int pos) {
+		for (int i = 1; i < 16; i++)
+			if (!steps[(pos + 16 - i) % 16].skip)
+				return (pos + 16 - i) % 16;
+		return pos;
+	}
+
+	void advance(bool reset) {
 		if (reset) {
-			if (playMode != 1) {
-				currentStep = GetFirstStep();
-			} else {
-				currentStep = GetLastStep();
-			}
+			currentStep = (playMode == 1) ? lastStep() : firstStep();
 			currentPulse = 0;
-			return std::make_tuple(currentStep,currentPulse);
-		} else {
-			if (currentPulse < steps[currentStep].pulses - 1) {
-				currentPulse++;
-				return std::make_tuple(steps[currentStep%16].index,currentPulse);
-			} else {
-				if (playMode == 0) {
-					currentStep = GetNextStepForward(currentStep);
-					currentPulse = 0;
-					return std::make_tuple(steps[currentStep%16].index,currentPulse);
-				} else if (playMode == 1) {
-					currentStep = GetNextStepBackward(currentStep);
-					currentPulse = 0;
-					return std::make_tuple(steps[currentStep%16].index,currentPulse);
-				} else if (playMode == 2) {
-					if (currentStep == GetLastStep()) {
-						forward = false;
-					}
-					if (currentStep == GetFirstStep()) {
-						forward = true;
-					}
-					if (forward) {
-						currentStep = GetNextStepForward(currentStep);
-					} else {
-						currentStep = GetNextStepBackward(currentStep);
-					}
-					currentPulse = 0;
-					return std::make_tuple(steps[currentStep%16].index,currentPulse);
-				} else if (playMode == 3) {
-					std::vector<Step> tmp (steps.size());
-				  auto it = std::copy_if (steps.begin(), steps.end(), tmp.begin(), [](Step i){return !(i.skip);} );
-				  tmp.resize(std::distance(tmp.begin(),it));  // shrink container to new size
-					Step tmpStep = *select_randomly(tmp.begin(), tmp.end());
-					currentPulse = 0;
-					currentStep = tmpStep.number;
-					return std::make_tuple(steps[currentStep%16].index,currentPulse);
-				} else if (playMode == 4) {
-					int next = GetNextStepForward(currentStep);
-					int prev = GetNextStepBackward(currentStep);
-					vector<Step> subPattern;
-					subPattern.push_back(steps[prev]);
-					subPattern.push_back(steps[next]);
-					Step choice = *select_randomly(subPattern.begin(), subPattern.end());
-					currentPulse = 0;
-					currentStep = choice.number;
-					return std::make_tuple(steps[currentStep%16].index,currentPulse);
-				} else {
-					return std::make_tuple(0,0);
-				}
-			}
+			forward = true;
+			return;
 		}
-	}
-
-	inline Step CurrentStep() {
-		return this->steps[currentStep];
-	}
-
-	inline int GetFirstStep()
-	{
-			for (int i = 0; i < 16; i++) {
-				if (!steps[i].skip) {
-					return i;
-				}
+		if (!steps[currentStep].skip && currentPulse < steps[currentStep].pulses - 1) {
+			currentPulse++;
+			return;
+		}
+		currentPulse = 0;
+		switch (playMode) {
+			case 0: currentStep = nextForward(currentStep); break;
+			case 1: currentStep = nextBackward(currentStep); break;
+			case 2: {
+				if (currentStep == lastStep())
+					forward = false;
+				if (currentStep == firstStep())
+					forward = true;
+				currentStep = forward ? nextForward(currentStep) : nextBackward(currentStep);
+				break;
 			}
-			return 0;
-	}
-
-	inline int GetLastStep()
-	{
-			for (int i = 15; i >= 0  ; i--) {
-				if (!steps[i].skip) {
-					return i;
+			case 3: {
+				int count = 0;
+				for (int i = 0; i < 16; i++)
+					count += !steps[i].skip;
+				if (count == 0)
+					break;
+				int k = random::u32() % count;
+				for (int i = 0; i < 16; i++) {
+					if (!steps[i].skip && k-- == 0) {
+						currentStep = i;
+						break;
+					}
 				}
+				break;
 			}
-			return 15;
-	}
-
-	inline int GetNextStepForward(int pos)
-	{
-			for (int i = pos + 1; i < pos + 16; i++) {
-				int j = i%16;
-				if (!steps[j].skip) {
-					return j;
-				}
-			}
-			return pos;
-	}
-
-	inline int GetNextStepBackward(int pos)
-	{
-			for (int i = pos - 1; i > pos - 16; i--) {
-				int j = i%16;
-				if (!steps[j + (i<0?16:0)].skip) {
-					return j + (i<0?16:0);
-				}
-			}
-			return pos;
-	}
-
-	template<typename Iter, typename RandomGenerator> Iter select_randomly(Iter start, Iter end, RandomGenerator& g) {
-		std::uniform_int_distribution<> dis(0, std::distance(start, end) - 1);
-		std::advance(start, dis(g));
-		return start;
-	}
-
-	template<typename Iter> Iter select_randomly(Iter start, Iter end) {
-		static std::random_device rd;
-		static std::mt19937 gen(rd());
-		return select_randomly(start, end, gen);
+			case 4: currentStep = (random::uniform() < 0.5f) ? nextBackward(currentStep) : nextForward(currentStep); break;
+			default: break;
+		}
 	}
 };
 
@@ -267,234 +228,198 @@ struct DTROY : BidooModule {
 	dsp::SchmittTrigger downTrigger;
 	dsp::SchmittTrigger leftTrigger;
 	dsp::SchmittTrigger rightTrigger;
-	float phase = 0.0f;
-	int index = 0;
-	bool reStart = true;
+	dsp::PulseGenerator stepPulse[8];
+
+	double phase = 0.0;          // position in the current pulse, 0..1
+	long sinceClock = -1;        // samples since the last external clock
+	long clockInterval = 0;      // samples between the last two external clocks
+	bool resetArmed = true;      // the next clock plays the first step
+	bool started = false;        // a step has been played since the start
 	int pulse = 0;
-	int rootNote = 0;
-	int curScaleVal = 0;
-	float pitch = 0.0f;
-	float previousPitch = 0.0f;
-	float tCurrent = 0.0f;
-	float tLastTrig = 0.0f;
-	std::vector<char> slideState = {'f','f','f','f','f','f','f','f'};
-	std::vector<char> skipState = {'f','f','f','f','f','f','f','f'};
-	int playMode = 0; // 0 forward, 1 backward, 2 pingpong, 3 random, 4 brownian
-	int countMode = 0; // 0 steps, 1 pulses
-	int numSteps = 8;
+	long sincePulse = 0;         // samples since the last clock
+	float pitch = 0.f;
+	float target = 0.f;          // the quantized pitch of the step
+	float slideFrom = 0.f;
+	bool lastGate = false;
 	int selectedPattern = 0;
 	int playedPattern = 0;
-	bool updateFlag = false;
-	bool first = true;
-	bool loadedFromJson = false;
 	int copyPattern = -1;
-	dsp::PulseGenerator stepPulse[8];
 	bool stepOutputsMode = false;
-	bool gateOn = false;
-	const float invLightLambda = 13.333333333333333333333f;
-	bool copyState = false;
 
 	Pattern patterns[16];
-
 	quantizer::Quantizer quant;
 
 	DTROY() {
-    config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(CLOCK_PARAM, -2.0f, 6.0f, 2.0f, "Clock");
-		configParam(RUN_PARAM, 0.0f, 1.0f, 0.0f, "Run");
-		configParam(RESET_PARAM, 0.0f, 1.0f, 0.0f, "Reset");
-		configParam(STEPS_PARAM, 1.0f, 16.0f, 8.0f, "Nb steps","",0,1,0);
-		configParam(ROOT_NOTE_PARAM, -1.0f, quantizer::numNotes-2, 0.0f,"Root note");
-		configParam(SCALE_PARAM, 0.0f, quantizer::numScales-1, 0.0f, "Scale");
-		configParam(GATE_TIME_PARAM, 0.1f, 1.0f, 0.5f,"Gate length","%",0,100,0);
-		configParam(SLIDE_TIME_PARAM	, 0.1f, 1.0f, 0.2f,"Slide length","%",0,100,0);
-		configParam(PLAY_MODE_PARAM, 0.0f, 4.0f, 0.0f,"Play mode");
-		configParam(COUNT_MODE_PARAM, 0.0f, 4.0f, 0.0f,"Count mode");
-		configParam(PATTERN_PARAM, 1.0f, 16.0f, 1.0f,"Edited pattern","",0,1,0);
-		configParam(SENSITIVITY_PARAM, 0.1f, 1.0f, 1.0f,"Pitch sensitivity","%",0,100,0);
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configParam(CLOCK_PARAM, -3.f, 3.f, 0.f, "Clock", " BPM", 2.f, 120.f);
+		configButton(RUN_PARAM, "Run");
+		configButton(RESET_PARAM, "Reset (the next clock plays the first step)");
+		configParam(STEPS_PARAM, 1.f, 16.f, 8.f, "Steps (or pulses in pulse count mode)");
+		paramQuantities[STEPS_PARAM]->snapEnabled = true;
+		std::vector<std::string> roots, scales;
+		for (int i = 0; i < quantizer::numNotes; i++)
+			roots.push_back(quantizer::rootNotes[i].label);
+		for (int i = 0; i < quantizer::numScales; i++)
+			scales.push_back(quantizer::scales[i].label);
+		configSwitch(ROOT_NOTE_PARAM, -1.f, quantizer::numNotes - 2, 0.f, "Root note", roots);
+		configSwitch(SCALE_PARAM, 0.f, quantizer::numScales - 1, 0.f, "Scale", scales);
+		configParam(GATE_TIME_PARAM, 0.1f, 1.f, 0.5f, "Gate length", "%", 0.f, 100.f);
+		configParam(SLIDE_TIME_PARAM, 0.1f, 1.f, 0.2f, "Slide curve", "%", 0.f, 100.f);
+		configButton(PLAY_MODE_PARAM, "Play mode (forward, backward, ping-pong, random, brownian)");
+		configButton(COUNT_MODE_PARAM, "Count mode (steps or pulses)");
+		configParam(PATTERN_PARAM, 1.f, 16.f, 1.f, "Edited pattern");
+		paramQuantities[PATTERN_PARAM]->snapEnabled = true;
+		paramQuantities[PATTERN_PARAM]->randomizeEnabled = false;
+		configParam(SENSITIVITY_PARAM, 0.1f, 1.f, 1.f, "Pitch sensitivity", "%", 0.f, 100.f);
 
-		configParam(COPY_PARAM, 0.0f, 1.0f, 0.0f,"Copy/Paste");
-		configParam(LEFT_PARAM, 0.0f, 1.0f, 0.0f,"Shift left");
-		configParam(RIGHT_PARAM, 0.0f, 1.0f, 0.0f,"Shift right");
-		configParam(UP_PARAM, 0.0f, 1.0f, 0.0f,"Shift up 1 semitone");
-		configParam(DOWN_PARAM, 0.0f, 1.0f, 0.0f,"Shift down 1 semitone");
+		configButton(COPY_PARAM, "Copy, then paste on another pattern");
+		configButton(LEFT_PARAM, "Rotate the stages left");
+		configButton(RIGHT_PARAM, "Rotate the stages right");
+		configButton(UP_PARAM, "Transpose up 1 semitone");
+		configButton(DOWN_PARAM, "Transpose down 1 semitone");
 
-		configInput(CLOCK_INPUT, "Clock speed");
-		configInput(EXT_CLOCK_INPUT, "Ext. clock");
-		configInput(RESET_INPUT, "Reset");
-		configInput(STEPS_INPUT, "Nb steps");
-		configInput(SLIDE_TIME_INPUT, "Slide length");
-		configInput(GATE_TIME_INPUT, "Gate length");
-		configInput(ROOT_NOTE_INPUT, "Root note");
-		configInput(SCALE_INPUT, "Scale");
-		configInput(EXTGATE1_INPUT, "Ext. gate 1");
-		configInput(EXTGATE2_INPUT, "Ext. gate 2");
-		configInput(PATTERN_INPUT, "Played pattern");
-		configInput(TRANSPOSE_INPUT, "Transpose");
-		configInput(SENSITIVITY_INPUT, "Sensitivity");
+		configInput(CLOCK_INPUT, "Clock tempo (1V/oct, 0 V = 120 BPM with the knob at 120)");
+		configInput(EXT_CLOCK_INPUT, "External clock");
+		configInput(RESET_INPUT, "Reset (the next clock plays the first step)");
+		configInput(STEPS_INPUT, "Steps (1 V per step)");
+		configInput(SLIDE_TIME_INPUT, "Slide curve (10 V = 100%)");
+		configInput(GATE_TIME_INPUT, "Gate length (10 V = 100%)");
+		configInput(ROOT_NOTE_INPUT, "Root note (0-10 V = 0-11 semitones)");
+		configInput(SCALE_INPUT, "Scale (1 V per scale)");
+		configInput(EXTGATE1_INPUT, "External gate 1");
+		configInput(EXTGATE2_INPUT, "External gate 2");
+		configInput(PATTERN_INPUT, "Played pattern (0-10 V = 1-16)");
+		configInput(TRANSPOSE_INPUT, "Transpose (1V/oct, before the quantizer)");
+		configInput(SENSITIVITY_INPUT, "Sensitivity (10 V = 100%)");
 
 		configOutput(GATE_OUTPUT, "Gate");
-		configOutput(PITCH_OUTPUT, "Pitch");
+		configOutput(PITCH_OUTPUT, "Pitch (1V/oct)");
 
 		for (int i = 0; i < 8; i++) {
-			configParam(TRIG_PITCH_PARAM + i, -4.0f, 6.0f, 0.0f,"Pitch");
-			configParam(TRIG_COUNT_PARAM + i, 1.0f, 8.0f,  1.0f,"Nb pulses");
-			configParam(TRIG_TYPE_PARAM + i, 0.0f, 5.0f,  2.0f,"Gate type");
-			configParam(TRIG_SLIDE_PARAM + i, 0.0f, 1.0f,  0.0f, "Slide");
-			configParam(TRIG_SKIP_PARAM + i, 0.0f, 1.0f, 0.0f, "Skip");
-			configOutput(STEP_OUTPUT + i, "Step gate");
+			configParam(TRIG_PITCH_PARAM + i, -4.f, 6.f, 0.f, string::f("Stage %d pitch", i + 1), " V");
+			configParam(TRIG_COUNT_PARAM + i, 1.f, 8.f, 1.f, string::f("Stage %d pulses", i + 1));
+			paramQuantities[TRIG_COUNT_PARAM + i]->snapEnabled = true;
+			configSwitch(TRIG_TYPE_PARAM + i, 0.f, 5.f, 2.f, string::f("Stage %d gate", i + 1), {"Rest", "Single", "Multiple", "Hold", "External gate 1", "External gate 2"});
+			configButton(TRIG_SLIDE_PARAM + i, string::f("Stage %d slide", i + 1));
+			configButton(TRIG_SKIP_PARAM + i, string::f("Stage %d skip", i + 1));
+			configOutput(STEP_OUTPUT + i, string::f("Stage %d", i + 1));
 		}
 	}
 
-	void UpdatePattern();
+	// The panel shows the selected pattern.
+	void loadPanel() {
+		const Pattern &p = patterns[selectedPattern];
+		params[STEPS_PARAM].setValue(p.numberOfStepsParam);
+		params[ROOT_NOTE_PARAM].setValue(p.rootNote);
+		params[SCALE_PARAM].setValue(p.scale);
+		params[GATE_TIME_PARAM].setValue(p.gateTime);
+		params[SLIDE_TIME_PARAM].setValue(p.slideTime);
+		params[SENSITIVITY_PARAM].setValue(p.sensitivity);
+		for (int i = 0; i < 8; i++) {
+			params[TRIG_PITCH_PARAM + i].setValue(p.stagePitch[i]);
+			params[TRIG_COUNT_PARAM + i].setValue(p.stagePulses[i]);
+			params[TRIG_TYPE_PARAM + i].setValue(p.stageType[i]);
+		}
+	}
+
+	void savePanel() {
+		Pattern &p = patterns[selectedPattern];
+		p.numberOfStepsParam = clamp((int)std::round(params[STEPS_PARAM].getValue()), 1, 16);
+		p.rootNote = clamp((int)std::round(params[ROOT_NOTE_PARAM].getValue()), -1, 11);
+		p.scale = clamp((int)std::round(params[SCALE_PARAM].getValue()), 0, quantizer::numScales - 1);
+		p.gateTime = params[GATE_TIME_PARAM].getValue();
+		p.slideTime = params[SLIDE_TIME_PARAM].getValue();
+		p.sensitivity = params[SENSITIVITY_PARAM].getValue();
+		for (int i = 0; i < 8; i++) {
+			p.stagePitch[i] = params[TRIG_PITCH_PARAM + i].getValue();
+			p.stagePulses[i] = clamp((int)std::round(params[TRIG_COUNT_PARAM + i].getValue()), 1, 8);
+			p.stageType[i] = clamp((int)std::round(params[TRIG_TYPE_PARAM + i].getValue()), 0, 5);
+		}
+	}
 
 	void process(const ProcessArgs &args) override;
 
-	// persistence, random & init
-
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
-
 		json_object_set_new(rootJ, "running", json_boolean(running));
-		json_object_set_new(rootJ, "playMode", json_integer(playMode));
-		json_object_set_new(rootJ, "countMode", json_integer(countMode));
 		json_object_set_new(rootJ, "stepOutputsMode", json_boolean(stepOutputsMode));
 		json_object_set_new(rootJ, "selectedPattern", json_integer(selectedPattern));
 		json_object_set_new(rootJ, "playedPattern", json_integer(playedPattern));
-
-		json_t *trigsJ = json_array();
-		for (int i = 0; i < 8; i++) {
-			json_t *trigJ = json_array();
-			json_t *trigJSlide = json_boolean(slideState[i] == 't');
-			json_array_append_new(trigJ, trigJSlide);
-			json_t *trigJSkip = json_boolean(skipState[i] == 't');
-			json_array_append_new(trigJ, trigJSkip);
-			json_array_append_new(trigsJ, trigJ);
-		}
-		json_object_set_new(rootJ, "trigs", trigsJ);
-
-		for (int i = 0; i<16; i++) {
-			json_t *patternJ = json_object();
-			json_object_set_new(patternJ, "playMode", json_integer(patterns[i].playMode));
-			json_object_set_new(patternJ, "countMode", json_integer(patterns[i].countMode));
-			json_object_set_new(patternJ, "numSteps", json_integer(patterns[i].numberOfStepsParam));
-			json_object_set_new(patternJ, "rootNote", json_integer(patterns[i].rootNote));
-			json_object_set_new(patternJ, "scale", json_integer(patterns[i].scale));
-			json_object_set_new(patternJ, "gateTime", json_real(patterns[i].gateTime));
-			json_object_set_new(patternJ, "slideTime", json_real(patterns[i].slideTime));
-			json_object_set_new(patternJ, "sensitivity", json_real(patterns[i].sensitivity));
-			for (int j = 0; j < 16; j++) {
-				json_t *stepJ = json_object();
-				json_object_set_new(stepJ, "index", json_integer(patterns[i].steps[j].index));
-				json_object_set_new(stepJ, "number", json_integer(patterns[i].steps[j].number));
-				json_object_set_new(stepJ, "skip", json_integer((int)patterns[i].steps[j].skip));
-				json_object_set_new(stepJ, "skipParam", json_integer((int)patterns[i].steps[j].skipParam));
-				json_object_set_new(stepJ, "slide", json_integer((int)patterns[i].steps[j].slide));
-				json_object_set_new(stepJ, "pulses", json_integer(patterns[i].steps[j].pulses));
-				json_object_set_new(stepJ, "pulsesParam", json_integer(patterns[i].steps[j].pulsesParam));
-				json_object_set_new(stepJ, "pitch", json_real(patterns[i].steps[j].pitch));
-				json_object_set_new(stepJ, "type", json_integer(patterns[i].steps[j].type));
-				json_object_set_new(patternJ, ("step" + to_string(j)).c_str() , stepJ);
+		json_t *patternsJ = json_array();
+		for (int i = 0; i < 16; i++) {
+			const Pattern &p = patterns[i];
+			json_t *pJ = json_object();
+			json_object_set_new(pJ, "playMode", json_integer(p.playMode));
+			json_object_set_new(pJ, "countMode", json_integer(p.countMode));
+			json_object_set_new(pJ, "numSteps", json_integer(p.numberOfStepsParam));
+			json_object_set_new(pJ, "rootNote", json_integer(p.rootNote));
+			json_object_set_new(pJ, "scale", json_integer(p.scale));
+			json_object_set_new(pJ, "gateTime", json_real(p.gateTime));
+			json_object_set_new(pJ, "slideTime", json_real(p.slideTime));
+			json_object_set_new(pJ, "sensitivity", json_real(p.sensitivity));
+			json_t *stagesJ = json_array();
+			for (int j = 0; j < 8; j++) {
+				json_t *sJ = json_object();
+				json_object_set_new(sJ, "pitch", json_real(p.stagePitch[j]));
+				json_object_set_new(sJ, "pulses", json_integer(p.stagePulses[j]));
+				json_object_set_new(sJ, "type", json_integer(p.stageType[j]));
+				json_object_set_new(sJ, "slide", json_boolean(p.stageSlide[j]));
+				json_object_set_new(sJ, "skip", json_boolean(p.stageSkip[j]));
+				json_array_append_new(stagesJ, sJ);
 			}
-			json_object_set_new(rootJ, ("pattern" + to_string(i)).c_str(), patternJ);
+			json_object_set_new(pJ, "stages", stagesJ);
+			json_array_append_new(patternsJ, pJ);
 		}
+		json_object_set_new(rootJ, "patterns", patternsJ);
 		return rootJ;
 	}
 
 	void dataFromJson(json_t *rootJ) override {
 		BidooModule::dataFromJson(rootJ);
-		json_t *runningJ = json_object_get(rootJ, "running");
-		if (runningJ)
-			running = json_boolean_value(runningJ);
-		json_t *playModeJ = json_object_get(rootJ, "playMode");
-		if (playModeJ)
-			playMode = json_integer_value(playModeJ);
-		json_t *countModeJ = json_object_get(rootJ, "countMode");
-		if (countModeJ)
-			countMode = json_integer_value(countModeJ);
-		json_t *selectedPatternJ = json_object_get(rootJ, "selectedPattern");
-		if (selectedPatternJ)
-			selectedPattern = json_integer_value(selectedPatternJ);
-		json_t *playedPatternJ = json_object_get(rootJ, "playedPattern");
-		if (playedPatternJ)
-			playedPattern = json_integer_value(playedPatternJ);
-		json_t *stepOutputsModeJ = json_object_get(rootJ, "stepOutputsMode");
-		if (stepOutputsModeJ)
-			stepOutputsMode = json_boolean_value(stepOutputsModeJ);
-		json_t *trigsJ = json_object_get(rootJ, "trigs");
-		if (trigsJ) {
-			for (int i = 0; i < 8; i++) {
-				json_t *trigJ = json_array_get(trigsJ, i);
-				if (trigJ)
-				{
-					slideState[i] = json_boolean_value(json_array_get(trigJ, 0)) ? 't' : 'f';
-					skipState[i] = json_boolean_value(json_array_get(trigJ, 1)) ? 't' : 'f';
-				}
+		if (json_t *j = json_object_get(rootJ, "running")) running = json_is_true(j);
+		if (json_t *j = json_object_get(rootJ, "stepOutputsMode")) stepOutputsMode = json_is_true(j);
+		if (json_t *j = json_object_get(rootJ, "selectedPattern")) selectedPattern = clamp((int)json_integer_value(j), 0, 15);
+		if (json_t *j = json_object_get(rootJ, "playedPattern")) playedPattern = clamp((int)json_integer_value(j), 0, 15);
+		json_t *patternsJ = json_object_get(rootJ, "patterns");
+		for (int i = 0; i < 16; i++) {
+			Pattern &p = patterns[i];
+			p = Pattern();
+			json_t *pJ = patternsJ ? json_array_get(patternsJ, i) : NULL;
+			if (!pJ)
+				continue;
+			if (json_t *j = json_object_get(pJ, "playMode")) p.playMode = clamp((int)json_integer_value(j), 0, 4);
+			if (json_t *j = json_object_get(pJ, "countMode")) p.countMode = clamp((int)json_integer_value(j), 0, 1);
+			if (json_t *j = json_object_get(pJ, "numSteps")) p.numberOfStepsParam = clamp((int)json_integer_value(j), 1, 16);
+			if (json_t *j = json_object_get(pJ, "rootNote")) p.rootNote = clamp((int)json_integer_value(j), -1, 11);
+			if (json_t *j = json_object_get(pJ, "scale")) p.scale = clamp((int)json_integer_value(j), 0, quantizer::numScales - 1);
+			if (json_t *j = json_object_get(pJ, "gateTime")) p.gateTime = json_number_value(j);
+			if (json_t *j = json_object_get(pJ, "slideTime")) p.slideTime = json_number_value(j);
+			if (json_t *j = json_object_get(pJ, "sensitivity")) p.sensitivity = json_number_value(j);
+			json_t *stagesJ = json_object_get(pJ, "stages");
+			for (int s = 0; s < 8 && stagesJ; s++) {
+				json_t *sJ = json_array_get(stagesJ, s);
+				if (!sJ)
+					continue;
+				if (json_t *j = json_object_get(sJ, "pitch")) p.stagePitch[s] = clamp((float)json_number_value(j), -4.f, 6.f);
+				if (json_t *j = json_object_get(sJ, "pulses")) p.stagePulses[s] = clamp((int)json_integer_value(j), 1, 8);
+				if (json_t *j = json_object_get(sJ, "type")) p.stageType[s] = clamp((int)json_integer_value(j), 0, 5);
+				if (json_t *j = json_object_get(sJ, "slide")) p.stageSlide[s] = json_is_true(j);
+				if (json_t *j = json_object_get(sJ, "skip")) p.stageSkip[s] = json_is_true(j);
 			}
+			p.build(p.numberOfStepsParam);
 		}
-		for (int i=0; i<16;i++) {
-			json_t *patternJ = json_object_get(rootJ, ("pattern" + to_string(i)).c_str());
-			if (patternJ){
-				json_t *playModeJ = json_object_get(patternJ, "playMode");
-				if (playModeJ)
-					patterns[i].playMode = json_integer_value(playModeJ);
-				json_t *countModeJ = json_object_get(patternJ, "countMode");
-				if (countModeJ)
-					patterns[i].countMode = json_integer_value(countModeJ);
-				json_t *numStepsJ = json_object_get(patternJ, "numSteps");
-				if (numStepsJ)
-					patterns[i].numberOfStepsParam = json_integer_value(numStepsJ);
-				json_t *rootNoteJ = json_object_get(patternJ, "rootNote");
-				if (rootNoteJ)
-					patterns[i].rootNote = json_integer_value(rootNoteJ);
-				json_t *scaleJ = json_object_get(patternJ, "scale");
-				if (scaleJ)
-					patterns[i].scale = json_integer_value(scaleJ);
-				json_t *gateTimeJ = json_object_get(patternJ, "gateTime");
-				if (gateTimeJ)
-					patterns[i].gateTime = json_number_value(gateTimeJ);
-				json_t *slideTimeJ = json_object_get(patternJ, "slideTime");
-				if (slideTimeJ)
-					patterns[i].slideTime = json_number_value(slideTimeJ);
-				json_t *sensitivityJ = json_object_get(patternJ, "sensitivity");
-				if (sensitivityJ)
-					patterns[i].sensitivity = json_number_value(sensitivityJ);
-				for (int j = 0; j < 16; j++) {
-					json_t *stepJ = json_object_get(patternJ, ("step" + to_string(j)).c_str());
-					if (stepJ) {
-						json_t *indexJ= json_object_get(stepJ, "index");
-						if (indexJ)
-							patterns[i].steps[j].index = json_integer_value(indexJ);
-						json_t *numberJ= json_object_get(stepJ, "numer");
-						if (numberJ)
-							patterns[i].steps[j].number = json_integer_value(numberJ);
-						json_t *skipJ= json_object_get(stepJ, "skip");
-						if (skipJ)
-							patterns[i].steps[j].skip = !!json_integer_value(skipJ);
-						json_t *skipParamJ= json_object_get(stepJ, "skipParam");
-						if (skipParamJ)
-							patterns[i].steps[j].skipParam = !!json_integer_value(skipParamJ);
-						json_t *slideJ= json_object_get(stepJ, "slide");
-						if (slideJ)
-							patterns[i].steps[j].slide = !!json_integer_value(slideJ);
-						json_t *pulsesJ= json_object_get(stepJ, "pulses");
-						if (pulsesJ)
-							patterns[i].steps[j].pulses = json_integer_value(pulsesJ);
-						json_t *pulsesParamJ= json_object_get(stepJ, "pulsesParam");
-						if (pulsesParamJ)
-							patterns[i].steps[j].pulsesParam = json_integer_value(pulsesParamJ);
-						json_t *pitchJ= json_object_get(stepJ, "pitch");
-						if (pitchJ)
-							patterns[i].steps[j].pitch = json_number_value(pitchJ);
-						json_t *typeJ= json_object_get(stepJ, "type");
-						if (typeJ)
-							patterns[i].steps[j].type = json_integer_value(typeJ);
-					}
-				}
-			}
-		}
-		updateFlag = true;
-		loadedFromJson = true;
+		resetArmed = true;
+		started = false;
+	}
+
+	void onReset() override {
+		for (int i = 0; i < 16; i++)
+			patterns[i] = Pattern();
+		selectedPattern = playedPattern = 0;
+		copyPattern = -1;
+		resetArmed = true;
+		started = false;
+		running = true;
 	}
 
 	void onRandomize() override {
@@ -502,308 +427,217 @@ struct DTROY : BidooModule {
 	}
 
 	void randomizeSlidesSkips() {
+		Pattern &p = patterns[selectedPattern];
 		for (int i = 0; i < 8; i++) {
-			slideState[i] = (random::uniform() > 0.8f) ? 't' : 'f';
-			skipState[i] = (random::uniform() > 0.85f) ? 't' : 'f';
+			p.stageSlide[i] = random::uniform() > 0.8f;
+			p.stageSkip[i] = random::uniform() > 0.85f;
 		}
 	}
 
 	void randomizePitch() {
-		random::init();
-		for (int i = 0; i < 8; i++) {
-			params[TRIG_PITCH_PARAM+i].setValue(random::uniform()*10.0f-4.0f);
-		}
+		for (int i = 0; i < 8; i++)
+			params[TRIG_PITCH_PARAM + i].setValue(random::uniform() * 10.f - 4.f);
 	}
 
 	void randomizeGates() {
-		random::init();
 		for (int i = 0; i < 8; i++) {
-			params[TRIG_COUNT_PARAM+i].setValue((int)(random::uniform()*7.0f+1.0f));
-			params[TRIG_TYPE_PARAM+i].setValue((int)(random::uniform()*5.0f));
-		}
-	}
-
-	void onReset() override {
-		for (int i = 0; i < 8; i++) {
-			slideState[i] = 'f';
-			skipState[i] = 'f';
+			params[TRIG_COUNT_PARAM + i].setValue((int)(random::uniform() * 7.f + 1.f));
+			params[TRIG_TYPE_PARAM + i].setValue((int)(random::uniform() * 5.f));
 		}
 	}
 };
 
-void DTROY::UpdatePattern() {
-	patterns[selectedPattern].Update(playMode, countMode, numSteps, roundf(params[STEPS_PARAM].getValue()),
-		 roundf(params[ROOT_NOTE_PARAM].getValue()), roundf(params[SCALE_PARAM].getValue()), params[GATE_TIME_PARAM].getValue(),
-		 params[SLIDE_TIME_PARAM].getValue(), params[SENSITIVITY_PARAM].getValue() , skipState, slideState,
-		 &params[TRIG_COUNT_PARAM], &params[TRIG_PITCH_PARAM], &params[TRIG_TYPE_PARAM]);
-}
-
 void DTROY::process(const ProcessArgs &args) {
-	// Run
-	if (runningTrigger.process(params[RUN_PARAM].getValue())) {
+	if (runningTrigger.process(params[RUN_PARAM].getValue()))
 		running = !running;
-	}
-	lights[RUNNING_LIGHT].setBrightness(running ? 1.0f : 0.0f);
-	bool nextStep = false;
 
-	// Phase calculation
-	if (running) {
-		if (inputs[EXT_CLOCK_INPUT].isConnected()) {
-			tCurrent += args.sampleTime;
-			if (tLastTrig > 0.0f) {
-				phase = tCurrent / tLastTrig;
-			}
-			else {
-				float clockTime = powf(2.0f, params[CLOCK_PARAM].getValue() + inputs[CLOCK_INPUT].getVoltage());
-				phase += clockTime * args.sampleTime;
-			}
-			// External clock
-			if (clockTrigger.process(inputs[EXT_CLOCK_INPUT].getVoltage())) {
-				tLastTrig = tCurrent;
-				tCurrent = 0.0f;
-				phase = 0.0f;
-				nextStep = true;
-			}
-		}
-		else {
-			// Internal clock
-			float clockTime = powf(2.0f, params[CLOCK_PARAM].getValue() + inputs[CLOCK_INPUT].getVoltage());
-			phase += clockTime * args.sampleTime;
-			if (phase >= 1.0f) {
-				phase--;
-				nextStep = true;
-			}
-		}
+	// Editing: the panel shows the selected pattern.
+	int target_ = clamp((int)params[PATTERN_PARAM].getValue() - 1, 0, 15);
+	if (target_ != selectedPattern) {
+		selectedPattern = target_;
+		loadPanel();
 	}
-
-	// Reset
-	if (resetTrigger.process(params[RESET_PARAM].getValue() + inputs[RESET_INPUT].getVoltage())) {
-		phase = 0.0f;
-		reStart = true;
-		nextStep = true;
-		lights[RESET_LIGHT].setBrightness(1.0f);
-	}
-
-	//patternNumber
-	int newPattern = clamp((inputs[PATTERN_INPUT].isConnected() ? (int)(rescale(inputs[PATTERN_INPUT].getVoltage(),0.0f,10.0f,1.0f,16.1f)) : (int)(params[PATTERN_PARAM].getValue())) - 1, 0, 15);
-	if (newPattern != playedPattern) {
-		int cStep = patterns[playedPattern].currentStep;
-		int cPulse = patterns[playedPattern].currentPulse;
-		playedPattern = newPattern;
-		patterns[playedPattern].currentStep = cStep;
-		patterns[playedPattern].currentPulse = cPulse;
-	}
-
-	int target = clamp((int)(params[PATTERN_PARAM].getValue())-1, 0, 15);
-	if (target != selectedPattern) {
-		selectedPattern = target;
-		playMode = patterns[selectedPattern].playMode;
-		countMode = patterns[selectedPattern].countMode;
-		params[STEPS_PARAM].setValue(patterns[selectedPattern].numberOfStepsParam);
-		params[ROOT_NOTE_PARAM].setValue(patterns[selectedPattern].rootNote);
-		params[SCALE_PARAM].setValue(patterns[selectedPattern].scale);
-		params[GATE_TIME_PARAM].setValue(patterns[selectedPattern].gateTime);
-		params[SLIDE_TIME_PARAM].setValue(patterns[selectedPattern].slideTime);
-		params[SENSITIVITY_PARAM].setValue(patterns[selectedPattern].sensitivity);
-		for (int i = 0; i < 8; i++) {
-			params[TRIG_PITCH_PARAM+i].setValue(patterns[selectedPattern].steps[i].pitch);
-			params[TRIG_COUNT_PARAM+i].setValue(patterns[selectedPattern].steps[i].pulsesParam);
-			params[TRIG_TYPE_PARAM+i].setValue(patterns[selectedPattern].steps[i].type);
-			skipState[i] = patterns[selectedPattern].steps[i].skipParam ? 't' : 'f';
-			slideState[i] = patterns[selectedPattern].steps[i].slide ? 't' : 'f';
-		}
-	}
+	Pattern &ed = patterns[selectedPattern];
 
 	if (copyTrigger.process(params[COPY_PARAM].getValue())) {
-		if (!copyState) {
+		if (copyPattern < 0)
 			copyPattern = selectedPattern;
-			copyState = true;
-			lights[COPY_LIGHT].setBrightness(1.0f);
-		}
-		else if (copyPattern != selectedPattern)
-		{
-			params[STEPS_PARAM].setValue(patterns[copyPattern].numberOfStepsParam);
-			params[ROOT_NOTE_PARAM].setValue(patterns[copyPattern].rootNote);
-			params[SCALE_PARAM].setValue(patterns[copyPattern].scale);
-			params[GATE_TIME_PARAM].setValue(patterns[copyPattern].gateTime);
-			params[SLIDE_TIME_PARAM].setValue(patterns[copyPattern].slideTime);
-			params[SENSITIVITY_PARAM].setValue(patterns[copyPattern].sensitivity);
-			playMode = patterns[copyPattern].playMode;
-			countMode = patterns[copyPattern].countMode;
-			for (int i = 0; i < 8; i++) {
-				params[TRIG_PITCH_PARAM+i].setValue(patterns[copyPattern].steps[i].pitch);
-				params[TRIG_COUNT_PARAM+i].setValue(patterns[copyPattern].steps[i].pulsesParam);
-				params[TRIG_TYPE_PARAM+i].setValue(patterns[copyPattern].steps[i].type);
-				skipState[i] = patterns[copyPattern].steps[i].skipParam ? 't' : 'f';
-				slideState[i] = patterns[copyPattern].steps[i].slide ? 't' : 'f';
-			}
-			copyState = false;
-			copyPattern = -1;
-			lights[COPY_LIGHT].setBrightness(0.0f);
-		}
-		else 		{
-			copyState = false;
-			copyPattern = -1;
-			lights[COPY_LIGHT].setBrightness(0.0f);
-		}
-	}
-
-	if (upTrigger.process(params[UP_PARAM].getValue())) {
-		for (int i = 0; i < 8; i++) {
-			params[TRIG_PITCH_PARAM+i].setValue(min(params[TRIG_PITCH_PARAM+i].getValue() + 1.f/12.f,6.0f));
-		}
-	}
-
-	if (downTrigger.process(params[DOWN_PARAM].getValue())) {
-		for (int i = 0; i < 8; i++) {
-			params[TRIG_PITCH_PARAM+i].setValue(max(params[TRIG_PITCH_PARAM+i].getValue() - 1.f/12.f,-4.0f));
-		}
-	}
-
-	if (leftTrigger.process(params[LEFT_PARAM].getValue())) {
-			float pitch = params[TRIG_PITCH_PARAM].getValue();
-			float pulse = params[TRIG_COUNT_PARAM].getValue();
-			float type = params[TRIG_TYPE_PARAM].getValue();
-			char skip = skipState[0];
-			char slide = slideState[0];
-			for (int i = 0; i < 7; i++) {
-				params[TRIG_PITCH_PARAM+i].setValue(params[TRIG_PITCH_PARAM+i+1].getValue());
-				params[TRIG_COUNT_PARAM+i].setValue(params[TRIG_COUNT_PARAM+i+1].getValue());
-				params[TRIG_TYPE_PARAM+i].setValue(params[TRIG_TYPE_PARAM+i+1].getValue());
-				skipState[i] = skipState[i+1];
-				slideState[i] = slideState[i+1];
-			}
-			params[TRIG_PITCH_PARAM+7].setValue(pitch);
-			params[TRIG_COUNT_PARAM+7].setValue(pulse);
-			params[TRIG_TYPE_PARAM+7].setValue(type);
-			skipState[7] = skip;
-			slideState[7] = slide;
-	}
-
-	if (rightTrigger.process(params[RIGHT_PARAM].getValue())) {
-			float pitch = params[TRIG_PITCH_PARAM+7].getValue();
-			float pulse = params[TRIG_COUNT_PARAM+7].getValue();
-			float type = params[TRIG_TYPE_PARAM+7].getValue();
-			char skip = skipState[7];
-			char slide = slideState[7];
-			for (int i = 7; i > 0; i--) {
-				params[TRIG_PITCH_PARAM+i].setValue(params[TRIG_PITCH_PARAM+i-1].getValue());
-				params[TRIG_COUNT_PARAM+i].setValue(params[TRIG_COUNT_PARAM+i-1].getValue());
-				params[TRIG_TYPE_PARAM+i].setValue(params[TRIG_TYPE_PARAM+i-1].getValue());
-				skipState[i] = skipState[i-1];
-				slideState[i] = slideState[i-1];
-			}
-			params[TRIG_PITCH_PARAM].setValue(pitch);
-			params[TRIG_COUNT_PARAM].setValue(pulse);
-			params[TRIG_TYPE_PARAM].setValue(type);
-			skipState[0] = skip;
-			slideState[0] = slide;
-	}
-
-	// Update Pattern
-	if ((updateFlag) || (!loadedFromJson)) {
-		// Trigs Update
-		for (int i = 0; i < 8; i++) {
-			if (slideTriggers[i].process(params[TRIG_SLIDE_PARAM + i].getValue())) {
-				slideState[i] = slideState[i] == 't' ? 'f' : 't';
-			}
-			if (skipTriggers[i].process(params[TRIG_SKIP_PARAM + i].getValue())) {
-				skipState[i] = skipState[i] == 't' ? 'f' : 't';
-			}
-		}
-		// playMode
-		if (playModeTrigger.process(params[PLAY_MODE_PARAM].getValue())) {
-			playMode = (((int)playMode + 1) % 5);
-		}
-		// countMode
-		if (countModeTrigger.process(params[COUNT_MODE_PARAM].getValue())) {
-			countMode = (((int)countMode + 1) % 2);
-		}
-		// numSteps
-		numSteps = clamp((int)(params[STEPS_PARAM].getValue() + inputs[STEPS_INPUT].getVoltage()), 1, 16);
-
-		UpdatePattern();
-		if (!loadedFromJson) {
-			loadedFromJson = true;
-			updateFlag = true;
-		}
-	}
-
-	// Steps && Pulses Management
-	if (nextStep) {
-		previousPitch = pitch;
-
-		auto nextT = patterns[playedPattern].GetNextStep(reStart);
-		index = std::get<0>(nextT);
-		pulse = std::get<1>(nextT);
-
-		if (reStart)
-			reStart = false;
-
-		if (((!stepOutputsMode) && (pulse == 0)) || (stepOutputsMode))
-			stepPulse[patterns[playedPattern].CurrentStep().index].trigger(10 * args.sampleTime);
-
-		lights[STEPS_LIGHTS+patterns[playedPattern].CurrentStep().index].setBrightness(1.0f);
-	}
-
-	// Lights & steps outputs
-	for (int i = 0; i < 8; i++) {
-		lights[STEPS_LIGHTS + i].setBrightness(lights[STEPS_LIGHTS + i].getBrightness() - lights[STEPS_LIGHTS + i].getBrightness() * invLightLambda * args.sampleTime);
-		lights[SLIDES_LIGHTS + i].setBrightness(slideState[i] == 't' ? 1.0f - lights[STEPS_LIGHTS + i].getBrightness() : lights[STEPS_LIGHTS + i].getBrightness());
-		lights[SKIPS_LIGHTS + i].setBrightness(skipState[i]== 't' ? 1.0f - lights[STEPS_LIGHTS + i].getBrightness() : lights[STEPS_LIGHTS + i].getBrightness());
-		outputs[STEP_OUTPUT+i].setVoltage(stepPulse[i].process(args.sampleTime) ? 10.0f : 0.0f);
-	}
-	lights[RESET_LIGHT].setBrightness(lights[RESET_LIGHT].getBrightness() -  lights[RESET_LIGHT].getBrightness() * invLightLambda * args.sampleTime);
-	lights[COPY_LIGHT].setBrightness(copyPattern >= 0 ? 1 : 0);
-
-	// Caclulate Outputs
-	gateOn = running && (!patterns[playedPattern].CurrentStep().skip);
-	float gateValue = 0.0f;
-	if (gateOn){
-		if (patterns[playedPattern].CurrentStep().type == 0) {
-			gateOn = false;
-		}
-		else if (((patterns[playedPattern].CurrentStep().type == 1) && (pulse == 0))
-				|| (patterns[playedPattern].CurrentStep().type == 2)
-				|| ((patterns[playedPattern].CurrentStep().type == 3) && (pulse == patterns[playedPattern].CurrentStep().pulses))) {
-				float gateCoeff = clamp(patterns[playedPattern].gateTime - 0.02f + inputs[GATE_TIME_INPUT].getVoltage() * 0.1f, 0.0f, 0.99f);
-			gateOn = phase < gateCoeff;
-			gateValue = 10.0f;
-		}
-		else if (patterns[playedPattern].CurrentStep().type == 3) {
-			gateOn = true;
-			gateValue = 10.0f;
-		}
-		else if (patterns[playedPattern].CurrentStep().type == 4) {
-			gateOn = true;
-			gateValue = inputs[EXTGATE1_INPUT].getVoltage();
-		}
-		else if (patterns[playedPattern].CurrentStep().type == 5) {
-			gateOn = true;
-			gateValue = inputs[EXTGATE2_INPUT].getVoltage();
-		}
 		else {
-			gateOn = false;
-			gateValue = 0.0f;
+			if (copyPattern != selectedPattern) {
+				ed.copySettings(patterns[copyPattern]);
+				loadPanel();
+			}
+			copyPattern = -1;
+		}
+	}
+	if (upTrigger.process(params[UP_PARAM].getValue()))
+		for (int i = 0; i < 8; i++)
+			params[TRIG_PITCH_PARAM + i].setValue(std::min(params[TRIG_PITCH_PARAM + i].getValue() + 1.f / 12.f, 6.f));
+	if (downTrigger.process(params[DOWN_PARAM].getValue()))
+		for (int i = 0; i < 8; i++)
+			params[TRIG_PITCH_PARAM + i].setValue(std::max(params[TRIG_PITCH_PARAM + i].getValue() - 1.f / 12.f, -4.f));
+	bool left = leftTrigger.process(params[LEFT_PARAM].getValue());
+	bool right = rightTrigger.process(params[RIGHT_PARAM].getValue());
+	if (left || right) {
+		float p[8], c[8], t[8];
+		bool sl[8], sk[8];
+		for (int i = 0; i < 8; i++) {
+			int from = left ? (i + 1) % 8 : (i + 7) % 8;
+			p[i] = params[TRIG_PITCH_PARAM + from].getValue();
+			c[i] = params[TRIG_COUNT_PARAM + from].getValue();
+			t[i] = params[TRIG_TYPE_PARAM + from].getValue();
+			sl[i] = ed.stageSlide[from];
+			sk[i] = ed.stageSkip[from];
+		}
+		for (int i = 0; i < 8; i++) {
+			params[TRIG_PITCH_PARAM + i].setValue(p[i]);
+			params[TRIG_COUNT_PARAM + i].setValue(c[i]);
+			params[TRIG_TYPE_PARAM + i].setValue(t[i]);
+			ed.stageSlide[i] = sl[i];
+			ed.stageSkip[i] = sk[i];
+		}
+	}
+	for (int i = 0; i < 8; i++) {
+		if (slideTriggers[i].process(params[TRIG_SLIDE_PARAM + i].getValue()))
+			ed.stageSlide[i] = !ed.stageSlide[i];
+		if (skipTriggers[i].process(params[TRIG_SKIP_PARAM + i].getValue()))
+			ed.stageSkip[i] = !ed.stageSkip[i];
+	}
+	if (playModeTrigger.process(params[PLAY_MODE_PARAM].getValue()))
+		ed.playMode = (ed.playMode + 1) % 5;
+	if (countModeTrigger.process(params[COUNT_MODE_PARAM].getValue()))
+		ed.countMode = (ed.countMode + 1) % 2;
+	savePanel();
+
+	// Playing: the pattern CV picks any pattern, the position carries over.
+	int newPattern = inputs[PATTERN_INPUT].isConnected() ? clamp((int)rescale(inputs[PATTERN_INPUT].getVoltage(), 0.f, 10.f, 1.f, 16.1f) - 1, 0, 15) : selectedPattern;
+	if (newPattern != playedPattern) {
+		patterns[newPattern].currentStep = patterns[playedPattern].currentStep;
+		patterns[newPattern].currentPulse = patterns[playedPattern].currentPulse;
+		playedPattern = newPattern;
+	}
+	Pattern &pl = patterns[playedPattern];
+	pl.build(clamp((int)(pl.numberOfStepsParam + inputs[STEPS_INPUT].getVoltage()), 1, 16));
+
+	// Clock: internal at 1V/oct (0 V = 120 BPM), or the external clock with
+	// the phase measured from its last interval.
+	bool tick = false;
+	double rate = 2.0 * std::exp2((double)params[CLOCK_PARAM].getValue() + inputs[CLOCK_INPUT].getVoltage());
+	bool ext = inputs[EXT_CLOCK_INPUT].isConnected();
+	bool extEdge = clockTrigger.process(ext ? inputs[EXT_CLOCK_INPUT].getVoltage() : 0.f, 0.1f, 1.f);
+	if (ext) {
+		if (sinceClock >= 0)
+			sinceClock++;
+		if (extEdge) {
+			if (sinceClock > 0)
+				clockInterval = sinceClock;
+			sinceClock = 0;
+		}
+	}
+	else {
+		sinceClock = -1;
+		clockInterval = 0;
+	}
+	if (resetTrigger.process(params[RESET_PARAM].getValue() + inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f)) {
+		resetArmed = true;
+		lights[RESET_LIGHT].setBrightness(1.f);
+		// The internal clock restarts on the reset: its first clock is now. A
+		// reset up to 1 ms after an external clock belongs to that clock.
+		if (!ext) {
+			phase = 0.0;
+			tick = running;
+		}
+		else if (running && started && sincePulse < (long)std::round(1e-3f * args.sampleRate))
+			tick = true;
+	}
+	if (running) {
+		if (ext) {
+			if (extEdge) {
+				tick = true;
+				phase = 0.0;
+			}
+			else
+				phase = clockInterval > 0 ? (double)sinceClock / clockInterval : phase + rate * args.sampleTime;
+		}
+		else if (!tick) {
+			phase += rate * args.sampleTime;
+			if (phase >= 1.0) {
+				phase -= std::floor(phase);
+				tick = true;
+			}
 		}
 	}
 
-	if (gateOn) {
-		pitch = std::get<0>(quant.closestVoltageInScale(clamp(patterns[playedPattern].CurrentStep().pitch,-4.0f,6.0f) * clamp(patterns[playedPattern].sensitivity
-			+ (inputs[SENSITIVITY_INPUT].isConnected() ? rescale(inputs[SENSITIVITY_INPUT].getVoltage(),0.f,10.f,0.1f,1.0f) : 0.0f),0.1f,1.0f) + inputs[TRANSPOSE_INPUT].getVoltage(),
-		clamp(patterns[playedPattern].rootNote + rescale(clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.0f,10.0f),0.0f,10.0f,0.0f,11.0f), 0.0f, 11.0f), patterns[playedPattern].scale + inputs[SCALE_INPUT].getVoltage()));
+	if (tick) {
+		slideFrom = pitch;
+		pl.advance(resetArmed);
+		resetArmed = false;
+		started = true;
+		pulse = pl.currentPulse;
+		sincePulse = 0;
+		const Step &s = pl.steps[pl.currentStep];
+		if (!s.skip && (stepOutputsMode || pulse == 0))
+			stepPulse[s.index].trigger(1e-3f);
+		lights[STEPS_LIGHTS + s.index].setBrightness(1.f);
 	}
 
-	if (patterns[playedPattern].CurrentStep().slide) {
-		if (pulse == 0) {
-			float slideCoeff = clamp(patterns[playedPattern].slideTime + inputs[SLIDE_TIME_INPUT].getVoltage() * 0.1f, 0.0f, 0.99f);
-			pitch = pitch - (1.0f - powf(phase, slideCoeff)) * (pitch - previousPitch);
+	// Gate.
+	const Step &s = pl.steps[pl.currentStep];
+	bool active = running && started && !s.skip;
+	float gateCoeff = clamp(pl.gateTime - 0.02f + inputs[GATE_TIME_INPUT].getVoltage() * 0.1f, 0.f, 0.99f);
+	bool timed = phase < gateCoeff || sincePulse < (long)std::round(1e-3f * args.sampleRate);
+	bool gate = false;
+	float gateValue = 10.f;
+	if (active) {
+		switch (s.type) {
+			case Pattern::SINGLE: gate = pulse == 0 && timed; break;
+			case Pattern::MULTIPLE: gate = timed; break;
+			case Pattern::HOLD: gate = pulse < s.pulses - 1 || timed; break;
+			case Pattern::EXT1: gate = true; gateValue = inputs[EXTGATE1_INPUT].getVoltage(); break;
+			case Pattern::EXT2: gate = true; gateValue = inputs[EXTGATE2_INPUT].getVoltage(); break;
+			default: break;
 		}
+		// A new gate always gets a low sample before it, so it is a new edge.
+		if (tick && lastGate && (pulse == 0 || s.type == Pattern::MULTIPLE) && s.type >= Pattern::SINGLE && s.type <= Pattern::HOLD)
+			gate = false;
 	}
+	lastGate = gate;
+	sincePulse++;
 
-	// Update Outputs
-	outputs[GATE_OUTPUT].setVoltage(gateOn ? gateValue : 0.0f);
+	// Pitch: quantized while the stage plays, held through rests.
+	if (active && s.type != Pattern::REST) {
+		float sens = clamp(pl.sensitivity + (inputs[SENSITIVITY_INPUT].isConnected() ? inputs[SENSITIVITY_INPUT].getVoltage() * 0.1f : 0.f), 0.1f, 1.f);
+		float v = clamp(s.pitch, -4.f, 6.f) * sens + inputs[TRANSPOSE_INPUT].getVoltage();
+		int root = pl.rootNote;
+		if (root >= 0)
+			root = clamp((int)(root + clamp(inputs[ROOT_NOTE_INPUT].getVoltage(), 0.f, 10.f) * 1.1f), 0, 11);
+		int scale = clamp((int)(pl.scale + inputs[SCALE_INPUT].getVoltage()), 0, quantizer::numScales - 1);
+		target = std::get<0>(quant.closestVoltageInScale(v, root, scale));
+	}
+	if (s.slide && pulse == 0 && started) {
+		float curve = clamp(pl.slideTime + inputs[SLIDE_TIME_INPUT].getVoltage() * 0.1f, 0.f, 0.99f);
+		pitch = slideFrom + (target - slideFrom) * std::pow((float)std::min(phase, 1.0), curve);
+	}
+	else
+		pitch = target;
+
+	outputs[GATE_OUTPUT].setVoltage(gate ? gateValue : 0.f);
 	outputs[PITCH_OUTPUT].setVoltage(pitch);
+
+	// Lights & stage outputs.
+	const float lambda = 13.333333f * args.sampleTime;
+	for (int i = 0; i < 8; i++) {
+		float b = lights[STEPS_LIGHTS + i].getBrightness();
+		b -= b * lambda;
+		lights[STEPS_LIGHTS + i].setBrightness(b);
+		lights[SLIDES_LIGHTS + i].setBrightness(ed.stageSlide[i] ? 1.f - b : b);
+		lights[SKIPS_LIGHTS + i].setBrightness(ed.stageSkip[i] ? 1.f - b : b);
+		outputs[STEP_OUTPUT + i].setVoltage(stepPulse[i].process(args.sampleTime) ? 10.f : 0.f);
+	}
+	float r = lights[RESET_LIGHT].getBrightness();
+	lights[RESET_LIGHT].setBrightness(r - r * lambda);
+	lights[RUNNING_LIGHT].setBrightness(running ? 1.f : 0.f);
+	lights[COPY_LIGHT].setBrightness(copyPattern >= 0 ? 1.f : 0.f);
 }
 
 struct DTROYDisplay : TransparentWidget {
@@ -972,48 +806,16 @@ DTROYWidget::DTROYWidget(DTROY *module) {
 	addOutput(createOutput<PJ301MPort>(Vec(portX0[3]-1, 330.0f), module, DTROY::PITCH_OUTPUT));
 }
 
-struct DTROYRandPitchItem : MenuItem {
-	DTROY *module;
-	void onAction(const event::Action &e) override {
-		module->randomizePitch();
-	}
-};
-
-struct DTROYRandGatesItem : MenuItem {
-	DTROY *module;
-	void onAction(const event::Action &e) override {
-		module->randomizeGates();
-	}
-};
-
-struct DTROYRandSlideSkipItem : MenuItem {
-	DTROY *module;
-	void onAction(const event::Action &e) override {
-		module->randomizeSlidesSkips();
-	}
-};
-
-struct DTROYStepOutputsModeItem : MenuItem {
-	DTROY *module;
-	void onAction(const event::Action &e) override {
-		module->stepOutputsMode = !module->stepOutputsMode;
-	}
-	void step() override {
-		rightText = module->stepOutputsMode ? "✔" : "";
-		MenuItem::step();
-	}
-};
-
 void DTROYWidget::appendContextMenu(ui::Menu *menu) {
 	BidooWidget::appendContextMenu(menu);
-	DTROY *module = dynamic_cast<DTROY*>(this->module);
-	assert(module);
-
+	DTROY *m = dynamic_cast<DTROY*>(this->module);
+	if (!m)
+		return;
 	menu->addChild(new MenuSeparator());
-	menu->addChild(construct<DTROYRandPitchItem>(&MenuItem::text, "Rand pitch", &DTROYRandPitchItem::module, module));
-	menu->addChild(construct<DTROYRandGatesItem>(&MenuItem::text, "Rand gates", &DTROYRandGatesItem::module, module));
-	menu->addChild(construct<DTROYRandSlideSkipItem>(&MenuItem::text, "Rand slides & skips", &DTROYRandSlideSkipItem::module, module));
-	menu->addChild(construct<DTROYStepOutputsModeItem>(&MenuItem::text, "Step outputs mode", &DTROYStepOutputsModeItem::module, module));
+	menu->addChild(createMenuItem("Randomize pitches", "", [=]() { m->randomizePitch(); }));
+	menu->addChild(createMenuItem("Randomize gates", "", [=]() { m->randomizeGates(); }));
+	menu->addChild(createMenuItem("Randomize slides & skips", "", [=]() { m->randomizeSlidesSkips(); }));
+	menu->addChild(createBoolPtrMenuItem("Stage outputs on every pulse", "", &m->stepOutputsMode));
 }
 
 Model *modelDTROY = createModel<DTROY, DTROYWidget>("dTrOY");

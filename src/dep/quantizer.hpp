@@ -35,6 +35,7 @@ namespace quantizer {
   };
 
   static constexpr int numScales = 46;
+  static constexpr int CHROMATIC = 45;
 
   static const Scale scales[numScales] = {
   	{0,  "No", 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
