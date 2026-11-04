@@ -428,7 +428,7 @@ struct ENCORE : BidooModule {
 	float trigCV1[8][8][64] = {{{0.0f}}};
 	float trigCV2[8][8][64] = {{{0.0f}}};
 	int trackHead[8][8] = {{0}};
-	int rootNote[8][8] = {{-1}};
+	int rootNote[8][8] = {};
 	int scale[8][8] = {{0}};
 	int quantizeCV1[8][8] = {{0}};
 	bool slideMode[8][8] = {{0}};
@@ -483,8 +483,9 @@ struct ENCORE : BidooModule {
 		configParam(TRACKLENGTH_PARAM, 1.0f, 64.0f, 16.0f);
 		configParam(TRACKSPEED_PARAM, 1.0f, 8.0f, 1.0f);
 		configParam(TRACKREADMODE_PARAM, 0.0f, 4.0f, 0.0f);
-		configParam(TRACKROOTNOTE_PARAM, -1.0f, quantizer::numNotes-2, -1.0f, "Root note","",0,1,1);
-		configParam(TRACKSCALE_PARAM, 0.0f, quantizer::numScales-1, 1.0f, "Scale","",0,1,1);
+		configSwitch(TRACKROOTNOTE_PARAM, 0.0f, 11.0f, 0.0f, "Root note", {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"});
+		configParam(TRACKSCALE_PARAM, 0.0f, quantizer::numScales-1, 0.0f, "Scale (No: not quantized)");
+		paramQuantities[TRACKSCALE_PARAM]->snapEnabled = true;
 		configParam(TRACKQUANTIZECV1_PARAM, 0.0f, 1.0f, 0.0f);
 
 		configParam(TRIGCV1_PARAM, -10.0f, 10.0f, 0.0f);
@@ -746,10 +747,10 @@ struct ENCORE : BidooModule {
 							nTracksAttibutes[i][j].setTrackReadMode(json_integer_value(readModeJ));
 						json_t *rootNoteJ = json_object_get(trackJ, "rootNote");
 						if (rootNoteJ)
-							rootNote[i][j]=json_integer_value(rootNoteJ);
+							rootNote[i][j]=clamp((int)json_integer_value(rootNoteJ), 0, 11);
 						json_t *scaleJ = json_object_get(trackJ, "scale");
 						if (scaleJ)
-							scale[i][j]=json_integer_value(scaleJ);
+							scale[i][j]=clamp((int)json_integer_value(scaleJ), 0, quantizer::numScales - 1);
 						json_t *quantizeCV1J = json_object_get(trackJ, "quantizeCV1");
 						if (quantizeCV1J)
 							quantizeCV1[i][j]=json_integer_value(quantizeCV1J);
@@ -1136,7 +1137,7 @@ struct ENCORE : BidooModule {
 	void trackInit(const int pattern, const int track) {
 		nTracksAttibutes[pattern][track].init();
 		trackHead[pattern][track] = 0;
-		rootNote[pattern][track] = -1;
+		rootNote[pattern][track] = 0;
 		scale[pattern][track] = 0;
 		quantizeCV1[pattern][track] = 0;
 		for (int i=0; i<64; i++) {
@@ -1747,7 +1748,7 @@ void ENCORE::process(const ProcessArgs &args) {
 				prevTrig[i] = tPT;
 			}
 
-			bool q = rootNote[currentPattern][i]>=0 && scale[currentPattern][i]>0;
+			bool q = scale[currentPattern][i]>0;
 			outputs[VO_OUTPUTS + i].setVoltage(trackGetVO(i, tPT, q));
 			outputs[CV1_OUTPUTS + i].setVoltage(outputs[GATE_OUTPUTS + i].getVoltage() == 0.0f ? 0.0f : ((quantizeCV1[currentPattern][i]>0 && q) ? std::get<0>(quant.closestVoltageInScale(trigCV1[currentPattern][i][tPT]-4.0f, rootNote[currentPattern][i], scale[currentPattern][i])) : trigCV1[currentPattern][i][tPT]));
 			outputs[CV2_OUTPUTS + i].setVoltage(outputs[GATE_OUTPUTS + i].getVoltage() == 0.0f ? 0.0f : trigCV2[currentPattern][i][tPT]);
