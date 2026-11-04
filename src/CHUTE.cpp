@@ -6,6 +6,63 @@
 
 using namespace std;
 
+// A ball dropped from an altitude, bouncing with a coefficient of
+// restitution until it rests. The gate rises on each impact and stays high
+// until the top of the bounce (at least 1 ms). One ball per polyphony channel.
+struct ChuteBall {
+	dsp::SchmittTrigger trigger;
+	dsp::PulseGenerator impactPulse;
+	bool running = false;
+	bool desc = false;
+	float altitude = 0.f;
+	float altitudeInit = 1.f;
+	float minAlt = 0.f;
+	float speed = 0.f;
+
+	void drop(float alt) {
+		running = true;
+		desc = true;
+		altitude = alt;
+		altitudeInit = alt;
+		minAlt = alt;
+		speed = 0.f;
+	}
+
+	// Returns the gate.
+	bool process(float dt, float gravity, float cor) {
+		if (running) {
+			if (minAlt < 0.0001f) {
+				running = false;
+				altitude = 0.f;
+				minAlt = 0.f;
+			}
+			else if (desc) {
+				speed += gravity * dt;
+				altitude -= speed * dt;
+				if (altitude <= 0.f) {
+					desc = false;
+					speed *= cor;
+					altitude = 0.f;
+					impactPulse.trigger(1e-3f);
+				}
+			}
+			else {
+				speed -= gravity * dt;
+				if (speed <= 0.f) {
+					speed = 0.f;
+					desc = true;
+					minAlt = std::min(minAlt, altitude);
+				}
+				else {
+					altitude += speed * dt;
+				}
+			}
+		}
+		bool pulse = impactPulse.process(dt);
+		return pulse || (running && !desc);
+	}
+};
+
 struct CHUTE : BidooModule {
 	enum ParamIds {
 		ALTITUDE_PARAM,
@@ -31,83 +88,53 @@ struct CHUTE : BidooModule {
 		NUM_LIGHTS
 	};
 
-	bool running = false;
-	float phase = 0.0f;
-	float altitude = 0.0f;
-	float altitudeInit = 0.01f;
-	float minAlt = 0.0f;
-	float speed = 0.0f;
-	bool desc = false;
+	static constexpr float GRAVITY_MIN = 1.622f;   // the Moon
+	static constexpr float GRAVITY_MAX = 11.15f;   // Neptune
 
-	dsp::SchmittTrigger playTrigger;
-	dsp::SchmittTrigger gateTypeTrigger;
+	ChuteBall balls[16];
+	dsp::SchmittTrigger buttonTrigger;
 
 	CHUTE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(ALTITUDE_PARAM, 0.01f, 3.f, 1.f, "Altitude", " m", 0.01f, 3.f);
-		configParam(GRAVITY_PARAM, 1.622f, 11.15f, 9.798f, "Gravity", " m/s²", 1.622f, 11.15f); // between the Moon and Neptune
-		configParam(COR_PARAM, 0.0f, 1.0f, 0.69f, "Coefficient of restitution", "", 0.f, 1.f);  // 0 inelastic, 1 perfect elastic, 0.69 glass
-		configParam(RUN_PARAM, 0.f, 1.f, 0.f, "Trig");
+		configParam(ALTITUDE_PARAM, 0.01f, 3.f, 1.f, "Altitude", " m");
+		configParam(GRAVITY_PARAM, GRAVITY_MIN, GRAVITY_MAX, 9.798f, "Gravity", " m/s²");
+		configParam(COR_PARAM, 0.0f, 1.0f, 0.69f, "Coefficient of restitution (0 inelastic, 1 elastic)");
+		configButton(RUN_PARAM, "Drop");
+		configInput(TRIG_INPUT, "Drop trigger");
+		configInput(ALTITUDE_INPUT, "Altitude CV (1 V = 1 m)");
+		configInput(GRAVITY_INPUT, "Gravity CV (1 V = 1 m/s²)");
+		configInput(COR_INPUT, "Restitution CV (1 V = 0.1)");
+		configOutput(GATE_OUTPUT, "Gate, high from each impact to the top of the bounce");
+		configOutput(PITCH_OUTPUT, "Height (0-10 V of the drop)");
+		configOutput(PITCHSTEP_OUTPUT, "Bounce peak height (0-10 V of the drop)");
 	}
 
-	void process(const ProcessArgs &args) override;
+	void process(const ProcessArgs &args) override {
+		int channels = std::max(inputs[TRIG_INPUT].getChannels(), 1);
+		bool button = buttonTrigger.process(params[RUN_PARAM].getValue());
+
+		for (int c = 0; c < channels; c++) {
+			ChuteBall &b = balls[c];
+			bool trig = b.trigger.process(inputs[TRIG_INPUT].getVoltage(c), 0.1f, 1.f);
+			if (trig || button)
+				b.drop(clamp(params[ALTITUDE_PARAM].getValue() + inputs[ALTITUDE_INPUT].getPolyVoltage(c), 0.01f, 10.f));
+
+			float gravity = clamp(params[GRAVITY_PARAM].getValue() + inputs[GRAVITY_INPUT].getPolyVoltage(c), GRAVITY_MIN, GRAVITY_MAX);
+			float cor = clamp(params[COR_PARAM].getValue() + inputs[COR_INPUT].getPolyVoltage(c) * 0.1f, 0.f, 1.f);
+			bool gate = b.process(args.sampleTime, gravity, cor);
+
+			outputs[GATE_OUTPUT].setVoltage(gate ? 10.f : 0.f, c);
+			outputs[PITCH_OUTPUT].setVoltage(b.running ? 10.f * b.altitude / b.altitudeInit : 0.f, c);
+			outputs[PITCHSTEP_OUTPUT].setVoltage(b.running ? 10.f * b.minAlt / b.altitudeInit : 0.f, c);
+		}
+		outputs[GATE_OUTPUT].setChannels(channels);
+		outputs[PITCH_OUTPUT].setChannels(channels);
+		outputs[PITCHSTEP_OUTPUT].setChannels(channels);
+	}
 };
-
-
-void CHUTE::process(const ProcessArgs &args) {
-
-	// Running
-	if (playTrigger.process(params[RUN_PARAM].getValue() + inputs[TRIG_INPUT].getVoltage())) {
-		running = true;
-		desc = true;
-		altitude = params[ALTITUDE_PARAM].getValue() + inputs[ALTITUDE_INPUT].getVoltage();
-		altitudeInit = altitude;
-		minAlt = altitude;
-		speed = 0.0f;
-	}
-
-	// Altitude calculation
-	if (running) {
-		if (minAlt<0.0001f) {
-			running = false;
-			altitude = 0.0f;
-			minAlt = 0.0f;
-		}
-		else
-		{
-			phase = 1.0f / args.sampleRate;
-			if (desc) {
-				speed += (params[GRAVITY_PARAM].value + inputs[GRAVITY_INPUT].value)*phase;
-				altitude = altitude - (speed * phase);
-				if (altitude <= 0.0f) {
-					desc=false;
-					speed = speed * (params[COR_PARAM].value + inputs[COR_INPUT].value);
-					altitude = 0.0f;
-				}
-			}
-			else {
-				speed = speed - (params[GRAVITY_PARAM].value + inputs[GRAVITY_INPUT].value)*phase;
-				if (speed<=0.0f) {
-					speed = 0.0f;
-					desc=true;
-					minAlt=min(minAlt,altitude);
-				}
-				else {
-					altitude = altitude + (speed * phase);
-				}
-			}
-		}
-	}
-
-	//Calculate output
-	outputs[GATE_OUTPUT].setVoltage(running ? desc ? 10.0f : 0.0f : 0.0f);
-	outputs[PITCH_OUTPUT].setVoltage(running ? 10.0f * altitude/ altitudeInit : 0.0f);
-	outputs[PITCHSTEP_OUTPUT].setVoltage(running ? 10.0f * minAlt/ altitudeInit : 0.0f);
-}
 
 struct CHUTEDisplay : TransparentWidget {
 	CHUTE *module;
-	int frame = 0;
 
 	CHUTEDisplay() {
 
@@ -130,9 +157,11 @@ struct CHUTEDisplay : TransparentWidget {
 
 			nvgFillColor(args.vg, YELLOW_BIDOO);
 			nvgStrokeColor(args.vg, YELLOW_BIDOO);
+			// The ball of channel 1.
 			float altRatio = 0.f;
 			if (module != NULL) {
-				 altRatio = clamp(module->altitude / module->altitudeInit, 0.0f, 1.0f);
+				const ChuteBall &b = module->balls[0];
+				altRatio = clamp(b.altitude / b.altitudeInit, 0.0f, 1.0f);
 			}
 			float pos = box.size.y * (1-altRatio);
 			nvgText(args.vg, -0.3f, pos, "☻", NULL);
