@@ -3,13 +3,49 @@
 #include "dsp/digital.hpp"
 #include <sstream>
 #include <iomanip>
-#include "dep/quantizer.hpp"
-#include <random>
 
 using namespace std;
 
-enum pageType { pDiv, pStep, pProb, pSpeed, pClockShift, pTimeShift, pPulseWidth};
-enum playMode { indepEditA, indepEditB, matrix};
+// Trigger generator after the Tiptop Audio Trigger Riot user guide.
+//
+// One counter counts clocks (16th notes) from the cycle start; the engine runs
+// on 96 PPQ internal ticks (24 per clock), so a position A in ticks is count
+// A / 24. Each of the 16 knobs drives a division: it fires when its own clock
+// count (in Speed ticks) minus its shift reaches a multiple of Divide, plus an
+// optional single Step. Matrix mode sums each knob into its row output (1-4)
+// and its column output (A-D); independent mode keeps separate settings for
+// rows and columns.
+
+enum pageType { pDiv, pStep, pProb, pSpeed, pClockShift, pTimeShift, pPulseWidth };
+enum playMode { indepEditA, indepEditB, matrix };
+
+static const int RIOT_BANKS = 16;
+static const int RIOT_SETS = 3;
+static const int RIOT_CELLS = 16;
+static const int TICKS_PER_CLOCK = 24;
+
+struct RiotCell {
+	int div = 0;            // 0 off, 1..255 clocks
+	int step = 0;           // 0 off, 1..255: one trigger on that count
+	float prob = 1.f;       // 0..1
+	int speed = 24;         // 2..96 internal ticks per clock of this division
+	int clockShift = 0;     // 0..div-1 whole clocks
+	float timeShift = 0.f;  // 0..360 degrees of what remains of the division
+	float pulseWidth = 0.25f; // 0..1 of the division, 0 = one internal tick
+
+	// Delay of the division after its clock count, in its clocks.
+	double offset() const {
+		int cs = div > 0 ? std::min(clockShift, div - 1) : 0;
+		return cs + timeShift / 360.0 * (div - cs);
+	}
+};
+
+struct RiotBank {
+	RiotCell cells[RIOT_SETS][RIOT_CELLS];
+	int cycleStart = 1;  // count the cycle resets to, 1..255
+	int cycleEnd = 0;    // 0 = endless, else last count of the cycle
+	float bpm = 120.f;   // internal clock
+};
 
 struct RATEAU : BidooModule {
 	enum ParamIds {
@@ -49,745 +85,451 @@ struct RATEAU : BidooModule {
 		NUM_LIGHTS = MUTE_LIGHTS + 8*3
 	};
 
-	int page = 0;
+	RiotBank banks[RIOT_BANKS];
+
+	int page = pDiv;
 	int bank = 0;
+	int pendingBank = -1;
 	int fCntrl = 0;
 	int pMode = matrix;
 	int previousMode = matrix;
-	bool clockT = false;
-	bool resetT = false;
-	bool start = true;
-	bool run = false;
-	dsp::SchmittTrigger divTrigger;
-	dsp::SchmittTrigger stepTrigger;
-	dsp::SchmittTrigger probTrigger;
-	dsp::SchmittTrigger speedTrigger;
-	dsp::SchmittTrigger clockshiftTrigger;
-	dsp::SchmittTrigger timeshiftTrigger;
-	dsp::SchmittTrigger pulsewidthTrigger;
+	bool mutes[8] = {false};
+
+	// Global settings (context menu)
+	bool running = true;        // internal clock only
+	bool clock24ppq = false;    // external clock: 16th notes or 24 PPQ
+	bool beatSync = false;      // bank changes wait for the cycle start
+
+	// Counter position in internal ticks; count = position / 24.
+	double position = TICKS_PER_CLOCK;
+	double lastEdgePosition = TICKS_PER_CLOCK;
+	bool restart = true;
+	float sinceEdge = 10.f;     // no previous edge yet
+	float edgePeriod = 0.f;     // seconds between external clocks, 0 = unknown
+
+	dsp::SchmittTrigger pageTriggers[7];
 	dsp::SchmittTrigger clockTrigger;
 	dsp::SchmittTrigger resetTrigger;
 	dsp::SchmittTrigger indepEditATrigger;
 	dsp::SchmittTrigger indepEditBTrigger;
 	dsp::SchmittTrigger matrixTrigger;
 	dsp::SchmittTrigger modeInputTrigger;
-	dsp::SchmittTrigger startStopTrigger;
 	dsp::SchmittTrigger muteTriggers[8];
-	int gDivs[16][16][3]={{{0}}};
-	int gSteps[16][16][3]={{{0}}};
-	float gProbs[16][16][3]={{{1.0f}}};
-	int gSpeeds[16][16][3]={{{2}}};
-	int gClockShifts[16][16][3]={{{0}}};
-	float gTimeShifts[16][16][3]={{{0.0f}}};
-	float gPulseWidths[16][16][3]={{{0.25f}}};
-	int patternModes[16]={matrix};
-
-	dsp::PulseGenerator gatePulses[16][3];
-	float delays[16][3]={{0.0f}};
-	bool gates[16][3]={{false}};
-	bool opened[16][3]={{true}};
-	bool mutes[8]={false};
-	float tickAccumulator = 1.0f;
-	float currentTickCount = 1.0f;
-
-	float speeds[16]={0.25f,0.5f,1.0f,2.0f,3.0f,4.0f,5.0f,6.0f,7.0f,8.0f,9.0f,10.0f,11.0f,12.0f,14.0f,16.0f};
+	dsp::PulseGenerator gatePulses[RIOT_CELLS][RIOT_SETS];
+	bool gates[RIOT_CELLS][RIOT_SETS] = {{false}};
 
 	RATEAU() {
-    config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(BANK_PARAM, 0.0f, 15.0f, 0.0f);
-		configParam(DIV_PARAM, 0.0f, 1.0f, 1.0f);
-		configParam(STEP_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(PROB_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(SPEED_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(CLOCKSHIFT_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(TIMESHIFT_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(PULSEWIDTH_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(INDEPEDITA_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(INDEPEDITB_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(MATRIX_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(STARTSTOP_PARAM, 0.0f, 1.0f, 0.0f);
-		for (int b = 0; b < 16; b++) {
-			for (int i = 0; i < 16; i++) {
-				gDivs[bank][i][indepEditA]=0;
-				gSteps[bank][i][indepEditA]=0;
-				gProbs[bank][i][indepEditA]=1.0f;
-				gSpeeds[bank][i][indepEditA]=2;
-				gClockShifts[bank][i][indepEditA]=0;
-				gTimeShifts[bank][i][indepEditA]=0.0f;
-				gPulseWidths[bank][i][indepEditA]=0.25f;
-
-				gDivs[bank][i][indepEditB]=0;
-				gSteps[bank][i][indepEditB]=0;
-				gProbs[bank][i][indepEditB]=1.0f;
-				gSpeeds[bank][i][indepEditB]=2;
-				gClockShifts[bank][i][indepEditB]=0;
-				gTimeShifts[bank][i][indepEditB]=0.0f;
-				gPulseWidths[bank][i][indepEditB]=0.25f;
-
-				gDivs[bank][i][matrix]=0;
-				gSteps[bank][i][matrix]=0;
-				gProbs[bank][i][matrix]=1.0f;
-				gSpeeds[bank][i][matrix]=2;
-				gClockShifts[bank][i][matrix]=0;
-				gTimeShifts[bank][i][matrix]=0.0f;
-				gPulseWidths[bank][i][matrix]=0.25f;
-			}
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configParam(BANK_PARAM, 0.0f, 15.0f, 0.0f, "Pattern", "", 0.f, 1.f, 1.f)->snapEnabled = true;
+		const char *pages[7] = {"Divide", "Steps", "Probability", "Speed", "Clock shift", "Time shift", "Pulse width"};
+		for (int i = 0; i < 7; i++) {
+			configSwitch(DIV_PARAM + i, 0.0f, 1.0f, i == 0 ? 1.0f : 0.0f, std::string(pages[i]) + " page", {"Off", "On"});
+			getParamQuantity(DIV_PARAM + i)->randomizeEnabled = false;
 		}
-  	for (int i = 0; i < 16; i++) {
-      configParam(CONTROLS_PARAMS + i, 0.0f, 10.0f, 0.0f);
-  	}
+		configButton(INDEPEDITA_PARAM, "Independent mode, rows (outputs 1-4)");
+		configButton(INDEPEDITB_PARAM, "Independent mode, columns (outputs A-D)");
+		configButton(MATRIX_PARAM, "Matrix mode");
+		configButton(STARTSTOP_PARAM, "Start / stop");
+		const char *outs[8] = {"1", "2", "3", "4", "A", "B", "C", "D"};
 		for (int i = 0; i < 8; i++) {
-      configParam(MUTE_PARAMS + i, 0.0f, 10.0f, 0.0f);
-  	}
+			configButton(MUTE_PARAMS + i, std::string("Mute output ") + outs[i]);
+			configOutput(GATE_OUTPUTS + i, std::string("Output ") + outs[i]);
+		}
+		for (int i = 0; i < 16; i++) {
+			configParam(CONTROLS_PARAMS + i, 0.0f, 10.0f, 0.0f, "Knob " + std::to_string(i + 1));
+		}
+		configInput(CLOCK_INPUT, "Clock (16th notes or 24 PPQ, see menu; internal clock when unpatched)");
+		configInput(RESET_INPUT, "Reset to the cycle start");
+		configInput(BANK_INPUT, "Pattern (0.625 V per pattern)");
+		configInput(MODE_INPUT, "Matrix / independent toggle");
 		updateControls();
-		random::init();
-  }
+	}
 
-  void process(const ProcessArgs &args) override;
+	RiotCell &cell(int i, int set) {
+		return banks[bank].cells[set][i];
+	}
+
+	void clear(int b, int set) {
+		for (int i = 0; i < RIOT_CELLS; i++)
+			banks[b].cells[set][i] = RiotCell();
+		banks[b].cycleStart = 1;
+		banks[b].cycleEnd = 0;
+	}
+
+	void onReset() override {
+		for (int b = 0; b < RIOT_BANKS; b++)
+			banks[b] = RiotBank();
+		bank = 0;
+		pendingBank = -1;
+		page = pDiv;
+		pMode = previousMode = matrix;
+		for (int i = 0; i < 8; i++)
+			mutes[i] = false;
+		running = true;
+		clock24ppq = false;
+		beatSync = false;
+		restart = true;
+		updateControls();
+	}
+
+	// Knob position (0..10) <-> value of the current page.
+	static float toKnob(int page, const RiotCell &c) {
+		switch (page) {
+			case pDiv: return c.div * 10.f / 255.f;
+			case pStep: return c.step * 10.f / 255.f;
+			case pProb: return c.prob * 10.f;
+			case pSpeed: return (c.speed - 2) * 10.f / 94.f;
+			case pClockShift: return c.clockShift * 10.f / 255.f;
+			case pTimeShift: return c.timeShift * 10.f / 360.f;
+			default: return c.pulseWidth * 10.f;
+		}
+	}
+
+	static void fromKnob(int page, RiotCell &c, float k) {
+		float x = clamp(k / 10.f, 0.f, 1.f);
+		switch (page) {
+			case pDiv: c.div = (int)std::round(x * 255.f); break;
+			case pStep: c.step = (int)std::round(x * 255.f); break;
+			case pProb: c.prob = x; break;
+			case pSpeed: c.speed = 2 + (int)std::round(x * 94.f); break;
+			case pClockShift: c.clockShift = (int)std::round(x * 255.f); break;
+			case pTimeShift: c.timeShift = x * 360.f; break;
+			default: c.pulseWidth = x; break;
+		}
+	}
+
+	void updateControls() {
+		for (int i = 0; i < RIOT_CELLS; i++)
+			params[CONTROLS_PARAMS + i].setValue(toKnob(page, cell(i, pMode)));
+	}
+
+	void setPage(int p) {
+		page = p;
+		for (int i = 0; i < 7; i++)
+			params[DIV_PARAM + i].setValue(i == p ? 1.f : 0.f);
+		updateControls();
+	}
+
+	void setBank(int b) {
+		bank = b;
+		pendingBank = -1;
+		restart = true;  // a pattern change resets the cycle
+		updateControls();
+	}
 
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
-
 		json_t *banksJ = json_array();
-		json_t *banksModesJ = json_array();
-
-		for(int b=0; b<16; b++) {
-			json_t *modeJ = json_integer(patternModes[b]);
-			json_array_append_new(banksModesJ, modeJ);
-
-			json_t *bankJ = json_array();
-
-			json_t *bankIndepAJ = json_array();
-			json_t *divsIndepAJ = json_array();
-			json_t *stepsIndepAJ = json_array();
-			json_t *probsIndepAJ = json_array();
-			json_t *speedsIndepAJ = json_array();
-			json_t *clockShiftsIndepAJ = json_array();
-			json_t *timeShiftsIndepAJ = json_array();
-			json_t *pulseWidthsIndepAJ = json_array();
-
-			json_t *bankIndepBJ = json_array();
-			json_t *divsIndepBJ = json_array();
-			json_t *stepsIndepBJ = json_array();
-			json_t *probsIndepBJ = json_array();
-			json_t *speedsIndepBJ = json_array();
-			json_t *clockShiftsIndepBJ = json_array();
-			json_t *timeShiftsIndepBJ = json_array();
-			json_t *pulseWidthsIndepBJ = json_array();
-
-			json_t *bankMatrixJ = json_array();
-			json_t *divsMatrixJ = json_array();
-			json_t *stepsMatrixJ = json_array();
-			json_t *probsMatrixJ = json_array();
-			json_t *speedsMatrixJ = json_array();
-			json_t *clockShiftsMatrixJ = json_array();
-			json_t *timeShiftsMatrixJ = json_array();
-			json_t *pulseWidthsMatrixJ = json_array();
-
-			for (int i = 0; i < 16; i++) {
-				json_t *divIndepAJ = json_real(gDivs[b][i][indepEditA]);
-				json_array_append_new(divsIndepAJ, divIndepAJ);
-				json_t *stepIndepAJ = json_real(gSteps[b][i][indepEditA]);
-				json_array_append_new(stepsIndepAJ, stepIndepAJ);
-				json_t *probIndepAJ = json_real(gProbs[b][i][indepEditA]);
-				json_array_append_new(probsIndepAJ, probIndepAJ);
-				json_t *speedIndepAJ = json_real(gSpeeds[b][i][indepEditA]);
-				json_array_append_new(speedsIndepAJ, speedIndepAJ);
-				json_t *clockShiftIndepAJ = json_real(gClockShifts[b][i][indepEditA]);
-				json_array_append_new(clockShiftsIndepAJ, clockShiftIndepAJ);
-				json_t *timeShiftIndepAJ = json_real(gTimeShifts[b][i][indepEditA]);
-				json_array_append_new(timeShiftsIndepAJ, timeShiftIndepAJ);
-				json_t *pulseWidthIndepAJ = json_real(gPulseWidths[b][i][indepEditA]);
-				json_array_append_new(pulseWidthsIndepAJ, pulseWidthIndepAJ);
-
-				json_t *divIndepBJ = json_real(gDivs[b][i][indepEditB]);
-				json_array_append_new(divsIndepBJ, divIndepBJ);
-				json_t *stepIndepBJ = json_real(gSteps[b][i][indepEditB]);
-				json_array_append_new(stepsIndepBJ, stepIndepBJ);
-				json_t *probIndepBJ = json_real(gProbs[b][i][indepEditB]);
-				json_array_append_new(probsIndepBJ, probIndepBJ);
-				json_t *speedIndepBJ = json_real(gSpeeds[b][i][indepEditB]);
-				json_array_append_new(speedsIndepBJ, speedIndepBJ);
-				json_t *clockShiftIndepBJ = json_real(gClockShifts[b][i][indepEditB]);
-				json_array_append_new(clockShiftsIndepBJ, clockShiftIndepBJ);
-				json_t *timeShiftIndepBJ = json_real(gTimeShifts[b][i][indepEditB]);
-				json_array_append_new(timeShiftsIndepBJ, timeShiftIndepBJ);
-				json_t *pulseWidthIndepBJ = json_real(gPulseWidths[b][i][indepEditB]);
-				json_array_append_new(pulseWidthsIndepBJ, pulseWidthIndepBJ);
-
-				json_t *divMatrixJ = json_real(gDivs[b][i][matrix]);
-				json_array_append_new(divsMatrixJ, divMatrixJ);
-				json_t *stepMatrixJ = json_real(gSteps[b][i][matrix]);
-				json_array_append_new(stepsMatrixJ, stepMatrixJ);
-				json_t *probMatrixJ = json_real(gProbs[b][i][matrix]);
-				json_array_append_new(probsMatrixJ, probMatrixJ);
-				json_t *speedMatrixJ = json_real(gSpeeds[b][i][matrix]);
-				json_array_append_new(speedsMatrixJ, speedMatrixJ);
-				json_t *clockShiftMatrixJ = json_real(gClockShifts[b][i][matrix]);
-				json_array_append_new(clockShiftsMatrixJ, clockShiftMatrixJ);
-				json_t *timeShiftMatrixJ = json_real(gTimeShifts[b][i][matrix]);
-				json_array_append_new(timeShiftsMatrixJ, timeShiftMatrixJ);
-				json_t *pulseWidthMatrixJ = json_real(gPulseWidths[b][i][matrix]);
-				json_array_append_new(pulseWidthsMatrixJ, pulseWidthMatrixJ);
+		for (int b = 0; b < RIOT_BANKS; b++) {
+			json_t *bankJ = json_object();
+			json_object_set_new(bankJ, "cycleStart", json_integer(banks[b].cycleStart));
+			json_object_set_new(bankJ, "cycleEnd", json_integer(banks[b].cycleEnd));
+			json_object_set_new(bankJ, "bpm", json_real(banks[b].bpm));
+			json_t *setsJ = json_array();
+			for (int s = 0; s < RIOT_SETS; s++) {
+				json_t *cellsJ = json_array();
+				for (int i = 0; i < RIOT_CELLS; i++) {
+					const RiotCell &c = banks[b].cells[s][i];
+					json_array_append_new(cellsJ, json_pack("[i, i, f, i, i, f, f]", c.div, c.step, (double)c.prob, c.speed, c.clockShift, (double)c.timeShift, (double)c.pulseWidth));
+				}
+				json_array_append_new(setsJ, cellsJ);
 			}
-			json_array_append_new(bankIndepAJ, divsIndepAJ);
-			json_array_append_new(bankIndepAJ, stepsIndepAJ);
-			json_array_append_new(bankIndepAJ, probsIndepAJ);
-			json_array_append_new(bankIndepAJ, speedsIndepAJ);
-			json_array_append_new(bankIndepAJ, clockShiftsIndepAJ);
-			json_array_append_new(bankIndepAJ, timeShiftsIndepAJ);
-			json_array_append_new(bankIndepAJ, pulseWidthsIndepAJ);
-			json_array_append_new(bankJ, bankIndepAJ);
-
-			json_array_append_new(bankIndepBJ, divsIndepBJ);
-			json_array_append_new(bankIndepBJ, stepsIndepBJ);
-			json_array_append_new(bankIndepBJ, probsIndepBJ);
-			json_array_append_new(bankIndepBJ, speedsIndepBJ);
-			json_array_append_new(bankIndepBJ, clockShiftsIndepBJ);
-			json_array_append_new(bankIndepBJ, timeShiftsIndepBJ);
-			json_array_append_new(bankIndepBJ, pulseWidthsIndepBJ);
-			json_array_append_new(bankJ, bankIndepBJ);
-
-			json_array_append_new(bankMatrixJ, divsMatrixJ);
-			json_array_append_new(bankMatrixJ, stepsMatrixJ);
-			json_array_append_new(bankMatrixJ, probsMatrixJ);
-			json_array_append_new(bankMatrixJ, speedsMatrixJ);
-			json_array_append_new(bankMatrixJ, clockShiftsMatrixJ);
-			json_array_append_new(bankMatrixJ, timeShiftsMatrixJ);
-			json_array_append_new(bankMatrixJ, pulseWidthsMatrixJ);
-			json_array_append_new(bankJ, bankMatrixJ);
-
+			json_object_set_new(bankJ, "cells", setsJ);
 			json_array_append_new(banksJ, bankJ);
 		}
-		json_object_set_new(rootJ, "banks", banksJ);
-		json_object_set_new(rootJ, "modes", banksModesJ);
-
+		json_object_set_new(rootJ, "riotBanks", banksJ);
+		json_object_set_new(rootJ, "bank", json_integer(bank));
+		json_object_set_new(rootJ, "mode", json_integer(pMode));
+		json_object_set_new(rootJ, "previousMode", json_integer(previousMode));
+		json_object_set_new(rootJ, "page", json_integer(page));
+		json_t *mutesJ = json_array();
+		for (int i = 0; i < 8; i++)
+			json_array_append_new(mutesJ, json_boolean(mutes[i]));
+		json_object_set_new(rootJ, "mutes", mutesJ);
+		json_object_set_new(rootJ, "running", json_boolean(running));
+		json_object_set_new(rootJ, "clock24ppq", json_boolean(clock24ppq));
+		json_object_set_new(rootJ, "beatSync", json_boolean(beatSync));
 		return rootJ;
+	}
+
+	static int jsonInt(json_t *j, int def, int lo, int hi) {
+		return j ? clamp((int)json_number_value(j), lo, hi) : def;
+	}
+
+	static float jsonFloat(json_t *j, float def, float lo, float hi) {
+		return j ? clamp((float)json_number_value(j), lo, hi) : def;
 	}
 
 	void dataFromJson(json_t *rootJ) override {
 		BidooModule::dataFromJson(rootJ);
-
-		json_t *banksJ = json_object_get(rootJ, "banks");
-		json_t *banksModesJ = json_object_get(rootJ, "modes");
-
-		if (banksModesJ) {
-			for (int i = 0; i < 16; i++) {
-				json_t *modeJ=json_array_get(banksModesJ, i);
-				if (modeJ) {
-					patternModes[i] = json_number_value(modeJ);
+		json_t *banksJ = json_object_get(rootJ, "riotBanks");
+		for (int b = 0; b < RIOT_BANKS; b++) {
+			banks[b] = RiotBank();
+			json_t *bankJ = json_array_get(banksJ, b);
+			if (!bankJ)
+				continue;
+			banks[b].cycleStart = jsonInt(json_object_get(bankJ, "cycleStart"), 1, 1, 255);
+			banks[b].cycleEnd = jsonInt(json_object_get(bankJ, "cycleEnd"), 0, 0, 255);
+			banks[b].bpm = jsonFloat(json_object_get(bankJ, "bpm"), 120.f, 20.f, 300.f);
+			json_t *setsJ = json_object_get(bankJ, "cells");
+			for (int s = 0; s < RIOT_SETS; s++) {
+				json_t *cellsJ = json_array_get(setsJ, s);
+				for (int i = 0; i < RIOT_CELLS; i++) {
+					json_t *c = json_array_get(cellsJ, i);
+					if (!c)
+						continue;
+					RiotCell &cl = banks[b].cells[s][i];
+					cl.div = jsonInt(json_array_get(c, 0), 0, 0, 255);
+					cl.step = jsonInt(json_array_get(c, 1), 0, 0, 255);
+					cl.prob = jsonFloat(json_array_get(c, 2), 1.f, 0.f, 1.f);
+					cl.speed = jsonInt(json_array_get(c, 3), 24, 2, 96);
+					cl.clockShift = jsonInt(json_array_get(c, 4), 0, 0, 255);
+					cl.timeShift = jsonFloat(json_array_get(c, 5), 0.f, 0.f, 360.f);
+					cl.pulseWidth = jsonFloat(json_array_get(c, 6), 0.25f, 0.f, 1.f);
 				}
 			}
 		}
-
-		if (banksJ) {
-			for (int b = 0; b < 16; b++) {
-				json_t *bankJ = json_array_get(banksJ, b);
-				if (bankJ) {
-					json_t *bankIndepAJ = json_array_get(bankJ, 0);
-					if (bankIndepAJ) {
-						json_t *divsIndepAJ = json_array_get(bankIndepAJ, 0);
-						json_t *stepsIndepAJ = json_array_get(bankIndepAJ, 1);
-						json_t *probsIndepAJ = json_array_get(bankIndepAJ, 2);
-						json_t *speedsIndepAJ = json_array_get(bankIndepAJ, 3);
-						json_t *clockShiftsIndepAJ = json_array_get(bankIndepAJ, 4);
-						json_t *timeShiftsIndepAJ = json_array_get(bankIndepAJ, 5);
-						json_t *pulseWidthsIndepAJ = json_array_get(bankIndepAJ, 6);
-						if (divsIndepAJ && stepsIndepAJ && probsIndepAJ && speedsIndepAJ && clockShiftsIndepAJ && timeShiftsIndepAJ && pulseWidthsIndepAJ) {
-							for (int i = 0; i < 16; i++) {
-								json_t *divIndepAJ=json_array_get(divsIndepAJ, i);
-								if (divIndepAJ) {
-									gDivs[b][i][indepEditA] = json_number_value(divIndepAJ);
-								}
-								json_t *stepIndepAJ=json_array_get(stepsIndepAJ, i);
-								if (stepIndepAJ) {
-									gSteps[b][i][indepEditA] = json_number_value(stepIndepAJ);
-								}
-								json_t *probIndepAJ=json_array_get(probsIndepAJ, i);
-								if (probIndepAJ) {
-									gProbs[b][i][indepEditA] = json_number_value(probIndepAJ);
-								}
-								json_t *speedIndepAJ=json_array_get(speedsIndepAJ, i);
-								if (speedIndepAJ) {
-									gSpeeds[b][i][indepEditA] = json_number_value(speedIndepAJ);
-								}
-								json_t *clockShiftIndepAJ=json_array_get(clockShiftsIndepAJ, i);
-								if (clockShiftIndepAJ) {
-									gClockShifts[b][i][indepEditA] = json_number_value(clockShiftIndepAJ);
-								}
-								json_t *timeShiftIndepAJ=json_array_get(timeShiftsIndepAJ, i);
-								if (timeShiftIndepAJ) {
-									gTimeShifts[b][i][indepEditA] = json_number_value(timeShiftIndepAJ);
-								}
-								json_t *pulseWidthIndepAJ=json_array_get(pulseWidthsIndepAJ, i);
-								if (pulseWidthIndepAJ) {
-									gPulseWidths[b][i][indepEditA] = json_number_value(pulseWidthIndepAJ);
-								}
-							}
-						}
-					}
-
-					json_t *bankIndepBJ = json_array_get(bankJ, 1);
-					if (bankIndepBJ) {
-						json_t *divsIndepBJ = json_array_get(bankIndepBJ, 0);
-						json_t *stepsIndepBJ = json_array_get(bankIndepBJ, 1);
-						json_t *probsIndepBJ = json_array_get(bankIndepBJ, 2);
-						json_t *speedsIndepBJ = json_array_get(bankIndepBJ, 3);
-						json_t *clockShiftsIndepBJ = json_array_get(bankIndepBJ, 4);
-						json_t *timeShiftsIndepBJ = json_array_get(bankIndepBJ, 5);
-						json_t *pulseWidthsIndepBJ = json_array_get(bankIndepBJ, 6);
-						if (divsIndepBJ && stepsIndepBJ && probsIndepBJ && speedsIndepBJ && clockShiftsIndepBJ && timeShiftsIndepBJ && pulseWidthsIndepBJ) {
-							for (int i = 0; i < 16; i++) {
-								json_t *divIndepBJ=json_array_get(divsIndepBJ, i);
-								if (divIndepBJ) {
-									gDivs[b][i][indepEditB] = json_number_value(divIndepBJ);
-								}
-								json_t *stepIndepBJ=json_array_get(stepsIndepBJ, i);
-								if (stepIndepBJ) {
-									gSteps[b][i][indepEditB] = json_number_value(stepIndepBJ);
-								}
-								json_t *probIndepBJ=json_array_get(probsIndepBJ, i);
-								if (probIndepBJ) {
-									gProbs[b][i][indepEditB] = json_number_value(probIndepBJ);
-								}
-								json_t *speedIndepBJ=json_array_get(speedsIndepBJ, i);
-								if (speedIndepBJ) {
-									gSpeeds[b][i][indepEditB] = json_number_value(speedIndepBJ);
-								}
-								json_t *clockShiftIndepBJ=json_array_get(clockShiftsIndepBJ, i);
-								if (clockShiftIndepBJ) {
-									gClockShifts[b][i][indepEditB] = json_number_value(clockShiftIndepBJ);
-								}
-								json_t *timeShiftIndepBJ=json_array_get(timeShiftsIndepBJ, i);
-								if (timeShiftIndepBJ) {
-									gTimeShifts[b][i][indepEditB] = json_number_value(timeShiftIndepBJ);
-								}
-								json_t *pulseWidthIndepBJ=json_array_get(pulseWidthsIndepBJ, i);
-								if (pulseWidthIndepBJ) {
-									gPulseWidths[b][i][indepEditB] = json_number_value(pulseWidthIndepBJ);
-								}
-							}
-						}
-					}
-
-					json_t *bankMatrixJ = json_array_get(bankJ, 2);
-					if (bankMatrixJ) {
-						json_t *divsMatrixJ = json_array_get(bankMatrixJ, 0);
-						json_t *stepsMatrixJ = json_array_get(bankMatrixJ, 1);
-						json_t *probsMatrixJ = json_array_get(bankMatrixJ, 2);
-						json_t *speedsMatrixJ = json_array_get(bankMatrixJ, 3);
-						json_t *clockShiftsMatrixJ = json_array_get(bankMatrixJ, 4);
-						json_t *timeShiftsMatrixJ = json_array_get(bankMatrixJ, 5);
-						json_t *pulseWidthsMatrixJ = json_array_get(bankMatrixJ, 6);
-						if (divsMatrixJ && stepsMatrixJ && probsMatrixJ && speedsMatrixJ && clockShiftsMatrixJ && timeShiftsMatrixJ && pulseWidthsMatrixJ) {
-							for (int i = 0; i < 16; i++) {
-								json_t *divMatrixJ=json_array_get(divsMatrixJ, i);
-								if (divMatrixJ) {
-									gDivs[b][i][matrix] = json_number_value(divMatrixJ);
-								}
-								json_t *stepMatrixJ=json_array_get(stepsMatrixJ, i);
-								if (stepMatrixJ) {
-									gSteps[b][i][matrix] = json_number_value(stepMatrixJ);
-								}
-								json_t *probMatrixJ=json_array_get(probsMatrixJ, i);
-								if (probMatrixJ) {
-									gProbs[b][i][matrix] = json_number_value(probMatrixJ);
-								}
-								json_t *speedMatrixJ=json_array_get(speedsMatrixJ, i);
-								if (speedMatrixJ) {
-									gSpeeds[b][i][matrix] = json_number_value(speedMatrixJ);
-								}
-								json_t *clockShiftMatrixJ=json_array_get(clockShiftsMatrixJ, i);
-								if (clockShiftMatrixJ) {
-									gClockShifts[b][i][matrix] = json_number_value(clockShiftMatrixJ);
-								}
-								json_t *timeShiftMatrixJ=json_array_get(timeShiftsMatrixJ, i);
-								if (timeShiftMatrixJ) {
-									gTimeShifts[b][i][matrix] = json_number_value(timeShiftMatrixJ);
-								}
-								json_t *pulseWidthMatrixJ=json_array_get(pulseWidthsMatrixJ, i);
-								if (pulseWidthMatrixJ) {
-									gPulseWidths[b][i][matrix] = json_number_value(pulseWidthMatrixJ);
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-		page = pDiv;
-		params[DIV_PARAM].setValue(1.0f);
-		params[STEP_PARAM].setValue(0.0f);
-		params[PROB_PARAM].setValue(0.0f);
-		params[SPEED_PARAM].setValue(0.0f);
-		params[CLOCKSHIFT_PARAM].setValue(0.0f);
-		params[TIMESHIFT_PARAM].setValue(0.0f);
-		params[PULSEWIDTH_PARAM].setValue(0.0f);
+		bank = jsonInt(json_object_get(rootJ, "bank"), 0, 0, RIOT_BANKS - 1);
+		pMode = jsonInt(json_object_get(rootJ, "mode"), matrix, 0, 2);
+		previousMode = jsonInt(json_object_get(rootJ, "previousMode"), matrix, 0, 2);
+		page = jsonInt(json_object_get(rootJ, "page"), pDiv, 0, 6);
+		json_t *mutesJ = json_object_get(rootJ, "mutes");
+		for (int i = 0; i < 8; i++)
+			mutes[i] = json_is_true(json_array_get(mutesJ, i));
+		json_t *runningJ = json_object_get(rootJ, "running");
+		running = !runningJ || json_is_true(runningJ);
+		clock24ppq = json_is_true(json_object_get(rootJ, "clock24ppq"));
+		beatSync = json_is_true(json_object_get(rootJ, "beatSync"));
+		pendingBank = -1;
+		restart = true;
+		setPage(page);
 	}
 
-	void onReset() override {
-		for (int b = 0; b < 16; b++) {
-			for (int i = 0; i < 16; i++) {
-				gDivs[bank][i][indepEditA]=0;
-				gSteps[bank][i][indepEditA]=0;
-				gProbs[bank][i][indepEditA]=1.0f;
-				gSpeeds[bank][i][indepEditA]=2;
-				gClockShifts[bank][i][indepEditA]=0;
-				gTimeShifts[bank][i][indepEditA]=0.0f;
-				gPulseWidths[bank][i][indepEditA]=0.25f;
-
-				gDivs[bank][i][indepEditB]=0;
-				gSteps[bank][i][indepEditB]=0;
-				gProbs[bank][i][indepEditB]=1.0f;
-				gSpeeds[bank][i][indepEditB]=2;
-				gClockShifts[bank][i][indepEditB]=0;
-				gTimeShifts[bank][i][indepEditB]=0.0f;
-				gPulseWidths[bank][i][indepEditB]=0.25f;
-
-				gDivs[bank][i][matrix]=0;
-				gSteps[bank][i][matrix]=0;
-				gProbs[bank][i][matrix]=1.0f;
-				gSpeeds[bank][i][matrix]=2;
-				gClockShifts[bank][i][matrix]=0;
-				gTimeShifts[bank][i][matrix]=0.0f;
-				gPulseWidths[bank][i][matrix]=0.25f;
-			}
-		}
-		page = pDiv;
-		params[DIV_PARAM].setValue(1.0f);
-		params[STEP_PARAM].setValue(0.0f);
-		params[PROB_PARAM].setValue(0.0f);
-		params[SPEED_PARAM].setValue(0.0f);
-		params[CLOCKSHIFT_PARAM].setValue(0.0f);
-		params[TIMESHIFT_PARAM].setValue(0.0f);
-		params[PULSEWIDTH_PARAM].setValue(0.0f);
-		updateControls();
-	}
-
-	void updateControls() {
-		if (page == pDiv) {
-			for (int i = 0; i < 16; i++) {
-	      params[CONTROLS_PARAMS+i].setValue(gDivs[bank][i][pMode]/6.4f);
-	  	}
-		}
-		else if (page == pStep) {
-			for (int i = 0; i < 16; i++) {
-	      params[CONTROLS_PARAMS+i].setValue(gSteps[bank][i][pMode]/6.4f);
-	  	}
-		}
-		else if (page == pProb) {
-			for (int i = 0; i < 16; i++) {
-	      params[CONTROLS_PARAMS+i].setValue(gProbs[bank][i][pMode]*10.0f);
-	  	}
-		}
-		else if (page == pSpeed) {
-			for (int i = 0; i < 16; i++) {
-	      params[CONTROLS_PARAMS+i].setValue(gSpeeds[bank][i][pMode]/1.5f);
-	  	}
-		}
-		else if (page == pClockShift) {
-			for (int i = 0; i < 16; i++) {
-	      params[CONTROLS_PARAMS+i].setValue(gClockShifts[bank][i][pMode]/6.4f);
-	  	}
-		}
-		else if (page == pTimeShift) {
-			for (int i = 0; i < 16; i++) {
-	      params[CONTROLS_PARAMS+i].setValue(rescale(gTimeShifts[bank][i][pMode],-1.0f,1.0f,0.0f,10.0f));
-	  	}
-		}
-		else {
-			for (int i = 0; i < 16; i++) {
-	      params[CONTROLS_PARAMS+i].setValue(gPulseWidths[bank][i][pMode]*10.0f);
-	  	}
-		}
-	}
-
-	void computeMutes(int i) {
-		if (muteTriggers[i].process(params[MUTE_PARAMS+i].getValue())) mutes[i]=!mutes[i];
-		lights[MUTE_LIGHTS+i*3].setBrightness(mutes[i]?1:0);
-		lights[MUTE_LIGHTS+i*3+1].setBrightness(mutes[i]?0:1);
-		lights[MUTE_LIGHTS+i*3+2].setBrightness(0);
-	}
-
-	void computeHead(int index, float sT, float sR) {
-		for (int i=0; i<3; i++) {
-			if (!resetT) {
-				if ((gDivs[bank][index][i]>0) && opened[index][i] && (delays[index][i]==0.0f)) {
-					if (gProbs[bank][index][i] >= random::uniform()) gatePulses[index][i].trigger((gPulseWidths[bank][index][i]*gDivs[bank][index][i]/speeds[gSpeeds[bank][index][i]])*tickAccumulator);
-					if (gSteps[bank][index][i] != 0) opened[index][i]=false;
-					delays[index][i] = opened[index][i] ? gDivs[bank][index][i]*tickAccumulator : 0.0f;
-				}
-			}
-			else {
-				gatePulses[index][i].reset();
-				opened[index][i]=true;
-				delays[index][i]=(gClockShifts[bank][index][i] + gDivs[bank][index][i]*gSteps[bank][index][i] + gTimeShifts[bank][index][i])*tickAccumulator;
-				if ((gDivs[bank][index][i]>0) && (delays[index][i]==0.0f)) {
-					if (gProbs[bank][index][i]>=random::uniform()) gatePulses[index][i].trigger((gPulseWidths[bank][index][i]*gDivs[bank][index][i]/speeds[gSpeeds[bank][index][i]])*tickAccumulator);
-				}
-			}
-
-			delays[index][i]=std::max(delays[index][i]-speeds[gSpeeds[bank][index][i]]*sT,0.0f);
-			gates[index][i]=gatePulses[index][i].process(sT);
-		}
-	}
-
+	void process(const ProcessArgs &args) override;
+	void advance(double from, double to, float tickSeconds);
+	void fire(double from, double to, float tickSeconds);
+	void restartCycle(float tickSeconds);
+	void beginCycle(double startPosition);
 };
 
+// Fires the divisions and steps whose time falls in (from, to], in ticks.
+void RATEAU::fire(double from, double to, float tickSeconds) {
+	for (int s = 0; s < RIOT_SETS; s++) {
+		for (int i = 0; i < RIOT_CELLS; i++) {
+			const RiotCell &c = cell(i, s);
+			bool hit = false;
+			double base = c.div;
+			if (c.div > 0) {
+				double off = c.offset();
+				double x0 = from / c.speed - off;
+				double x1 = to / c.speed - off;
+				// Events at counts k * div + offset, k >= 1.
+				if (x1 >= c.div) {
+					double k0 = std::max(std::floor(x0 / c.div), 0.0);
+					double k1 = std::floor(x1 / c.div);
+					hit = k1 > k0;
+				}
+				base = c.div + off;
+			}
+			if (!hit && c.step > 0) {
+				double t = (double)c.step * c.speed;
+				hit = from < t && t <= to;
+				if (hit && c.div == 0)
+					base = 1.0;
+			}
+			if (!hit || random::uniform() >= c.prob)
+				continue;
+			// Pulse width is a share of the division plus its shift; at 0 it is one tick.
+			double ticks = c.pulseWidth > 0.f ? c.pulseWidth * base * c.speed : 1.0;
+			if (c.div > 0)
+				ticks = std::min(ticks, (double)c.div * c.speed);
+			// End one internal tick early, so a trigger on the next clock is a new edge.
+			if (ticks > 1.5)
+				ticks -= 1.0;
+			gatePulses[i][s].reset();
+			gatePulses[i][s].trigger(std::max((float)(ticks * tickSeconds), 1e-4f));
+		}
+	}
+}
+
+// Puts the counter at startPosition (in ticks) and applies a waiting pattern change.
+void RATEAU::beginCycle(double startPosition) {
+	if (pendingBank >= 0) {
+		bank = pendingBank;
+		pendingBank = -1;
+		updateControls();
+	}
+	position = startPosition;
+	lastEdgePosition = position;
+	for (int s = 0; s < RIOT_SETS; s++)
+		for (int i = 0; i < RIOT_CELLS; i++)
+			gatePulses[i][s].reset();
+}
+
+void RATEAU::restartCycle(float tickSeconds) {
+	beginCycle(0.0);
+	position = lastEdgePosition = (double)banks[bank].cycleStart * TICKS_PER_CLOCK;
+	// Everything due on the start count fires now.
+	fire(position - 1e-6, position, tickSeconds);
+}
+
+// Moves the counter, wrapping at the cycle end.
+void RATEAU::advance(double from, double to, float tickSeconds) {
+	const RiotBank &b = banks[bank];
+	if (b.cycleEnd > 0) {
+		double endTicks = (double)(b.cycleEnd + 1) * TICKS_PER_CLOCK;
+		if (b.cycleEnd >= b.cycleStart && to >= endTicks) {
+			fire(from, endTicks - 1e-6, tickSeconds);
+			double over = to - endTicks;
+			restartCycle(tickSeconds);
+			double start = position;
+			position = start + over;
+			fire(start, position, tickSeconds);
+			return;
+		}
+	}
+	fire(from, to, tickSeconds);
+	position = to;
+}
+
 void RATEAU::process(const ProcessArgs &args) {
-	int nBank = clamp(params[BANK_PARAM].getValue()+rescale(inputs[BANK_INPUT].getVoltage(),0.f,10.0f,0.0f,15.0f),0.0f,15.0f);
-
-	if (start) {
-		updateControls();
-		start = false;
+	int nBank = clamp((int)std::round(params[BANK_PARAM].getValue() + inputs[BANK_INPUT].getVoltage() * 1.6f), 0, RIOT_BANKS - 1);
+	if (nBank != bank && nBank != pendingBank) {
+		if (beatSync)
+			pendingBank = nBank;
+		else
+			setBank(nBank);
 	}
 
-	clockT = clockTrigger.process(inputs[CLOCK_INPUT].getVoltage());
-	resetT = resetTrigger.process(inputs[RESET_INPUT].getVoltage());
-
-	if (clockT) {
-			tickAccumulator = currentTickCount;
-			currentTickCount = 0.0f;
-	}
-
-	if (resetT && (nBank!=bank)) {
-		bank=nBank;
-		updateControls();
-	}
-
-	if (indepEditATrigger.process(params[INDEPEDITA_PARAM].getValue())) {
-		previousMode = pMode != indepEditA ? pMode : previousMode;
-		pMode = indepEditA;
-		updateControls();
-	}
-
-	if (indepEditBTrigger.process(params[INDEPEDITB_PARAM].getValue())) {
-		previousMode = pMode != indepEditB ? pMode : previousMode;
-		pMode = indepEditB;
-		updateControls();
-	}
-
-	if (matrixTrigger.process(params[MATRIX_PARAM].getValue())) {
-		previousMode = pMode != matrix ? pMode : previousMode;
-		pMode = matrix;
-		updateControls();
-	}
-
-	if (modeInputTrigger.process(inputs[MODE_INPUT].getVoltage())) {
-		if (pMode != matrix) {
+	// Modes
+	auto setMode = [&](int m) {
+		if (pMode != m)
 			previousMode = pMode;
-			pMode = matrix;
+		pMode = m;
+		updateControls();
+	};
+	if (indepEditATrigger.process(params[INDEPEDITA_PARAM].getValue())) setMode(indepEditA);
+	if (indepEditBTrigger.process(params[INDEPEDITB_PARAM].getValue())) setMode(indepEditB);
+	if (matrixTrigger.process(params[MATRIX_PARAM].getValue())) setMode(matrix);
+	if (modeInputTrigger.process(inputs[MODE_INPUT].getVoltage())) {
+		if (pMode != matrix)
+			setMode(matrix);
+		else
+			setMode(previousMode != matrix ? previousMode : indepEditA);
+	}
+	lights[INDEPEDITA_LIGHT].setBrightness(pMode == indepEditA ? 1 : 0);
+	lights[INDEPEDITB_LIGHT].setBrightness(pMode == indepEditB ? 1 : 0);
+	lights[MATRIX_LIGHT].setBrightness(pMode == matrix ? 1 : 0);
+
+	// Pages: the 7 buttons work as a radio group.
+	for (int p = 0; p < 7; p++) {
+		if (pageTriggers[p].process(params[DIV_PARAM + p].getValue()) && p != page)
+			setPage(p);
+	}
+	if (params[DIV_PARAM + page].getValue() < 0.5f)
+		params[DIV_PARAM + page].setValue(1.f);
+
+	// Knobs edit the current page of the current set.
+	for (int i = 0; i < RIOT_CELLS; i++)
+		fromKnob(page, cell(i, pMode), params[CONTROLS_PARAMS + i].getValue());
+
+	for (int i = 0; i < 8; i++) {
+		if (muteTriggers[i].process(params[MUTE_PARAMS + i].getValue()))
+			mutes[i] = !mutes[i];
+		lights[MUTE_LIGHTS + i*3].setBrightness(mutes[i] ? 1 : 0);
+		lights[MUTE_LIGHTS + i*3 + 1].setBrightness(mutes[i] ? 0 : 1);
+		lights[MUTE_LIGHTS + i*3 + 2].setBrightness(0);
+	}
+
+	// Clock: external edges lock the counter; in between it moves at the
+	// measured rate but never past the next edge, so it stops with the clock.
+	bool external = inputs[CLOCK_INPUT].isConnected();
+	double ticksPerEdge = clock24ppq ? 4.0 : (double)TICKS_PER_CLOCK;
+	bool edge = clockTrigger.process(inputs[CLOCK_INPUT].getVoltage(), 0.1f, 1.f);
+	bool reset = resetTrigger.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f);
+	sinceEdge += args.sampleTime;
+	float tickSeconds;
+	if (external)
+		tickSeconds = edgePeriod > 0.f ? (float)(edgePeriod / ticksPerEdge) : 60.f / (120.f * 96.f);
+	else
+		tickSeconds = 60.f / (banks[bank].bpm * 96.f);
+
+	if (reset || restart) {
+		restart = false;
+		if (external) {
+			// One clock before the start: the next clock edge (or this one) plays the start count.
+			beginCycle(0.0);
+			position = lastEdgePosition = (double)banks[bank].cycleStart * TICKS_PER_CLOCK - ticksPerEdge;
 		}
 		else {
-			if (previousMode != matrix) {
-				pMode = previousMode;
-			}
-			else {
-				pMode = indepEditA;
-			}
-		}
-		updateControls();
-	}
-
-	lights[INDEPEDITA_LIGHT].setBrightness(pMode==indepEditA?1:0);
-	lights[INDEPEDITB_LIGHT].setBrightness(pMode==indepEditB?1:0);
-	lights[MATRIX_LIGHT].setBrightness(pMode==matrix?1:0);
-
-	if (divTrigger.process(params[DIV_PARAM].getValue())) {
-		params[STEP_PARAM].setValue(0.0f);
-		params[PROB_PARAM].setValue(0.0f);
-		params[SPEED_PARAM].setValue(0.0f);
-		params[CLOCKSHIFT_PARAM].setValue(0.0f);
-		params[TIMESHIFT_PARAM].setValue(0.0f);
-		params[PULSEWIDTH_PARAM].setValue(0.0f);
-		page=pDiv;
-		updateControls();
-	}
-
-	if (stepTrigger.process(params[STEP_PARAM].getValue())) {
-		params[DIV_PARAM].setValue(0.0f);
-		params[PROB_PARAM].setValue(0.0f);
-		params[SPEED_PARAM].setValue(0.0f);
-		params[CLOCKSHIFT_PARAM].setValue(0.0f);
-		params[TIMESHIFT_PARAM].setValue(0.0f);
-		params[PULSEWIDTH_PARAM].setValue(0.0f);
-		page=pStep;
-		updateControls();
-	}
-
-	if (probTrigger.process(params[PROB_PARAM].getValue())) {
-		params[DIV_PARAM].setValue(0.0f);
-		params[STEP_PARAM].setValue(0.0f);
-		params[SPEED_PARAM].setValue(0.0f);
-		params[CLOCKSHIFT_PARAM].setValue(0.0f);
-		params[TIMESHIFT_PARAM].setValue(0.0f);
-		params[PULSEWIDTH_PARAM].setValue(0.0f);
-		page=pProb;
-		updateControls();
-	}
-
-	if (speedTrigger.process(params[SPEED_PARAM].getValue())) {
-		params[DIV_PARAM].setValue(0.0f);
-		params[STEP_PARAM].setValue(0.0f);
-		params[PROB_PARAM].setValue(0.0f);
-		params[CLOCKSHIFT_PARAM].setValue(0.0f);
-		params[TIMESHIFT_PARAM].setValue(0.0f);
-		params[PULSEWIDTH_PARAM].setValue(0.0f);
-		page=pSpeed;
-		updateControls();
-	}
-
-	if (clockshiftTrigger.process(params[CLOCKSHIFT_PARAM].getValue())) {
-		params[DIV_PARAM].setValue(0.0f);
-		params[STEP_PARAM].setValue(0.0f);
-		params[PROB_PARAM].setValue(0.0f);
-		params[SPEED_PARAM].setValue(0.0f);
-		params[TIMESHIFT_PARAM].setValue(0.0f);
-		params[PULSEWIDTH_PARAM].setValue(0.0f);
-		page=pClockShift;
-		updateControls();
-	}
-
-	if (timeshiftTrigger.process(params[TIMESHIFT_PARAM].getValue())) {
-		params[DIV_PARAM].setValue(0.0f);
-		params[STEP_PARAM].setValue(0.0f);
-		params[PROB_PARAM].setValue(0.0f);
-		params[SPEED_PARAM].setValue(0.0f);
-		params[CLOCKSHIFT_PARAM].setValue(0.0f);
-		params[PULSEWIDTH_PARAM].setValue(0.0f);
-		page=pTimeShift;
-		updateControls();
-	}
-
-	if (pulsewidthTrigger.process(params[PULSEWIDTH_PARAM].getValue())) {
-		params[DIV_PARAM].setValue(0.0f);
-		params[STEP_PARAM].setValue(0.0f);
-		params[PROB_PARAM].setValue(0.0f);
-		params[SPEED_PARAM].setValue(0.0f);
-		params[CLOCKSHIFT_PARAM].setValue(0.0f);
-		params[TIMESHIFT_PARAM].setValue(0.0f);
-		page=pPulseWidth;
-		updateControls();
-	}
-
-	if (page == pDiv) {
-		for (int i = 0; i < 16; i++) {
-			gDivs[bank][i][pMode]=params[CONTROLS_PARAMS+i].getValue()*6.4f;
-			computeHead(i,args.sampleTime,args.sampleRate);
-			if (i<8) computeMutes(i);
+			restartCycle(tickSeconds);
 		}
 	}
-	else if (page == pStep) {
-		for (int i = 0; i < 16; i++) {
-			gSteps[bank][i][pMode]=params[CONTROLS_PARAMS+i].getValue()*6.4f;
-			computeHead(i,args.sampleTime,args.sampleRate);
-			if (i<8) computeMutes(i);
+	if (external) {
+		if (edge) {
+			if (sinceEdge < 2.f)
+				edgePeriod = sinceEdge;
+			sinceEdge = 0.f;
+			double target = lastEdgePosition + ticksPerEdge;
+			advance(position, std::max(target, position), tickSeconds);
+			lastEdgePosition = position;
+		}
+		else if (edgePeriod > 0.f) {
+			double limit = lastEdgePosition + ticksPerEdge - 1e-6;
+			double next = std::min(position + args.sampleTime / tickSeconds, limit);
+			if (next > position)
+				advance(position, next, tickSeconds);
 		}
 	}
-	else if (page == pProb) {
-		for (int i = 0; i < 16; i++) {
-			gProbs[bank][i][pMode]=params[CONTROLS_PARAMS+i].getValue()*0.1f;
-			computeHead(i,args.sampleTime,args.sampleRate);
-			if (i<8) computeMutes(i);
-		}
-	}
-	else if (page == pSpeed) {
-		for (int i = 0; i < 16; i++) {
-			gSpeeds[bank][i][pMode]=(int)(params[CONTROLS_PARAMS+i].getValue()*1.5f);
-			computeHead(i,args.sampleTime,args.sampleRate);
-			if (i<8) computeMutes(i);
-		}
-	}
-	else if (page == pClockShift) {
-		for (int i = 0; i < 16; i++) {
-			gClockShifts[bank][i][pMode]=params[CONTROLS_PARAMS+i].getValue()*6.4f;
-			computeHead(i,args.sampleTime,args.sampleRate);
-			if (i<8) computeMutes(i);
-		}
-	}
-	else if (page == pTimeShift) {
-		for (int i = 0; i < 16; i++) {
-			gTimeShifts[bank][i][pMode]=rescale(params[CONTROLS_PARAMS+i].getValue(),0.0f,10.0f,-1.0f,1.0f);
-			computeHead(i,args.sampleTime,args.sampleRate);
-			if (i<8) computeMutes(i);
-		}
-	}
-	else {
-		for (int i = 0; i < 16; i++) {
-			gPulseWidths[bank][i][pMode]=params[CONTROLS_PARAMS+i].getValue()*0.1f;
-			computeHead(i,args.sampleTime,args.sampleRate);
-			if (i<8) computeMutes(i);
-		}
+	else if (running) {
+		advance(position, position + args.sampleTime / tickSeconds, tickSeconds);
+		lastEdgePosition = position;
 	}
 
-	if (pMode == matrix) {
-		outputs[GATE_OUTPUTS].setVoltage(!mutes[0]&&(gates[0][matrix]||gates[1][matrix]||gates[2][matrix]||gates[3][matrix])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+1].setVoltage(!mutes[1]&&(gates[4][matrix]||gates[5][matrix]||gates[6][matrix]||gates[7][matrix])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+2].setVoltage(!mutes[2]&&(gates[8][matrix]||gates[9][matrix]||gates[10][matrix]||gates[11][matrix])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+3].setVoltage(!mutes[3]&&(gates[12][matrix]||gates[13][matrix]||gates[14][matrix]||gates[15][matrix])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+4].setVoltage(!mutes[4]&&(gates[0][matrix]||gates[4][matrix]||gates[8][matrix]||gates[12][matrix])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+5].setVoltage(!mutes[5]&&(gates[1][matrix]||gates[5][matrix]||gates[9][matrix]||gates[13][matrix])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+6].setVoltage(!mutes[6]&&(gates[2][matrix]||gates[6][matrix]||gates[10][matrix]||gates[14][matrix])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+7].setVoltage(!mutes[7]&&(gates[3][matrix]||gates[7][matrix]||gates[11][matrix]||gates[15][matrix])?10.0f:0.0f);
-	}
-	else {
-		outputs[GATE_OUTPUTS].setVoltage(!mutes[0]&&(gates[0][indepEditA]||gates[1][indepEditA]||gates[2][indepEditA]||gates[3][indepEditA])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+1].setVoltage(!mutes[1]&&(gates[4][indepEditA]||gates[5][indepEditA]||gates[6][indepEditA]||gates[7][indepEditA])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+2].setVoltage(!mutes[2]&&(gates[8][indepEditA]||gates[9][indepEditA]||gates[10][indepEditA]||gates[11][indepEditA])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+3].setVoltage(!mutes[3]&&(gates[12][indepEditA]||gates[13][indepEditA]||gates[14][indepEditA]||gates[15][indepEditA])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+4].setVoltage(!mutes[4]&&(gates[0][indepEditB]||gates[4][indepEditB]||gates[8][indepEditB]||gates[12][indepEditB])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+5].setVoltage(!mutes[5]&&(gates[1][indepEditB]||gates[5][indepEditB]||gates[9][indepEditB]||gates[13][indepEditB])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+6].setVoltage(!mutes[6]&&(gates[2][indepEditB]||gates[6][indepEditB]||gates[10][indepEditB]||gates[14][indepEditB])?10.0f:0.0f);
-		outputs[GATE_OUTPUTS+7].setVoltage(!mutes[7]&&(gates[3][indepEditB]||gates[7][indepEditB]||gates[11][indepEditB]||gates[15][indepEditB])?10.0f:0.0f);
-	}
+	for (int s = 0; s < RIOT_SETS; s++)
+		for (int i = 0; i < RIOT_CELLS; i++)
+			gates[i][s] = gatePulses[i][s].process(args.sampleTime);
 
-	currentTickCount += args.sampleTime;
+	// Rows 1-4 and columns A-D; independent mode reads the row and column sets.
+	int rowSet = pMode == matrix ? matrix : indepEditA;
+	int colSet = pMode == matrix ? matrix : indepEditB;
+	for (int r = 0; r < 4; r++) {
+		bool on = gates[r*4][rowSet] || gates[r*4+1][rowSet] || gates[r*4+2][rowSet] || gates[r*4+3][rowSet];
+		outputs[GATE_OUTPUTS + r].setVoltage(!mutes[r] && on ? 10.f : 0.f);
+	}
+	for (int c = 0; c < 4; c++) {
+		bool on = gates[c][colSet] || gates[4+c][colSet] || gates[8+c][colSet] || gates[12+c][colSet];
+		outputs[GATE_OUTPUTS + 4 + c].setVoltage(!mutes[4+c] && on ? 10.f : 0.f);
+	}
 }
 
 struct RATEAUBlueKnob : BidooBlueKnob {
-	int frame=0;
-	unsigned int tFade=255;
-
 	RATEAUBlueKnob () {
 		smooth = false;
 	}
 
 	void onButton(const ButtonEvent& e) override {
 		RoundKnob::onButton(e);
-		RATEAU *m = dynamic_cast<RATEAU*>(this->getParamQuantity()->module);
-		m->fCntrl = this->getParamQuantity()->paramId - RATEAU::RATEAU::CONTROLS_PARAMS;
-	}
-
-	void draw(const DrawArgs& args) override {
 		if (getParamQuantity()) {
 			RATEAU *m = dynamic_cast<RATEAU*>(this->getParamQuantity()->module);
-			for (NSVGshape *shape = bg->svg->handle->shapes; shape != NULL; shape = shape->next) {
-				std::string str(shape->id);
-				if ((str == "bidooKnob") || (str == "bidooInterior")) {
-					if (m->fCntrl == this->getParamQuantity()->paramId - RATEAU::RATEAU::CONTROLS_PARAMS) {
-						shape->fill.color = (unsigned int)42 | (unsigned int)87 << 8 | (unsigned int)117 << 16;
-						if (++frame <= 30) {
-							tFade -= frame*3;
-						}
-						else if (++frame<60) {
-							tFade = 255;
-						}
-						else {
-							tFade = 255;
-							frame = 0;
-						}
-						shape->fill.color |= (unsigned int)(tFade) << 24;
-					}
-					else {
-						tFade = 255;
-						frame = 0;
-						shape->fill.color = (unsigned int)42 | (unsigned int)87 << 8 | (unsigned int)117 << 16;
-						shape->fill.color |= (unsigned int)(tFade) << 24;
-					}
-				}
-			}
+			if (m)
+				m->fCntrl = this->getParamQuantity()->paramId - RATEAU::CONTROLS_PARAMS;
 		}
+	}
+
+	// The selected knob gets a pulsing ring, drawn on top every frame (the
+	// knob SVG is shared by every Bidoo blue knob, so it is not touched).
+	void draw(const DrawArgs& args) override {
 		BidooBlueKnob::draw(args);
+		RATEAU *m = getParamQuantity() ? dynamic_cast<RATEAU*>(getParamQuantity()->module) : NULL;
+		if (m && m->fCntrl == getParamQuantity()->paramId - RATEAU::CONTROLS_PARAMS) {
+			float a = 0.5f + 0.5f * std::sin(2.f * M_PI * (float)system::getTime());
+			nvgBeginPath(args.vg);
+			nvgCircle(args.vg, box.size.x * 0.5f, box.size.y * 0.5f, box.size.x * 0.5f + 1.5f);
+			nvgStrokeColor(args.vg, nvgRGBAf(1.f, 0.913f, 0.f, 0.3f + 0.6f * a));
+			nvgStrokeWidth(args.vg, 1.5f);
+			nvgStroke(args.vg);
+		}
 	}
 };
 
@@ -796,6 +538,25 @@ struct RATEAUDisplay : TransparentWidget {
 
 	RATEAUDisplay() {
 
+	}
+
+	static std::string speedName(int s) {
+		switch (s) {
+			case 4: return " DIN";
+			case 6: return " 64th";
+			case 8: return " 32t";
+			case 12: return " 32nd";
+			case 16: return " 16t";
+			case 18: return " 32d";
+			case 24: return " 16th";
+			case 32: return " 8t";
+			case 36: return " 16d";
+			case 48: return " 8th";
+			case 64: return " 4t";
+			case 72: return " 8d";
+			case 96: return " 4th";
+			default: return "";
+		}
 	}
 
 	void drawLayer(const DrawArgs& args, int layer) override {
@@ -807,37 +568,16 @@ struct RATEAUDisplay : TransparentWidget {
 				stringstream sBank, sFControl, sValue;
 				sBank << "PTRN " + to_string(m->bank + 1);
 				sFControl << "# " + to_string(m->fCntrl + 1);
+				const RiotCell &c = m->cell(m->fCntrl, m->pMode);
 				switch(m->page) {
-				  case pDiv:
-				    //sPage << "DIV";
-						sValue << " => " << fixed << setprecision(2) << m->gDivs[m->bank][m->fCntrl][m->pMode];
-				    break;
-					case pStep:
-				    //sPage << "STEPS";
-						sValue  << " => " << fixed << setprecision(2) << m->gSteps[m->bank][m->fCntrl][m->pMode];
-				    break;
-					case pProb:
-				    //sPage << "PROB";
-						sValue  << " => " << fixed << setprecision(2) << m->gProbs[m->bank][m->fCntrl][m->pMode]*100.0f << " %";
-				    break;
-					case pSpeed:
-				    //sPage << "SPEED";
-						sValue  << " => x" << fixed << setprecision(2) << m->speeds[m->gSpeeds[m->bank][m->fCntrl][m->pMode]];
-				    break;
-					case pClockShift:
-				    //sPage << "CLK SHIFT";
-						sValue  << " => " << fixed << setprecision(2) << m->gClockShifts[m->bank][m->fCntrl][m->pMode];
-				    break;
-					case pTimeShift:
-						//sPage << "TIME SHIFT";
-						sValue  << " => " << fixed << setprecision(2) << m->gTimeShifts[m->bank][m->fCntrl][m->pMode];
-						break;
-				  default:
-						//sPage << "PW";
-						sValue  << " => " << fixed << setprecision(2) << m->gPulseWidths[m->bank][m->fCntrl][m->pMode]*100.0f << " %";
+				  case pDiv: sValue << " => " << c.div; break;
+					case pStep: sValue << " => " << c.step; break;
+					case pProb: sValue << " => " << fixed << setprecision(0) << c.prob * 100.0f << " %"; break;
+					case pSpeed: sValue << " => " << c.speed << speedName(c.speed); break;
+					case pClockShift: sValue << " => " << (c.div > 0 ? std::min(c.clockShift, c.div - 1) : 0); break;
+					case pTimeShift: sValue << " => " << fixed << setprecision(0) << c.timeShift << " deg"; break;
+					default: sValue << " => " << fixed << setprecision(0) << c.pulseWidth * 100.0f << " %"; break;
 				}
-
-				//nvgText(args.vg, 0, 0, sPage.str().c_str(), NULL);
 				nvgText(args.vg, 135, 0, sBank.str().c_str(), NULL);
 				nvgText(args.vg, 0, 0, sFControl.str().c_str(), NULL);
 				nvgText(args.vg, 35, 0, sValue.str().c_str(), NULL);
@@ -911,10 +651,42 @@ struct pulsewidthRateauBtn : app::SvgSwitch {
 	}
 };
 
+// Slider for an int or float setting of the module, in a context menu.
+struct RiotQuantity : Quantity {
+	float *fValue = NULL;
+	int *iValue = NULL;
+	float minV, maxV, defV;
+	std::string label, unit;
+	RiotQuantity(float *v, float lo, float hi, float d, std::string l, std::string u) : fValue(v), minV(lo), maxV(hi), defV(d), label(l), unit(u) {}
+	RiotQuantity(int *v, float lo, float hi, float d, std::string l, std::string u) : iValue(v), minV(lo), maxV(hi), defV(d), label(l), unit(u) {}
+	void setValue(float v) override {
+		v = clamp(v, minV, maxV);
+		if (fValue) *fValue = v;
+		else *iValue = (int)std::round(v);
+	}
+	float getValue() override { return fValue ? *fValue : (float)*iValue; }
+	float getMinValue() override { return minV; }
+	float getMaxValue() override { return maxV; }
+	float getDefaultValue() override { return defV; }
+	std::string getLabel() override { return label; }
+	std::string getUnit() override { return unit; }
+	int getDisplayPrecision() override { return fValue ? 4 : 3; }
+};
+
+struct RiotSlider : ui::Slider {
+	RiotSlider(RiotQuantity *q) {
+		quantity = q;
+		box.size.x = 200.f;
+	}
+	~RiotSlider() {
+		delete quantity;
+	}
+};
+
 struct RATEAUWidget : BidooWidget {
 	ParamWidget *controls[16];
-	void step() override;
   RATEAUWidget(RATEAU *module);
+	void appendContextMenu(Menu *menu) override;
 };
 
 
@@ -987,11 +759,22 @@ RATEAUWidget::RATEAUWidget(RATEAU *module) {
 	}
 }
 
-void RATEAUWidget::step() {
-	for (int i = 0; i < 16; i++) {
-		dynamic_cast<RATEAUBlueKnob*>(controls[i])->fb->setDirty();
-	}
-	BidooWidget::step();
+void RATEAUWidget::appendContextMenu(Menu *menu) {
+	BidooWidget::appendContextMenu(menu);
+	RATEAU *m = dynamic_cast<RATEAU*>(this->module);
+	if (!m)
+		return;
+	RiotBank &b = m->banks[m->bank];
+	menu->addChild(new MenuSeparator());
+	menu->addChild(createMenuLabel("Pattern " + std::to_string(m->bank + 1)));
+	menu->addChild(new RiotSlider(new RiotQuantity(&b.bpm, 20.f, 300.f, 120.f, "Internal clock", " BPM")));
+	menu->addChild(new RiotSlider(new RiotQuantity(&b.cycleStart, 1.f, 255.f, 1.f, "Cycle start", "")));
+	menu->addChild(new RiotSlider(new RiotQuantity(&b.cycleEnd, 0.f, 255.f, 0.f, "Cycle end (0 = endless)", "")));
+	menu->addChild(createMenuItem("Clear this mode of the pattern", "", [=]() { m->clear(m->bank, m->pMode); m->updateControls(); }));
+	menu->addChild(new MenuSeparator());
+	menu->addChild(createBoolPtrMenuItem("Internal clock running", "", &m->running));
+	menu->addChild(createBoolPtrMenuItem("Clock input at 24 PPQ (DIN sync)", "", &m->clock24ppq));
+	menu->addChild(createBoolPtrMenuItem("Pattern changes wait for the cycle start", "", &m->beatSync));
 }
 
 Model *modelRATEAU = createModel<RATEAU, RATEAUWidget>("RATEAU");
