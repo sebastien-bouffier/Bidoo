@@ -51,13 +51,18 @@ struct DIKTAT : BidooModule {
 	DIKTAT() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f, "Channel","",0,1,1);
-		configParam(ROOT_NOTE_PARAM, -1.0f, quantizer::numNotes-2, 0.0f, "Root note","",0,1,1);
-		configParam(SCALE_PARAM, 0.0f, quantizer::numScales-1, 1.0f, "Scale","",0,1,1);
+		std::vector<std::string> roots, scales;
+		for (int i = 0; i < quantizer::numNotes; i++)
+			roots.push_back(quantizer::rootNotes[i].label);
+		for (int i = 0; i < quantizer::numScales; i++)
+			scales.push_back(quantizer::scales[i].label);
+		configSwitch(ROOT_NOTE_PARAM, -1.0f, quantizer::numNotes-2, 0.0f, "Root note (No: semitones, no chord)", roots);
+		configSwitch(SCALE_PARAM, 0.0f, quantizer::numScales-1, 1.0f, "Scale (No: not quantized)", scales);
 
 
 		configInput(NOTE_INPUT, "1V/oct pitch");
-		configInput(ROOT_NOTE_INPUT, "Root note");
-		configInput(SCALE_INPUT, "Scale");
+		configInput(ROOT_NOTE_INPUT, "Root note (0-10 V = +0-11 semitones)");
+		configInput(SCALE_INPUT, "Scale (0-10 V = through the list)");
 
 		configOutput(NOTE_TONIC_OUTPUT, "Tonic");
 		configOutput(NOTE_THIRD_OUTPUT, "Third");
@@ -93,16 +98,16 @@ struct DIKTAT : BidooModule {
 			if (channelJ){
 				json_t *rootNoteJ = json_object_get(channelJ, "rootNote");
 				if (rootNoteJ)
-					rootNote[i] = json_integer_value(rootNoteJ);
+					rootNote[i] = clamp((int)json_integer_value(rootNoteJ), -1, 11);
 
 				json_t *scaleJ = json_object_get(channelJ, "scale");
 				if (scaleJ)
-					scale[i] = json_integer_value(scaleJ);
+					scale[i] = clamp((int)json_integer_value(scaleJ), 0, quantizer::numScales - 1);
 			}
 		}
 		json_t *currentChannelJ = json_object_get(rootJ, "currentChannel");
 		if (currentChannelJ) {
-			currentChannel = json_integer_value(currentChannelJ);
+			currentChannel = clamp((int)json_integer_value(currentChannelJ), 0, 15);
 		}
 		json_t *globalModeJ = json_object_get(rootJ, "globalMode");
 		if (globalModeJ) {
@@ -137,14 +142,17 @@ void DIKTAT::process(const ProcessArgs &args) {
 
 
 		if (inputs[ROOT_NOTE_INPUT].isConnected()) {
-			lRootNote[i] = rescale(clamp(rootNote[globalMode ? 0 : i] + inputs[ROOT_NOTE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,quantizer::numNotes-1);
+			// 0-10 V adds 0-11 semitones to the root; root No stays No.
+			int r = rootNote[globalMode ? 0 : i];
+			lRootNote[i] = r < 0 ? r : clamp((int)(r + clamp(inputs[ROOT_NOTE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f, 10.0f) * 1.1f), 0, 11);
 		}
 		else {
 			lRootNote[i] = rootNote[globalMode ? 0 : i];
 		}
 
 		if (inputs[SCALE_INPUT].isConnected()) {
-			lScale[i] = rescale(clamp(scale[globalMode ? 0 : i] + inputs[SCALE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f,10.0f),0.0f,10.0f,0.0f,quantizer::numScales-1);
+			// 0-10 V moves through the whole scale list from the knob's scale.
+			lScale[i] = clamp((int)std::round(scale[globalMode ? 0 : i] + clamp(inputs[SCALE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f, 10.0f) * (quantizer::numScales - 1) / 10.0f), 0, quantizer::numScales - 1);
 		}
 		else {
 			lScale[i] = scale[globalMode ? 0 : i];

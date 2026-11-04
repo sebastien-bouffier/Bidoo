@@ -125,14 +125,24 @@ namespace quantizer {
     else {
       float pitch;
       int index;
-      std::tie(pitch, index) = getNearestElement(map[rootNote][scale], scales[scale].numNotes*10, voltsIn);
+      int n = scales[scale].numNotes*10;
+      std::tie(pitch, index) = getNearestElement(map[rootNote][scale], n, voltsIn);
+      // Chord notes above the table are the notes an octave (or more) below, raised.
+      auto note = [&](int i) {
+        int octaves = 0;
+        while (i > n - 1) {
+          i -= scales[scale].numNotes;
+          octaves++;
+        }
+        return map[rootNote][scale][i] + octaves;
+      };
       result.tonic = pitch;
-      result.third = map[rootNote][scale][rack::math::clamp(index+2,0,scales[scale].numNotes*10)];
-      result.fifth = map[rootNote][scale][rack::math::clamp(index+4,0,scales[scale].numNotes*10)];
-      result.seventh = map[rootNote][scale][rack::math::clamp(index+6,0,scales[scale].numNotes*10)];
-      result.ninth = map[rootNote][scale][rack::math::clamp(index+8,0,scales[scale].numNotes*10)];
-      result.eleventh = map[rootNote][scale][rack::math::clamp(index+10,0,scales[scale].numNotes*10)];
-      result.thirteenth = map[rootNote][scale][rack::math::clamp(index+12,0,scales[scale].numNotes*10)];
+      result.third = note(index+2);
+      result.fifth = note(index+4);
+      result.seventh = note(index+6);
+      result.ninth = note(index+8);
+      result.eleventh = note(index+10);
+      result.thirteenth = note(index+12);
     }
     return result;
   }
