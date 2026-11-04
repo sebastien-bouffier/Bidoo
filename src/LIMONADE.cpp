@@ -1,313 +1,122 @@
 #include "plugin.hpp"
 #include "dsp/digital.hpp"
 #include "BidooComponents.hpp"
-#include <thread>
-#include "dsp/resampler.hpp"
-#include "dsp/fir.hpp"
 #include "osdialog.h"
 #include "dep/dr_wav/dr_wav.h"
 #include "dep/osc/wtOsc.h"
-#include "../pffft/pffft.h"
-#include <iostream>
-#include <fstream>
 #include "dep/lodepng/lodepng.h"
 #include "dep/AudioFile/AudioFile.h"
+#include <atomic>
+#include <condition_variable>
+#include <deque>
+#include <functional>
+#include <mutex>
+#include <thread>
 
 using namespace std;
 
-static const char WAV_FILTERS[] = "wav:wav";
-static const char PNG_FILTERS[] = "png:png";
+static const char AUDIO_FILTERS[] = "Audio:wav,aif,aiff";
+static const char WAV_FILTERS[] = "WAV:wav";
+static const char PNG_FILTERS[] = "PNG:png";
 
-void tUpdateWaveTable(wtTable &table, float index) {
-	size_t i = index*(table.nFrames-1);
-	table.frames[i].calcWav();
-}
+// Largest frame size the recorder can hold for a whole table.
+static const size_t MAX_FRAME_SIZE = 4 * FS;
 
-void tSaveWaveTableAsWave(wtTable &table, int sampleRate, std::string path) {
-	drwav_data_format format;
-	format.container = drwav_container_riff;
-	format.format = DR_WAVE_FORMAT_PCM;
-	format.channels = 1;
-	format.sampleRate = sampleRate;
-	format.bitsPerSample = 32;
-
-	int *pSamples = (int*)calloc(NF*FS,sizeof(int));
-	memset(pSamples, 0, NF*FS*sizeof(int));
-	for (unsigned int i = 0; i < NF; i++) {
-		for (unsigned int j = 0; j < FS; j++) {
-			*(pSamples+i*FS+j)=floor(table.frames[i].sample[j]*1990000000);
+// Reads a WAV or AIFF file, channels averaged to mono. Empty on failure.
+static std::vector<float> readMonoAudio(const std::string &path) {
+	std::vector<float> mono;
+	std::string ext = rack::string::lowercase(rack::system::getExtension(path));
+	if (ext == ".wav") {
+		unsigned int channels;
+		unsigned int sampleRate;
+		drwav_uint64 frames;
+		float *data = drwav_open_file_and_read_pcm_frames_f32(path.c_str(), &channels, &sampleRate, &frames, NULL);
+		if (!data) {
+			WARN("liMonADe: cannot read %s", path.c_str());
+			return mono;
 		}
-	}
-
-	drwav wav;
-	drwav_init_file_write(&wav, path.c_str(), &format, NULL);
-	drwav_write_pcm_frames(&wav, table.frames.size()*table.frames[0].sample.size(), pSamples);
-	drwav_uninit(&wav);
-
-	free(pSamples);
-}
-
-void tSaveFrameAsWave(wtTable &table, int sampleRate, std::string path, int frameIndex) {
-	drwav_data_format format;
-	format.container = drwav_container_riff;
-	format.format = DR_WAVE_FORMAT_PCM;
-	format.channels = 1;
-	format.sampleRate = sampleRate;
-	format.bitsPerSample = 32;
-
-	int *pSamples = (int*)calloc(FS,sizeof(int));
-	memset(pSamples, 0, FS*sizeof(int));
-	for (unsigned int i = 0; i < FS; i++) {
-		*(pSamples+i)= floor(table.frames[frameIndex].sample[i]*1990000000);
-	}
-
-	drwav wav;
-	drwav_init_file_write(&wav, path.c_str(), &format, NULL);
-	drwav_write_pcm_frames(&wav, table.frames[frameIndex].sample.size(), pSamples);
-	drwav_uninit(&wav);
-
-	free(pSamples);
-}
-
-void tSaveWaveTableAsPng(wtTable &table, int sampleRate, std::string path) {
-	unsigned width = FS;
-	unsigned height = NF;
-	std::vector<unsigned char> image;
-	for(size_t i=0; i<NF; i++) {
-		for (size_t j=0; j<FS; j++) {
-			image.push_back(floor(table.frames[i].sample[j]*1000000000) + 1000000000);
-			image.push_back(floor(table.frames[i].sample[j]*1000000000) + 1000000000);
-			image.push_back(floor(table.frames[i].sample[j]*1000000000) + 1000000000);
-			image.push_back(floor(table.frames[i].sample[j]*1000000000) + 1000000000);
+		mono.resize(frames);
+		for (size_t i = 0; i < frames; i++) {
+			float sum = 0.f;
+			for (unsigned int c = 0; c < channels; c++) sum += data[i * channels + c];
+			mono[i] = sum / channels;
 		}
+		drwav_free(data, NULL);
 	}
-	unsigned error = lodepng::encode(path, image, width, height);
-	if(error != 0)
-  {
-    std::cout << "error " << error << ": " << lodepng_error_text(error) << std::endl;
-	}
-}
-
-void tLoadSample(wtTable &table, std::string path, size_t frameLen, bool interpolate) {
-	std::string waveExtension = rack::system::getExtension(rack::system::getFilename(path));
-	if (waveExtension == ".wav") {
-		unsigned int c;
-	  unsigned int sr;
-	  drwav_uint64 sc;
-		float *pSampleData;
-		float *sample;
-	  pSampleData = drwav_open_file_and_read_pcm_frames_f32(path.c_str(), &c, &sr, &sc, NULL);
-	  if (pSampleData != NULL)  {
-			sc = sc/c;
-			sample = (float*)calloc(sc,sizeof(float));
-			for (unsigned int i=0; i < sc; i++) {
-				if (c == 1) sample[i] = pSampleData[i];
-				else sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
-			}
-			drwav_free(pSampleData, NULL);
-			table.loadSample(sc, frameLen, interpolate, sample);
-			free(sample);
-			table.calcFFT();
-		}
-	}
-	else if (waveExtension == ".aiff") {
-		float *sample;
+	else if (ext == ".aif" || ext == ".aiff") {
 		AudioFile<float> audioFile;
-		if (audioFile.load(path.c_str()))  {
-			sample = (float*)calloc(audioFile.getNumSamplesPerChannel(),sizeof(float));
-			for (int i=0; i < audioFile.getNumSamplesPerChannel(); i++) {
-				if (audioFile.isMono()) {
-					sample[i] = audioFile.samples[0][i];
-				}
-				else {
-					sample[i] = 0.5f*(audioFile.samples[0][i]+audioFile.samples[1][i]);
-				}
-			}
-			table.loadSample(audioFile.getNumSamplesPerChannel(), frameLen, interpolate, sample);
-			free(sample);
-			table.calcFFT();
+		if (!audioFile.load(path)) {
+			WARN("liMonADe: cannot read %s", path.c_str());
+			return mono;
+		}
+		int frames = audioFile.getNumSamplesPerChannel();
+		int channels = audioFile.getNumChannels();
+		mono.resize(frames);
+		for (int i = 0; i < frames; i++) {
+			float sum = 0.f;
+			for (int c = 0; c < channels; c++) sum += audioFile.samples[c][i];
+			mono[i] = sum / channels;
 		}
 	}
+	else {
+		WARN("liMonADe: unsupported file %s", path.c_str());
+	}
+	return mono;
 }
 
-void tLoadISample(wtTable &table, float *iRec, size_t sc, size_t frameLen, bool interpolate) {
-	table.loadSample(sc, frameLen, interpolate, iRec);
-	table.calcFFT();
-}
-
-void tLoadIFrame(wtTable &table, float *iRec, float index, size_t frameLen, bool interpolate) {
-	size_t i = index*(table.nFrames-1);
-	if (i<table.nFrames) {
-		table.frames[i].loadSample(frameLen, interpolate, iRec);
-	}
-	else if (table.nFrames==0) {
-		table.addFrame(0);
-		table.frames[0].loadSample(frameLen, interpolate, iRec);
-		table.calcFFT();
-	}
-}
-
-void tLoadFrame(wtTable &table, std::string path, float index, bool interpolate) {
-	std::string waveExtension = rack::system::getExtension(rack::system::getFilename(path));
-	if (waveExtension == ".wav") {
-		unsigned int c;
-	  unsigned int sr;
-	  drwav_uint64 sc;
-		float *pSampleData;
-		float *sample;
-	  pSampleData = drwav_open_file_and_read_pcm_frames_f32(path.c_str(), &c, &sr, &sc, NULL);
-	  if (pSampleData != NULL)  {
-			sc = sc/c;
-			sample = (float*)calloc(sc,sizeof(float));
-			for (unsigned int i=0; i < sc; i++) {
-				if (c == 1) sample[i] = pSampleData[i];
-				else sample[i] = 0.5f*(pSampleData[2*i]+pSampleData[2*i+1]);
-			}
-			drwav_free(pSampleData, NULL);
-			size_t i = index*(table.nFrames-1);
-			if (i<table.nFrames) {
-				table.frames[i].loadSample(sc, interpolate, sample);
-			}
-			else if (table.nFrames==0) {
-				table.addFrame(0);
-				table.frames[0].loadSample(sc, interpolate, sample);
-			}
-			free(sample);
-			table.calcFFT();
-		}
-	}
-	else if (waveExtension == ".aiff") {
-		float *sample;
-			AudioFile<float> audioFile;
-			if (audioFile.load(path.c_str()))  {
-				sample = (float*)calloc(audioFile.getNumSamplesPerChannel(),sizeof(float));
-				for (int i=0; i < audioFile.getNumSamplesPerChannel(); i++) {
-					if (audioFile.isMono()) sample[i] = audioFile.samples[0][i];
-					else sample[i] = 0.5f*(audioFile.samples[0][i]+audioFile.samples[1][i]);
-				}
-				size_t i = index*(table.nFrames-1);
-				if (i<table.nFrames) {
-					table.frames[i].loadSample(audioFile.getNumSamplesPerChannel(), interpolate, sample);
-				}
-				else if (table.nFrames==0) {
-					table.addFrame(0);
-					table.frames[0].loadSample(audioFile.getNumSamplesPerChannel(), interpolate, sample);
-				}
-				free(sample);
-				table.calcFFT();
-			}
-	}
-}
-
-void tLoadPNG(wtTable &table, std::string path) {
+// One frame per image row, bottom row first, luminance mapped to -1..1.
+static bool readPng(const std::string &path, std::vector<float> &samples, unsigned &width) {
 	std::vector<unsigned char> image;
-	float *sample;
-	unsigned width = 0;
 	unsigned height = 0;
-	size_t sc = 0;
 	unsigned error = lodepng::decode(image, width, height, path, LCT_RGB);
-	if(error != 0)
-  {
-    std::cout << "error " << error << ": " << lodepng_error_text(error) << std::endl;
+	if (error) {
+		WARN("liMonADe: cannot read %s: %s", path.c_str(), lodepng_error_text(error));
+		return false;
 	}
-  else {
-		sc = width*height;
-		sample = (float*)calloc(width*height,sizeof(float));
-		for(size_t i=0; i<height; i++) {
-			for (size_t j=0; j<width; j++) {
-				sample[i*width+j] = (0.299f*image[3*j + 3*(height-i-1)*width] + 0.587f*image[3*j + 3*(height-i-1)*width +1] +  0.114f*image[3*j + 3*(height-i-1)*width +2])/255.0f - 0.5f;
-			}
+	samples.resize((size_t)width * height);
+	for (size_t i = 0; i < height; i++) {
+		const unsigned char *row = image.data() + 3 * (height - i - 1) * width;
+		for (size_t j = 0; j < width; j++) {
+			float lum = (0.299f * row[3 * j] + 0.587f * row[3 * j + 1] + 0.114f * row[3 * j + 2]) / 255.f;
+			samples[i * width + j] = 2.f * lum - 1.f;
 		}
-		table.loadSample(sc, width, true, sample);
-		free(sample);
-		table.calcFFT();
-  }
+	}
+	return true;
 }
 
-void tCalcFFT(wtTable &table) {
-	table.calcFFT();
+static void writeWav(const wtTable &table, int sampleRate, const std::string &path, size_t first, size_t count) {
+	drwav_data_format format;
+	format.container = drwav_container_riff;
+	format.format = DR_WAVE_FORMAT_IEEE_FLOAT;
+	format.channels = 1;
+	format.sampleRate = sampleRate;
+	format.bitsPerSample = 32;
+	drwav wav;
+	if (!drwav_init_file_write(&wav, path.c_str(), &format, NULL)) {
+		WARN("liMonADe: cannot write %s", path.c_str());
+		return;
+	}
+	for (size_t i = first; i < first + count; i++)
+		drwav_write_pcm_frames(&wav, FS, table.frames[i].sample.data());
+	drwav_uninit(&wav);
 }
 
-void tWindowWt(wtTable &table) {
-	table.window();
-	table.calcFFT();
-}
-
-void tSmoothWt(wtTable &table) {
-	table.smooth();
-	table.calcFFT();
-}
-
-void tWindowFrame(wtTable &table, float index) {
-	size_t i = index*(table.nFrames-1);
-	table.windowFrame(i);
-	table.frames[i].calcFFT();
-}
-
-void tSmoothFrame(wtTable &table, float index) {
-	size_t i = index*(table.nFrames-1);
-	table.smoothFrame(i);
-	table.frames[i].calcFFT();
-}
-
-void tRemoveDCOffset(wtTable &table) {
-	table.removeDCOffset();
-}
-
-void tNormalizeFrame(wtTable &table, float index) {
-	size_t i = index*(table.nFrames-1);
-	table.frames[i].normalize();
-	table.frames[i].calcFFT();
-}
-
-void tNormalizeWt(wtTable &table) {
-	table.normalize();
-	table.calcFFT();
-}
-
-void tNormalizeAllFrames(wtTable &table) {
-	table.normalizeAllFrames();
-	table.calcFFT();
-}
-
-void tFFTSample(wtTable &table, float index) {
-	size_t i = index*(table.nFrames-1);
-	table.frames[i].calcFFT();
-}
-
-void tIFFTSample(wtTable &table, float index) {
-	size_t i = index*(table.nFrames-1);
-	table.frames[i].calcIFFT();
-}
-
-void tMorphWaveTable(wtTable &table) {
-	table.morphFrames();
-}
-
-void tMorphSpectrum(wtTable &table) {
-	table.morphSpectrum();
-}
-
-void tMorphSpectrumConstantPhase(wtTable &table) {
-	table.morphSpectrumConstantPhase();
-}
-
-void tAddFrame(wtTable &table, float index) {
-	size_t i = index*(table.nFrames-1);
-	table.addFrame(i);
-}
-
-void tRemoveFrame(wtTable &table, float index) {
-	size_t i = index*(table.nFrames-1);
-	table.removeFrame(i);
-}
-
-void tResetWaveTable(wtTable &table) {
-	table.reset();
-}
-
-void tDeleteMorphing(wtTable &table) {
-	table.deleteMorphing();
+// Inverse of readPng.
+static void writePng(const wtTable &table, const std::string &path) {
+	size_t height = table.nFrames;
+	std::vector<unsigned char> image(FS * height * 4);
+	for (size_t i = 0; i < height; i++) {
+		const wtFrame &frame = table.frames[i];
+		unsigned char *row = image.data() + 4 * (height - i - 1) * FS;
+		for (size_t j = 0; j < FS; j++) {
+			unsigned char v = (unsigned char)(clamp(frame.sample[j] * 0.5f + 0.5f, 0.f, 1.f) * 255.f + 0.5f);
+			row[4 * j] = row[4 * j + 1] = row[4 * j + 2] = v;
+			row[4 * j + 3] = 255;
+		}
+	}
+	unsigned error = lodepng::encode(path, image, FS, height);
+	if (error)
+		WARN("liMonADe: cannot write %s: %s", path.c_str(), lodepng_error_text(error));
 }
 
 struct LIMONADE : BidooModule {
@@ -366,31 +175,87 @@ struct LIMONADE : BidooModule {
 		NUM_LIGHTS
 	};
 
-	std::string lastPath;
-	size_t frameSize=FS;
+	// Table edits requested by the audio thread, run by the worker.
+	enum Op : uint32_t {
+		OP_MORPH_WT = 1 << 0,
+		OP_MORPH_SPECTRUM = 1 << 1,
+		OP_MORPH_SPECTRUM_CONSTANT_PHASE = 1 << 2,
+		OP_REMOVE_MORPH = 1 << 3,
+		OP_NORMALIZE_WT = 1 << 4,
+		OP_NORMALIZE_FRAME = 1 << 5,
+		OP_NORMALIZE_ALL_FRAMES = 1 << 6,
+		OP_REMOVE_DC = 1 << 7,
+		OP_WINDOW_WT = 1 << 8,
+		OP_WINDOW_FRAME = 1 << 9,
+		OP_SMOOTH_WT = 1 << 10,
+		OP_SMOOTH_FRAME = 1 << 11,
+		OP_ADD_FRAME = 1 << 12,
+		OP_REMOVE_FRAME = 1 << 13,
+		OP_REC_WT = 1 << 14,
+		OP_REC_FRAME = 1 << 15,
+	};
+
+	static const int MAX_VOICES = 3;
+	static const int MAX_GROUPS = (16 * MAX_VOICES + 3) / 4;
+
+	// Editable table: UI and worker threads only, always under tableMutex.
+	std::mutex tableMutex;
+	wtTable table;
 	int morphType = -1;
-	bool recWt = false;
-	bool recFrame = false;
-	float *iRec;
-	dsp::SchmittTrigger recTrigger, displayModeTrigger, loadSampleTrigger, loadPngTrigger, loadFrameTrigger, morphWtTrigger, morphSpectrumTrigger, morphSpectrumPhaseConstantTrigger,
-	removeMorphingTrigger, normalizeWtTrigger, normalizeFrameTrigger, normalizeAllFramesTrigger, removeDCTrigger, windowWtTrigger, windowFrameTrigger, smoothWtTrigger, smoothFrameTrigger,
-	addFrameTrigger, removeFrameTrigger, displayEditedFrameTrigger, displayPlayedFrameTrigger;
-	size_t recIndex = 0;
+
+	// UI thread
+	std::string lastPath;
+	std::atomic<bool> dirty{true};
+	std::atomic<size_t> frameSize{FS};
 	int displayMode = 0;
 	int displayEditedFrame = 1;
 	int displayPlayedFrame = 1;
-	size_t index = 0;
-	bool dirty = true;
+	// Played position of channel 1, for the displays.
+	std::atomic<float> playedPos{0.f};
 
-	wtTable table;
-	wtOscillator<16, 16, float_4> oscillators[4];
-	wtOscillator<16, 16, float_4> oscillatorsUp[4];
-	wtOscillator<16, 16, float_4> oscillatorsDown[4];
+	// Worker thread: runs edits and builds the band-limited play table.
+	std::thread worker;
+	std::mutex jobMutex;
+	std::condition_variable jobCv;
+	std::deque<std::function<void(wtTable&)>> jobs;
+	std::atomic<bool> quit{false};
+	std::atomic<bool> rebuildRequested{false};
+	std::atomic<uint32_t> pendingOps{0};
+
+	// Play table handoff: the worker puts a new table in `pending`; the audio
+	// thread takes it and moves its old one to `retired`, which the worker frees.
+	std::atomic<wtPlayTable*> pending{nullptr};
+	std::atomic<wtPlayTable*> retired{nullptr};
+	wtPlayTable *current = nullptr;
+
+	// Recording: the audio thread fills iRec, then hands it to the worker.
+	std::vector<float> iRec;
+	size_t recIndex = 0;
+	size_t recTarget = 0;
+	size_t recCount = 0;
+	size_t recFrameSize = FS;
+	bool recWt = false;
+	bool recFrame = false;
+	std::atomic<bool> recBusy{false};
+
+	dsp::SchmittTrigger recWtTrigger, recFrameTrigger, displayModeTrigger, morphWtTrigger, morphSpectrumTrigger, morphSpectrumPhaseConstantTrigger,
+	removeMorphingTrigger, normalizeWtTrigger, normalizeFrameTrigger, normalizeAllFramesTrigger, removeDCTrigger, windowWtTrigger, windowFrameTrigger, smoothWtTrigger, smoothFrameTrigger,
+	addFrameTrigger, removeFrameTrigger, displayEditedFrameTrigger, displayPlayedFrameTrigger;
+
+	// Audio thread: (channel, unison voice) pairs packed 4 per oscillator.
+	wtOscillator<float_4> oscillators[MAX_GROUPS];
+	int lastChannels = 0;
+	int lastVoices = 0;
+	// Channel and unison voice of each lane, rebuilt when either count changes.
+	int laneChannel[MAX_GROUPS * 4];
+	int laneVoice[MAX_GROUPS * 4];
+	float levelBase = 0.f;
+	float levelSampleRate = 0.f;
 
 	LIMONADE() {
-    config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(INDEX_PARAM, 0.0f, 1.0f, 0.0f ,"Edited frame");
-		configParam(UNISSON_PARAM, 1.0f, 3.0f, 1.0f, "Voices number");
+		configParam(UNISSON_PARAM, 1.0f, 3.0f, 1.0f, "Voices number")->snapEnabled = true;
 		configParam(UNISSONRANGE_PARAM, 0.0f, .02f, 0.0f, "Voices range");
 
 		configSwitch(SYNC_PARAM, 0.f, 1.f, 1.f, "Sync mode", {"Soft", "Hard"});
@@ -400,460 +265,415 @@ struct LIMONADE : BidooModule {
 		configInput(PITCH_INPUT, "1V/oct pitch");
 		configInput(FM_INPUT, "Frequency modulation");
 		configInput(SYNC_INPUT, "Sync");
+		configInput(WTINDEX_INPUT, "Played frame");
+		configInput(UNISSONRANGE_INPUT, "Voices range");
+		configInput(IN, "Record");
+		configOutput(OUT, "Audio");
 
-    configParam(WTINDEX_PARAM, 0.0f, 1.0f, 0.0f, "Played frame");
-    configParam(WTINDEXATT_PARAM, -1.0f, 1.0f, 1.0f, "Played frame attenuation");
-    configParam(RECWT_PARAM, 0.0f, 10.0f, 0.0f, "Rec. wavetable");
-    configParam(RECFRAME_PARAM, 0.0f, 10.0f, 0.0f, "Rec. frame");
-		configParam(DISPLAYMODE_PARAM, 0.0f, 1.0f, 0.0f, "3D Wavetable display");
-		configParam(DISPLAYEDITEDFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Edited frame display");
-		configParam(DISPLAYPLAYEDFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Played frame display");
-		configParam(LOADSAMPLE_PARAM, 0.0f, 1.0f, 0.0f, "Load wavetable");
-		configParam(LOADFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Load frame");
-		configParam(LOADPNG_PARAM, 0.0f, 1.0f, 0.0f, "Load png");
-		configParam(MORPHWT_PARAM, 0.0f, 1.0f, 0.0f, "Morph wavetable");
-		configParam(MORPHSPECTRUM_PARAM, 0.0f, 1.0f, 0.0f, "Morph spectrum amplitude and phase");
-		configParam(MORPHSPECTRUMCONSTANTPHASE_PARAM, 0.0f, 1.0f, 0.0f, "Morph spectrum amplitude constant phase");
-		configParam(REMOVEMORPH_PARAM, 0.0f, 1.0f, 0.0f, "Remove morphing");
-		configParam(NORMALIZEWT_PARAM, 0.0f, 1.0f, 0.0f, "Normalize wavetable");
-		configParam(NORMALIZEFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Normalize frame");
-		configParam(NORMALIZEALLFRAMES_PARAM, 0.0f, 1.0f, 0.0f, "Normalize all frames");
-		configParam(REMOVEDC_PARAM, 0.0f, 1.0f, 0.0f, "Remove DC offset");
-		configParam(WINDOWWT_PARAM, 0.0f, 1.0f, 0.0f, "Window (Blackman Harris) wavetable");
-		configParam(WINDOWFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Window (Blackman Harris) frame");
-		configParam(SMOOTHWT_PARAM, 0.0f, 1.0f, 0.0f, "Smooth wavetable (decaying avg)");
-		configParam(SMOOTHFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Smooth frame (decaying avg)");
-		configParam(ADDFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Add frame");
-		configParam(REMOVEFRAME_PARAM, 0.0f, 1.0f, 0.0f, "Remove frame");
+		configParam(WTINDEX_PARAM, 0.0f, 1.0f, 0.0f, "Played frame");
+		configParam(WTINDEXATT_PARAM, -1.0f, 1.0f, 1.0f, "Played frame attenuation");
+		configButton(RECWT_PARAM, "Rec. wavetable");
+		configButton(RECFRAME_PARAM, "Rec. frame");
+		configButton(DISPLAYMODE_PARAM, "3D Wavetable display");
+		configButton(DISPLAYEDITEDFRAME_PARAM, "Edited frame display");
+		configButton(DISPLAYPLAYEDFRAME_PARAM, "Played frame display");
+		configButton(LOADSAMPLE_PARAM, "Load wavetable");
+		configButton(LOADFRAME_PARAM, "Load frame");
+		configButton(LOADPNG_PARAM, "Load png");
+		configButton(MORPHWT_PARAM, "Morph wavetable");
+		configButton(MORPHSPECTRUM_PARAM, "Morph spectrum amplitude and phase");
+		configButton(MORPHSPECTRUMCONSTANTPHASE_PARAM, "Morph spectrum amplitude constant phase");
+		configButton(REMOVEMORPH_PARAM, "Remove morphing");
+		configButton(NORMALIZEWT_PARAM, "Normalize wavetable");
+		configButton(NORMALIZEFRAME_PARAM, "Normalize frame");
+		configButton(NORMALIZEALLFRAMES_PARAM, "Normalize all frames");
+		configButton(REMOVEDC_PARAM, "Remove DC offset");
+		configButton(WINDOWWT_PARAM, "Fade wavetable frame edges");
+		configButton(WINDOWFRAME_PARAM, "Fade frame edges");
+		configButton(SMOOTHWT_PARAM, "Smooth wavetable loop points");
+		configButton(SMOOTHFRAME_PARAM, "Smooth frame loop point");
+		configButton(ADDFRAME_PARAM, "Add frame");
+		configButton(REMOVEFRAME_PARAM, "Remove frame");
 
-		for(size_t i=0; i<4; i++) {
-			oscillators[i].table = &table;
-			oscillatorsUp[i].table = &table;
-			oscillatorsDown[i].table = &table;
-		}
-		iRec=(float*)calloc(4*NF*FS,sizeof(float));
+		iRec.resize(MAX_FRAME_SIZE * NF);
+		worker = std::thread(&LIMONADE::workerLoop, this);
 	}
 
-  ~LIMONADE() {
-		free(iRec);
+	~LIMONADE() {
+		quit = true;
+		jobCv.notify_one();
+		if (worker.joinable())
+			worker.join();
+		delete current;
+		delete pending.load();
+		delete retired.load();
 	}
 
 	void process(const ProcessArgs &args) override;
-	void loadSample();
-	void loadFrame();
-	void loadPNG();
-	void windowWt();
-	void smoothWt();
-	void windowFrame();
-	void smoothFrame();
-	void removeDCOffset();
-	void fftSample();
-	void ifftSample();
-	void morphWavetable();
-	void morphSpectrum();
-	void morphSpectrumConstantPhase();
-	void removeMorphing();
-	void updateWaveTable();
-	void addFrame();
-	void removeFrame();
-	void resetWaveTable();
-	void normalizeFrame();
-	void normalizeAllFrames();
-	void normalizeWt();
 
-	json_t *dataToJson() override {
-		json_t *rootJ = BidooModule::dataToJson();
-		json_t *framesJ = json_array();
-		size_t nFrames = 0;
-		for (size_t i=0; i<table.nFrames; i++) {
-			if (!table.frames[i].morphed) {
-				json_t *frameI = json_array();
-				for (size_t j=0; j<FS; j++) {
-					json_t *frameJ = json_real(table.frames[i].sample[j]);
-					json_array_append_new(frameI, frameJ);
-				}
-				json_array_append_new(framesJ, frameI);
-				nFrames++;
-			}
+	// Runs f on the editable table on the worker thread, then rebuilds the play table.
+	void postJob(std::function<void(wtTable&)> f) {
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			jobs.push_back(std::move(f));
 		}
-		json_object_set_new(rootJ, "nFrames", json_integer(nFrames));
-		json_object_set_new(rootJ, "morphType", json_integer(morphType));
-		json_object_set_new(rootJ, "displayMode", json_integer(displayMode));
-		json_object_set_new(rootJ, "displayEditedFrame", json_integer(displayEditedFrame));
-		json_object_set_new(rootJ, "displayPlayedFrame", json_integer(displayPlayedFrame));
-		json_object_set_new(rootJ, "frameSize", json_integer(frameSize));
-		json_object_set_new(rootJ, "frames", framesJ);
-		return rootJ;
+		jobCv.notify_one();
 	}
 
-	void dataFromJson(json_t *rootJ) override {
-		BidooModule::dataFromJson(rootJ);
-		size_t nFrames = 0;
-		json_t *nFramesJ = json_object_get(rootJ, "nFrames");
-		if (nFramesJ)	nFrames = json_integer_value(nFramesJ);
+	void requestRebuild() {
+		rebuildRequested = true;
+		jobCv.notify_one();
+	}
 
-		json_t *morphTypeJ = json_object_get(rootJ, "morphType");
-		if (morphTypeJ)	morphType = json_integer_value(morphTypeJ);
+	void workerLoop() {
+		while (!quit) {
+			std::deque<std::function<void(wtTable&)>> todo;
+			{
+				std::unique_lock<std::mutex> lock(jobMutex);
+				// The audio thread cannot notify without locking, so also poll for its ops.
+				jobCv.wait_for(lock, std::chrono::milliseconds(5), [&]{ return quit || !jobs.empty() || rebuildRequested; });
+				todo.swap(jobs);
+			}
+			if (quit)
+				break;
+			uint32_t ops = pendingOps.exchange(0);
+			bool changed = rebuildRequested.exchange(false);
+			if (ops || !todo.empty()) {
+				std::lock_guard<std::mutex> lock(tableMutex);
+				for (auto &job : todo) job(table);
+				if (ops) runOps(ops);
+				changed = true;
+			}
+			if (changed)
+				publish();
+			delete retired.exchange(nullptr);
+		}
+	}
 
-		json_t *displayModeJ = json_object_get(rootJ, "displayMode");
-		if (displayModeJ)	displayMode = json_integer_value(displayModeJ);
-
-		json_t *displayEditedFrameJ = json_object_get(rootJ, "displayEditedFrame");
-		if (displayEditedFrameJ) displayEditedFrame = json_integer_value(displayEditedFrameJ);
-
-		json_t *displayPlayedFrameJ = json_object_get(rootJ, "displayPlayedFrame");
-		if (displayPlayedFrameJ) displayPlayedFrame = json_integer_value(displayPlayedFrameJ);
-
-		json_t *frameSizeJ = json_object_get(rootJ, "frameSize");
-		if (frameSizeJ)	frameSize = json_integer_value(frameSizeJ);
-
-		if (nFrames>0)
+	void publish() {
+		std::vector<float> samples;
+		size_t n;
 		{
-			float *wav = (float*)calloc(nFrames*FS, sizeof(float));
-			json_t *framesJ = json_object_get(rootJ, "frames");
-			for (size_t i = 0; i < nFrames; i++) {
-				json_t *frameJ = json_array_get(framesJ, i);
-				for (size_t j=0; j<FS; j++) {
-					wav[i*FS+j] = json_number_value(json_array_get(frameJ, j));
-				}
-			}
-			table.loadSample(nFrames*FS, FS, false, wav);
-			if (morphType==0) {
-				morphWavetable();
-			}
-			else if (morphType==1) {
-				morphSpectrum();
-			}
-			else if (morphType==2) {
-				morphSpectrumConstantPhase();
-			}
-			free(wav);
+			std::lock_guard<std::mutex> lock(tableMutex);
+			n = table.nFrames;
+			samples.resize(n * FS);
+			for (size_t i = 0; i < n; i++)
+				std::copy(table.frames[i].sample.begin(), table.frames[i].sample.end(), samples.begin() + i * FS);
+		}
+		wtPlayTable *t = new wtPlayTable();
+		t->build(samples.data(), n);
+		delete pending.exchange(t);
+	}
+
+	// Worker thread, under tableMutex.
+	void runOps(uint32_t ops) {
+		size_t i = table.frameAt(params[INDEX_PARAM].getValue());
+		bool has = table.nFrames > 0;
+		if (ops & OP_MORPH_WT) { table.morph(wtTable::MORPH_WAVE); morphType = 0; }
+		if (ops & OP_MORPH_SPECTRUM) { table.morph(wtTable::MORPH_SPECTRUM); morphType = 1; }
+		if (ops & OP_MORPH_SPECTRUM_CONSTANT_PHASE) { table.morph(wtTable::MORPH_SPECTRUM_CONSTANT_PHASE); morphType = 2; }
+		if (ops & OP_REMOVE_MORPH) { table.deleteMorphing(); morphType = -1; }
+		if (ops & OP_NORMALIZE_WT) table.normalize();
+		if ((ops & OP_NORMALIZE_FRAME) && has) table.frames[i].normalize();
+		if (ops & OP_NORMALIZE_ALL_FRAMES) table.normalizeAllFrames();
+		if (ops & OP_REMOVE_DC) table.removeDCOffset();
+		if (ops & OP_WINDOW_WT) table.window();
+		if ((ops & OP_WINDOW_FRAME) && has) table.frames[i].window();
+		if (ops & OP_SMOOTH_WT) table.smooth();
+		if ((ops & OP_SMOOTH_FRAME) && has) table.frames[i].smooth();
+		if (ops & OP_ADD_FRAME) table.addFrame(i);
+		if ((ops & OP_REMOVE_FRAME) && has) table.removeFrame(i);
+		if (ops & OP_REC_WT) {
+			table.loadSample(recCount, recFrameSize, true, iRec.data());
+			morphType = -1;
+			recBusy = false;
+		}
+		if (ops & OP_REC_FRAME) {
+			if (table.nFrames == 0)
+				table.addFrame(0);
+			size_t f = table.frameAt(params[INDEX_PARAM].getValue());
+			table.frames[f].loadSample(recCount, true, iRec.data());
+			table.frames[f].morphed = false;
+			recBusy = false;
 		}
 		table.calcFFT();
 		dirty = true;
 	}
 
-	void onRandomize() override {
+	// UI thread
+	void loadSample(const std::string &path) {
+		std::vector<float> data = readMonoAudio(path);
+		if (data.empty())
+			return;
+		lastPath = path;
+		size_t fsz = frameSize;
+		postJob([this, data, fsz](wtTable &t) {
+			t.loadSample(data.size(), fsz, true, data.data());
+			t.calcFFT();
+			morphType = -1;
+		});
+	}
 
+	void loadFrame(const std::string &path) {
+		std::vector<float> data = readMonoAudio(path);
+		if (data.empty())
+			return;
+		lastPath = path;
+		float pos = params[INDEX_PARAM].getValue();
+		postJob([data, pos](wtTable &t) {
+			if (t.nFrames == 0)
+				t.addFrame(0);
+			wtFrame &f = t.frames[t.frameAt(pos)];
+			f.loadSample(data.size(), true, data.data());
+			f.morphed = false;
+			f.calcFFT();
+		});
+	}
+
+	void loadPNG(const std::string &path) {
+		std::vector<float> data;
+		unsigned width = 0;
+		if (!readPng(path, data, width) || width == 0)
+			return;
+		lastPath = path;
+		postJob([this, data, width](wtTable &t) {
+			t.loadSample(data.size(), width, true, data.data());
+			t.calcFFT();
+			morphType = -1;
+		});
+	}
+
+	// Spectrum editor drag on one bin of one frame.
+	void editBin(size_t frame, size_t bin, bool isMagnitude, bool zero, float delta) {
+		postJob([frame, bin, isMagnitude, zero, delta](wtTable &t) {
+			if (frame >= t.nFrames || bin >= FS2)
+				return;
+			wtFrame &f = t.frames[frame];
+			if (isMagnitude)
+				f.magnitude[bin] = zero ? 0.f : clamp(f.magnitude[bin] + delta, 0.f, 1.f);
+			else
+				f.phase[bin] = zero ? 0.f : clamp(f.phase[bin] + delta, -(float)M_PI, (float)M_PI);
+			f.morphed = false;
+			f.calcIFFT();
+		});
+	}
+
+	json_t *dataToJson() override {
+		json_t *rootJ = BidooModule::dataToJson();
+		std::vector<float> wav;
+		size_t nFrames = 0;
+		{
+			std::lock_guard<std::mutex> lock(tableMutex);
+			for (size_t i = 0; i < table.nFrames; i++) {
+				if (table.frames[i].morphed)
+					continue;
+				wav.insert(wav.end(), table.frames[i].sample.begin(), table.frames[i].sample.end());
+				nFrames++;
+			}
+			json_object_set_new(rootJ, "morphType", json_integer(morphType));
+		}
+		json_object_set_new(rootJ, "nFrames", json_integer(nFrames));
+		json_object_set_new(rootJ, "wavetable", json_string(rack::string::toBase64((const uint8_t*)wav.data(), wav.size() * sizeof(float)).c_str()));
+		json_object_set_new(rootJ, "displayMode", json_integer(displayMode));
+		json_object_set_new(rootJ, "displayEditedFrame", json_integer(displayEditedFrame));
+		json_object_set_new(rootJ, "displayPlayedFrame", json_integer(displayPlayedFrame));
+		json_object_set_new(rootJ, "frameSize", json_integer(frameSize));
+		return rootJ;
+	}
+
+	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
+		json_t *displayModeJ = json_object_get(rootJ, "displayMode");
+		if (displayModeJ) displayMode = json_integer_value(displayModeJ);
+		json_t *displayEditedFrameJ = json_object_get(rootJ, "displayEditedFrame");
+		if (displayEditedFrameJ) displayEditedFrame = json_integer_value(displayEditedFrameJ);
+		json_t *displayPlayedFrameJ = json_object_get(rootJ, "displayPlayedFrame");
+		if (displayPlayedFrameJ) displayPlayedFrame = json_integer_value(displayPlayedFrameJ);
+		json_t *frameSizeJ = json_object_get(rootJ, "frameSize");
+		if (frameSizeJ) frameSize = std::max((size_t)1, std::min((size_t)json_integer_value(frameSizeJ), MAX_FRAME_SIZE));
+
+		size_t nFrames = 0;
+		json_t *nFramesJ = json_object_get(rootJ, "nFrames");
+		if (nFramesJ) nFrames = std::min((size_t)json_integer_value(nFramesJ), (size_t)NF);
+		json_t *morphTypeJ = json_object_get(rootJ, "morphType");
+		int mt = morphTypeJ ? json_integer_value(morphTypeJ) : -1;
+		json_t *wavJ = json_object_get(rootJ, "wavetable");
+		std::vector<uint8_t> bytes;
+		if (wavJ && json_string_value(wavJ))
+			bytes = rack::string::fromBase64(json_string_value(wavJ));
+		if (bytes.size() != nFrames * FS * sizeof(float))
+			nFrames = 0;
+
+		{
+			std::lock_guard<std::mutex> lock(tableMutex);
+			table.loadSample(nFrames * FS, FS, false, (const float*)bytes.data());
+			morphType = mt;
+			if (mt >= 0 && mt <= 2)
+				table.morph((wtTable::MorphMode)mt);
+			table.calcFFT();
+		}
+		dirty = true;
+		requestRebuild();
 	}
 
 	void onReset() override {
-		table.reset();
 		lastPath = "";
+		postJob([this](wtTable &t) {
+			t.reset();
+			morphType = -1;
+		});
 		dirty = true;
 	}
 };
 
-inline void LIMONADE::updateWaveTable() {
-	tUpdateWaveTable(table, params[INDEX_PARAM].getValue());
-}
-
-inline void LIMONADE::fftSample() {
-	tFFTSample(table, params[INDEX_PARAM].getValue());
-}
-
-inline void LIMONADE::ifftSample() {
-	tIFFTSample(table, params[INDEX_PARAM].getValue());
-}
-
-inline void LIMONADE::morphWavetable() {
-	morphType = 0;
-	tMorphWaveTable(table);
-}
-
-inline void LIMONADE::morphSpectrum() {
-	morphType = 1;
-	tMorphSpectrum(table);
-}
-
-inline void LIMONADE::morphSpectrumConstantPhase() {
-	morphType = 2;
-	tMorphSpectrumConstantPhase(table);
-}
-
-inline void LIMONADE::removeMorphing() {
-	morphType = -1;
-	tDeleteMorphing(table);
-}
-
-void LIMONADE::addFrame() {
-	thread t = thread(tAddFrame, std::ref(table), params[INDEX_PARAM].getValue());
-	t.detach();
-}
-
-void LIMONADE::removeFrame() {
-	tRemoveFrame(table, params[INDEX_PARAM].getValue());
-}
-
-void LIMONADE::resetWaveTable() {
-	tResetWaveTable(table);
-}
-
-void LIMONADE::loadSample() {
-	osdialog_filters* filters = osdialog_filters_parse(WAV_FILTERS);
-	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, filters);
-	if (path) {
-		lastPath=path;
-		tLoadSample(table, path, frameSize, true);
-		free(path);
-		morphType = -1;
-	}
-	osdialog_filters_free(filters);
-}
-
-void LIMONADE::loadFrame() {
-	osdialog_filters* filters = osdialog_filters_parse(WAV_FILTERS);
-	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, filters);
-	if (path) {
-		lastPath=path;
-		tLoadFrame(table, path, params[INDEX_PARAM].getValue(), true);
-		free(path);
-	}
-	osdialog_filters_free(filters);
-}
-
-void LIMONADE::loadPNG() {
-	osdialog_filters* filters = osdialog_filters_parse(PNG_FILTERS);
-	char *path = osdialog_file(OSDIALOG_OPEN, "", NULL, filters);
-	if (path) {
-		lastPath=path;
-		tLoadPNG(table, path);
-		free(path);
-	}
-	osdialog_filters_free(filters);
-}
-
-void LIMONADE::windowWt() {
-	tWindowWt(table);
-}
-
-void LIMONADE::smoothWt() {
-	tSmoothWt(table);
-}
-
-void LIMONADE::windowFrame() {
-	tWindowFrame(table, params[INDEX_PARAM].getValue());
-}
-
-void LIMONADE::smoothFrame() {
-	tSmoothFrame(table, params[INDEX_PARAM].getValue());
-}
-
-void LIMONADE::removeDCOffset() {
-	tRemoveDCOffset(table);
-}
-
-
-void LIMONADE::normalizeFrame() {
-	tNormalizeFrame(table, params[INDEX_PARAM].getValue());
-}
-
-void LIMONADE::normalizeWt() {
-	tNormalizeWt(table);
-}
-
-void LIMONADE::normalizeAllFrames() {
-	tNormalizeAllFrames(table);
-}
-
 void LIMONADE::process(const ProcessArgs &args) {
+	// Take the newest play table, once the worker has freed the previous one.
+	if (pending.load(std::memory_order_relaxed) && !retired.load(std::memory_order_acquire)) {
+		wtPlayTable *p = pending.exchange(nullptr, std::memory_order_acq_rel);
+		if (p) {
+			retired.store(current, std::memory_order_release);
+			current = p;
+		}
+	}
 
-	if (displayModeTrigger.process(params[DISPLAYMODE_PARAM].getValue())) {
+	if (displayModeTrigger.process(params[DISPLAYMODE_PARAM].getValue()))
 		displayMode = (displayMode == 0) ? 1 : 0;
-	}
-
-	if (displayEditedFrameTrigger.process(params[DISPLAYEDITEDFRAME_PARAM].getValue())) {
+	if (displayEditedFrameTrigger.process(params[DISPLAYEDITEDFRAME_PARAM].getValue()))
 		displayEditedFrame = (displayEditedFrame == 0) ? 1 : 0;
-	}
-
-	if (displayPlayedFrameTrigger.process(params[DISPLAYPLAYEDFRAME_PARAM].getValue())) {
+	if (displayPlayedFrameTrigger.process(params[DISPLAYPLAYEDFRAME_PARAM].getValue()))
 		displayPlayedFrame = (displayPlayedFrame == 0) ? 1 : 0;
-	}
 
-	if (morphWtTrigger.process(params[MORPHWT_PARAM].getValue())) {
-		morphWavetable();
-	}
+	uint32_t ops = 0;
+	auto button = [&](dsp::SchmittTrigger &trigger, int param, uint32_t op) {
+		if (trigger.process(params[param].getValue()))
+			ops |= op;
+	};
+	button(morphWtTrigger, MORPHWT_PARAM, OP_MORPH_WT);
+	button(morphSpectrumTrigger, MORPHSPECTRUM_PARAM, OP_MORPH_SPECTRUM);
+	button(morphSpectrumPhaseConstantTrigger, MORPHSPECTRUMCONSTANTPHASE_PARAM, OP_MORPH_SPECTRUM_CONSTANT_PHASE);
+	button(removeMorphingTrigger, REMOVEMORPH_PARAM, OP_REMOVE_MORPH);
+	button(normalizeWtTrigger, NORMALIZEWT_PARAM, OP_NORMALIZE_WT);
+	button(normalizeFrameTrigger, NORMALIZEFRAME_PARAM, OP_NORMALIZE_FRAME);
+	button(normalizeAllFramesTrigger, NORMALIZEALLFRAMES_PARAM, OP_NORMALIZE_ALL_FRAMES);
+	button(removeDCTrigger, REMOVEDC_PARAM, OP_REMOVE_DC);
+	button(windowWtTrigger, WINDOWWT_PARAM, OP_WINDOW_WT);
+	button(windowFrameTrigger, WINDOWFRAME_PARAM, OP_WINDOW_FRAME);
+	button(smoothWtTrigger, SMOOTHWT_PARAM, OP_SMOOTH_WT);
+	button(smoothFrameTrigger, SMOOTHFRAME_PARAM, OP_SMOOTH_FRAME);
+	button(addFrameTrigger, ADDFRAME_PARAM, OP_ADD_FRAME);
+	button(removeFrameTrigger, REMOVEFRAME_PARAM, OP_REMOVE_FRAME);
 
-	if (morphSpectrumTrigger.process(params[MORPHSPECTRUM_PARAM].getValue())) {
-		morphSpectrum();
+	bool recWtPressed = recWtTrigger.process(params[RECWT_PARAM].getValue());
+	bool recFramePressed = recFrameTrigger.process(params[RECFRAME_PARAM].getValue());
+	if (!recWt && !recFrame && !recBusy) {
+		size_t fsz = frameSize;
+		if (recWtPressed) {
+			recWt = true;
+			recFrameSize = fsz;
+			recTarget = fsz * NF;
+		}
+		else if (recFramePressed) {
+			recFrame = true;
+			recFrameSize = fsz;
+			recTarget = fsz;
+		}
+		recIndex = 0;
 	}
-
-	if (morphSpectrumPhaseConstantTrigger.process(params[MORPHSPECTRUMCONSTANTPHASE_PARAM].getValue())) {
-		morphSpectrumConstantPhase();
-	}
-
-	if (removeMorphingTrigger.process(params[REMOVEMORPH_PARAM].getValue())) {
-		removeMorphing();
-	}
-
-	if (normalizeWtTrigger.process(params[NORMALIZEWT_PARAM].getValue())) {
-		normalizeWt();
-	}
-
-	if (normalizeFrameTrigger.process(params[NORMALIZEFRAME_PARAM].getValue())) {
-		normalizeFrame();
-	}
-
-	if (normalizeAllFramesTrigger.process(params[NORMALIZEALLFRAMES_PARAM].getValue())) {
-		normalizeAllFrames();
-	}
-
-	if (removeDCTrigger.process(params[REMOVEDC_PARAM].getValue())) {
-		removeDCOffset();
-	}
-
-	if (windowWtTrigger.process(params[WINDOWWT_PARAM].getValue())) {
-		windowWt();
-	}
-
-	if (windowFrameTrigger.process(params[WINDOWFRAME_PARAM].getValue())) {
-		windowFrame();
-	}
-
-	if (smoothWtTrigger.process(params[SMOOTHWT_PARAM].getValue())) {
-		smoothWt();
-	}
-
-	if (smoothFrameTrigger.process(params[SMOOTHFRAME_PARAM].getValue())) {
-		smoothFrame();
-	}
-
-	if (addFrameTrigger.process(params[ADDFRAME_PARAM].getValue())) {
-		addFrame();
-	}
-
-	if (removeFrameTrigger.process(params[REMOVEFRAME_PARAM].getValue())) {
-		removeFrame();
-	}
-
-	if (recTrigger.process(params[RECWT_PARAM].getValue()) && !recWt && !recFrame) {
-		recWt = true;
-		recIndex=0;
-		lights[RECWT_LIGHT].setBrightness(1.0f);
-	}
-
-	if (recTrigger.process(params[RECFRAME_PARAM].getValue()) && !recWt && !recFrame) {
-		recFrame = true;
-		recIndex=0;
-		lights[RECFRAME_LIGHT].setBrightness(1.0f);
-	}
-
 	if (recWt || recFrame) {
-		iRec[recIndex]=inputs[IN].getVoltage()*0.1f;
-		recIndex++;
-
-		if (recWt && (recIndex==frameSize*NF)) {
-			thread t = thread(tLoadISample, std::ref(table), std::ref(iRec), frameSize*NF, frameSize, true);
-			t.detach();
-			recWt = false;
-			recIndex = 0;
-			lights[RECWT_LIGHT].setBrightness(0.0f);
-		}
-		else if (recFrame && (recIndex==frameSize)) {
-			thread t = thread(tLoadIFrame, std::ref(table), std::ref(iRec), params[INDEX_PARAM].getValue(), frameSize, true);
-			t.detach();
-			recFrame = false;
-			recIndex = 0;
-			lights[RECFRAME_LIGHT].setBrightness(0.0f);
+		iRec[recIndex++] = inputs[IN].getVoltage() * 0.1f;
+		if (recIndex >= recTarget) {
+			recCount = recIndex;
+			recBusy = true;
+			ops |= recWt ? OP_REC_WT : OP_REC_FRAME;
+			recWt = recFrame = false;
 		}
 	}
+	lights[RECWT_LIGHT].setBrightness(recWt ? 1.f : 0.f);
+	lights[RECFRAME_LIGHT].setBrightness(recFrame ? 1.f : 0.f);
 
-	float freqParam = params[FREQ_PARAM].getValue() / 12.f;
-	freqParam += dsp::quadraticBipolar(params[FINE_PARAM].getValue()) * 0.25f;
-	float fmParam = dsp::quadraticBipolar(params[FM_PARAM].getValue());
+	if (ops)
+		pendingOps.fetch_or(ops, std::memory_order_release);
 
 	int channels = std::max(inputs[PITCH_INPUT].getChannels(), 1);
-	index = clamp(params[WTINDEX_PARAM].getValue() + inputs[WTINDEX_INPUT].getVoltage() * 0.1f * params[WTINDEXATT_PARAM].getValue(),0.0f,1.0f)*(float)(table.nFrames == 0 ? 0 : table.nFrames - 1);
-	float ur = clamp(params[UNISSONRANGE_PARAM].getValue() + rescale(inputs[UNISSONRANGE_INPUT].getVoltage(),0.0f,10.0f,0.0f,0.02f),0.0f,0.02f);
+	int voices = clamp((int)std::round(params[UNISSON_PARAM].getValue()), 1, MAX_VOICES);
+	int lanes = channels * voices;
+	int groups = (lanes + 3) / 4;
 
-	for (int c = 0; c < channels; c += 4) {
-		if ((size_t)params[UNISSON_PARAM].getValue()==1) {
-			auto* oscillator = &oscillators[c / 4];
-			oscillator->channels = std::min(channels - c, 4);
-			oscillator->soft = params[SYNC_PARAM].getValue() <= 0.f;
-			float_4 pitch = freqParam;
-			pitch += inputs[PITCH_INPUT].getVoltageSimd<float_4>(c);
-			if (inputs[FM_INPUT].isConnected()) {
-				pitch += fmParam * inputs[FM_INPUT].getPolyVoltageSimd<float_4>(c);
-			}
-			oscillator->setPitch(pitch);
-			oscillator->syncEnabled = inputs[SYNC_INPUT].isConnected();
-			oscillator->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c),index);
-
-			if (outputs[OUT].isConnected())
-				outputs[OUT].setVoltageSimd(5.f * oscillator->out(), c);
+	// Unison voices start at random phases, so they do not sum as one voice.
+	if (channels != lastChannels || voices != lastVoices) {
+		for (int g = 0; g < groups; g++)
+			for (int j = 0; j < 4; j++)
+				oscillators[g].phase[j] = voices > 1 ? rack::random::uniform() : 0.f;
+		for (int lane = 0; lane < MAX_GROUPS * 4; lane++) {
+			int l = std::min(lane, lanes - 1);
+			laneChannel[lane] = l / voices;
+			laneVoice[lane] = l % voices;
 		}
-		else if ((size_t)params[UNISSON_PARAM].getValue()==2) {
-			auto* oscillator = &oscillators[c / 4];
-			oscillator->channels = std::min(channels - c, 4);
-			oscillator->soft = params[SYNC_PARAM].getValue() <= 0.f;
-			float_4 pitch = freqParam-ur;
-			pitch += inputs[PITCH_INPUT].getVoltageSimd<float_4>(c);
-			if (inputs[FM_INPUT].isConnected()) {
-				pitch += fmParam * inputs[FM_INPUT].getPolyVoltageSimd<float_4>(c);
-			}
-			oscillator->setPitch(pitch);
-			oscillator->syncEnabled = inputs[SYNC_INPUT].isConnected();
-			oscillator->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c),index);
-
-			auto* oscillatorUp = &oscillatorsUp[c / 4];
-			oscillatorUp->channels = std::min(channels - c, 4);
-			oscillatorUp->soft = params[SYNC_PARAM].getValue() <= 0.f;
-			float_4 pitchUp = freqParam+ur;
-			pitchUp += inputs[PITCH_INPUT].getVoltageSimd<float_4>(c);
-			if (inputs[FM_INPUT].isConnected()) {
-				pitchUp += fmParam * inputs[FM_INPUT].getPolyVoltageSimd<float_4>(c);
-			}
-			oscillatorUp->setPitch(pitchUp);
-			oscillatorUp->syncEnabled = inputs[SYNC_INPUT].isConnected();
-			oscillatorUp->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c),index);
-
-			if (outputs[OUT].isConnected())
-				outputs[OUT].setVoltageSimd(2.5f * (oscillator->out() + oscillatorUp->out()), c);
-		}
-		else {
-			auto* oscillator = &oscillators[c / 4];
-			oscillator->channels = std::min(channels - c, 4);
-			oscillator->soft = params[SYNC_PARAM].getValue() <= 0.f;
-			float_4 pitch = freqParam;
-			pitch += inputs[PITCH_INPUT].getVoltageSimd<float_4>(c);
-			if (inputs[FM_INPUT].isConnected()) {
-				pitch += fmParam * inputs[FM_INPUT].getPolyVoltageSimd<float_4>(c);
-			}
-			oscillator->setPitch(pitch);
-			oscillator->syncEnabled = inputs[SYNC_INPUT].isConnected();
-			oscillator->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c),index);
-
-			auto* oscillatorUp = &oscillatorsUp[c / 4];
-			oscillatorUp->channels = std::min(channels - c, 4);
-			oscillatorUp->soft = params[SYNC_PARAM].getValue() <= 0.f;
-			float_4 pitchUp = freqParam+ur;
-			pitchUp += inputs[PITCH_INPUT].getVoltageSimd<float_4>(c);
-			if (inputs[FM_INPUT].isConnected()) {
-				pitchUp += fmParam * inputs[FM_INPUT].getPolyVoltageSimd<float_4>(c);
-			}
-			oscillatorUp->setPitch(pitchUp);
-			oscillatorUp->syncEnabled = inputs[SYNC_INPUT].isConnected();
-			oscillatorUp->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c),index);
-
-			auto* oscillatorDown = &oscillatorsDown[c / 4];
-			oscillatorDown->channels = std::min(channels - c, 4);
-			oscillatorDown->soft = params[SYNC_PARAM].getValue() <= 0.f;
-			float_4 pitchDown = freqParam-ur;
-			pitchDown += inputs[PITCH_INPUT].getVoltageSimd<float_4>(c);
-			if (inputs[FM_INPUT].isConnected()) {
-				pitchDown += fmParam * inputs[FM_INPUT].getPolyVoltageSimd<float_4>(c);
-			}
-			oscillatorDown->setPitch(pitchDown);
-			oscillatorDown->syncEnabled = inputs[SYNC_INPUT].isConnected();
-			oscillatorDown->process(args.sampleTime, inputs[SYNC_INPUT].getPolyVoltageSimd<float_4>(c),index);
-
-			if (outputs[OUT].isConnected())
-				outputs[OUT].setVoltageSimd(1.6666666f * (oscillator->out() + oscillatorUp->out() + oscillatorDown->out()), c);
-		}
+		lastChannels = channels;
+		lastVoices = voices;
 	}
 
 	outputs[OUT].setChannels(channels);
+	if (!current || current->nFrames == 0) {
+		for (int c = 0; c < channels; c++)
+			outputs[OUT].setVoltage(0.f, c);
+		return;
+	}
+
+	float freqParam = params[FREQ_PARAM].getValue() / 12.f + dsp::quadraticBipolar(params[FINE_PARAM].getValue()) * 0.25f;
+	float fmParam = dsp::quadraticBipolar(params[FM_PARAM].getValue());
+	bool fmConnected = inputs[FM_INPUT].isConnected();
+	float wtParam = params[WTINDEX_PARAM].getValue();
+	float wtAtt = params[WTINDEXATT_PARAM].getValue() * 0.1f;
+	float urParam = params[UNISSONRANGE_PARAM].getValue();
+	// Mipmap level k keeps 1024 >> k harmonics: the lowest level that does not
+	// alias at frequency f is ceil(log2(f * FS / sampleRate)).
+	if (args.sampleRate != levelSampleRate) {
+		levelBase = std::log2(dsp::FREQ_C4 * FS / args.sampleRate);
+		levelSampleRate = args.sampleRate;
+	}
+
+	float pitch[16], pos[16], range[16], sync[16];
+	for (int c = 0; c < channels; c++) {
+		pitch[c] = freqParam + inputs[PITCH_INPUT].getVoltage(c);
+		if (fmConnected)
+			pitch[c] += fmParam * inputs[FM_INPUT].getPolyVoltage(c);
+		pos[c] = clamp(wtParam + inputs[WTINDEX_INPUT].getPolyVoltage(c) * wtAtt, 0.f, 1.f);
+		range[c] = clamp(urParam + inputs[UNISSONRANGE_INPUT].getPolyVoltage(c) * 0.002f, 0.f, 0.02f);
+		sync[c] = inputs[SYNC_INPUT].getPolyVoltage(c);
+	}
+	playedPos.store(pos[0], std::memory_order_relaxed);
+
+	// Detune per voice, in units of the voices range.
+	static const float detune[MAX_VOICES + 1][MAX_VOICES] = {{0.f, 0.f, 0.f}, {0.f, 0.f, 0.f}, {-1.f, 1.f, 0.f}, {0.f, 1.f, -1.f}};
+	bool soft = params[SYNC_PARAM].getValue() <= 0.f;
+	bool syncConnected = inputs[SYNC_INPUT].isConnected();
+	float sum[16] = {};
+
+	for (int g = 0; g < groups; g++) {
+		int n = std::min(4, lanes - 4 * g);
+		float_4 p, ps, sy;
+		for (int j = 0; j < 4; j++) {
+			int c = laneChannel[4 * g + j];
+			int v = laneVoice[4 * g + j];
+			p[j] = pitch[c] + detune[voices][v] * range[c];
+			ps[j] = pos[c];
+			sy[j] = sync[c];
+		}
+		float_4 freq = dsp::FREQ_C4 * dsp::approxExp2_taylor5(p + 30.f) / 1073741824.f;
+		float_4 level = simd::clamp(-simd::floor(-(p + levelBase)), 0.f, (float)(WT_LEVELS - 1));
+
+		wtOscillator<float_4> &osc = oscillators[g];
+		osc.soft = soft;
+		osc.syncEnabled = syncConnected;
+		float_4 out = osc.process(current, args.sampleTime, freq, ps, level, sy, n);
+		for (int j = 0; j < n; j++)
+			sum[laneChannel[4 * g + j]] += out[j];
+	}
+
+	float gain = 5.f / voices;
+	for (int c = 0; c < channels; c++)
+		outputs[OUT].setVoltage(clamp(sum[c] * gain, -10.f, 10.f), c);
 }
 
 struct LIMONADEBinsDisplay : OpaqueWidget {
@@ -871,8 +691,16 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 	float scrollLeftAnchor = 0.0f;
 	bool scroll = false;
 
-	LIMONADEBinsDisplay() {
+	// Copied from the table under its lock at each draw.
+	size_t nFrames = 0;
+	size_t editedFrame = 0;
+	std::vector<float> magnitude, phase, editedSample, playedSample;
 
+	LIMONADEBinsDisplay() {
+		magnitude.resize(FS2);
+		phase.resize(FS2);
+		editedSample.resize(FS);
+		playedSample.resize(FS);
 	}
 
 	void onButton(const event::Button &e) override {
@@ -894,28 +722,13 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 	}
 
 	void onDragMove(const event::DragMove &e) override {
-		if ((!scroll) && (module->table.nFrames>0)) {
-			size_t i = module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames-1);
-			if (refY<=heightMagn) {
-				if ((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_CONTROL)) {
-					module->table.frames[i].magnitude[refIdx] = 0.0f;
-				}
-				else {
-					module->table.frames[i].magnitude[refIdx] -= e.mouseDelta.y/(250/APP->scene->rackScroll->zoomWidget->zoom);
-					module->table.frames[i].magnitude[refIdx] = clamp(module->table.frames[i].magnitude[refIdx],0.0f, 1.0f);
-				}
-			}
-			else if (refY>=heightMagn+graphGap) {
-				if ((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_CONTROL)) {
-					module->table.frames[i].phase[refIdx] = 0.0f;
-				}
-				else {
-					module->table.frames[i].phase[refIdx] -= e.mouseDelta.y / (250 / APP->scene->rackScroll->zoomWidget->zoom);
-					module->table.frames[i].phase[refIdx] = clamp(module->table.frames[i].phase[refIdx],-1.0f*M_PI, M_PI);
-				}
-			}
-			module->table.frames[i].morphed = false;
-			module->updateWaveTable();
+		if ((!scroll) && (nFrames>0) && (refIdx >= 0)) {
+			bool zero = (APP->window->getMods() & RACK_MOD_MASK) == GLFW_MOD_CONTROL;
+			float delta = -e.mouseDelta.y/(250/APP->scene->rackScroll->zoomWidget->zoom);
+			if (refY<=heightMagn)
+				module->editBin(editedFrame, refIdx, true, zero, delta);
+			else if (refY>=heightMagn+graphGap)
+				module->editBin(editedFrame, refIdx, false, zero, delta);
 		}
 		else {
 				scrollLeftAnchor = clamp(scrollLeftAnchor + e.mouseDelta.x / APP->scene->rackScroll->zoomWidget->zoom, 0.0f,width-20.0f);
@@ -929,19 +742,45 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
     OpaqueWidget::onDragEnd(e);
   }
 
+	void copyFromTable() {
+		std::lock_guard<std::mutex> lock(module->tableMutex);
+		const wtTable &table = module->table;
+		nFrames = table.nFrames;
+		if (nFrames == 0)
+			return;
+		editedFrame = table.frameAt(module->params[LIMONADE::INDEX_PARAM].getValue());
+		const wtFrame &edited = table.frames[editedFrame];
+		std::copy(edited.magnitude.begin(), edited.magnitude.end(), magnitude.begin());
+		std::copy(edited.phase.begin(), edited.phase.end(), phase.begin());
+		std::copy(edited.sample.begin(), edited.sample.end(), editedSample.begin());
+		const wtFrame &played = table.frames[table.frameAt(module->playedPos)];
+		std::copy(played.sample.begin(), played.sample.end(), playedSample.begin());
+	}
+
+	void drawWave(const DrawArgs& args, const std::vector<float> &sample, NVGcolor color) {
+		nvgStrokeColor(args.vg, color);
+		float invNbSample = 1.f / (float)sample.size();
+		nvgBeginPath(args.vg);
+		for (size_t i = 0; i < sample.size(); i++) {
+			float x = (float)i * invNbSample  * 420.f;
+			float y = (-1.f)*sample[i] * 18.f + 35.f;
+			if (i == 0)
+				nvgMoveTo(args.vg, x, y);
+			else
+				nvgLineTo(args.vg, x, y);
+		}
+		nvgLineCap(args.vg, NVG_MITER);
+		nvgStrokeWidth(args.vg, 1);
+		nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
+		nvgStroke(args.vg);
+	}
+
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
 			if (module) {
+				copyFromTable();
 				nvgSave(args.vg);
-				wtFrame frame, playedFrame;
 				size_t tag=1;
-
-				if (module->table.nFrames>0) {
-					frame.magnitude = module->table.frames[(size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1))].magnitude;
-					frame.phase = module->table.frames[(size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1))].phase;
-					frame.sample = module->table.frames[(size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1))].sample;
-					playedFrame.sample = module->table.frames[module->index].sample;
-				}
 
 				Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, heightMagn + graphGap + heightPhas));
 				nvgScissor(args.vg, 0, b.pos.y, width, heightMagn + graphGap + heightPhas+12);
@@ -961,12 +800,12 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 
 				nvgText(args.vg, 130.0f, heightMagn + graphGap * 0.5f + 4, "▲ Magnitude ▼ Phase", NULL);
 
-				if (module->table.nFrames>0) {
-					nvgText(args.vg, 0.0f, heightMagn + graphGap * 0.5f + 4, ("Frame " + to_string((int)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames-1) + 1)) + " / " + to_string(module->table.nFrames)).c_str(), NULL);
+				if (nFrames>0) {
+					nvgText(args.vg, 0.0f, heightMagn + graphGap * 0.5f + 4, ("Frame " + to_string(editedFrame + 1) + " / " + to_string(nFrames)).c_str(), NULL);
 					for (size_t i = 0; i < FS2/2; i++) {
 						float x, y;
 						x = (float)i * IFS2;
-						y = frame.magnitude[i];
+						y = magnitude[i];
 						Vec p;
 						p.x = b.pos.x + b.size.x * x;
 						p.y = heightMagn * y;
@@ -989,7 +828,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 							nvgStrokeWidth(args.vg, 2);
 							nvgBeginPath(args.vg);
 							nvgRect(args.vg, p.x+1, heightMagn - p.y, b.size.x * IFS2 - 2, p.y);
-							y = frame.phase[i]*IM_PI;
+							y = phase[i]*IM_PI;
 							p.y = heightPhas * 0.5f * y;
 							nvgRect(args.vg, p.x+1, heightMagn + graphGap + heightPhas * 0.5f - p.y, b.size.x * IFS2-2, p.y);
 							nvgStroke(args.vg);
@@ -1000,46 +839,11 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 
 				nvgResetScissor(args.vg);
 
-				if ((module->displayPlayedFrame == 0) && (playedFrame.sample.size()>0)) {
-					nvgStrokeColor(args.vg, RED_BIDOO);
-					float invNbSample = 1.f / (float)playedFrame.sample.size();
-					nvgBeginPath(args.vg);
-					for (size_t i = 0; i < playedFrame.sample.size(); i++) {
-						float x, y;
-						x = (float)i * invNbSample  * 420.f;
-						y = (-1.f)*playedFrame.sample[i] * 18.f + 35.f;
-						if (i == 0) {
-							nvgMoveTo(args.vg, x, y);
-						}
-						else {
-							nvgLineTo(args.vg, x, y);
-						}
-					}
-					nvgLineCap(args.vg, NVG_MITER);
-					nvgStrokeWidth(args.vg, 1);
-					nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-					nvgStroke(args.vg);
-				}
-
-				if ((module->displayEditedFrame == 0) && (frame.sample.size()>0)) {
-					nvgStrokeColor(args.vg, GREEN_BIDOO);
-					float invNbSample = 1.f / (float)frame.sample.size();
-					nvgBeginPath(args.vg);
-					for (size_t i = 0; i < frame.sample.size(); i++) {
-						float x, y;
-						x = (float)i * invNbSample * 420.f;
-						y = (-1.f)*frame.sample[i] * 18.f + 35.f;
-						if (i == 0) {
-							nvgMoveTo(args.vg, x, y);
-						}
-						else {
-							nvgLineTo(args.vg, x, y);
-						}
-					}
-					nvgLineCap(args.vg, NVG_MITER);
-					nvgStrokeWidth(args.vg, 1);
-					nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-					nvgStroke(args.vg);
+				if (nFrames > 0) {
+					if (module->displayPlayedFrame == 0)
+						drawWave(args, playedSample, RED_BIDOO);
+					if (module->displayEditedFrame == 0)
+						drawWave(args, editedSample, GREEN_BIDOO);
 				}
 				nvgRestore(args.vg);
 			}
@@ -1062,10 +866,24 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 	float sa1 = sin(a1);
 	float ca2 = cos(a2);
 	float sa2 = sin(a2);
-	float x3D, y3D, z3D, x2D, y2D;
+
+	// The 3D view draws at most this many frames and points per frame.
+	static const size_t MAX_LINES = 64;
+	static const size_t LINE_POINTS = 128;
+	static const size_t FRAME_POINTS = 512;
+
+	// Copied from the table under its lock at each draw.
+	size_t nFrames = 0;
+	size_t editedFrame = 0;
+	size_t playedFrame = 0;
+	std::vector<size_t> lineFrames;
+	std::vector<bool> lineMorphed;
+	std::vector<float> lines, edited, played;
 
 	LIMONADEWavDisplay() {
-
+		lines.resize(MAX_LINES * LINE_POINTS);
+		edited.resize(FRAME_POINTS);
+		played.resize(FRAME_POINTS);
 	}
 
 	void onButton(const event::Button &e) override {
@@ -1099,17 +917,48 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 		OpaqueWidget::onDragEnd(e);
 	}
 
+	void copyFromTable() {
+		std::lock_guard<std::mutex> lock(module->tableMutex);
+		const wtTable &table = module->table;
+		nFrames = table.nFrames;
+		lineFrames.clear();
+		lineMorphed.clear();
+		if (nFrames == 0)
+			return;
+		size_t step = (nFrames + MAX_LINES - 1) / MAX_LINES;
+		for (size_t f = 0, l = 0; f < nFrames; f += step, l++) {
+			lineFrames.push_back(f);
+			lineMorphed.push_back(table.frames[f].morphed);
+			for (size_t i = 0; i < LINE_POINTS; i++)
+				lines[l * LINE_POINTS + i] = table.frames[f].sample[i * (FS / LINE_POINTS)];
+		}
+		editedFrame = table.frameAt(module->params[LIMONADE::INDEX_PARAM].getValue());
+		playedFrame = table.frameAt(module->playedPos);
+		for (size_t i = 0; i < FRAME_POINTS; i++) {
+			edited[i] = table.frames[editedFrame].sample[i * (FS / FRAME_POINTS)];
+			played[i] = table.frames[playedFrame].sample[i * (FS / FRAME_POINTS)];
+		}
+	}
+
+	void drawLine(const DrawArgs& args, const float *points, size_t count, size_t frame) {
+		float y3D = 10.0f * frame / nFrames - 5.0f;
+		nvgBeginPath(args.vg);
+		for (size_t i = 0; i < count; i++) {
+			float x3D = 10.0f * i / count - 5.0f;
+			float z3D = -points[i];
+			float y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
+			float x2D = ca2*x3D+sa2*y3D+7.5f;
+			if (i == 0)
+				nvgMoveTo(args.vg, 10.0f * x2D, 10.0f * y2D);
+			else
+				nvgLineTo(args.vg, 10.0f * x2D, 10.0f * y2D);
+		}
+	}
+
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
 			if (module && (module->displayMode == 0)) {
-				size_t fs = module->table.nFrames;
-				size_t idx = 0;
-				size_t wtidx = 0;
-				if (fs>0) {
-					idx = module->params[LIMONADE::INDEX_PARAM].getValue()*(fs-1);
-					wtidx = module->index;
-				}
-
+				copyFromTable();
 				nvgSave(args.vg);
 
 				nvgFontSize(args.vg, 8.0f);
@@ -1118,59 +967,19 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 
 				nvgText(args.vg, width+2, height-10, ("V=" + to_string((int)module->params[LIMONADE::UNISSON_PARAM].getValue())).c_str(), NULL);
 
-				for (size_t n=0; n<fs; n++) {
-					size_t fid = fs-n-1;
-					y3D = 10.0f * fid/fs-5.0f;
-					nvgBeginPath(args.vg);
-					for (size_t i=0; i<FS2; i+=2) {
-						x3D = 20.0f * i * IFS -5.0f;
-						z3D = (-1.f)*module->table.frames[fid].sample[2*i];
-						y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
-						x2D = ca2*x3D+sa2*y3D+7.5f;
-						if (i == 0) {
-							nvgMoveTo(args.vg, 10.0f * x2D, 10.0f * y2D);
-						}
-						else {
-							nvgLineTo(args.vg, 10.0f * x2D, 10.0f * y2D);
-						}
-					}
-
-					nvgStrokeColor(args.vg, nvgRGBA(255, 233, 0, module->table.frames[fid].morphed ? 15 : 50));
+				// Back to front.
+				for (size_t n = lineFrames.size(); n-- > 0; ) {
+					drawLine(args, &lines[n * LINE_POINTS], LINE_POINTS, lineFrames[n]);
+					nvgStrokeColor(args.vg, nvgRGBA(255, 233, 0, lineMorphed[n] ? 15 : 50));
 					nvgStroke(args.vg);
 				}
 
-				if (fs>0) {
-					nvgBeginPath(args.vg);
-					y3D = 10.0f * idx/fs -5.0f;
-					for (size_t i=0; i<FS; i++) {
-						x3D = 10.0f * i * IFS -5.0f;
-						z3D = (-1.f)*module->table.frames[idx].sample[i];
-						y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
-						x2D = ca2*x3D+sa2*y3D+7.5f;
-						if (i == 0) {
-							nvgMoveTo(args.vg, 10.0f * x2D, 10.0f * y2D);
-						}
-						else {
-							nvgLineTo(args.vg, 10.0f * x2D, 10.0f * y2D);
-						}
-					}
+				if (nFrames>0) {
+					drawLine(args, edited.data(), FRAME_POINTS, editedFrame);
 					nvgStrokeColor(args.vg, GREEN_BIDOO);
 					nvgStroke(args.vg);
 
-					nvgBeginPath(args.vg);
-					y3D = 10.0f * wtidx/fs -5.0f;
-					for (size_t i=0; i<FS; i++) {
-						x3D = 10.0f * i * IFS -5.0f;
-						z3D = (-1.f)*module->table.frames[wtidx].sample[i];
-						y2D = z3D*ca1-(ca2*y3D-sa2*x3D)*sa1+5.0f;
-						x2D = ca2*x3D+sa2*y3D+7.5f;
-						if (i == 0) {
-							nvgMoveTo(args.vg, 10.0f * x2D, 10.0f * y2D);
-						}
-						else {
-							nvgLineTo(args.vg, 10.0f * x2D, 10.0f * y2D);
-						}
-					}
+					drawLine(args, played.data(), FRAME_POINTS, playedFrame);
 					nvgStrokeColor(args.vg, RED_BIDOO);
 					nvgStroke(args.vg);
 				}
@@ -1196,13 +1005,20 @@ struct LIMONADEFrameSizeTextField : LedDisplayTextField {
 
 	void onChange(const event::Change &e) override {
 		LedDisplayTextField::onChange(e);
-		if ((getText().size() > 0) && (getText() != "")) {
-			size_t val;
-			std::istringstream(getText())>>val;
-	    module->frameSize = val;
-		}
+		if (!module)
+			return;
+		long long val = 0;
+		std::istringstream(getText()) >> val;
+		if (val >= 1)
+			module->frameSize = std::min((size_t)val, MAX_FRAME_SIZE);
 	};
 
+	void onDeselect(const DeselectEvent &e) override {
+		// Show the value actually used.
+		if (module)
+			setText(std::to_string(module->frameSize));
+		LedDisplayTextField::onDeselect(e);
+	}
 };
 
 struct LIMONADEFrameSizeDisplay : LedDisplay {
@@ -1236,68 +1052,87 @@ struct moduleDisplayPlayedFrameItem : MenuItem {
 	}
 };
 
+// Asks for a file path; empty if cancelled.
+static std::string limonadeFileDialog(LIMONADE *module, osdialog_file_action action, const char *filterSpec) {
+	std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
+	osdialog_filters* filters = osdialog_filters_parse(filterSpec);
+	char *path = osdialog_file(action, dir.c_str(), action == OSDIALOG_SAVE ? "Untitled" : NULL, filters);
+	osdialog_filters_free(filters);
+	std::string result;
+	if (path) {
+		result = path;
+		free(path);
+	}
+	return result;
+}
+
 struct moduleSaveWavetableAsWavItem : MenuItem {
 	LIMONADE *module;
 	void onAction(const event::Action &e) override {
-		std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
-		osdialog_filters* filters = osdialog_filters_parse(WAV_FILTERS);
-		char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), "Untitled", filters);
-		if (path) {
-			tSaveWaveTableAsWave(module->table, APP->engine->getSampleRate(), path);
-			free(path);
-		}
-		osdialog_filters_free(filters);
+		std::string path = limonadeFileDialog(module, OSDIALOG_SAVE, WAV_FILTERS);
+		if (path.empty())
+			return;
+		std::lock_guard<std::mutex> lock(module->tableMutex);
+		writeWav(module->table, APP->engine->getSampleRate(), path, 0, module->table.nFrames);
 	}
 };
 
 struct moduleSaveFrameAsWavItem : MenuItem {
 	LIMONADE *module;
 	void onAction(const event::Action &e) override {
-		std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
-		osdialog_filters* filters = osdialog_filters_parse(WAV_FILTERS);
-		char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), "Untitled", filters);
-		if (path) {
-			tSaveFrameAsWave(module->table, APP->engine->getSampleRate(), path, (size_t)(module->params[LIMONADE::INDEX_PARAM].getValue()*(module->table.nFrames - 1)));
-			free(path);
-		}
-		osdialog_filters_free(filters);
+		std::string path = limonadeFileDialog(module, OSDIALOG_SAVE, WAV_FILTERS);
+		if (path.empty())
+			return;
+		std::lock_guard<std::mutex> lock(module->tableMutex);
+		if (module->table.nFrames > 0)
+			writeWav(module->table, APP->engine->getSampleRate(), path, module->table.frameAt(module->params[LIMONADE::INDEX_PARAM].getValue()), 1);
 	}
 };
 
 struct moduleSaveWavetableAsPngItem : MenuItem {
 	LIMONADE *module;
 	void onAction(const event::Action &e) override {
-		std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
-		osdialog_filters* filters = osdialog_filters_parse(PNG_FILTERS);
-		char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), "Untitled", filters);
-		if (path) {
-			tSaveWaveTableAsPng(module->table, APP->engine->getSampleRate(), path);
-			free(path);
-		}
-		osdialog_filters_free(filters);
+		std::string path = limonadeFileDialog(module, OSDIALOG_SAVE, PNG_FILTERS);
+		if (path.empty())
+			return;
+		std::lock_guard<std::mutex> lock(module->tableMutex);
+		if (module->table.nFrames > 0)
+			writePng(module->table, path);
 	}
 };
 
-struct LimonadeBlueBtnLoadSample : BlueBtn {
-	virtual void onButton(const event::Button &e) override {
-		if ((e.button == GLFW_MOUSE_BUTTON_LEFT) && (e.action == GLFW_PRESS)) dynamic_cast<LIMONADE*>(this->getParamQuantity()->module)->loadSample();
-		BlueBtn::onButton(e);
-	}
-};
+// Opens the file dialog after the click is over, from step(): a modal dialog
+// opened inside the mouse press swallows the release and leaves the button
+// held, so the next click does not register.
+template <int KIND>
+struct LimonadeBlueBtnLoad : BlueBtn {
+	bool openDialog = false;
 
-struct LimonadeBlueBtnLoadPNG : BlueBtn {
-	virtual void onButton(const event::Button &e) override {
-		if ((e.button == GLFW_MOUSE_BUTTON_LEFT) && (e.action == GLFW_PRESS)) dynamic_cast<LIMONADE*>(this->getParamQuantity()->module)->loadPNG();
-		BlueBtn::onButton(e);
+	void onDragEnd(const DragEndEvent &e) override {
+		BlueBtn::onDragEnd(e);
+		if (e.button == GLFW_MOUSE_BUTTON_LEFT)
+			openDialog = true;
 	}
-};
 
-struct LimonadeBlueBtnLoadFrame : BlueBtn {
-	virtual void onButton(const event::Button &e) override {
-		if ((e.button == GLFW_MOUSE_BUTTON_LEFT) && (e.action == GLFW_PRESS)) dynamic_cast<LIMONADE*>(this->getParamQuantity()->module)->loadFrame();
-		BlueBtn::onButton(e);
+	void step() override {
+		BlueBtn::step();
+		if (!openDialog)
+			return;
+		openDialog = false;
+		LIMONADE *module = getParamQuantity() ? dynamic_cast<LIMONADE*>(getParamQuantity()->module) : NULL;
+		if (!module)
+			return;
+		std::string path = limonadeFileDialog(module, OSDIALOG_OPEN, KIND == 1 ? PNG_FILTERS : AUDIO_FILTERS);
+		if (path.empty())
+			return;
+		if (KIND == 0) module->loadSample(path);
+		else if (KIND == 1) module->loadPNG(path);
+		else module->loadFrame(path);
 	}
 };
+typedef LimonadeBlueBtnLoad<0> LimonadeBlueBtnLoadSample;
+typedef LimonadeBlueBtnLoad<1> LimonadeBlueBtnLoadPNG;
+typedef LimonadeBlueBtnLoad<2> LimonadeBlueBtnLoadFrame;
 
 struct LIMONADEWidget : BidooWidget {
 	LIMONADEWidget(LIMONADE *module) {
@@ -1481,13 +1316,15 @@ struct LIMONADEWidget : BidooWidget {
 		menu->addChild(saveWavetableAsPngItem);
 	}
 
-
 	void onPathDrop(const PathDropEvent& e) override {
 		Widget::onPathDrop(e);
 		LIMONADE *module = dynamic_cast<LIMONADE*>(this->module);
-		module->lastPath=e.paths[0];
-		tLoadSample(module->table, e.paths[0], module->frameSize, true);
-		module->morphType = -1;
+		if (!module || e.paths.empty())
+			return;
+		if (rack::string::lowercase(rack::system::getExtension(e.paths[0])) == ".png")
+			module->loadPNG(e.paths[0]);
+		else
+			module->loadSample(e.paths[0]);
 	}
 };
 

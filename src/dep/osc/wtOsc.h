@@ -1,580 +1,484 @@
-#include "dsp/resampler.hpp"
-#include "dsp/fir.hpp"
+#pragma once
+// Wavetable data and oscillator for LIMONADE.
+//
+// wtFrame / wtTable: the editable wavetable (time samples plus magnitude/phase
+// bins for the spectrum editor). Only touched by non-audio threads, under the
+// module's table mutex.
+//
+// wtPlayTable: an immutable, band-limited copy of the table built on a worker
+// thread and handed to the audio thread. Each frame is stored as a set of
+// mipmap levels; level k keeps at most 1024 >> k harmonics, so the oscillator
+// can pick a level per voice that does not alias at its pitch.
+//
+// wtOscillator: 4 voices per SIMD vector. Reads two neighbouring frames and
+// crossfades them, so scanning the table is smooth. minBLEP is only used for
+// the real discontinuity of hard sync.
+
+#include "dsp/minblep.hpp"
 #include "../pffft/pffft.h"
 #include <algorithm>
-#include <iostream>
-#include <fstream>
-#include <atomic>
+#include <cmath>
+#include <cstring>
+#include <memory>
+#include <vector>
 
 #define FS 2048
-#define AC 2.0*M_PI/FS
 #define FS2 1024
 #define NF 256
-#define IFS 1.0f/FS
-#define IFS2 1.0f/FS2
-#define IM_PI 1.0f/M_PI
-
-using namespace std;
+#define IFS (1.0f/FS)
+#define IFS2 (1.0f/FS2)
+#define IM_PI (1.0f/M_PI)
 
 using simd::float_4;
 
-struct wtFrame {
-  vector<float> sample;
-  vector<float> magnitude;
-  vector<float> phase;
-  bool morphed=false;
-  bool used=false;
+// One pffft setup and work buffers per size and per thread, created on first use.
+struct wtFFT {
+  int n;
+  PFFFT_Setup *setup;
+  float *in;
+  float *out;
 
-  wtFrame() {
-    sample.resize(FS,0);
-    magnitude.resize(FS2,0);
-    phase.resize(FS2,0);
+  explicit wtFFT(int n) : n(n) {
+    setup = pffft_new_setup(n, PFFFT_REAL);
+    in = (float*)pffft_aligned_malloc(n * sizeof(float));
+    out = (float*)pffft_aligned_malloc(n * sizeof(float));
   }
+  ~wtFFT() {
+    pffft_destroy_setup(setup);
+    pffft_aligned_free(in);
+    pffft_aligned_free(out);
+  }
+  void forward() { pffft_transform_ordered(setup, in, out, NULL, PFFFT_FORWARD); }
+  void backward() { pffft_transform_ordered(setup, in, out, NULL, PFFFT_BACKWARD); }
 
-  void calcFFT();
-  void calcIFFT();
-  void calcWav();
-  void normalize();
-  void smooth();
-  void window();
-  void removeDCOffset();
-  void loadSample(size_t sCount, bool interpolate, float *wav);
-  void loadMagnitude(size_t sCount, bool interpolate, float *magn);
-  float maxAmp();
-  void gain(float g);
-  void reset();
+  // n must be a power of two between 64 and FS.
+  static wtFFT &get(int n) {
+    thread_local std::unique_ptr<wtFFT> cache[12];
+    int k = 0;
+    while ((1 << k) < n) k++;
+    if (!cache[k])
+      cache[k].reset(new wtFFT(n));
+    return *cache[k];
+  }
 };
 
-inline void wtFrame::reset() {
-  for(size_t i=0; i<FS2; i++) {
-    sample[i]=0.0f;
-    magnitude[i]=0.0f;
-    phase[i]=0.0f;
+struct wtFrame {
+  std::vector<float> sample;
+  // Bin 0 is DC (magnitude = |mean|, phase 0 or pi), bins 1..FS2-1 are harmonics
+  // (magnitude = peak amplitude). The Nyquist bin is not edited.
+  std::vector<float> magnitude;
+  std::vector<float> phase;
+  bool morphed = false;
+  bool used = false;
+
+  wtFrame() {
+    sample.resize(FS, 0.f);
+    magnitude.resize(FS2, 0.f);
+    phase.resize(FS2, 0.f);
   }
-  for(size_t i=FS2; i<FS; i++) {
-    sample[i]=0.0f;
-  }
-  used=false;
-  morphed=false;
-}
 
-void wtFrame::calcFFT() {
-  PFFFT_Setup *pffftSetup;
-	pffftSetup = pffft_new_setup(FS, PFFFT_REAL);
-	float *fftIn;
-	float *fftOut;
-	fftIn = (float*)pffft_aligned_malloc(FS*sizeof(float));
-	fftOut = (float*)pffft_aligned_malloc(FS*sizeof(float));
-	memset(fftIn, 0, FS*sizeof(float));
-	memset(fftOut, 0, FS*sizeof(float));
-
-	for (size_t k = 0; k < FS; k++) {
-		fftIn[k] = sample[k];
-	}
-
-	pffft_transform_ordered(pffftSetup, fftIn, fftOut, 0, PFFFT_FORWARD);
-
-	for (size_t k = 0; k < FS2; k++) {
-		if ((abs(fftOut[2*k])>1e-2f) || (abs(fftOut[2*k+1])>1e-2f)) {
-			float real = fftOut[2*k];
-			float imag = fftOut[2*k+1];
-			phase[k] = atan2(imag,real);
-			magnitude[k] = 2.0f*sqrt(real*real+imag*imag)/FS;
-		}
-    else {
-      phase[k] = 0.0f;
-			magnitude[k] = 0.0f;
-    }
-	}
-
-	pffft_destroy_setup(pffftSetup);
-	pffft_aligned_free(fftIn);
-	pffft_aligned_free(fftOut);
-}
-
-void wtFrame::calcIFFT() {
-  PFFFT_Setup *pffftSetup;
-	pffftSetup = pffft_new_setup(FS, PFFFT_REAL);
-	float *fftIn;
-	float *fftOut;
-	fftIn = (float*)pffft_aligned_malloc(FS*sizeof(float));
-	fftOut =  (float*)pffft_aligned_malloc(FS*sizeof(float));
-	memset(fftIn, 0, FS*sizeof(float));
-	memset(fftOut, 0, FS*sizeof(float));
-
-	for (size_t i = 0; i < FS2; i++) {
-		fftIn[2*i] = magnitude[i]*cos(phase[i]);
-		fftIn[2*i+1] = magnitude[i]*sin(phase[i]);
-	}
-
-	pffft_transform_ordered(pffftSetup, fftIn, fftOut, 0, PFFFT_BACKWARD);
-
-	for (size_t i = 0; i < FS; i++) {
-		sample[i]=fftOut[i]*0.5f;
-	}
-
-	pffft_destroy_setup(pffftSetup);
-	pffft_aligned_free(fftIn);
-	pffft_aligned_free(fftOut);
-}
-
-void wtFrame::calcWav() {
-  for(size_t i = 0 ; i < FS; i++) {
-    sample[i] = 0;
-		for(size_t j = 0; j < FS2; j++) {
-			if (magnitude[j]>0) {
-        sample[i] += magnitude[j] * cos(i*j*AC + phase[j]);
-      }
-		}
-  }
-}
-
-inline void wtFrame::normalize() {
-  float amp = maxAmp();
-  float g= amp>0?1.0f/amp:0.0f;
-	gain(g);
-}
-
-inline void wtFrame::smooth() {
-  for(size_t i=0; i<16;i++) {
-    float avg=(sample[i]+sample[FS-i-1])/2.0f;
-    sample[i]= ((16-i)*avg+i*sample[i])/16.0f;
-    sample[FS-i-1]= ((16-i)*avg+i*sample[FS-i-1])/16.0f;
-  }
-}
-
-inline void wtFrame::window() {
-  for (size_t i = 0; i < FS;i++) {
-		float window = std::min((float)(-10.0f * cos(2.0f * M_PI * (float)i / FS) + 10.0f), 1.0f);
-		sample[i] *= window;
-	}
-}
-
-void wtFrame::removeDCOffset() {
-  calcFFT();
-  magnitude[0]=0.0f;
-  calcIFFT();
-}
-
-void wtFrame::loadSample(size_t sCount, bool interpolate, float *wav) {
-  if (interpolate) {
-    for(size_t i=0;i<FS;i++) {
-      size_t index = i*((float)std::max(sCount-1,(size_t)0)/(float)FS);
-      float pos = (float)i*((float)std::max(sCount-1,(size_t)0)/(float)FS);
-      sample[i]=rescale(pos,index,index+1,*(wav+index),*(wav+index+1));
-    }
-  }
-  else {
-    for(size_t i=0;i<FS;i++) {
-      if (i<sCount) {
-        sample[i]=*(wav+i);
+  void calcFFT() {
+    wtFFT &fft = wtFFT::get(FS);
+    std::copy(sample.begin(), sample.end(), fft.in);
+    fft.forward();
+    // pffft ordered layout: out[0] = DC, out[1] = Nyquist, then (re, im) pairs.
+    magnitude[0] = std::fabs(fft.out[0]) / FS;
+    phase[0] = fft.out[0] < 0.f ? M_PI : 0.f;
+    for (size_t k = 1; k < FS2; k++) {
+      float re = fft.out[2 * k];
+      float im = fft.out[2 * k + 1];
+      if (std::fabs(re) > 1e-2f || std::fabs(im) > 1e-2f) {
+        magnitude[k] = 2.f * std::sqrt(re * re + im * im) / FS;
+        phase[k] = std::atan2(im, re);
       }
       else {
-        sample[i]=0.0f;
+        magnitude[k] = 0.f;
+        phase[k] = 0.f;
       }
     }
   }
-}
 
-inline float wtFrame::maxAmp() {
-  float amp = 0.0f;
-	for(size_t i = 0 ; i < FS; i++) {
-		amp = max(amp,abs(sample[i]));
-	}
-	return amp;
-}
+  void calcIFFT() {
+    wtFFT &fft = wtFFT::get(FS);
+    fft.in[0] = magnitude[0] * std::cos(phase[0]);
+    fft.in[1] = 0.f;
+    for (size_t k = 1; k < FS2; k++) {
+      fft.in[2 * k] = 0.5f * magnitude[k] * std::cos(phase[k]);
+      fft.in[2 * k + 1] = 0.5f * magnitude[k] * std::sin(phase[k]);
+    }
+    fft.backward();
+    std::copy(fft.out, fft.out + FS, sample.begin());
+  }
 
-inline void wtFrame::gain(float g) {
-	for(size_t i = 0 ; i < FS; i++) {
-		sample[i]*=g;
-	}
-}
+  float maxAmp() const {
+    float amp = 0.f;
+    for (float s : sample) amp = std::max(amp, std::fabs(s));
+    return amp;
+  }
+
+  void gain(float g) {
+    for (float &s : sample) s *= g;
+  }
+
+  void normalize() {
+    float amp = maxAmp();
+    gain(amp > 0.f ? 1.f / amp : 0.f);
+  }
+
+  // Crossfades the first and last 16 samples towards their average, so the
+  // frame loops without a jump.
+  void smooth() {
+    for (size_t i = 0; i < 16; i++) {
+      float avg = (sample[i] + sample[FS - i - 1]) * 0.5f;
+      sample[i] = ((16 - i) * avg + i * sample[i]) / 16.f;
+      sample[FS - i - 1] = ((16 - i) * avg + i * sample[FS - i - 1]) / 16.f;
+    }
+  }
+
+  // Short fade in and out at the frame edges.
+  void window() {
+    for (size_t i = 0; i < FS; i++) {
+      float w = std::min((float)(-10.f * std::cos(2.f * M_PI * (float)i / FS) + 10.f), 1.f);
+      sample[i] *= w;
+    }
+  }
+
+  void removeDCOffset() {
+    float mean = 0.f;
+    for (float s : sample) mean += s;
+    mean /= FS;
+    for (float &s : sample) s -= mean;
+  }
+
+  // Fills the frame from sCount samples, stretched to FS if interpolate is set.
+  void loadSample(size_t sCount, bool interpolate, const float *wav) {
+    if (sCount == 0) {
+      std::fill(sample.begin(), sample.end(), 0.f);
+      return;
+    }
+    if (interpolate) {
+      if (sCount == 1) {
+        std::fill(sample.begin(), sample.end(), wav[0]);
+        return;
+      }
+      float step = (float)(sCount - 1) / FS;
+      for (size_t i = 0; i < FS; i++) {
+        float pos = i * step;
+        size_t index = std::min((size_t)pos, sCount - 2);
+        float t = pos - index;
+        sample[i] = wav[index] + t * (wav[index + 1] - wav[index]);
+      }
+    }
+    else {
+      for (size_t i = 0; i < FS; i++)
+        sample[i] = i < sCount ? wav[i] : 0.f;
+    }
+  }
+
+  void reset() {
+    std::fill(sample.begin(), sample.end(), 0.f);
+    std::fill(magnitude.begin(), magnitude.end(), 0.f);
+    std::fill(phase.begin(), phase.end(), 0.f);
+    used = false;
+    morphed = false;
+  }
+};
 
 struct wtTable {
   std::vector<wtFrame> frames;
-  size_t nFrames=0;
+  size_t nFrames = 0;
 
   wtTable() {
-    for(size_t i=0; i<NF; i++) {
-      wtFrame frame;
-      frames.push_back(frame);
+    frames.resize(NF);
+  }
+
+  // Frame under a 0..1 position, as shown by the editor. Only valid if nFrames > 0.
+  size_t frameAt(float pos) const {
+    if (nFrames == 0)
+      return 0;
+    return std::min((size_t)(clamp(pos, 0.f, 1.f) * (nFrames - 1)), nFrames - 1);
+  }
+
+  void reset() {
+    for (auto &frame : frames) frame.reset();
+    nFrames = 0;
+  }
+
+  void copyFrame(size_t from, size_t to) {
+    frames[to].sample = frames[from].sample;
+    frames[to].magnitude = frames[from].magnitude;
+    frames[to].phase = frames[from].phase;
+  }
+
+  // Slices sCount samples into frames of frameSize samples.
+  void loadSample(size_t sCount, size_t frameSize, bool interpolate, const float *sample) {
+    reset();
+    frameSize = std::max(frameSize, (size_t)1);
+    size_t sUsed = 0;
+    while (sUsed < sCount && nFrames < NF) {
+      size_t lenFrame = std::min(frameSize, sCount - sUsed);
+      frames[nFrames].loadSample(lenFrame, interpolate, sample + sUsed);
+      frames[nFrames].used = true;
+      sUsed += lenFrame;
+      nFrames++;
     }
   }
 
-  void loadSample(size_t sCount, size_t frameSize, bool interpolate, float *sample);
-  void loadMagnitude(size_t sCount, size_t frameSize, bool interpolate, float *magn);
-  void normalize();
-  void normalizeFrame(size_t index);
-  void normalizeAllFrames();
-  void smooth();
-  void smoothFrame(size_t index);
-  void window();
-  void windowFrame(size_t index);
-  void removeDCOffset();
-  void calcFFT();
-  void removeFrameDCOffset(size_t index);
-  void addFrame(size_t index);
-  void removeFrame(size_t index);
-  void morphFrames();
-  void morphSpectrum();
-  void morphSpectrumConstantPhase();
-  void reset();
-  void deleteMorphing();
-  void init();
-  void copyFrame(size_t from, size_t to);
-};
-
-void wtTable::copyFrame(size_t from, size_t to) {
-  for(size_t i=0; i<FS2; i++) {
-    frames[to].sample[i]=frames[from].sample[i];
-    frames[to].magnitude[i]=frames[from].magnitude[i];
-    frames[to].phase[i]=frames[from].phase[i];
+  void calcFFT() {
+    for (size_t i = 0; i < nFrames; i++) frames[i].calcFFT();
   }
-  for(size_t i=FS2; i<FS; i++) {
-    frames[to].sample[i]=frames[from].sample[i];
+
+  void normalize() {
+    float amp = 0.f;
+    for (size_t i = 0; i < nFrames; i++) amp = std::max(amp, frames[i].maxAmp());
+    float g = amp > 0.f ? 1.f / amp : 0.f;
+    for (size_t i = 0; i < nFrames; i++) frames[i].gain(g);
   }
-}
 
-void wtTable::loadSample(size_t sCount, size_t frameSize, bool interpolate, float *sample) {
-  reset();
-  size_t sUsed=0;
-  while ((sUsed != sCount) && (nFrames<NF)) {
-    size_t lenFrame = std::min(frameSize,sCount-sUsed);
-    frames[nFrames].loadSample(lenFrame,interpolate,sample+sUsed);
-    sUsed+=lenFrame;
-    nFrames++;
+  void normalizeAllFrames() {
+    for (size_t i = 0; i < nFrames; i++) frames[i].normalize();
   }
-}
 
-void wtTable::normalize() {
-  float amp = 0.0f;
-  for(size_t i=0; i<nFrames; i++) {
-    amp = max(amp,frames[i].maxAmp());
+  void smooth() {
+    for (size_t i = 0; i < nFrames; i++) frames[i].smooth();
   }
-  float g=amp>0?1.0f/amp:0.0f;
-  for(size_t i=0; i<nFrames; i++) {
-    frames[i].gain(g);
+
+  void window() {
+    for (size_t i = 0; i < nFrames; i++) frames[i].window();
   }
-}
 
-inline void wtTable::normalizeFrame(size_t index) {
-  frames[index].normalize();
-}
-
-inline void wtTable::normalizeAllFrames() {
-  for(size_t i=0; i<nFrames; i++) {
-    frames[i].normalize();
+  void removeDCOffset() {
+    for (size_t i = 0; i < nFrames; i++) frames[i].removeDCOffset();
   }
-}
 
-inline void wtTable::smooth() {
-  for(size_t i=0; i<nFrames;i++) {
-    frames[i].smooth();
-  }
-}
-
-inline void wtTable::smoothFrame(size_t index) {
-  frames[index].smooth();
-}
-
-inline void wtTable::window() {
-  for(size_t i=0; i<nFrames;i++) {
-    frames[i].window();
-  }
-}
-
-inline void wtTable::windowFrame(size_t index) {
-  frames[index].window();
-}
-
-inline void wtTable::removeDCOffset() {
-  for(size_t i=0; i<nFrames;i++) {
-    frames[i].removeDCOffset();
-  }
-}
-
-inline void wtTable::calcFFT() {
-  for(size_t i=0; i<nFrames;i++) {
-    frames[i].calcFFT();
-  }
-}
-
-inline void wtTable::removeFrameDCOffset(size_t index) {
-  frames[index].removeDCOffset();
-}
-
-inline void wtTable::addFrame(size_t index) {
-  if (nFrames<NF) {
-    if ((nFrames>1) && (index<nFrames-1)) {
-      for (size_t i=nFrames-1; i>=index+1; i--) {
-        copyFrame(i,i+1);
-        frames[i+1].used=frames[i].used;
-        frames[i+1].morphed=frames[i].morphed;
-      }
+  // Inserts an empty frame after index (or the first frame of an empty table).
+  void addFrame(size_t index) {
+    if (nFrames >= NF)
+      return;
+    size_t at = nFrames == 0 ? 0 : std::min(index, nFrames - 1) + 1;
+    for (size_t i = nFrames; i > at; i--) {
+      copyFrame(i - 1, i);
+      frames[i].used = frames[i - 1].used;
+      frames[i].morphed = frames[i - 1].morphed;
     }
-    frames[index+1].reset();
-    frames[index+1].used=true;
-    frames[index+1].morphed=false;
+    frames[at].reset();
+    frames[at].used = true;
     nFrames++;
   }
-}
 
-inline void wtTable::removeFrame(size_t index) {
-  if ((nFrames>0) && (index<nFrames)) {
-    for (size_t i=index; i<nFrames-1; i++) { copyFrame(i+1,i);}
+  void removeFrame(size_t index) {
+    if (index >= nFrames)
+      return;
+    for (size_t i = index; i + 1 < nFrames; i++) {
+      copyFrame(i + 1, i);
+      frames[i].used = frames[i + 1].used;
+      frames[i].morphed = frames[i + 1].morphed;
+    }
     nFrames--;
+    frames[nFrames].reset();
   }
-}
 
-void wtTable::morphFrames() {
-  deleteMorphing();
-  if (nFrames>1) {
-    size_t fs = nFrames;
-    size_t fCount = (NF-fs)/(fs-1);
-
-    for (size_t i=fs-1; i>0; i--) {
-      frames[i].morphed = true;
-      frames[i].used = false;
-      copyFrame(i, i*(fCount+1));
-      frames[i*(fCount+1)].morphed = false;
-      frames[i*(fCount+1)].used = true;
-    }
-
-    for (size_t i=0; i<fs-1; i++) {
-      for (size_t j=1; j<fCount+1; j++) {
-        size_t index = i*(fCount+1) + j;
-        for(size_t k=0; k<FS; k++) {
-          frames[index].sample[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].sample[k],frames[(i+1)*(fCount+1)].sample[k]);
-        }
-        frames[index].morphed=true;
-        frames[index].used=true;
-        nFrames++;
-      }
-    }
-  }
-}
-
-void wtTable::morphSpectrum() {
-  deleteMorphing();
-  if (nFrames>1) {
-    size_t fs = nFrames;
-    size_t fCount = (NF-fs)/(fs-1);
-
-    frames[0].calcFFT();
-
-    for (size_t i=fs-1; i>0; i--) {
-      frames[i].calcFFT();
-      frames[i].morphed = true;
-      frames[i].used = false;
-      copyFrame(i, i*(fCount+1));
-      frames[i*(fCount+1)].morphed = false;
-      frames[i*(fCount+1)].used = true;
-    }
-
-    for (size_t i=0; i<fs-1; i++) {
-      for (size_t j=1; j<fCount+1; j++) {
-        size_t index = i*(fCount+1) + j;
-        for(size_t k=0; k<FS2; k++) {
-          frames[index].magnitude[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[(i+1)*(fCount+1)].magnitude[k]);
-          frames[index].phase[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[(i+1)*(fCount+1)].phase[k]);
-        }
-        frames[index].calcIFFT();
-        frames[index].morphed=true;
-        frames[index].used=true;
-        nFrames++;
-      }
-    }
-  }
-}
-
-void wtTable::morphSpectrumConstantPhase() {
-  deleteMorphing();
-  if (nFrames>1) {
-    size_t fs = nFrames;
-    size_t fCount = (NF-fs)/(fs-1);
-
-    frames[0].calcFFT();
-
-    for (size_t i=fs-1; i>0; i--) {
-      frames[i].calcFFT();
-      for(size_t k=0; k<FS2; k++) {
-        frames[i].phase[k]=frames[0].phase[k];
-      }
-      frames[i].calcIFFT();
-      frames[i].morphed = true;
-      frames[i].used = false;
-      copyFrame(i, i*(fCount+1));
-      frames[i*(fCount+1)].morphed = false;
-      frames[i*(fCount+1)].used = true;
-    }
-
-    for (size_t i=0; i<fs-1; i++) {
-      for (size_t j=1; j<fCount+1; j++) {
-        size_t index = i*(fCount+1) + j;
-        for(size_t k=0; k<FS2; k++) {
-          frames[index].magnitude[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].magnitude[k],frames[(i+1)*(fCount+1)].magnitude[k]);
-          frames[index].phase[k]=rescale(j,0,fCount+1,frames[i*(fCount+1)].phase[k],frames[(i+1)*(fCount+1)].phase[k]);
-        }
-        frames[index].calcIFFT();
-        frames[index].morphed=true;
-        frames[index].used=true;
-        nFrames++;
-      }
-    }
-  }
-}
-
-inline void wtTable::reset() {
-  for(auto& frame : frames) { frame.reset();}
-  nFrames=0;
-}
-
-inline void wtTable::init() {
-  reset();
-  nFrames=NF;
-}
-
-void wtTable::deleteMorphing() {
-  size_t cm=0;
-  size_t cu=0;
-  for(size_t i=0; i<nFrames;i++) {
-    if (frames[i].morphed) {
-      frames[i].used = false;
-      cm++;
-    }
-    else {
-      if (i!=cu) {
-        copyFrame(i,cu);
-        frames[cu].used=true;
-        frames[cu].morphed=false;
-      }
+  // Removes generated frames, keeping the original ones in order.
+  void deleteMorphing() {
+    size_t cu = 0;
+    for (size_t i = 0; i < nFrames; i++) {
+      if (frames[i].morphed)
+        continue;
+      if (i != cu)
+        copyFrame(i, cu);
+      frames[cu].used = true;
+      frames[cu].morphed = false;
       cu++;
     }
+    for (size_t i = cu; i < nFrames; i++) frames[i].reset();
+    nFrames = cu;
   }
-  nFrames-=cm;
-}
 
-template <int OVERSAMPLE, int QUALITY, typename T>
-struct wtOscillator {
-  wtTable *table;
-	bool soft = false;
-	bool syncEnabled = false;
-	int channels = 0;
-  T maxMorph = 2.e-2f;
-  T minMorph = 0.f;
-  T morph;
-  size_t playedIndex = 0;
-  size_t targetIndex = 0;
+  enum MorphMode { MORPH_WAVE, MORPH_SPECTRUM, MORPH_SPECTRUM_CONSTANT_PHASE };
 
-	T lastSyncValue = 0.f;
-  T lastOutValue = 0.f;
-	T phase = 0.f;
-	T freq;
-	T syncDirection = 1.f;
+  // Spreads the original frames over the whole table and fills the gaps with
+  // interpolated frames.
+  void morph(MorphMode mode) {
+    deleteMorphing();
+    if (nFrames < 2)
+      return;
+    size_t fs = nFrames;
+    size_t fCount = (NF - fs) / (fs - 1);
+    size_t step = fCount + 1;
 
-	dsp::MinBlepGenerator<QUALITY, OVERSAMPLE, T> minBLEP;
-
-	T outValue = 0.f;
-
-	void setPitch(T pitch) {
-		freq = dsp::FREQ_C4 * dsp::approxExp2_taylor5(pitch + 30) / 1073741824;
-	}
-
-	void process(float deltaTime, T syncValue, size_t index) {
-		T deltaPhase = simd::clamp(freq * deltaTime, 1e-6f, 0.35f);
-		if (soft) {
-			deltaPhase *= syncDirection;
-		}
-		else {
-			syncDirection = 1.f;
-		}
-		phase += deltaPhase;
-		phase -= simd::floor(phase);
-
-
-		if (syncEnabled) {
-			T deltaSync = syncValue - lastSyncValue;
-			T syncCrossing = -lastSyncValue / deltaSync;
-			lastSyncValue = syncValue;
-			T sync = (0.f < syncCrossing) & (syncCrossing <= 1.f) & (syncValue >= 0.f);
-			int syncMask = simd::movemask(sync);
-			if (syncMask) {
-				if (soft) {
-					syncDirection = simd::ifelse(sync, -syncDirection, syncDirection);
-				}
-				else {
-					T newPhase = simd::ifelse(sync, (1.f - syncCrossing) * deltaPhase, phase);
-					for (int i = 0; i < channels; i++) {
-						if (syncMask & (1 << i)) {
-							T mask = simd::movemaskInverse<T>(1 << i);
-							float p = syncCrossing[i] - 1.f;
-							T x;
-							x = mask & (out(deltaTime, newPhase, index) - out(deltaTime, phase, index));
-							minBLEP.insertDiscontinuity(p, x);
-						}
-					}
-					phase = newPhase;
-				}
-			}
-		}
-
-		outValue = out(deltaTime, phase, index);
-
-    T deltaOut = outValue - lastOutValue;
-    T outCrossing = -lastOutValue / deltaOut;
-    lastOutValue = outValue;
-    int outMask =  simd::movemask((0.f < outCrossing) & (outCrossing <= 1.f) & (outValue >= 0.f));
-    if (outMask) {
-      for (int i = 0; i < channels; i++) {
-        if (outMask & (1 << i)) {
-          T mask = simd::movemaskInverse<T>(1 << i);
-          float p = outCrossing[i] - 1.f;
-          T x;
-          x = mask & (out(deltaTime, phase+deltaPhase-simd::floor(phase+deltaPhase), index) - out(deltaTime, phase, index));
-          minBLEP.insertDiscontinuity(p, x);
+    if (mode != MORPH_WAVE) {
+      for (size_t i = 0; i < fs; i++) frames[i].calcFFT();
+      if (mode == MORPH_SPECTRUM_CONSTANT_PHASE) {
+        for (size_t i = 1; i < fs; i++) {
+          frames[i].phase = frames[0].phase;
+          frames[i].calcIFFT();
         }
       }
     }
 
-		outValue += minBLEP.process();
-    outValue = clamp(outValue,-10.0f,10.0f);
-	}
+    // Move originals to their final slots, last first so nothing is overwritten.
+    for (size_t i = fs - 1; i > 0; i--) {
+      copyFrame(i, i * step);
+      frames[i * step].morphed = false;
+      frames[i * step].used = true;
+    }
 
-  T interpolate(const float* p, T x) {
-  	T xi = floor(x);
-  	T xf = x - xi;
-    T pI = {p[(int)xi[0]],p[(int)xi[1]],p[(int)xi[2]],p[(int)xi[3]]};
-    T pII = {p[(int)xi[0]+1],p[(int)xi[1]+1],p[(int)xi[2]+1],p[(int)xi[3]+1]};
-  	return crossfade(pI, pII, xf);
+    for (size_t i = 0; i + 1 < fs; i++) {
+      const wtFrame &a = frames[i * step];
+      const wtFrame &b = frames[(i + 1) * step];
+      for (size_t j = 1; j < step; j++) {
+        wtFrame &f = frames[i * step + j];
+        float t = (float)j / step;
+        if (mode == MORPH_WAVE) {
+          for (size_t k = 0; k < FS; k++)
+            f.sample[k] = a.sample[k] + t * (b.sample[k] - a.sample[k]);
+        }
+        else {
+          for (size_t k = 0; k < FS2; k++) {
+            f.magnitude[k] = a.magnitude[k] + t * (b.magnitude[k] - a.magnitude[k]);
+            // Shortest way round the circle.
+            float d = b.phase[k] - a.phase[k];
+            d -= 2.f * M_PI * std::floor((d + M_PI) / (2.f * M_PI));
+            f.phase[k] = a.phase[k] + t * d;
+          }
+          f.calcIFFT();
+        }
+        f.morphed = true;
+        f.used = true;
+      }
+    }
+    nFrames = (fs - 1) * step + 1;
+  }
+};
+
+static const int WT_LEVELS = 11;
+
+struct wtPlayTable {
+  size_t nFrames = 0;
+  int len[WT_LEVELS];
+  size_t off[WT_LEVELS];
+  size_t frameStride = 0;
+  std::vector<float> data;
+
+  wtPlayTable() {
+    // Level 0 is the frame itself (up to 1024 harmonics). Level k >= 1 keeps
+    // 1024 >> k harmonics in a table twice that size, at least 64 samples.
+    size_t o = 0;
+    for (int k = 0; k < WT_LEVELS; k++) {
+      len[k] = k == 0 ? FS : std::max(FS >> (k - 1), 64);
+      off[k] = o;
+      o += len[k] + 1; // +1 guard sample = first sample, for interpolation
+    }
+    frameStride = o;
   }
 
-	T out(float deltaTime, T phase, size_t index) {
-		T v;
-    if (playedIndex != index) {
-      morph = maxMorph;
-      targetIndex = index;
+  const float *level(size_t frame, int k) const {
+    return data.data() + frame * frameStride + off[k];
+  }
+
+  // samples: n frames of FS samples each.
+  void build(const float *samples, size_t n) {
+    nFrames = n;
+    data.assign(n * frameStride, 0.f);
+    // Level 1 uses an FFT of the same size, so keep the spectrum apart.
+    std::vector<float> spectrum(FS);
+    for (size_t f = 0; f < n; f++) {
+      const float *src = samples + f * FS;
+      float *dst = data.data() + f * frameStride;
+      std::copy(src, src + FS, dst + off[0]);
+      dst[off[0] + FS] = src[0];
+
+      wtFFT &full = wtFFT::get(FS);
+      std::copy(src, src + FS, full.in);
+      full.forward();
+      std::copy(full.out, full.out + FS, spectrum.begin());
+      for (int k = 1; k < WT_LEVELS; k++) {
+        int m = len[k];
+        int harmonics = FS2 >> k;
+        wtFFT &fft = wtFFT::get(m);
+        std::fill(fft.in, fft.in + m, 0.f);
+        fft.in[0] = spectrum[0];
+        for (int b = 1; b <= harmonics; b++) {
+          fft.in[2 * b] = spectrum[2 * b];
+          fft.in[2 * b + 1] = spectrum[2 * b + 1];
+        }
+        fft.backward();
+        float *lv = dst + off[k];
+        for (int i = 0; i < m; i++) lv[i] = fft.out[i] * IFS;
+        lv[m] = lv[0];
+      }
+    }
+  }
+};
+
+template <typename T = float_4>
+struct wtOscillator {
+  bool soft = false;
+  bool syncEnabled = false;
+  T phase = 0.f;
+  T lastSyncValue = 0.f;
+  T syncDirection = 1.f;
+  dsp::MinBlepGenerator<16, 16, T> minBLEP;
+
+  // pos: 0..1 position in the table, level: mipmap level (whole numbers).
+  static T read(const wtPlayTable *t, T phase, T pos, T level, int lanes) {
+    // Only the table lookups are per lane; the interpolation runs on all 4 at once.
+    T fp = pos * (float)(t->nFrames - 1);
+    T f0 = simd::floor(fp);
+    T ft = fp - f0;
+    T x;
+    for (int i = 0; i < 4; i++) x[i] = phase[i] * t->len[(int)level[i]];
+    T x0 = simd::floor(x);
+    T xt = x - x0;
+    T a0 = 0.f, a1 = 0.f, b0 = 0.f, b1 = 0.f;
+    int lastFrame = (int)t->nFrames - 1;
+    for (int i = 0; i < lanes; i++) {
+      int f = (int)f0[i];
+      const float *a = t->level(f, (int)level[i]) + (int)x0[i];
+      const float *b = f < lastFrame ? a + t->frameStride : a;
+      a0[i] = a[0];
+      a1[i] = a[1];
+      b0[i] = b[0];
+      b1[i] = b[1];
+    }
+    T va = a0 + xt * (a1 - a0);
+    T vb = b0 + xt * (b1 - b0);
+    return va + ft * (vb - va);
+  }
+
+  T process(const wtPlayTable *t, float deltaTime, T freq, T pos, T level, T syncValue, int lanes) {
+    T deltaPhase = simd::clamp(freq * deltaTime, 1e-6f, 0.35f);
+    if (soft)
+      deltaPhase *= syncDirection;
+    else
+      syncDirection = 1.f;
+    phase += deltaPhase;
+    phase -= simd::floor(phase);
+
+    if (syncEnabled) {
+      T deltaSync = syncValue - lastSyncValue;
+      T syncCrossing = -lastSyncValue / deltaSync;
+      lastSyncValue = syncValue;
+      T sync = (0.f < syncCrossing) & (syncCrossing <= 1.f) & (syncValue >= 0.f);
+      int syncMask = simd::movemask(sync) & ((1 << lanes) - 1);
+      if (syncMask) {
+        if (soft) {
+          syncDirection = simd::ifelse(sync, -syncDirection, syncDirection);
+        }
+        else {
+          T newPhase = simd::ifelse(sync, (1.f - syncCrossing) * deltaPhase, phase);
+          T jump = read(t, newPhase, pos, level, lanes) - read(t, phase, pos, level, lanes);
+          for (int i = 0; i < lanes; i++) {
+            if (syncMask & (1 << i)) {
+              T mask = simd::movemaskInverse<T>(1 << i);
+              minBLEP.insertDiscontinuity(syncCrossing[i] - 1.f, mask & jump);
+            }
+          }
+          phase = newPhase;
+        }
+      }
     }
 
-    morph-={deltaTime,deltaTime,deltaTime,deltaTime};
-
-    if (morph[0]<=0) {
-      playedIndex=targetIndex;
-    }
-
-    if (playedIndex==targetIndex) {
-      v = interpolate(table->frames[playedIndex].sample.data(), phase * 2047.f);
-    }
-    else {
-      T pVal = interpolate(table->frames[playedIndex].sample.data(), phase * 2047.f);
-      T tVal = interpolate(table->frames[targetIndex].sample.data(), phase * 2047.f);
-      v = rescale(morph,minMorph,maxMorph,pVal,tVal);
-    }
-
-		return v;
-	}
-
-	T out() {
-		return outValue;
-	}
-
+    return read(t, phase, pos, level, lanes) + minBLEP.process();
+  }
 };
