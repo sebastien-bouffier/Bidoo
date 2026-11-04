@@ -14,6 +14,9 @@ Based on Laurent de Soras resampler for pitch shifting
 #include <iomanip>
 #include <sstream>
 #include <mutex>
+#include <atomic>
+#include <condition_variable>
+#include <thread>
 #include "dep/waves.hpp"
 
 #include	"dep/resampler/def.h"
@@ -29,13 +32,83 @@ Based on Laurent de Soras resampler for pitch shifting
 
 using namespace std;
 
-#define SIZE 16
+static const int EDS_BLOCK = 16;
 
-template <typename T>
-typename std::enable_if<std::is_signed<T>::value, int>::type
-inline constexpr signum(T const x) {
-    return (T(0) < x) - (x < T(0));
+// Linear up to 8 V, then bends to stay under 10 V (9.95 V at most).
+inline float edsSoftLimit(float x) {
+	float a = std::fabs(x);
+	if (a <= 8.0f)
+		return x;
+	return std::copysign(8.0f + 1.95f * std::tanh((a - 8.0f) * 0.5f), x);
 }
+
+// A loaded sample: forward and reversed mipmaps for the resampler, the zero
+// crossings for snapping, and an overview for the display. Built by the
+// worker thread, then owned by the audio thread.
+struct EdsarosSample {
+	static constexpr int OVERVIEW = 1024;
+	int count = 0;
+	float sampleRate = 0.f;
+	std::vector<float> data;
+	std::vector<int> nextZero, prevZero;  // the nearest zero crossing at or after / at or before each index
+	rspl::MipMapFlt mip, revMip;
+	float overviewMin[OVERVIEW] = {};
+	float overviewMax[OVERVIEW] = {};
+
+	bool build(const std::vector<dsp::Frame<1>> &frames) {
+		count = frames.size();
+		if (count < 2)
+			return false;
+		data.resize(count);
+		for (int i = 0; i < count; i++)
+			data[i] = frames[i].samples[0];
+		// Doubled, as before, so the interpolator can read past the end.
+		std::vector<float> fwd(2 * count), rev(2 * count);
+		for (int i = 0; i < count; i++) {
+			fwd[i] = fwd[i + count] = data[i];
+			rev[i] = rev[i + count] = data[count - i - 1];
+		}
+		mip.init_sample(2 * count, rspl::InterpPack::get_len_pre(), rspl::InterpPack::get_len_post(), 12, rspl::ResamplerFlt::_fir_mip_map_coef_arr, rspl::ResamplerFlt::MIP_MAP_FIR_LEN);
+		mip.fill_sample(fwd.data(), 2 * count);
+		revMip.init_sample(2 * count, rspl::InterpPack::get_len_pre(), rspl::InterpPack::get_len_post(), 12, rspl::ResamplerFlt::_fir_mip_map_coef_arr, rspl::ResamplerFlt::MIP_MAP_FIR_LEN);
+		revMip.fill_sample(rev.data(), 2 * count);
+
+		nextZero.resize(count);
+		prevZero.resize(count);
+		auto crossing = [&](int i) { return i >= count - 1 || data[i] * data[i + 1] <= 0.f; };
+		int next = count - 1;
+		for (int i = count - 1; i >= 0; i--) {
+			if (crossing(i))
+				next = i;
+			nextZero[i] = next;
+		}
+		int prev = 0;
+		for (int i = 0; i < count; i++) {
+			if (crossing(i))
+				prev = i;
+			prevZero[i] = prev;
+		}
+
+		for (int b = 0; b < OVERVIEW; b++) {
+			int i0 = (int)((long long)b * count / OVERVIEW), i1 = std::max((int)((long long)(b + 1) * count / OVERVIEW), i0 + 1);
+			float lo = 0.f, hi = 0.f;
+			for (int i = i0; i < i1 && i < count; i++) {
+				lo = std::min(lo, data[i]);
+				hi = std::max(hi, data[i]);
+			}
+			overviewMin[b] = lo;
+			overviewMax[b] = hi;
+		}
+		return true;
+	}
+};
+
+// What the display draws, copied by the worker.
+struct EdsarosOverview {
+	int count = 0;
+	float overviewMin[EdsarosSample::OVERVIEW] = {};
+	float overviewMax[EdsarosSample::OVERVIEW] = {};
+};
 
 struct EDSAROS : BidooModule {
 	enum ParamIds {
@@ -58,8 +131,8 @@ struct EDSAROS : BidooModule {
 		DECAYSLOPE_PARAM,
 		RELEASESLOPE_PARAM,
 		LINKTYPE_PARAM,
-    GAIN_PARAM,
-    ZEROCROSSING_PARAM,
+		GAIN_PARAM,
+		ZEROCROSSING_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -88,43 +161,50 @@ struct EDSAROS : BidooModule {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
-    ZEROCROSSING_LIGHT,
+		ZEROCROSSING_LIGHT,
 		NUM_LIGHTS
 	};
 
 	std::string lastPath;
 	std::string waveFileName;
-	std::string waveExtension;
-	vector<dsp::Frame<1>> loadingBuffer;
-	int channels=0;
-  int sampleRate=0;
-  int totalSampleCount=0;
 	rspl::InterpPack interp_pack;
-	rspl::MipMapFlt	mip_map;
-	rspl::MipMapFlt	rev_mip_map;
 	rspl::ResamplerFlt voices[16];
 	rspl::ResamplerFlt rev_voices[16];
-	float *sample = NULL;
-	float *rev_sample = NULL;
-	bool loading = false;
-	std::mutex mylock;
-	int pos = 0;
-	dsp::DoubleRingBuffer<float,SIZE> audio[16];
+
+	// Audio thread: the sample it plays. The worker loads new ones into
+	// `pending`; the audio thread takes it and moves its old one to `retired`,
+	// which the worker frees.
+	EdsarosSample *smp = nullptr;
+	std::atomic<EdsarosSample*> pending{nullptr};
+	std::atomic<EdsarosSample*> retired{nullptr};
+	int totalSampleCount = 0;
+
+	// Worker thread: loads the file asked for, at the rate asked for.
+	std::thread worker;
+	std::mutex jobMutex;
+	std::condition_variable jobCv;
+	std::string jobPath;
+	float jobRate = 0.f;
+	bool jobRequested = false;
+	std::atomic<bool> quit{false};
+	std::atomic<float> reloadRate{0.f};
+	std::atomic<bool> loading{false};
+
+	// UI thread: the overview of the sample, copied by the worker.
+	std::mutex uiMutex;
+	std::shared_ptr<EdsarosOverview> uiOverview;
+
+	dsp::DoubleRingBuffer<float,EDS_BLOCK> audio[16];
 	bool play[16] = {false};
 	bool feed[16] = {false};
 	int internalIntegerPosition[16] = {0};
-	int internalFloatingPosition[16] = {0};
 	int internalIntegerRevPosition[16] = {0};
-	int internalFloatingRevPosition[16] = {0};
 	const long depth = 1L << rspl::ResamplerFlt::NBR_BITS_PER_OCT;
 	int sampleStart=0;
 	int sampleEnd=0;
 	int loopStart=0;
 	int loopEnd=0;
 	int releaseStart=0;
-	int loopMode=0;
-	int releaseMode=0;
-	bool snap = true;
 	bool showSample = true;
 	float attack = 0.0f;
 	float decay = 0.0f;
@@ -138,61 +218,161 @@ struct EDSAROS : BidooModule {
 	float voiceTime[16] = {0.0f};
 	bool rel[16] = {false};
 	float gain[16] = {0.0f};
-	int direction[16] = {1};
-  bool zeroCrossing = false;
-  dsp::SchmittTrigger zeroCrossingTrigger;
+	float releaseFrom[16] = {0.0f};
+	int direction[16] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+	bool zeroCrossing = false;
+	// Trigger mode: a rising edge plays the attack and the decay whatever the
+	// gate length, then the release. Off: the gate holds the sustain.
+	bool triggerMode = false;
+	bool oneShot[16] = {false};
+	dsp::SchmittTrigger zeroCrossingTrigger;
+	dsp::SchmittTrigger trigTriggers[16];
+	int lastChannels = 0;
 
 	EDSAROS() {
-    config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(SAMPLESTART_PARAM, 0.0f, 10.0f, 0.0f, "Sample start");
-		configParam(LOOPSTART_PARAM, 0.0f, 10.0f, 0.0f, "Loop start");
-		configParam(LOOPEND_PARAM, 0.0f, 10.0f, 10.0f, "Loop end");
-		configParam(SAMPLEEND_PARAM, 0.0f, 10.0f, 10.0f, "Sample end");
-		configParam(RELEASESTART_PARAM, 0.0f, 10.0f, 10.0f, "Release start");
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configParam(SAMPLESTART_PARAM, 0.0f, 10.0f, 0.0f, "Sample start", "%", 0.f, 10.f);
+		configParam(LOOPSTART_PARAM, 0.0f, 10.0f, 0.0f, "Loop start", "%", 0.f, 10.f);
+		configParam(LOOPEND_PARAM, 0.0f, 10.0f, 10.0f, "Loop end", "%", 0.f, 10.f);
+		configParam(SAMPLEEND_PARAM, 0.0f, 10.0f, 10.0f, "Sample end", "%", 0.f, 10.f);
+		configParam(RELEASESTART_PARAM, 0.0f, 10.0f, 10.0f, "Release start", "%", 0.f, 10.f);
 
-		configParam(LOOPMODE_PARAM, 0.0f, 2.0f, 0.0f, "Loop mode");
-		configParam(RELEASEMODE_PARAM, 0.0f, 3.0f, 0.0f, "Release mode");
-		configParam(LINKTYPE_PARAM, 0.0f, 3.0f, 0.0f, "Link points mode");
+		configSwitch(LOOPMODE_PARAM, 0.0f, 2.0f, 0.0f, "Loop mode", {"None", "Forward", "Ping-pong"});
+		configSwitch(RELEASEMODE_PARAM, 0.0f, 3.0f, 0.0f, "Release mode", {"Cut", "Play to the end", "Forward loop", "Ping-pong loop"});
+		configSwitch(LINKTYPE_PARAM, 0.0f, 3.0f, 0.0f, "Link points mode", {"None", "Offset", "Scaled up", "Scaled down"});
 
-		configParam(ATTACK_PARAM, 0.0f, 20.0f, 0.0f, "Attack time");
-		configParam(DECAY_PARAM, 0.0f, 60.0f, 0.2f, "Decay time");
-		configParam(RELEASE_PARAM, 0.0f, 60.0f, 0.5f, "Release time");
-		configParam(INIT_PARAM, 0.0f, 1.0f, 0.0f, "Init gain");
-		configParam(PEAK_PARAM, 0.0f, 1.0f, 1.0f, "Peak gain");
-		configParam(SUSTAIN_PARAM, 0.0f, 1.0f, 1.0f, "Sustain gain");
-		configParam(ATTACKSLOPE_PARAM, 0.0f, 1.0f, 0.5f, "Attack slope");
-		configParam(DECAYSLOPE_PARAM, 0.0f, 1.0f, 0.5f, "Decay slope");
-		configParam(RELEASESLOPE_PARAM, 0.0f, 1.0f, 0.5f, "Release slope");
+		configParam(ATTACK_PARAM, 0.0f, 20.0f, 0.0f, "Attack time", " s");
+		configParam(DECAY_PARAM, 0.0f, 60.0f, 0.2f, "Decay time", " s");
+		configParam(RELEASE_PARAM, 0.0f, 60.0f, 0.5f, "Release time", " s");
+		configParam(INIT_PARAM, 0.0f, 1.0f, 0.0f, "Init gain", "%", 0.f, 100.f);
+		configParam(PEAK_PARAM, 0.0f, 1.0f, 1.0f, "Peak gain", "%", 0.f, 100.f);
+		configParam(SUSTAIN_PARAM, 0.0f, 1.0f, 1.0f, "Sustain gain", "%", 0.f, 100.f);
+		configParam(ATTACKSLOPE_PARAM, 0.0f, 1.0f, 0.5f, "Attack slope", "%", 0.f, 100.f);
+		configParam(DECAYSLOPE_PARAM, 0.0f, 1.0f, 0.5f, "Decay slope", "%", 0.f, 100.f);
+		configParam(RELEASESLOPE_PARAM, 0.0f, 1.0f, 0.5f, "Release slope", "%", 0.f, 100.f);
 
-    configParam(GAIN_PARAM, 1.0f, 10.0f, 1.0f, "Sample gain");
-    configParam(ZEROCROSSING_PARAM, 0.0f, 1.0f, 0.0f, "Zero crossing");
+		configParam(GAIN_PARAM, 1.0f, 10.0f, 1.0f, "Sample gain", "x");
+		configButton(ZEROCROSSING_PARAM, "Snap the points to zero crossings");
+
+		configInput(TRIG_INPUT, "Gate (polyphonic)");
+		configInput(PITCH_INPUT, "Pitch (1V/oct, 0 V = original, polyphonic)");
+		configInput(SAMPLESTART_INPUT, "Sample start CV");
+		configInput(SAMPLEEND_INPUT, "Sample end CV");
+		configInput(LOOPSTART_INPUT, "Loop start CV");
+		configInput(LOOPEND_INPUT, "Loop end CV");
+		configInput(RELEASESTART_INPUT, "Release start CV");
+		configInput(ATTACK_INPUT, "Attack CV (10 V = 20 s)");
+		configInput(DECAY_INPUT, "Decay CV (10 V = 60 s)");
+		configInput(RELEASE_INPUT, "Release CV (10 V = 60 s)");
+		configInput(INIT_INPUT, "Init gain CV (10 V = 100%)");
+		configInput(PEAK_INPUT, "Peak gain CV (10 V = 100%)");
+		configInput(SUSTAIN_INPUT, "Sustain gain CV (10 V = 100%)");
+		configInput(ATTACKSLOPE_INPUT, "Attack slope CV");
+		configInput(DECAYSLOPE_INPUT, "Decay slope CV");
+		configInput(RELEASESLOPE_INPUT, "Release slope CV");
+		configOutput(OUT, "Audio (polyphonic)");
+
+		worker = std::thread(&EDSAROS::workerLoop, this);
 	}
 
 	~EDSAROS() {
-		free(sample);
-		free(rev_sample);
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			quit = true;
+		}
+		jobCv.notify_all();
+		if (worker.joinable())
+			worker.join();
+		delete pending.load();
+		delete retired.load();
+		delete smp;
+	}
+
+	float engineRate() {
+		return (APP && APP->engine) ? APP->engine->getSampleRate() : 48000.f;
+	}
+
+	// UI thread: load a file.
+	void loadFile(const std::string &path) {
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			lastPath = path;
+			jobPath = path;
+			jobRate = engineRate();
+			jobRequested = true;
+		}
+		loading = true;
+		jobCv.notify_all();
+	}
+
+	void workerLoop() {
+		std::unique_lock<std::mutex> lock(jobMutex);
+		while (!quit) {
+			// The audio thread cannot notify without locking: poll for its requests.
+			jobCv.wait_for(lock, std::chrono::milliseconds(50));
+			delete retired.exchange(nullptr, std::memory_order_acq_rel);
+			float rr = reloadRate.exchange(0.f);
+			if (rr > 0.f && !jobRequested && !lastPath.empty()) {
+				jobPath = lastPath;
+				jobRate = rr;
+				jobRequested = true;
+			}
+			if (!jobRequested || quit)
+				continue;
+			std::string path = jobPath;
+			float rate = jobRate;
+			jobRequested = false;
+			lock.unlock();
+
+			std::string name, ext;
+			int ch = 0, sr = 0, cnt = 0;
+			std::vector<dsp::Frame<1>> frames = waves::getMonoWav(path, rate, name, ext, ch, sr, cnt);
+			EdsarosSample *s = new EdsarosSample();
+			s->sampleRate = rate;
+			if (s->build(frames)) {
+				auto o = std::make_shared<EdsarosOverview>();
+				o->count = s->count;
+				std::copy(s->overviewMin, s->overviewMin + EdsarosSample::OVERVIEW, o->overviewMin);
+				std::copy(s->overviewMax, s->overviewMax + EdsarosSample::OVERVIEW, o->overviewMax);
+				{
+					std::lock_guard<std::mutex> ui(uiMutex);
+					uiOverview = o;
+					waveFileName = name;
+				}
+				// Wait until the audio thread has taken the previous one.
+				while (pending.load() && !quit)
+					std::this_thread::sleep_for(std::chrono::milliseconds(5));
+				delete pending.exchange(s, std::memory_order_acq_rel);
+			}
+			else
+				delete s;
+			loading = false;
+			lock.lock();
+		}
 	}
 
 	void process(const ProcessArgs &args) override;
 
-	void loadSample();
-
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
-    json_object_set_new(rootJ, "zeroCrossing", json_boolean(zeroCrossing));
+		json_object_set_new(rootJ, "zeroCrossing", json_boolean(zeroCrossing));
+		json_object_set_new(rootJ, "triggerMode", json_boolean(triggerMode));
 		return rootJ;
 	}
 
 	void dataFromJson(json_t *rootJ) override {
-    BidooModule::dataFromJson(rootJ);
+		BidooModule::dataFromJson(rootJ);
+		json_t *zeroCrossingJ = json_object_get(rootJ, "zeroCrossing");
+		if (zeroCrossingJ) zeroCrossing = json_is_true(zeroCrossingJ);
+		json_t *triggerModeJ = json_object_get(rootJ, "triggerMode");
+		triggerMode = triggerModeJ && json_is_true(triggerModeJ);
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
 		if (lastPathJ) {
-			lastPath = json_string_value(lastPathJ);
-			if (!lastPath.empty()) loadSample();
+			std::string p = json_string_value(lastPathJ);
+			if (!p.empty())
+				loadFile(p);
 		}
-    json_t *zeroCrossingJ = json_object_get(rootJ, "zeroCrossing");
-		if (zeroCrossingJ) zeroCrossing = json_is_true(zeroCrossingJ);
 	}
 
 	float getXBez(const float t, const float x1, const float x2, const float x3) {
@@ -217,7 +397,8 @@ struct EDSAROS : BidooModule {
 		return t3*y3 + (A+B)*y2 + C*y1;
 	}
 
-	float getEnv(const float t,const bool r) {
+	// The release goes from `from`, the level when the gate fell, to 0.
+	float getEnv(const float t, const bool r, const float from) {
 		if (attack>0 && t>=0.0f && t<=attack && !r) {
 			return getYBez(t/attack,init,attackSlope*(peak-init)+init,peak);
 		}
@@ -225,7 +406,7 @@ struct EDSAROS : BidooModule {
 			return getYBez((t-attack)/decay,peak,decaySlope*(sustain-peak)+peak,sustain);
 		}
 		else if (r && t<=release) {
-			return getYBez(t/release,sustain,releaseSlope*sustain,0.0f);
+			return getYBez(t/release,from,releaseSlope*from,0.0f);
 		}
 		else if (r && t>release) {
 			return 0.0f;
@@ -233,24 +414,15 @@ struct EDSAROS : BidooModule {
 		return sustain;
 	}
 
-	void onSampleRateChange() override {
-		if (!lastPath.empty()) loadSample();
+	float getEnv(const float t, const bool r) {
+		return getEnv(t, r, sustain);
 	}
 
-	int getSnappedIndex(float p, bool forward, bool zercoCross) {
-		int idx = p*(totalSampleCount-1)*0.1f;
-    if (!zeroCrossing) return idx;
-		if (forward) {
-			while ((sample[idx]*sample[idx+1])>0 && (idx<totalSampleCount-1)) {
-				idx=idx+1;
-			}
-		}
-		else {
-			while ((sample[idx]*sample[idx+1])>0 && (idx>=0)) {
-				idx=idx-1;
-			}
-		}
-		return idx;
+	int getSnappedIndex(float p, bool forward) {
+		int idx = clamp((int)(p*(totalSampleCount-1)*0.1f), 0, std::max(totalSampleCount-1, 0));
+		if (!zeroCrossing || !smp)
+			return idx;
+		return forward ? smp->nextZero[idx] : smp->prevZero[idx];
 	}
 
 	int revIndex(const int i) {
@@ -258,274 +430,266 @@ struct EDSAROS : BidooModule {
 	}
 
 	void updatePoints() {
-    if (totalSampleCount>0) {
-        sampleStart = getSnappedIndex(clamp(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), true, zeroCrossing);
-        if (params[LINKTYPE_PARAM].getValue()==0.0f) {
-          sampleEnd = std::max(getSnappedIndex(clamp(params[SAMPLEEND_PARAM].getValue()+inputs[SAMPLEEND_INPUT].getVoltage(),0.0f,10.0f), false, zeroCrossing), sampleStart);
-          loopStart = std::min(std::max(getSnappedIndex(clamp(params[LOOPSTART_PARAM].getValue()+inputs[LOOPSTART_INPUT].getVoltage(),0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
-          loopEnd = std::min(std::max(getSnappedIndex(clamp(params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage(),0.0f,10.0f), false, zeroCrossing), loopStart), sampleEnd);
-          releaseStart = std::min(std::max(getSnappedIndex(clamp(params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage(),0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
-        }
-        else if (params[LINKTYPE_PARAM].getValue()==1.0f) {
-          sampleEnd = std::max(getSnappedIndex(clamp(params[SAMPLEEND_PARAM].getValue()+inputs[SAMPLEEND_INPUT].getVoltage()+params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), false, zeroCrossing), sampleStart);
-          loopStart = std::min(std::max(getSnappedIndex(clamp(params[LOOPSTART_PARAM].getValue()+inputs[LOOPSTART_INPUT].getVoltage()+params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
-          loopEnd = std::min(std::max(getSnappedIndex(clamp(params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage()+params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), false, zeroCrossing), loopStart), sampleEnd);
-          releaseStart = std::min(std::max(getSnappedIndex(clamp(params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage()+params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage(),0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
-        }
-        else if (params[LINKTYPE_PARAM].getValue()==2.0f) {
-          float coef = 1+(float)sampleStart/(float)totalSampleCount;
-          sampleEnd = std::max(getSnappedIndex(clamp(params[SAMPLEEND_PARAM].getValue()+inputs[SAMPLEEND_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), false, zeroCrossing), sampleStart);
-          loopStart = std::min(std::max(getSnappedIndex(clamp(params[LOOPSTART_PARAM].getValue()+inputs[LOOPSTART_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
-          loopEnd = std::min(std::max(getSnappedIndex(clamp(params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), false, zeroCrossing), loopStart), sampleEnd);
-          releaseStart = std::min(std::max(getSnappedIndex(clamp(params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
-        }
-        else {
-          float coef = 1-(float)sampleStart/(float)totalSampleCount;
-          sampleEnd = std::max(getSnappedIndex(clamp(params[SAMPLEEND_PARAM].getValue()+inputs[SAMPLEEND_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), false, zeroCrossing), sampleStart);
-          loopStart = std::min(std::max(getSnappedIndex(clamp(params[LOOPSTART_PARAM].getValue()+inputs[LOOPSTART_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
-          loopEnd = std::min(std::max(getSnappedIndex(clamp(params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), false, zeroCrossing), loopStart), sampleEnd);
-          releaseStart = std::min(std::max(getSnappedIndex(clamp(params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage()+(params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage())*coef,0.0f,10.0f), true, zeroCrossing), sampleStart), sampleEnd);
-        }
-      }
-    }
+		if (totalSampleCount <= 0)
+			return;
+		float start = params[SAMPLESTART_PARAM].getValue()+inputs[SAMPLESTART_INPUT].getVoltage();
+		float pEnd = params[SAMPLEEND_PARAM].getValue()+inputs[SAMPLEEND_INPUT].getVoltage();
+		float pLoopStart = params[LOOPSTART_PARAM].getValue()+inputs[LOOPSTART_INPUT].getVoltage();
+		float pLoopEnd = params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage();
+		float pRelease = params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage();
+		sampleStart = getSnappedIndex(clamp(start,0.0f,10.0f), true);
+		// Link modes: the other points follow the start.
+		float offset = 0.f, coef = 1.f;
+		int link = (int)params[LINKTYPE_PARAM].getValue();
+		if (link == 1)
+			offset = start;
+		else if (link == 2)
+			offset = start * (1+(float)sampleStart/(float)totalSampleCount);
+		else if (link == 3)
+			offset = start * (1-(float)sampleStart/(float)totalSampleCount);
+		(void)coef;
+		sampleEnd = std::max(getSnappedIndex(clamp(pEnd+offset,0.0f,10.0f), false), sampleStart);
+		loopStart = std::min(std::max(getSnappedIndex(clamp(pLoopStart+offset,0.0f,10.0f), true), sampleStart), sampleEnd);
+		loopEnd = std::min(std::max(getSnappedIndex(clamp(pLoopEnd+offset,0.0f,10.0f), false), loopStart), sampleEnd);
+		releaseStart = std::min(std::max(getSnappedIndex(clamp(pRelease+offset,0.0f,10.0f), true), sampleStart), sampleEnd);
+	}
 
+	void setPos(int i, int fwdPos, int revPos) {
+		voices[i].set_playback_pos(static_cast <rspl::Int64> (fwdPos) << 32);
+		rev_voices[i].set_playback_pos(static_cast <rspl::Int64> (revPos) << 32);
+	}
 };
 
-void EDSAROS::loadSample() {
-	APP->engine->yieldWorkers();
-	mylock.lock();
-	loadingBuffer = waves::getMonoWav(lastPath, APP->engine->getSampleRate(), waveFileName, waveExtension, channels, sampleRate, totalSampleCount);
-	if (loadingBuffer.size()>0) {
-		sample = new float[2*totalSampleCount];
-		rev_sample = new float[2*totalSampleCount];
-
-		for (int i=0; i<totalSampleCount; i++) {
-			sample[i]=loadingBuffer[i].samples[0];
-			sample[i+totalSampleCount]=loadingBuffer[i].samples[0];
-			rev_sample[i]=loadingBuffer[totalSampleCount-i-1].samples[0];
-			rev_sample[i+totalSampleCount]=loadingBuffer[totalSampleCount-i-1].samples[0];
-		}
-
-		mip_map.init_sample (
-			2*totalSampleCount,
-			rspl::InterpPack::get_len_pre (),
-			rspl::InterpPack::get_len_post (),
-			12,
-			rspl::ResamplerFlt::_fir_mip_map_coef_arr,
-			rspl::ResamplerFlt::MIP_MAP_FIR_LEN
-		);
-
-		mip_map.fill_sample (&sample[0], 2*totalSampleCount);
-
-		rev_mip_map.init_sample (
-			2*totalSampleCount,
-			rspl::InterpPack::get_len_pre (),
-			rspl::InterpPack::get_len_post (),
-			12,
-			rspl::ResamplerFlt::_fir_mip_map_coef_arr,
-			rspl::ResamplerFlt::MIP_MAP_FIR_LEN
-		);
-
-		rev_mip_map.fill_sample (&rev_sample[0], 2*totalSampleCount);
-
-		for (int i=0; i<16; i++) {
-			voices[i].set_sample (mip_map);
-			voices[i].set_interp (interp_pack);
-			voices[i].clear_buffers ();
-			rev_voices[i].set_sample (rev_mip_map);
-			rev_voices[i].set_interp (interp_pack);
-			rev_voices[i].clear_buffers ();
-		}
-
-	}
-
-	mylock.unlock();
-	loading = false;
-}
-
 void EDSAROS::process(const ProcessArgs &args) {
-	if (loading) {
-		loadSample();
+	// Take a newly loaded sample, once the worker has freed the previous one.
+	if (pending.load(std::memory_order_relaxed) && !retired.load(std::memory_order_acquire)) {
+		EdsarosSample *s = pending.exchange(nullptr, std::memory_order_acq_rel);
+		if (s) {
+			retired.store(smp, std::memory_order_release);
+			smp = s;
+			totalSampleCount = s->count;
+			for (int i=0; i<16; i++) {
+				voices[i].set_sample (smp->mip);
+				voices[i].set_interp (interp_pack);
+				voices[i].clear_buffers ();
+				rev_voices[i].set_sample (smp->revMip);
+				rev_voices[i].set_interp (interp_pack);
+				rev_voices[i].clear_buffers ();
+				play[i] = rel[i] = false;
+				gain[i] = 0.f;
+				audio[i].clear();
+				direction[i] = 1;
+			}
+		}
 	}
+	// The engine rate changed: load the file again at the new rate.
+	if (smp && smp->sampleRate != args.sampleRate && !loading)
+		reloadRate = args.sampleRate;
 
-  if (zeroCrossingTrigger.process(params[ZEROCROSSING_PARAM].getValue())) {
-    zeroCrossing=!zeroCrossing;
-  }
+	if (zeroCrossingTrigger.process(params[ZEROCROSSING_PARAM].getValue()))
+		zeroCrossing=!zeroCrossing;
+	lights[ZEROCROSSING_LIGHT].setBrightness(zeroCrossing?1:0);
 
-  lights[ZEROCROSSING_LIGHT].setBrightness(zeroCrossing?1:0);
-
-	attack = clamp(params[ATTACK_PARAM].getValue()+rescale(inputs[ATTACK_INPUT].getVoltage(),0.0f,10.0f,0.0f,20.0f),0.0f,20.0f);
-	decay = clamp(params[DECAY_PARAM].getValue()+rescale(inputs[DECAY_INPUT].getVoltage(),0.0f,10.0f,0.0f,60.0f),0.0f,60.0f);
-	release = clamp(params[RELEASE_PARAM].getValue()+rescale(inputs[RELEASE_INPUT].getVoltage(),0.0f,10.0f,0.0f,60.0f),0.0f,60.0f);
-	init = clamp(params[INIT_PARAM].getValue()+rescale(inputs[INIT_INPUT].getVoltage(),0.0f,10.0f,0.0f,1.0f),0.0f,1.0f);
-	peak = clamp(params[PEAK_PARAM].getValue()+rescale(inputs[PEAK_INPUT].getVoltage(),0.0f,10.0f,0.0f,1.0f),0.0f,1.0f);
-	sustain = clamp(params[SUSTAIN_PARAM].getValue()+rescale(inputs[SUSTAIN_INPUT].getVoltage(),0.0f,10.0f,0.0f,1.0f),0.0f,1.0f);
-	attackSlope = clamp(params[ATTACKSLOPE_PARAM].getValue()+rescale(inputs[ATTACKSLOPE_INPUT].getVoltage(),-10.0f,10.0f,-1.0f,1.0f),-1.0f,1.0f);
-	decaySlope = clamp(params[DECAYSLOPE_PARAM].getValue()+rescale(inputs[DECAYSLOPE_INPUT].getVoltage(),-10.0f,10.0f,-1.0f,1.0f),-1.0f,1.0f);
-	releaseSlope = clamp(params[RELEASESLOPE_PARAM].getValue()+rescale(inputs[RELEASESLOPE_INPUT].getVoltage(),-10.0f,10.0f,-1.0f,1.0f),-1.0f,1.0f);
+	attack = clamp(params[ATTACK_PARAM].getValue()+inputs[ATTACK_INPUT].getVoltage()*2.0f,0.0f,20.0f);
+	decay = clamp(params[DECAY_PARAM].getValue()+inputs[DECAY_INPUT].getVoltage()*6.0f,0.0f,60.0f);
+	release = clamp(params[RELEASE_PARAM].getValue()+inputs[RELEASE_INPUT].getVoltage()*6.0f,0.0f,60.0f);
+	init = clamp(params[INIT_PARAM].getValue()+inputs[INIT_INPUT].getVoltage()*0.1f,0.0f,1.0f);
+	peak = clamp(params[PEAK_PARAM].getValue()+inputs[PEAK_INPUT].getVoltage()*0.1f,0.0f,1.0f);
+	sustain = clamp(params[SUSTAIN_PARAM].getValue()+inputs[SUSTAIN_INPUT].getVoltage()*0.1f,0.0f,1.0f);
+	attackSlope = clamp(params[ATTACKSLOPE_PARAM].getValue()+inputs[ATTACKSLOPE_INPUT].getVoltage()*0.1f,-1.0f,1.0f);
+	decaySlope = clamp(params[DECAYSLOPE_PARAM].getValue()+inputs[DECAYSLOPE_INPUT].getVoltage()*0.1f,-1.0f,1.0f);
+	releaseSlope = clamp(params[RELEASESLOPE_PARAM].getValue()+inputs[RELEASESLOPE_INPUT].getVoltage()*0.1f,-1.0f,1.0f);
 
 	updatePoints();
 
-	if (totalSampleCount>0) {
-		for (int i=0; i<inputs[PITCH_INPUT].getChannels(); i++) {
-			if (inputs[TRIG_INPUT].getVoltage(i)>0.5f) {
-				if (!play[i]) {
-					voiceTime[i]=0.0f;
-					rel[i]=false;
-					voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleStart) << 32);
-					rev_voices[i].set_playback_pos(static_cast <rspl::Int64> (revIndex(sampleStart)) << 32);
-					direction[i]=1;
-				}
-				play[i]=true;
+	// One voice per channel of the pitch or gate input, whichever has more.
+	int channels = std::max(std::max(inputs[PITCH_INPUT].getChannels(), inputs[TRIG_INPUT].getChannels()), 1);
+	for (int i = channels; i < lastChannels; i++) {
+		play[i] = rel[i] = false;
+		gain[i] = 0.f;
+		audio[i].clear();
+	}
+	lastChannels = channels;
+	const int loopMode = (int)params[LOOPMODE_PARAM].getValue();
+	const int releaseMode = (int)params[RELEASEMODE_PARAM].getValue();
+	const float sampleGain = params[GAIN_PARAM].getValue();
+
+	for (int i=0; i<channels; i++) {
+		if (!smp) {
+			outputs[OUT].setVoltage(0.0f, i);
+			continue;
+		}
+		bool rise = trigTriggers[i].process(inputs[TRIG_INPUT].getPolyVoltage(i), 0.1f, 1.f);
+		bool gateHigh = trigTriggers[i].isHigh();
+		if (triggerMode) {
+			// Each rising edge starts the voice again from the top.
+			if (rise) {
+				play[i] = false;
+				oneShot[i] = true;
 			}
-			else {
-				if (play[i]) {
-					voiceTime[i]=0.0f;
-					rel[i]=true;
-					direction[i]=1;
-				}
-				play[i]= false;
-				if (gain[i]==0.0f) {
-					rel[i]=false;
-					voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleStart) << 32);
-					rev_voices[i].set_playback_pos(static_cast <rspl::Int64> (revIndex(sampleStart)) << 32);
-					direction[i]=1;
-				}
+			gateHigh = oneShot[i] && (!play[i] || voiceTime[i] < attack + decay);
+			if (!gateHigh)
+				oneShot[i] = false;
+		}
+		if (gateHigh) {
+			if (!play[i]) {
+				voiceTime[i]=0.0f;
+				rel[i]=false;
+				setPos(i, sampleStart, revIndex(sampleStart));
+				direction[i]=1;
+				audio[i].clear();
 			}
-
-			gain[i] = getEnv(voiceTime[i],rel[i]);
-
-			if (audio[i].size()==0) { feed[i] = true;}
-
-			internalIntegerPosition[i] = voices[i].get_playback_pos() >> 32;
-			internalFloatingPosition[i] = voices[i].get_playback_pos() << 32;
-			internalIntegerRevPosition[i] = rev_voices[i].get_playback_pos() >> 32;
-			internalFloatingRevPosition[i] = rev_voices[i].get_playback_pos() << 32;
-
-			if ((play[i] || rel[i]) && feed[i]) {
-				if (params[LOOPMODE_PARAM].getValue()==0.0f && internalIntegerPosition[i]>=sampleEnd) {
-					rel[i]=false;
-					voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleEnd) << 32);
-					rev_voices[i].set_playback_pos(static_cast <rspl::Int64> (revIndex(sampleEnd)) << 32);
-				}
-				else if (params[LOOPMODE_PARAM].getValue()==1.0f && internalIntegerPosition[i]>=loopEnd && play[i]) {
-					voices[i].set_playback_pos(static_cast <rspl::Int64> (loopStart) << 32);
-				}
-				else if (params[LOOPMODE_PARAM].getValue()==2.0f && direction[i]==1 && internalIntegerPosition[i]>=loopEnd && play[i]) {
-					voices[i].set_playback_pos(static_cast <rspl::Int64> (loopStart) << 32);
-					rev_voices[i].set_playback_pos(static_cast <rspl::Int64> (revIndex(loopEnd)) << 32);
-					direction[i]=-1;
-				}
-				else if (params[LOOPMODE_PARAM].getValue()==2.0f && direction[i]==-1 && internalIntegerRevPosition[i]>=revIndex(loopStart) && play[i]) {
-					voices[i].set_playback_pos(static_cast <rspl::Int64> (loopStart) << 32);
-					rev_voices[i].set_playback_pos(static_cast <rspl::Int64> (revIndex(loopEnd)) << 32);
-					direction[i]=1;
-				}
-
-				if (params[RELEASEMODE_PARAM].getValue()==0.0f && !play[i]) {
-					voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleStart) << 32);
-					rel[i]=false;
-				}
-				else if (params[RELEASEMODE_PARAM].getValue()==1.0f && internalIntegerPosition[i]>=sampleEnd) {
-					voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleStart) << 32);
-					rel[i]=false;
-				}
-				else if (params[RELEASEMODE_PARAM].getValue()==2.0f && internalIntegerPosition[i]>=sampleEnd && rel[i]) {
-					voices[i].set_playback_pos(static_cast <rspl::Int64> (releaseStart) << 32);
-				}
-				else if (params[RELEASEMODE_PARAM].getValue()==2.0f && internalIntegerPosition[i]>=sampleEnd && !rel[i]) {
-					voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleStart) << 32);
-				}
-				else if (params[RELEASEMODE_PARAM].getValue()==3.0f  && direction[i]==1 && internalIntegerPosition[i]>=sampleEnd && rel[i]) {
-					voices[i].set_playback_pos(static_cast <rspl::Int64> (releaseStart) << 32);
-					rev_voices[i].set_playback_pos(static_cast <rspl::Int64> (revIndex(sampleEnd)) << 32);
-					direction[i]=-1;
-				}
-				else if (params[RELEASEMODE_PARAM].getValue()==3.0f && direction[i]==-1 && internalIntegerRevPosition[i]>=revIndex(releaseStart) && rel[i]) {
-					voices[i].set_playback_pos(static_cast <rspl::Int64> (releaseStart) << 32);
-					rev_voices[i].set_playback_pos(static_cast <rspl::Int64> (revIndex(sampleEnd)) << 32);
-					direction[i]=1;
-				}
-
-				if (play[i] || rel[i]) {
-					const long pitch = inputs[PITCH_INPUT].getVoltage(i) * depth;
-					voices[i].set_pitch(pitch);
-					rev_voices[i].set_pitch(pitch);
-
-					if (direction[i]==1) {
-            long nbr_spl;
-            if (play[i] && params[LOOPMODE_PARAM].getValue()==0.0f) {
-              nbr_spl = rspl::min (SIZE, sampleEnd - internalIntegerPosition[i]);
-            }
-            else if (play[i] && params[LOOPMODE_PARAM].getValue()>0.0f) {
-              nbr_spl = rspl::min (SIZE, loopEnd - internalIntegerPosition[i]);
-            }
-            else if (rel[i] && params[RELEASEMODE_PARAM].getValue()>0.0f) {
-              nbr_spl = rspl::min (SIZE, sampleEnd - internalIntegerPosition[i]);
-            }
-            else {
-              nbr_spl = SIZE;
-            }
-            if (nbr_spl>0) {
-              float *buff = new float[nbr_spl];
-  						voices[i].interpolate_block(buff, nbr_spl);
-              for (int j=0; j<nbr_spl; j++) {
-    						*(audio[i].endData()+j) = buff[j];
-    					}
-    					audio[i].endIncr(nbr_spl);
-            }
-					}
-					else {
-            long nbr_spl;
-            if (play[i] && params[LOOPMODE_PARAM].getValue()==2.0f) {
-              nbr_spl = rspl::min (SIZE, revIndex(loopStart) - internalIntegerRevPosition[i]);
-            }
-            else if (rel[i] && params[RELEASEMODE_PARAM].getValue()>0.0f) {
-              nbr_spl = rspl::min (SIZE, revIndex(releaseStart) - internalIntegerRevPosition[i]);
-            }
-            else {
-              nbr_spl = SIZE;
-            }
-            if (nbr_spl>0) {
-              float *buff = new float[nbr_spl];
-              rev_voices[i].interpolate_block(buff, nbr_spl);
-              for (int j=0; j<nbr_spl; j++) {
-                *(audio[i].endData()+j) = buff[j];
-              }
-              audio[i].endIncr(nbr_spl);
-            }
-					}
-
-					feed[i] = false;
-				}
+			play[i]=true;
+		}
+		else {
+			if (play[i]) {
+				voiceTime[i]=0.0f;
+				rel[i]=true;
+				releaseFrom[i]=gain[i];
+				direction[i]=1;
 			}
-			else if (feed[i]) {
-				for (int j=0; j<SIZE; j++) {
-					*(audio[i].endData()+j) = 0.0f;
-				}
-				audio[i].endIncr(SIZE);
-				feed[i] = false;
-			}
-
-			voiceTime[i]+= play[i] || rel[i] ? args.sampleTime : 0.0f;
-
-			if (audio[i].size()>=1) {
-				if (((loopStart==loopEnd) && (internalIntegerPosition[i]>=loopStart)) || ((releaseStart==sampleEnd) && (internalIntegerPosition[i]>=releaseStart))) {
-					outputs[OUT].setVoltage(0.0f);
-					audio[i].startIncr(1);
-				}
-				else {
-					outputs[OUT].setVoltage(*audio[i].startData()*5.0f*gain[i]*params[GAIN_PARAM].getValue(),i);
-					audio[i].startIncr(1);
-				}
-			}
-			else {
-				outputs[OUT].setVoltage(0.0f,i);
+			play[i]= false;
+			if (gain[i]==0.0f) {
+				rel[i]=false;
+				setPos(i, sampleStart, revIndex(sampleStart));
+				direction[i]=1;
 			}
 		}
 
-		outputs[OUT].setChannels(inputs[PITCH_INPUT].getChannels());
+		gain[i] = (play[i] || rel[i]) ? getEnv(voiceTime[i], rel[i], releaseFrom[i]) : 0.0f;
+
+		if (audio[i].size()==0) { feed[i] = true;}
+
+		internalIntegerPosition[i] = voices[i].get_playback_pos() >> 32;
+		internalIntegerRevPosition[i] = rev_voices[i].get_playback_pos() >> 32;
+
+		// A voice going backward when the mode no longer has a backward leg
+		// (the loop or release mode was changed) turns forward where it is.
+		if (direction[i] == -1 && !((play[i] && loopMode == 2) || (rel[i] && releaseMode == 3))) {
+			int at = clamp(revIndex(internalIntegerRevPosition[i]), 0, totalSampleCount - 1);
+			voices[i].set_playback_pos(static_cast <rspl::Int64> (at) << 32);
+			internalIntegerPosition[i] = at;
+			direction[i] = 1;
+		}
+
+		if ((play[i] || rel[i]) && feed[i]) {
+			if (loopMode==0 && internalIntegerPosition[i]>=sampleEnd) {
+				rel[i]=false;
+				setPos(i, sampleEnd, revIndex(sampleEnd));
+			}
+			else if (loopMode==1 && internalIntegerPosition[i]>=loopEnd && play[i]) {
+				voices[i].set_playback_pos(static_cast <rspl::Int64> (loopStart) << 32);
+			}
+			else if (loopMode==2 && direction[i]==1 && internalIntegerPosition[i]>=loopEnd && play[i]) {
+				setPos(i, loopStart, revIndex(loopEnd));
+				direction[i]=-1;
+			}
+			else if (loopMode==2 && direction[i]==-1 && internalIntegerRevPosition[i]>=revIndex(loopStart) && play[i]) {
+				setPos(i, loopStart, revIndex(loopEnd));
+				direction[i]=1;
+			}
+
+			if (releaseMode==0 && !play[i]) {
+				voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleStart) << 32);
+				rel[i]=false;
+			}
+			else if (releaseMode==1 && internalIntegerPosition[i]>=sampleEnd) {
+				voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleStart) << 32);
+				rel[i]=false;
+			}
+			else if (releaseMode==2 && internalIntegerPosition[i]>=sampleEnd && rel[i]) {
+				voices[i].set_playback_pos(static_cast <rspl::Int64> (releaseStart) << 32);
+			}
+			else if (releaseMode==2 && internalIntegerPosition[i]>=sampleEnd && !rel[i]) {
+				voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleStart) << 32);
+			}
+			else if (releaseMode==3 && direction[i]==1 && internalIntegerPosition[i]>=sampleEnd && rel[i]) {
+				setPos(i, releaseStart, revIndex(sampleEnd));
+				direction[i]=-1;
+			}
+			else if (releaseMode==3 && direction[i]==-1 && internalIntegerRevPosition[i]>=revIndex(releaseStart) && rel[i]) {
+				setPos(i, releaseStart, revIndex(sampleEnd));
+				direction[i]=1;
+			}
+
+			if (play[i] || rel[i]) {
+				const float pitchV = clamp(inputs[PITCH_INPUT].getPolyVoltage(i), -10.f, 10.f);
+				const long pitch = pitchV * depth;
+				voices[i].set_pitch(pitch);
+				rev_voices[i].set_pitch(pitch);
+
+				// Output samples until the voice reaches `dist` input samples
+				// further, at this pitch.
+				const double ratio = std::exp2((double)pitchV);
+				auto outLen = [&](long dist) -> long {
+					if (dist <= 0)
+						return 0;
+					return std::min((long)EDS_BLOCK, std::max(1L, (long)std::ceil(dist / ratio)));
+				};
+				long nbr_spl;
+				if (direction[i]==1) {
+					if (play[i] && loopMode==0)
+						nbr_spl = outLen(sampleEnd - internalIntegerPosition[i]);
+					else if (play[i] && loopMode>0)
+						nbr_spl = outLen(loopEnd - internalIntegerPosition[i]);
+					else if (rel[i] && releaseMode>0)
+						nbr_spl = outLen(sampleEnd - internalIntegerPosition[i]);
+					else
+						nbr_spl = EDS_BLOCK;
+				}
+				else {
+					if (play[i] && loopMode==2)
+						nbr_spl = outLen(revIndex(loopStart) - internalIntegerRevPosition[i]);
+					else if (rel[i] && releaseMode>0)
+						nbr_spl = outLen(revIndex(releaseStart) - internalIntegerRevPosition[i]);
+					else
+						nbr_spl = EDS_BLOCK;
+				}
+				// Never read past the tables (the sample is stored twice).
+				{
+					long pos = (direction[i]==1) ? internalIntegerPosition[i] : internalIntegerRevPosition[i];
+					long room = 2L * totalSampleCount - 4 - pos;
+					long maxOut = room > 0 ? (long)std::floor((room - 1) / ratio) : 0;
+					if (maxOut < nbr_spl)
+						nbr_spl = std::max(maxOut, 0L);
+					if (nbr_spl <= 0 && pos >= 0) {
+						play[i] = false;
+						rel[i] = false;
+					}
+				}
+				if (nbr_spl>0) {
+					float buff[EDS_BLOCK];
+					if (direction[i]==1)
+						voices[i].interpolate_block(buff, nbr_spl);
+					else
+						rev_voices[i].interpolate_block(buff, nbr_spl);
+					for (int j=0; j<nbr_spl; j++)
+						*(audio[i].endData()+j) = buff[j];
+					audio[i].endIncr(nbr_spl);
+				}
+				feed[i] = false;
+			}
+		}
+		else if (feed[i]) {
+			for (int j=0; j<EDS_BLOCK; j++)
+				*(audio[i].endData()+j) = 0.0f;
+			audio[i].endIncr(EDS_BLOCK);
+			feed[i] = false;
+		}
+
+		voiceTime[i]+= play[i] || rel[i] ? args.sampleTime : 0.0f;
+
+		float out = 0.f;
+		if (audio[i].size()>=1) {
+			bool silent = ((loopStart==loopEnd) && (internalIntegerPosition[i]>=loopStart)) || ((releaseStart==sampleEnd) && (internalIntegerPosition[i]>=releaseStart));
+			if (!silent)
+				out = *audio[i].startData()*5.0f*gain[i]*sampleGain;
+			audio[i].startIncr(1);
+		}
+		outputs[OUT].setVoltage(edsSoftLimit(out), i);
 	}
+
+	outputs[OUT].setChannels(channels);
 }
 
 struct EDSAROSLoopDisplay : TransparentWidget {
@@ -697,144 +861,87 @@ struct EDSAROSDisplay : OpaqueWidget {
     OpaqueWidget::onDragEnd(e);
   }
 
+	// A point marker: a line with a small flag, pointing right or left.
+	void drawMarker(const DrawArgs &args, float x, float top, bool right) {
+		nvgBeginPath(args.vg);
+		nvgMoveTo(args.vg, x, top);
+		nvgLineTo(args.vg, x, height);
+		nvgClosePath(args.vg);
+		nvgStroke(args.vg);
+		nvgBeginPath(args.vg);
+		nvgMoveTo(args.vg, x, top);
+		nvgLineTo(args.vg, x + (right ? 5.0f : -5.0f), top + 3);
+		nvgLineTo(args.vg, x, top + 6);
+		nvgLineTo(args.vg, x, top);
+		nvgClosePath(args.vg);
+		nvgStroke(args.vg);
+		nvgFill(args.vg);
+	}
+
 	void drawSample(const DrawArgs &args) {
-		if (module->loadingBuffer.size()>0) {
-			module->mylock.lock();
-  		std::vector<float> vL;
-			for (int i=0;i<module->totalSampleCount;i++) {
-				vL.push_back(module->loadingBuffer[i].samples[0]*module->params[EDSAROS::GAIN_PARAM].getValue());
-			}
-  		module->mylock.unlock();
-  		size_t nbSample = vL.size();
+		std::shared_ptr<EdsarosOverview> o;
+		{
+			std::lock_guard<std::mutex> lock(module->uiMutex);
+			o = module->uiOverview;
+		}
+		if (!o || o->count <= 0)
+			return;
+		float nbSample = o->count;
+		float g = module->params[EDSAROS::GAIN_PARAM].getValue();
+		auto px = [&](float idx) { return idx * zoomWidth / nbSample + zoomLeftAnchor; };
 
-  		if (nbSample>0) {
-				nvgSave(args.vg);
-				Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, height));
-				size_t inc = std::max(vL.size()/zoomWidth/4,1.f);
-  			nvgScissor(args.vg, -0.5f, b.pos.y-0.5f, width+1.0f, height+1.0f);
+		nvgSave(args.vg);
+		Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, height));
+		nvgScissor(args.vg, -0.5f, b.pos.y-0.5f, width+1.0f, height+1.0f);
 
-				nvgStrokeColor(args.vg, nvgRGBA(255, 255, 255, 255));
-				nvgBeginPath(args.vg);
-				nvgMoveTo(args.vg, 0, height/2.0f);
-				nvgLineTo(args.vg, width, height/2.0f);
-				nvgClosePath(args.vg);
-				nvgStroke(args.vg);
+		nvgStrokeColor(args.vg, nvgRGBA(255, 255, 255, 255));
+		nvgBeginPath(args.vg);
+		nvgMoveTo(args.vg, 0, height/2.0f);
+		nvgLineTo(args.vg, width, height/2.0f);
+		nvgClosePath(args.vg);
+		nvgStroke(args.vg);
 
-  			nvgStrokeColor(args.vg, nvgRGBA(164, 3, 111, 200));
+		// Waveform, from the overview built at load time.
+		nvgStrokeColor(args.vg, nvgRGBA(164, 3, 111, 200));
+		nvgBeginPath(args.vg);
+		for (int i = 0; i < EdsarosSample::OVERVIEW; i++) {
+			float x = b.pos.x + b.size.x * (i + 0.5f) / EdsarosSample::OVERVIEW;
+			float y = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(o->overviewMax[i] * g, -1.f, 1.f));
+			if (i == 0)
+				nvgMoveTo(args.vg, x, y);
+			else
+				nvgLineTo(args.vg, x, y);
+		}
+		for (int i = EdsarosSample::OVERVIEW - 1; i >= 0; i--) {
+			float x = b.pos.x + b.size.x * (i + 0.5f) / EdsarosSample::OVERVIEW;
+			nvgLineTo(args.vg, x, b.pos.y + b.size.y * (0.5f - 0.5f * clamp(o->overviewMin[i] * g, -1.f, 1.f)));
+		}
+		nvgLineCap(args.vg, NVG_MITER);
+		nvgStrokeWidth(args.vg, 1);
+		nvgStroke(args.vg);
 
-  			nvgBeginPath(args.vg);
-  			for (size_t i = 0; i < vL.size(); i+=inc) {
-  				float x, y;
-  				x = (float)i/vL.size();
-  				y = (-1.f)*vL[i] / 2.0f + 0.5f;
-  				Vec p;
-  				p.x = b.pos.x + b.size.x * x;
-  				p.y = b.pos.y + b.size.y * (1.0f - y);
-  				if (i == 0) {
-  					nvgMoveTo(args.vg, p.x, p.y);
-  				}
-  				else {
-  					nvgLineTo(args.vg, p.x, p.y);
-  				}
-  			}
-  			nvgLineCap(args.vg, NVG_MITER);
-  			nvgStrokeWidth(args.vg, 1);
-  			nvgStroke(args.vg);
+		// Playhead of the first voice.
+		nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
+		nvgBeginPath(args.vg);
+		nvgStrokeWidth(args.vg, 1);
+		float head = px(module->direction[0] == 1 ? module->internalIntegerPosition[0] : module->revIndex(module->internalIntegerRevPosition[0]));
+		nvgMoveTo(args.vg, head, 0);
+		nvgLineTo(args.vg, head, height);
+		nvgClosePath(args.vg);
+		nvgStroke(args.vg);
 
-	  		if (nbSample>0) {
-	  			nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
-	  			{
-	  				nvgBeginPath(args.vg);
-	  				nvgStrokeWidth(args.vg, 1);
-  					nvgMoveTo(args.vg, (module->direction[0] == 1 ? module->internalIntegerPosition[0] : module->revIndex(module->internalIntegerRevPosition[0])) * zoomWidth / nbSample + zoomLeftAnchor, 0);
-  					nvgLineTo(args.vg, (module->direction[0] == 1 ? module->internalIntegerPosition[0] : module->revIndex(module->internalIntegerRevPosition[0])) * zoomWidth / nbSample + zoomLeftAnchor, height);
-	  				nvgClosePath(args.vg);
-	  			}
-	  			nvgStroke(args.vg);
-	  		}
+		// Points.
+		nvgStrokeColor(args.vg, YELLOW_BIDOO);
+		nvgFillColor(args.vg, YELLOW_BIDOO);
+		nvgStrokeWidth(args.vg, 1);
+		drawMarker(args, px(module->sampleStart), 10, true);
+		drawMarker(args, px(module->loopStart), 0, true);
+		drawMarker(args, px(module->loopEnd), 0, false);
+		drawMarker(args, px(module->releaseStart), 10, true);
+		drawMarker(args, px(module->sampleEnd), 10, false);
 
-	  		if (nbSample>0) {
-					nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
-					nvgFontSize(args.vg, 4.0f);
-  				nvgStrokeColor(args.vg, YELLOW_BIDOO);
-					nvgFillColor(args.vg, YELLOW_BIDOO);
-					nvgStrokeWidth(args.vg, 1);
-
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, module->sampleStart * zoomWidth / nbSample + zoomLeftAnchor, 10);
-					nvgLineTo(args.vg, module->sampleStart * zoomWidth / nbSample + zoomLeftAnchor, height);
-					nvgClosePath(args.vg);
-					nvgStroke(args.vg);
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, module->sampleStart * zoomWidth / nbSample + zoomLeftAnchor, 10);
-					nvgLineTo(args.vg, module->sampleStart * zoomWidth / nbSample + zoomLeftAnchor+5, 13);
-					nvgLineTo(args.vg, module->sampleStart * zoomWidth / nbSample + zoomLeftAnchor, 16);
-					nvgLineTo(args.vg, module->sampleStart * zoomWidth / nbSample + zoomLeftAnchor, 10);
-					nvgClosePath(args.vg);
-					nvgStroke(args.vg);
-					nvgFill(args.vg);
-
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, module->loopStart * zoomWidth / nbSample + zoomLeftAnchor, 0);
-					nvgLineTo(args.vg, module->loopStart * zoomWidth / nbSample + zoomLeftAnchor, height);
-					nvgClosePath(args.vg);
-					nvgStroke(args.vg);
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, module->loopStart * zoomWidth / nbSample + zoomLeftAnchor, 0);
-					nvgLineTo(args.vg, module->loopStart * zoomWidth / nbSample + zoomLeftAnchor+5, 3);
-					nvgLineTo(args.vg, module->loopStart * zoomWidth / nbSample + zoomLeftAnchor, 6);
-					nvgLineTo(args.vg, module->loopStart * zoomWidth / nbSample + zoomLeftAnchor, 0);
-					nvgClosePath(args.vg);
-					nvgStroke(args.vg);
-					nvgFill(args.vg);
-
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, module->loopEnd * zoomWidth / nbSample + zoomLeftAnchor, 0);
-					nvgLineTo(args.vg, module->loopEnd * zoomWidth / nbSample + zoomLeftAnchor, height);
-					nvgClosePath(args.vg);
-					nvgStroke(args.vg);
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, module->loopEnd * zoomWidth / nbSample + zoomLeftAnchor, 0);
-					nvgLineTo(args.vg, module->loopEnd * zoomWidth / nbSample + zoomLeftAnchor-5, 3);
-					nvgLineTo(args.vg, module->loopEnd * zoomWidth / nbSample + zoomLeftAnchor, 6);
-					nvgLineTo(args.vg, module->loopEnd * zoomWidth / nbSample + zoomLeftAnchor, 0);
-					nvgClosePath(args.vg);
-					nvgStroke(args.vg);
-					nvgFill(args.vg);
-
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, module->releaseStart * zoomWidth / nbSample + zoomLeftAnchor, 10);
-					nvgLineTo(args.vg, module->releaseStart * zoomWidth / nbSample + zoomLeftAnchor, height);
-					nvgClosePath(args.vg);
-					nvgStroke(args.vg);
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, module->releaseStart * zoomWidth / nbSample + zoomLeftAnchor, 10);
-					nvgLineTo(args.vg, module->releaseStart * zoomWidth / nbSample + zoomLeftAnchor+5, 13);
-					nvgLineTo(args.vg, module->releaseStart * zoomWidth / nbSample + zoomLeftAnchor, 16);
-					nvgLineTo(args.vg, module->releaseStart * zoomWidth / nbSample + zoomLeftAnchor, 10);
-					nvgClosePath(args.vg);
-					nvgStroke(args.vg);
-					nvgFill(args.vg);
-
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, module->sampleEnd * zoomWidth / nbSample + zoomLeftAnchor, 10);
-					nvgLineTo(args.vg, module->sampleEnd * zoomWidth / nbSample + zoomLeftAnchor, height);
-					nvgClosePath(args.vg);
-					nvgStroke(args.vg);
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, module->sampleEnd * zoomWidth / nbSample + zoomLeftAnchor, 10);
-					nvgLineTo(args.vg, module->sampleEnd * zoomWidth / nbSample + zoomLeftAnchor-5, 13);
-					nvgLineTo(args.vg, module->sampleEnd * zoomWidth / nbSample + zoomLeftAnchor, 16);
-					nvgLineTo(args.vg, module->sampleEnd * zoomWidth / nbSample + zoomLeftAnchor, 10);
-					nvgClosePath(args.vg);
-					nvgStroke(args.vg);
-					nvgFill(args.vg);
-  			}
-
-				nvgResetScissor(args.vg);
-				nvgRestore(args.vg);
-  		}
-    }
+		nvgResetScissor(args.vg);
+		nvgRestore(args.vg);
 	}
 
 	void drawEnv(const DrawArgs &args) {
@@ -880,8 +987,10 @@ struct EDSAROSBidooSmallBlueKnob : BidooSmallBlueKnob {
 
 	void onButton(const ButtonEvent& e) override {
 		BidooSmallBlueKnob::onButton(e);
-		EDSAROS *module = dynamic_cast<EDSAROS*>(this->getParamQuantity()->module);
-		module->showSample = showSample;
+		ParamQuantity *pq = this->getParamQuantity();
+		EDSAROS *module = pq ? dynamic_cast<EDSAROS*>(pq->module) : NULL;
+		if (module)
+			module->showSample = showSample;
 	}
 };
 
@@ -890,8 +999,10 @@ struct EDSAROSBidooSmallSnapBlueKnob : BidooSmallSnapBlueKnob {
 
 	void onButton(const ButtonEvent& e) override {
 		BidooSmallSnapBlueKnob::onButton(e);
-		EDSAROS *module = dynamic_cast<EDSAROS*>(this->getParamQuantity()->module);
-		module->showSample = showSample;
+		ParamQuantity *pq = this->getParamQuantity();
+		EDSAROS *module = pq ? dynamic_cast<EDSAROS*>(pq->module) : NULL;
+		if (module)
+			module->showSample = showSample;
 	}
 };
 
@@ -991,7 +1102,7 @@ struct EDSAROSWidget : BidooWidget {
 
 		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+inputsXOffset, controlsYAnchor+5*controlsYOffset), module, EDSAROS::ATTACKSLOPE_INPUT));
 		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+controlsXOffset+inputsXOffset, controlsYAnchor+5*controlsYOffset), module, EDSAROS::DECAYSLOPE_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+2*controlsXOffset+inputsXOffset, controlsYAnchor+5*controlsYOffset), module, EDSAROS::RELEASESLOPE_PARAM));
+		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+2*controlsXOffset+inputsXOffset, controlsYAnchor+5*controlsYOffset), module, EDSAROS::RELEASESLOPE_INPUT));
 
 		EDSAROSBidooSmallBlueKnob *btnInitParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor, controlsYAnchor+6*controlsYOffset), module, EDSAROS::INIT_PARAM);
 		btnInitParam->showSample = false;
@@ -1035,26 +1146,27 @@ struct EDSAROSWidget : BidooWidget {
   		std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
-  			module->lastPath = path;
-				module->loading=true;
-  			free(path);
-  		}
+				module->loadFile(path);
+				free(path);
+			}
   	}
   };
 
   void appendContextMenu(ui::Menu *menu) override {
     BidooWidget::appendContextMenu(menu);
 		EDSAROS *module = dynamic_cast<EDSAROS*>(this->module);
-		assert(module);
+		if (!module)
+			return;
 		menu->addChild(new MenuSeparator());
 		menu->addChild(construct<EDSAROSItem>(&MenuItem::text, "Load sample", &EDSAROSItem::module, module));
+		menu->addChild(createBoolPtrMenuItem("Trigger mode (a trigger plays attack and decay, then the release)", "", &module->triggerMode));
 	}
 
 	void onPathDrop(const PathDropEvent& e) override {
 		Widget::onPathDrop(e);
 		EDSAROS *module = dynamic_cast<EDSAROS*>(this->module);
-		module->lastPath = e.paths[0];
-		module->loading=true;
+		if (module && !e.paths.empty())
+			module->loadFile(e.paths[0]);
 	}
 };
 

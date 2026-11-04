@@ -490,11 +490,11 @@ struct ENCORE : BidooModule {
 
 		configParam(TRIGCV1_PARAM, -10.0f, 10.0f, 0.0f);
 		configParam(TRIGCV2_PARAM, -10.0f, 10.0f, 0.0f);
-		configParam(TRIGLENGTH_PARAM, 1.0f, 2048.0f, 16.0f);
+		configParam(TRIGLENGTH_PARAM, 1.0f, 2048.0f, 16.0f, "Trig length", " steps", 0.f, 1.f / 32.f);
 		configParam(TRIGPULSECOUNT_PARAM, 1.0f, 64.0f, 1.0f);
-		configParam(TRIGPULSEDISTANCE_PARAM, 0.0f, 32.0f, 0.0f);
+		configParam(TRIGPULSEDISTANCE_PARAM, 0.0f, 32.0f, 0.0f, "Pulse distance", " steps", 0.f, 1.f / 32.f);
 		configParam(TRIGTYPE_PARAM, 0.0f, 2.0f, 0.0f);
-		configParam(TRIGTRIM_PARAM, -31.0f, 31.0f, 0.0f);
+		configParam(TRIGTRIM_PARAM, -31.0f, 31.0f, 0.0f, "Trim", " steps", 0.f, 1.f / 32.f);
 		configParam(TRIGSLIDE_PARAM, 0.0f, 1.0f, 0.0f);
 		configParam(TRIGPROBA_PARAM, 0.0f, 7.0f, 0.0f);
 		configParam(TRIGPROBACOUNT_PARAM, 1.0f, 100.0f, 100.0f);
@@ -2352,11 +2352,11 @@ struct ENCOREDisplay : TransparentWidget {
 				sQuantizeCV1 << (module->quantizeCV1[module->currentPattern][module->currentTrack] == 0 ? "Free" : "Qnt.");
 
 				sTrigHeader << "Trig " + to_string(module->currentTrig + 1);
-				sLen << fixed << setprecision(2) << (float)module->trigLength[module->currentPattern][module->currentTrack][module->currentTrig];
+				sLen << fixed << setprecision(2) << module->trigLength[module->currentPattern][module->currentTrack][module->currentTrig] / 32.0f;
 				sPuls << to_string(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigPulseCount()).c_str();
-				sDist << fixed << setprecision(2) << (float)module->trigPulseDistance[module->currentPattern][module->currentTrack][module->currentTrig];
+				sDist << fixed << setprecision(2) << module->trigPulseDistance[module->currentPattern][module->currentTrack][module->currentTrig] / 32.0f;
 				sType << displayTrigType(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigType()).c_str();
-				sTrim << fixed << setprecision(2) << module->trigTrim[module->currentPattern][module->currentTrack][module->currentTrig];
+				sTrim << fixed << setprecision(2) << module->trigTrim[module->currentPattern][module->currentTrack][module->currentTrig] / 32.0f;
 				sSlide << fixed << setprecision(2) << module->trigSlide[module->currentPattern][module->currentTrack][module->currentTrig];
 				//sVO << displayNote(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigSemiTones(), module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigOctave());
 				sCV1 << fixed << setprecision(2) << module->trigCV1[module->currentPattern][module->currentTrack][module->currentTrig];
@@ -2385,9 +2385,9 @@ struct ENCOREDisplay : TransparentWidget {
 				sScale << "None";
 				sQuantizeCV1 << "Free";
 				sTrigHeader << "Trig " + to_string(1);
-				sLen << fixed << setprecision(2) << 0.99f;
+				sLen << fixed << setprecision(2) << 0.5f;
 				sPuls << to_string(1).c_str();
-				sDist << fixed << setprecision(2) << 1.0f;
+				sDist << fixed << setprecision(2) << 0.03f;
 				sType << "INT.";
 				sTrim << 0;
 				sSlide << fixed << setprecision(2) << 0.0f;
