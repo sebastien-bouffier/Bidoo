@@ -2,35 +2,7 @@
 
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
-#include "dsp/resampler.hpp"
-
-using namespace std;
-
-#define pi 3.14159265359
-
-
-struct MultiFilter {
-	float q;
-	float freq;
-	float smpRate;
-	float hp = 0.0f, bp = 0.0f, lp = 0.0f, mem1 = 0.0f, mem2 = 0.0f;
-
-	void setParams(float freq, float q, float smpRate) {
-		this->freq = freq;
-		this->q = q;
-		this->smpRate = smpRate;
-	}
-
-	void calcOutput(float sample) {
-		float g = tan(pi*freq / smpRate);
-		float R = 1.0f / (2.0f*q);
-		hp = (sample - (2.0f*R + g)*mem1 - mem2) / (1.0f + 2.0f * R * g + g * g);
-		bp = g * hp + mem1;
-		lp = g * bp + mem2;
-		mem1 = g * hp + bp;
-		mem2 = g * bp + lp;
-	}
-};
+#include "Svf.hpp"
 
 struct PERCO : BidooModule {
 	enum ParamIds {
@@ -56,33 +28,40 @@ struct PERCO : BidooModule {
 		NUM_LIGHTS
 	};
 
-	MultiFilter filter;
+	Svf filter[PORT_MAX_CHANNELS];
+	SvfGainCache gain[PORT_MAX_CHANNELS];
 
 	PERCO() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(CUTOFF_PARAM, 0.f, 1.f, 1.f, "Center Freq.", "Hz", std::pow(2, 10.f), dsp::FREQ_C4 / std::pow(2, 5.f));
-		configParam(Q_PARAM, .1f, 1.f, .1f, "Q", "%", 0.f, 100.f);
-		configParam(CMOD_PARAM, -1.f, 1.f, 0.f, "Freq. Mod", "%", 0.f, 100.f);
+		configParam(CUTOFF_PARAM, 0.f, 1.f, 1.f, "Cutoff", " Hz", std::pow(2, 10.f), dsp::FREQ_C4 / std::pow(2, 5.f));
+		configParam(Q_PARAM, .1f, 1.f, .1f, "Resonance", "%", 0.f, 100.f);
+		configParam(CMOD_PARAM, -1.f, 1.f, 0.f, "Cutoff CV amount", "%", 0.f, 100.f);
+		configInput(IN, "Audio");
+		configInput(CUTOFF_INPUT, "Cutoff CV (1V/oct at 100%)");
+		configInput(Q_INPUT, "Resonance CV");
+		configOutput(OUT_LP, "Low-pass");
+		configOutput(OUT_BP, "Band-pass");
+		configOutput(OUT_HP, "High-pass");
 	}
 
 	void process(const ProcessArgs &args) override {
+		int channels = std::max(1, inputs[IN].getChannels());
+		float freqCvParam = dsp::quadraticBipolar(params[CMOD_PARAM].getValue());
+		float freqParam = params[CUTOFF_PARAM].getValue() * 10.f - 5.f;
+		float qParam = params[Q_PARAM].getValue();
 
-		float freqCvParam = params[CMOD_PARAM].getValue();
-		freqCvParam = dsp::quadraticBipolar(freqCvParam);
-		float freqParam = params[CUTOFF_PARAM].getValue();
-		freqParam = freqParam * 10.f - 5.f;
-
-		float pitch = freqParam + inputs[CUTOFF_INPUT].getVoltage() * freqCvParam;
-		float cutoff = dsp::FREQ_C4 * std::pow(2.f, pitch);
-		cutoff = clamp(cutoff, 1.f, 8000.f);
-
-		float q = 10.0f * clamp(params[Q_PARAM].getValue() + inputs[Q_INPUT].getVoltage() * 0.2f, 0.1f, 1.0f);
-		filter.setParams(cutoff, q, args.sampleRate);
-		float in = inputs[IN].getVoltage() * 0.2f;
-		filter.calcOutput(in);
-		outputs[OUT_LP].setVoltage(filter.lp * 5.0f);
-		outputs[OUT_HP].setVoltage(filter.hp * 5.0f);
-		outputs[OUT_BP].setVoltage(filter.bp * 5.0f);
+		for (int c = 0; c < channels; c++) {
+			float pitch = freqParam + inputs[CUTOFF_INPUT].getPolyVoltage(c) * freqCvParam;
+			float cutoff = clamp(dsp::FREQ_C4 * dsp::exp2_taylor5(clamp(pitch, -10.f, 10.f)), 1.f, 8000.f);
+			float q = 10.0f * clamp(qParam + inputs[Q_INPUT].getPolyVoltage(c) * 0.2f, 0.1f, 1.0f);
+			filter[c].set(gain[c].get(cutoff, args.sampleRate), q);
+			filter[c].process(inputs[IN].getVoltage(c));
+			outputs[OUT_LP].setVoltage(bidooSoftLimit(filter[c].lp), c);
+			outputs[OUT_BP].setVoltage(bidooSoftLimit(filter[c].bp), c);
+			outputs[OUT_HP].setVoltage(bidooSoftLimit(filter[c].hp), c);
+		}
+		for (int i = 0; i < NUM_OUTPUTS; i++)
+			outputs[i].setChannels(channels);
 	}
 
 };

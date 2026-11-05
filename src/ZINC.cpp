@@ -1,6 +1,6 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
-#include "dsp/resampler.hpp"
+#include "Svf.hpp"
 
 using namespace std;
 
@@ -122,26 +122,50 @@ struct ZINC : BidooModule {
 	const float slewMin = 0.001f;
 	const float slewMax = 500.0f;
 	const float shapeScale = 0.1f;
+	float tunedRate = 0.f;
+	float tunedQ[4] = {0.f, 0.f, 0.f, 0.f};
+
+	// Band centres under Nyquist; filters retuned only when a Q or the rate moves.
+	void tune(float sampleRate) {
+		float q[4] = {params[Q1_PARAM].getValue(), params[Q2_PARAM].getValue(), params[Q3_PARAM].getValue(), params[Q4_PARAM].getValue()};
+		if (sampleRate == tunedRate && q[0] == tunedQ[0] && q[1] == tunedQ[1] && q[2] == tunedQ[2] && q[3] == tunedQ[3])
+			return;
+		for (int i = 0; i < BANDS4; i++) {
+			float_4 fc = simd::fmin(freq[i], 0.45f * sampleRate) / sampleRate;
+			iFilter[i]->setBiquad(fc, q[0], 0.f);
+			iFilter[i + BANDS4]->setBiquad(fc, q[1], 0.f);
+			cFilter[i]->setBiquad(fc, q[2], 0.f);
+			cFilter[i + BANDS4]->setBiquad(fc, q[3], 0.f);
+		}
+		tunedRate = sampleRate;
+		for (int k = 0; k < 4; k++)
+			tunedQ[k] = q[k];
+	}
 
 	ZINC() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 
 		for (int i = 0; i < BANDS; i++) {
-			configParam(BG_PARAM + i, 0.f, 2.f, 1.f, "Band " + std::to_string(i + 1) + " Gain", "dB", -10, 40);//gets cast to int
+			configParam(BG_PARAM + i, 0.f, 2.f, 1.f, "Band " + std::to_string(i + 1) + " gain", " dB", -10, 20);
 		}
-		configParam(ATTACK_PARAM, 0., 0.25, 0., "Attack Time", "s", params[ATTACK_PARAM].getValue(), 1000.f);
-		configParam(DECAY_PARAM, 0., 0.25, 0., "Decay Time", "s", params[DECAY_PARAM].getValue(), 1000.f);
-		configParam(GMOD_PARAM, 1.f, 10.f, 1.f, "Modifier", "%", 0.f, 10.f);
-		configParam(GCARR_PARAM, 1.f, 10.f, 1.f, "Carrier", "%", 0.f, 10.f);
-		configParam(G_PARAM, 1.f, 10.f, 1.f, "Output Gain", "%", 0.f, 10.f);
-		configParam(Q1_PARAM, 1.f, 10.f, 5.f, "Q", "dB", 0.f, 1.f);
-		configParam(Q2_PARAM, 1.f, 10.f, 5.f, "Q", "dB", 0.f, 1.f);
-		configParam(Q3_PARAM, 1.f, 10.f, 5.f, "Q", "dB", 0.f, 1.f);
-		configParam(Q4_PARAM, 1.f, 10.f, 5.f, "Q", "dB", 0.f, 1.f);
+		// the envelope follows with a time constant of 20 ms x 10^(6 x knob)
+		configParam(ATTACK_PARAM, 0., 0.25, 0., "Attack time", " ms", 1e6f, 20.f);
+		configParam(DECAY_PARAM, 0., 0.25, 0., "Release time", " ms", 1e6f, 20.f);
+		configParam(GMOD_PARAM, 1.f, 10.f, 1.f, "Modulator gain", " dB", -10.f, 20.f);
+		configParam(GCARR_PARAM, 1.f, 10.f, 1.f, "Carrier gain", " dB", -10.f, 20.f);
+		configParam(G_PARAM, 1.f, 10.f, 1.f, "Output gain", " dB", -10.f, 20.f);
+		configParam(Q1_PARAM, 1.f, 10.f, 5.f, "Modulator filter 1 Q");
+		configParam(Q2_PARAM, 1.f, 10.f, 5.f, "Modulator filter 2 Q");
+		configParam(Q3_PARAM, 1.f, 10.f, 5.f, "Carrier filter 1 Q");
+		configParam(Q4_PARAM, 1.f, 10.f, 5.f, "Carrier filter 2 Q");
+		configInput(IN_MOD, "Modulator");
+		configInput(IN_CARR, "Carrier");
+		configOutput(OUT, "Audio");
 
+		// tuned on the first process(), once the sample rate is known
 		for (int i = 0; i < BANDS2; i++) {
-			iFilter[i] = new ZBiquad(freq[i%4] / APP->engine->getSampleRate(), {5.0f}, {6.0f});
-			cFilter[i] = new ZBiquad(freq[i%4] / APP->engine->getSampleRate(), {5.0f}, {6.0f});
+			iFilter[i] = new ZBiquad();
+			cFilter[i] = new ZBiquad();
 		}
 	}
 
@@ -159,16 +183,11 @@ struct ZINC : BidooModule {
 		float decay = params[DECAY_PARAM].getValue();
 		float slewAttack = slewMax * powf(slewMin / slewMax, attack);
 		float slewDecay = slewMax * powf(slewMin / slewMax, decay);
-		float_4 q1 = {params[Q1_PARAM].getValue()};
-		float_4 q2 = {params[Q1_PARAM].getValue()};
-		float_4 q3 = {params[Q1_PARAM].getValue()};
-		float_4 q4 = {params[Q1_PARAM].getValue()};
 		float out = 0.0f;
+		tune(args.sampleRate);
 
 		for (int i = 0; i < BANDS4; i++) {
 			float_4 coeff = mem[i];
-			iFilter[i]->setQ(q1);
-			iFilter[i + BANDS4]->setQ(q2);
 			float_4 peak = abs(iFilter[i + BANDS4]->process(iFilter[i]->process(inM * params[GMOD_PARAM].getValue())));
 			for (int j=0; j<4; j++) {
 				if (peak[j] > coeff[j]) {
@@ -183,13 +202,11 @@ struct ZINC : BidooModule {
 			}
 			peaks[i] = peak;
 			mem[i] = coeff;
-			cFilter[i]->setQ(q3);
-			cFilter[i + BANDS4]->setQ(q4);
 			float_4 bg = {params[BG_PARAM + i*4].getValue(), params[BG_PARAM + i*4+1].getValue(), params[BG_PARAM + i*4+2].getValue(), params[BG_PARAM + i*4+3].getValue()};
 			float_4 corr = cFilter[i + BANDS4]->process(cFilter[i]->process(inC*params[GCARR_PARAM].getValue())) * coeff * bg;
 			out += corr[0]+corr[1]+corr[2]+corr[3];
 		}
-		outputs[OUT].setVoltage(out * 5.0f * params[G_PARAM].getValue());
+		outputs[OUT].setVoltage(bidooSoftLimit(out * 5.0f * params[G_PARAM].getValue()));
 	}
 };
 
