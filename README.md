@@ -1,13 +1,9 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-2.1.1-green.svg?style=flat-square)
-![License](https://img.shields.io/badge/license-BSD3-blue.svg?style=flat-square)
+![Version](https://img.shields.io/badge/version-2.2.0-green.svg?style=flat-square)
+![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
-
-<p align="center">
-   <img src="https://github.com/sebastien-bouffier/Bidoo/blob/v2/images/bidooV2.png"/>
-</p>
 
 ## How to
 
@@ -15,9 +11,26 @@ You can find information on that plugins pack in the [wiki](https://github.com/s
 
 ## License
 
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. See [LICENSE.txt](LICENSE.txt).
 
 All **graphics** in the `res` directory are copyright © 2019 Sébastien Bouffier (sebastien.bouffier@gmail.com) and licensed under [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/).
+
+### Third-party code
+
+The plugin includes the following code, each under its own license, in `src/dep`:
+
+| Code | Author | License | Used by |
+|---|---|---|---|
+| [Signalsmith Stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch) and Signalsmith Linear | Geraint Luff / Signalsmith Audio | MIT (`signalsmith/*/LICENSE.txt`) | sOUNAiRe |
+| [dr_flac and dr_wav](https://github.com/mackron/dr_libs) | David Reid | Public domain or MIT-0 (in the headers) | sOUNAiRe, liMonADe, the samplers |
+| [AudioFile](https://github.com/adamstark/AudioFile) | Adam Stark | MIT (`AudioFile/LICENSE`) | liMonADe, the samplers |
+| [minimp3](https://github.com/lieff/minimp3) | lieff | CC0 1.0 (`minimp3/LICENSE`) | antN |
+| [GVerb](https://github.com/swh/ladspa) | Juhana Sadeharju | GPL-2.0-or-later (in the sources) | dFUZE |
+| [PFFFT](https://bitbucket.org/jpommier/pffft) | Julien Pommier | FFTPACK license, BSD-like (in `pffft.h`) | sOUNAiRe, fLAME, HCTIP, ziNC, liMonADe |
+| [LodePNG](https://github.com/lvandeve/lodepng) | Lode Vandevenne | zlib (in `lodepng.h`) | EMILE, liMonADe |
+| Resampler | Laurent de Soras | LGPL-2.1 (`resampler/license.txt`) | antN, eDsaroS, fLAME, the samplers |
+| [Biquad](https://www.earlevel.com/main/2012/11/26/biquad-c-source-code/) | Nigel Redmon | free to use and modify (in `filters/biquad.h`) | the filters in `filters` |
+| bidoo-dsp (excerpt) | Sébastien Bouffier | GPL-3.0-or-later (`bidoo-dsp/README.md`) | REI |
 
 ## Donate
 

@@ -1,3 +1,42 @@
+### v2.2.0 (05/11/2026)
+New module
+- sOUNAiRe: a 16-voice sampler (32 HP). KEYS mode plays one sample over a key range with loops and crossfades, reverse, legato, a multimode filter and Signalsmith time-stretch; SLICES mode cuts a loop at its transients (drums or tonal detector) and plays one slice per key or per trigger (TRIG, SLICE, RESET), each slice with its own play type, choke group, level, tune, pan and envelope. Clock sync, recording from its inputs, zoomable display with undo for the cuts, WAV export, sample kept in the patch as FLAC
+
+Sequencers and clocks
+- tOCAnTe: timing rewritten; RUN and RESET trigger inputs
+- lATe: swing timing rewritten
+- ChUTE: CV ranges fixed, gate on impact, polyphony
+- µ: bipolar CV, 1V/oct BPM, can follow a clock, no CV dips
+- ratEaU: rebuilt on a Trigger Riot style engine; RUN button and input for the internal clock; outputs named A1-A4 and B1-B4
+- dTrOY and bordL: patterns read from their own data, armed reset, 1V/oct clock, bordL on dTrOY's engine; bordL slide, skip, play and count buttons can be MIDI mapped
+- zOù MAï and enCORE (and expanders): many sequencing fixes, no crash on paste or page change, every control named, menu shortcuts fixed, RUN restarts every track
+- πlOT and MOiRE: safe indexes, scenes spread over 0-10 V, polyphonic output, initialize resets everything, randomize can pick every control type; yellow WAIT fires one gate per arrival
+- dIKT@T: root and scale CVs in range, polyphonic, root CV wraps, global mode works on any channel
+
+Oscillators
+- antN: streaming rewritten
+- TiARE: oscillator core rewritten; pulse width, PWM and PW input on the panel (now 12 HP)
+- liMonADe: wavetable oscillator rewritten; export to WAV and PNG; sync mode input works again; whole-table tools keep morphed tables as they reload
+- ForK: vowels in tune, no DC, even level, 1V/oct formant CVs, polyphony; preset saved
+- BanCoù: DUSG style slopes, real curves, 10 V, polyphony
+
+Samplers
+- OUAIve, eDsaroS, póUPrè, maGma, oAï, cANARd and EMILE reworked: shared slice engine, 1V/oct, worker threads for loading, many playback fixes
+- cANARd: recordings and edited samples saved in the patch, WAV export exact
+- eDsaroS: release plays to the end by default, link modes renamed
+
+Effects, filters and utilities
+- REI: now FadaBox's Prism reverb and shimmer; freeze on every algorithm
+- dFUZE: stereo input, freeze restored
+- baR and mINIBar: peak-hold detector, real meters, polyphonic mINIBar, bypass without lookahead delay
+- pErCO, bAFIs, ziNC, lIMbO: soft limit, polyphony, fixed CVs and bands
+- fREIN, SpOre, HCTIP, rabBIT, BISTROT, LoURdE, DilEMO, lambda, MS, Σ, dUKe, fLAME, HUITre: polyphony and fixes; rabBIT passes the signal clean with no bit switched
+- Labels and tooltips corrected across the plugin
+
+General
+- Builds without warnings with Rack SDK 2.6.6, C++17, updated dr_wav, lodepng and AudioFile
+- Documentation for every module in the wiki
+
 ### v2.1.1 (06/02/2023)
 - zOù MAï and enCORE can copy/paste/randomize/erase per page thanks to Tavis
 
