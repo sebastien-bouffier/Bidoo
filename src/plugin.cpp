@@ -50,6 +50,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelSPORE);
 	p->addModel(modelDFUZE);
 	p->addModel(modelREI);
+	p->addModel(modelSOUNAIRE);
 	p->addModel(modelRABBIT);
 	p->addModel(modelBISTROT);
 	p->addModel(modelSIGMA);

@@ -336,6 +336,16 @@
       ]
     },
     {
+      "slug": "SOUNAIRE",
+      "name": "sOUNAiRe",
+      "description": "Sampler: one sample over a key range, 16 voices, loops with crossfades, filter, time-stretch, stored in the patch",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#sounaire",
+      "tags": [
+        "Sampler",
+        "Polyphonic"
+      ]
+    },
+    {
       "slug": "HCTIP",
       "name": "HCTIP",
       "description": "Pitch shifter",
