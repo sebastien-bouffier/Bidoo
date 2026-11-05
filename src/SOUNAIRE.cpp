@@ -125,6 +125,9 @@ struct SOUNAIRE : BidooModule {
 		RES_INPUT,
 		PITCH_INPUT,
 		PLAY_INPUT,
+		TRIG_INPUT,
+		SLICE_INPUT,
+		RESET_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -200,6 +203,10 @@ struct SOUNAIRE : BidooModule {
 	std::atomic<bool> mouseHeld {false};
 	std::atomic<int> mouseShown {-1};       // the key it plays, for the strip
 	bool mouseOn = false;
+	// TRIG, SLICE and RESET: slices played in turn or picked by CV
+	dsp::SchmittTrigger trigIn, resetIn;
+	int seqSlice = -1;           // the slice TRIG played last
+	bool trigOn = false;
 
 	// ---- audio thread state
 	bool held[MAX_VOICES] = {};
@@ -251,6 +258,9 @@ struct SOUNAIRE : BidooModule {
 		configInput(RES_INPUT, "Resonance CV (0-10 V, polyphonic)");
 		configInput(PITCH_INPUT, "Pitch (1V/oct, polyphonic): transposes every note");
 		configInput(PLAY_INPUT, "Slice play type CV (1 V per step, added to PLAY, polyphonic)");
+		configInput(TRIG_INPUT, "Slice trigger (SLICES mode): plays the slice SLICE picks, or the next one; held like a gate");
+		configInput(SLICE_INPUT, "Slice select (SLICES mode, 0-10 V across the slices, read at each TRIG)");
+		configInput(RESET_INPUT, "Reset (SLICES mode): the next TRIG plays slice 1");
 		configOutput(L_OUTPUT, "Left");
 		configOutput(R_OUTPUT, "Right");
 		engine.prepare(48000.f);
@@ -310,12 +320,14 @@ struct SOUNAIRE : BidooModule {
 					continue;
 				u.start[u.count] = u.count == 0 ? 0 : p;
 				u.type[u.count] = (uint8_t)type;
+				u.choke[u.count] = 0;
 				u.count++;
 			}
 			if (u.count == 0) {
 				u.count = 1;
 				u.start[0] = 0;
 				u.type[0] = (uint8_t)type;
+				u.choke[0] = 0;
 			}
 		}
 		selectedSlice = 0;
@@ -335,9 +347,11 @@ struct SOUNAIRE : BidooModule {
 			for (int k = u.count; k > i + 1; k--) {
 				u.start[k] = u.start[k - 1];
 				u.type[k] = u.type[k - 1];
+				u.choke[k] = u.choke[k - 1];
 			}
 			u.start[i + 1] = f;
 			u.type[i + 1] = u.type[i];
+			u.choke[i + 1] = u.choke[i];
 			u.count++;
 			selectedSlice = i + 1;
 		}
@@ -354,6 +368,7 @@ struct SOUNAIRE : BidooModule {
 			for (int k = i; k + 1 < u.count; k++) {
 				u.start[k] = u.start[k + 1];
 				u.type[k] = u.type[k + 1];
+				u.choke[k] = u.choke[k + 1];
 			}
 			u.count--;
 			selectedSlice = i - 1;
@@ -383,6 +398,16 @@ struct SOUNAIRE : BidooModule {
 			if (i < 0 || i >= uiSlices.count)
 				return;
 			uiSlices.type[i] = (uint8_t)type;
+		}
+		publishSlices();
+	}
+
+	void setSliceChoke(int i, int group) {
+		{
+			std::lock_guard<std::mutex> lock(sliceMutex);
+			if (i < 0 || i >= uiSlices.count)
+				return;
+			uiSlices.choke[i] = (uint8_t)clamp(group, 0, 4);
 		}
 		publishSlices();
 	}
@@ -597,6 +622,7 @@ struct SOUNAIRE : BidooModule {
 			json_t *sJ = json_array();
 			json_array_append_new(sJ, json_integer(u.start[i]));
 			json_array_append_new(sJ, json_integer(u.type[i]));
+			json_array_append_new(sJ, json_integer(u.choke[i]));
 			json_array_append_new(slicesJ, sJ);
 		}
 		json_object_set_new(rootJ, "slices", slicesJ);
@@ -625,6 +651,7 @@ struct SOUNAIRE : BidooModule {
 					break;
 				u.start[u.count] = u.count == 0 ? 0 : (int64_t)json_integer_value(json_array_get(sJ, 0));
 				u.type[u.count] = (uint8_t)clamp((int)json_integer_value(json_array_get(sJ, 1)), 0, NUM_PLAY_TYPES - 1);
+				u.choke[u.count] = (uint8_t)clamp((int)json_integer_value(json_array_get(sJ, 2)), 0, 4);
 				u.count++;
 			}
 			if (u.count == 0)
@@ -689,12 +716,24 @@ struct SOUNAIRE : BidooModule {
 	// END trim inside it
 	// slot: the engine voice; c: the channel whose CVs it follows
 	void sliceNoteOn(int slot, int c, int note, const PlaySettings &p, double startOffset, float vel) {
+		if (slices)
+			slicePlay(slot, c, note - (int)params[ROOT_PARAM].getValue(), p, startOffset, vel);
+	}
+
+	// slice i on engine voice `slot`; a slice in a choke group first fades out
+	// the other voices of its group
+	void slicePlay(int slot, int c, int i, const PlaySettings &p, double startOffset, float vel) {
 		const Sample *smp = engine.current;
-		if (!smp || !slices || smp->frames < 4)
+		if (!smp || !slices || smp->frames < 4 || i < 0 || i >= slices->count)
 			return;
-		int i = note - (int)params[ROOT_PARAM].getValue();
-		if (i < 0 || i >= slices->count)
-			return;
+		int group = slices->choke[i];
+		if (group > 0) {
+			for (int s = 0; s < sounaire::Engine::SLOTS; s++) {
+				sounaire::Voice &o = engine.voices[s];
+				if (s != slot && s != sounaire::Engine::PREVIEW && o.active && !o.fadingOut && o.choke == group)
+					engine.fadeOut(s);
+			}
+		}
 		int64_t F = smp->frames;
 		int64_t a = clamp(slices->start[i], (int64_t)0, F - 2);
 		int64_t b = clamp(slices->end(i, F), a + 2, F);
@@ -709,7 +748,8 @@ struct SOUNAIRE : BidooModule {
 		own.loopMode = (type == PLAY_LOOP || type == PLAY_REVERSE_LOOP) ? LOOP_FORWARD : (type == PLAY_PINGPONG ? LOOP_PINGPONG : LOOP_OFF);
 		own.reverse = type == PLAY_REVERSE || type == PLAY_REVERSE_LOOP;
 		bool oneShot = type == PLAY_ONE_SHOT || type == PLAY_REVERSE;
-		engine.noteOn(slot, slot == sounaire::Engine::MOUSE ? 0 : c, semitones(c), vel, p, startOffset, cutoffNote(c), &own, oneShot);
+		engine.noteOn(slot, slot >= MAX_VOICES ? 0 : c, semitones(c), vel, p, startOffset, cutoffNote(c), &own, oneShot);
+		engine.voices[slot].choke = group;
 		lastSlice = i;
 	}
 
@@ -855,6 +895,25 @@ struct SOUNAIRE : BidooModule {
 				if (v.active && !v.fadingOut && c < channels)
 					track(v, c);
 			}
+		}
+
+		// TRIG plays the slice SLICE picks, or the next one; RESET goes back to
+		// slice 1. The slice plays while TRIG is high (gate and loop types).
+		if (slicing) {
+			if (resetIn.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f))
+				seqSlice = -1;
+			if (trigIn.process(inputs[TRIG_INPUT].getVoltage(), 0.1f, 1.f) && slices) {
+				int n = slices->count;
+				int i = inputs[SLICE_INPUT].isConnected() ? clamp((int)(inputs[SLICE_INPUT].getVoltage() * 0.1f * n), 0, n - 1)
+				                                         : (seqSlice + 1) % n;
+				seqSlice = i;
+				slicePlay(sounaire::Engine::TRIGGER, 0, i, p, 0.0, 1.f);
+				trigOn = true;
+			}
+		}
+		if (trigOn && !trigIn.isHigh()) {
+			engine.noteOff(sounaire::Engine::TRIGGER);
+			trigOn = false;
 		}
 
 		// a key clicked on the keyboard strip, at full velocity

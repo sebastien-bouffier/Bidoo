@@ -60,14 +60,18 @@ struct RisoSnapKnob : RisoKnob {
 	}
 };
 
-// latching button: ink, lit in the module's colour when on
+// latching button: ink, lit in the module's colour when on; faded while
+// `dimmed` says it has no effect
 struct RisoButton : app::Switch {
+	std::function<bool()> dimmed;
 	RisoButton() {
 		box.size = Vec(20, 20);
 	}
 	void draw(const DrawArgs &args) override {
 		engine::ParamQuantity *pq = getParamQuantity();
 		bool on = pq && pq->getValue() > 0.5f;
+		if (dimmed && dimmed())
+			nvgGlobalAlpha(args.vg, 0.3f);
 		float c = box.size.x / 2;
 		nvgBeginPath(args.vg);
 		nvgCircle(args.vg, c, c, c - 0.5f);
@@ -430,6 +434,8 @@ struct SounaireDisplay : OpaqueWidget {
 				int play = (int)module->params[SOUNAIRE::PLAY_PARAM].getValue();
 				root = string::f("SLICE %d/%d %s  KEY %s", sel + 1, cuts.count, types[clamp((int)cuts.type[sel], 0, 5)],
 				                 sounaire_ui::noteName(base + sel).c_str());
+				if (cuts.choke[sel] > 0)
+					root += string::f("  CHOKE %d", cuts.choke[sel]);
 				if (play > 0)
 					root += string::f("  PLAY: %s", types[clamp(play - 1, 0, 5)]);
 			}
@@ -548,16 +554,16 @@ struct SOUNAIREWidget : BidooWidget {
 		SounaireDisplay *display = new SounaireDisplay;
 		display->module = module;
 		display->box.pos = Vec(10, 24);
-		display->box.size = Vec(400, 100);
+		display->box.size = Vec(460, 100);
 		addChild(display);
 		SounaireKeys *keys = new SounaireKeys;
 		keys->module = module;
 		keys->box.pos = Vec(10, 128);
-		keys->box.size = Vec(400, 12);
+		keys->box.size = Vec(460, 12);
 		addChild(keys);
 
 		// three rows of eight columns
-		auto cx = [](int col) { return 37.f + 49.f * col; };
+		auto cx = [](int col) { return 40.f + 57.f * col; };
 		const float rows[3] = {172.f, 228.f, 284.f};
 		auto knob = [&](int col, int row, int param, bool snapped) {
 			app::Knob *k = snapped ? (app::Knob *)createParamCentered<RisoSnapKnob>(Vec(cx(col), rows[row]), module, param)
@@ -570,8 +576,12 @@ struct SOUNAIREWidget : BidooWidget {
 		knob(3, 0, SOUNAIRE::LOOP_END_PARAM, false);
 		knob(4, 0, SOUNAIRE::XFADE_PARAM, false);
 		knob(5, 0, SOUNAIRE::LOOP_MODE_PARAM, true);
-		addParam(createParamCentered<RisoButton>(Vec(cx(6), rows[0]), module, SOUNAIRE::REVERSE_PARAM));
-		addParam(createParamCentered<RisoButton>(Vec(cx(7), rows[0]), module, SOUNAIRE::LEGATO_PARAM));
+		// REVERSE and LEGATO do nothing in SLICES mode: faded there
+		for (int i = 0; i < 2; i++) {
+			RisoButton *b = createParamCentered<RisoButton>(Vec(cx(6 + i), rows[0]), module, i == 0 ? SOUNAIRE::REVERSE_PARAM : SOUNAIRE::LEGATO_PARAM);
+			b->dimmed = [=]() { return module && module->sliceMode(); };
+			addParam(b);
+		}
 
 		knob(0, 1, SOUNAIRE::ROOT_PARAM, true);
 		knob(1, 1, SOUNAIRE::LOW_PARAM, true);
@@ -591,14 +601,15 @@ struct SOUNAIREWidget : BidooWidget {
 		knob(6, 2, SOUNAIRE::PLAY_PARAM, true);
 		addParam(createParamCentered<RisoButton>(Vec(cx(7), rows[2]), module, SOUNAIRE::MODE_PARAM));
 
-		// jacks: ten inputs, then the two outputs on the ink block
-		int ins[10] = {SOUNAIRE::VOCT_INPUT, SOUNAIRE::GATE_INPUT, SOUNAIRE::VEL_INPUT, SOUNAIRE::BEND_INPUT,
+		// jacks: thirteen inputs, then the two outputs on the ink block
+		int ins[13] = {SOUNAIRE::VOCT_INPUT, SOUNAIRE::GATE_INPUT, SOUNAIRE::VEL_INPUT, SOUNAIRE::BEND_INPUT,
 		               SOUNAIRE::START_INPUT, SOUNAIRE::SPEED_INPUT, SOUNAIRE::CUTOFF_INPUT, SOUNAIRE::RES_INPUT,
-		               SOUNAIRE::PITCH_INPUT, SOUNAIRE::PLAY_INPUT};
-		for (int i = 0; i < 10; i++)
-			addInput(createInputCentered<RisoJack>(Vec(22.f + 33.f * i, 338.f), module, ins[i]));
-		RisoJack *l = createOutputCentered<RisoJack>(Vec(361.f, 338.f), module, SOUNAIRE::L_OUTPUT);
-		RisoJack *r = createOutputCentered<RisoJack>(Vec(395.f, 338.f), module, SOUNAIRE::R_OUTPUT);
+		               SOUNAIRE::PITCH_INPUT, SOUNAIRE::PLAY_INPUT, SOUNAIRE::TRIG_INPUT, SOUNAIRE::SLICE_INPUT,
+		               SOUNAIRE::RESET_INPUT};
+		for (int i = 0; i < 13; i++)
+			addInput(createInputCentered<RisoJack>(Vec(22.f + 31.f * i, 338.f), module, ins[i]));
+		RisoJack *l = createOutputCentered<RisoJack>(Vec(427.f, 338.f), module, SOUNAIRE::L_OUTPUT);
+		RisoJack *r = createOutputCentered<RisoJack>(Vec(459.f, 338.f), module, SOUNAIRE::R_OUTPUT);
 		l->onInk = r->onInk = true;
 		addOutput(l);
 		addOutput(r);
@@ -662,6 +673,9 @@ struct SOUNAIREWidget : BidooWidget {
 		menu->addChild(createIndexSubmenuItem(string::f("Slice %d plays", sel + 1), types,
 			[=]() { return (size_t)m->getSlices().type[clamp(sel, 0, m->getSlices().count - 1)]; },
 			[=](size_t i) { m->setSliceType(sel, (int)i); }));
+		menu->addChild(createIndexSubmenuItem(string::f("Slice %d choke group", sel + 1), {"None", "1", "2", "3", "4"},
+			[=]() { return (size_t)m->getSlices().choke[clamp(sel, 0, m->getSlices().count - 1)]; },
+			[=](size_t i) { m->setSliceChoke(sel, (int)i); }));
 		menu->addChild(createSubmenuItem("Every slice plays", "", [=](Menu *sub) {
 			for (int i = 0; i < (int)types.size(); i++)
 				sub->addChild(createMenuItem(types[i], "", [=]() { m->setAllSliceTypes(i); }));

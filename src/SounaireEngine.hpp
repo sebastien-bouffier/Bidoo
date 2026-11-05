@@ -163,6 +163,7 @@ struct Slices {
 	int count = 1;
 	int64_t start[MAX_SLICES] = {};
 	uint8_t type[MAX_SLICES] = {};
+	uint8_t choke[MAX_SLICES] = {};   // 0: none, 1-4: a slice cuts the others of its group
 
 	int64_t end(int i, int64_t frames) const {
 		return i + 1 < count ? start[i + 1] : frames;
@@ -328,12 +329,14 @@ struct PlayHead {
 	double v = 0;      // position in play space
 	int dir = 1;
 	bool inLoop = false;
+	bool wrapped = false;   // the loop went round at least once
 	bool done = false;
 
 	struct Region {
 		double start, end, ls, le, x;
 		int mode;
 		bool reverse;
+		bool tail = false;   // the crossfade uses the sample after the seam (see region())
 	};
 
 	static Region region(const Sample &s, const PlaySettings &p, float engineRate) {
@@ -349,14 +352,25 @@ struct PlayHead {
 			r.start = a; r.end = b; r.ls = la; r.le = lb;
 		}
 		r.mode = (lb - la >= 16) ? p.loopMode : LOOP_OFF;
-		// crossfade: at least 1 ms (no click at the seam), at most half the loop,
-		// and only as long as there is sample on the other side of the seam
+		// crossfade: at least 1 ms (no click at the seam), at most half the loop.
+		// A forward loop fades its end into the sample before its start; when
+		// that is too short (a loop from the start of the sample, slice 1) it
+		// fades the sample after its end into its start instead ("tail").
+		// A reverse loop the other way round.
 		double x = std::max(1.0, (double)p.xfadeMs) * 0.001 * s.rate;
 		x = std::min(x, 0.5 * (r.le - r.ls));
-		if (r.mode == LOOP_FORWARD)
-			x = std::min(x, r.ls);
-		if (r.mode == LOOP_REVERSE)
-			x = std::min(x, F - 1 - r.le);
+		double before = r.ls, after = F - 1 - r.le;
+		double usual = r.mode == LOOP_REVERSE ? after : before;
+		double other = r.mode == LOOP_REVERSE ? before : after;
+		r.tail = false;
+		if (r.mode == LOOP_FORWARD || r.mode == LOOP_REVERSE) {
+			if (usual < x && other > usual) {
+				r.tail = true;
+				x = std::min(x, other);
+			}
+			else
+				x = std::min(x, usual);
+		}
 		r.x = std::max(0.0, x);
 		(void)engineRate;
 		return r;
@@ -376,7 +390,20 @@ struct PlayHead {
 		double L = r.le - r.ls;
 		l = get(0, v, r.reverse);
 		rr = get(c1, v, r.reverse);
-		if (inLoop && r.x > 0) {
+		if (inLoop && r.x > 0 && r.tail) {
+			// after each wrap: what followed the seam fades into the loop's start
+			if (wrapped && r.mode == LOOP_FORWARD && v < r.ls + r.x) {
+				float t = 1.f - (float)((v - r.ls) / r.x);
+				l += t * (get(0, v + L, r.reverse) - l);
+				rr += t * (get(c1, v + L, r.reverse) - rr);
+			}
+			else if (wrapped && r.mode == LOOP_REVERSE && v > r.le - r.x) {
+				float t = 1.f - (float)((r.le - v) / r.x);
+				l += t * (get(0, v - L, r.reverse) - l);
+				rr += t * (get(c1, v - L, r.reverse) - rr);
+			}
+		}
+		else if (inLoop && r.x > 0) {
 			if (r.mode == LOOP_FORWARD && v > r.le - r.x) {
 				float t = (float)((v - (r.le - r.x)) / r.x);
 				l += t * (get(0, v - L, r.reverse) - l);
@@ -394,8 +421,10 @@ struct PlayHead {
 		if (inLoop && r.mode != LOOP_OFF && L > 0) {
 			switch (r.mode) {
 				case LOOP_FORWARD:
-					while (v >= r.le)
+					while (v >= r.le) {
 						v -= L;
+						wrapped = true;
+					}
 					break;
 				case LOOP_PINGPONG:
 					if (v >= r.le) { v = 2 * r.le - v; dir = -1; }
@@ -403,8 +432,10 @@ struct PlayHead {
 					break;
 				case LOOP_REVERSE:
 					dir = -1;
-					while (v <= r.ls)
+					while (v <= r.ls) {
 						v += L;
+						wrapped = true;
+					}
 					break;
 			}
 		}
@@ -491,13 +522,16 @@ struct Voice {
 	// the end of it whatever the gate does
 	bool ownRegion = false;
 	bool oneShot = false;
+	int choke = 0;            // the slice's choke group
 	PlayHead::Region region {};
 };
 
 // Everything that plays: 16 channels, each with a spare slot for the fade-out of
-// a retriggered note, plus the clicked key and the preview voice. Audio thread only.
+// a retriggered note, plus the TRIG slice, the clicked key and the preview
+// voice. Audio thread only.
 struct Engine {
-	static constexpr int SLOTS = MAX_VOICES * 2 + 2;
+	static constexpr int SLOTS = MAX_VOICES * 2 + 3;
+	static constexpr int TRIGGER = SLOTS - 3;   // a slice from the TRIG input
 	static constexpr int MOUSE = SLOTS - 2;     // a key clicked on the keyboard strip
 	static constexpr int PREVIEW = SLOTS - 1;
 	Voice voices[SLOTS];
