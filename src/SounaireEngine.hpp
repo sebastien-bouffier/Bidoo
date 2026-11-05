@@ -3,6 +3,7 @@
 // overview), and the voices that play it (loops with crossfades, reverse,
 // declicking, multimode filter, envelope, optional Signalsmith time-stretch).
 // No Rack dependency, so the harness can drive it directly.
+#include "dep/pffft/pffft.h"
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -164,6 +165,33 @@ struct Slices {
 	int64_t start[MAX_SLICES] = {};
 	uint8_t type[MAX_SLICES] = {};
 	uint8_t choke[MAX_SLICES] = {};   // 0: none, 1-4: a slice cuts the others of its group
+	// each slice's own sound: level (dB), tuning (semitones), pan (-1..1), and
+	// attack and release in ms (below 0: the ATTACK and RELEASE knobs)
+	float level[MAX_SLICES] = {};
+	float tune[MAX_SLICES] = {};
+	float pan[MAX_SLICES] = {};
+	float attack[MAX_SLICES];
+	float release[MAX_SLICES];
+	Slices() {
+		for (int i = 0; i < MAX_SLICES; i++)
+			attack[i] = release[i] = -1.f;
+	}
+	// slice `to` takes the settings of slice `from`
+	void copySettings(int from, int to) {
+		type[to] = type[from];
+		choke[to] = choke[from];
+		level[to] = level[from];
+		tune[to] = tune[from];
+		pan[to] = pan[from];
+		attack[to] = attack[from];
+		release[to] = release[from];
+	}
+	void resetSettings(int i, int t) {
+		type[i] = (uint8_t)t;
+		choke[i] = 0;
+		level[i] = tune[i] = pan[i] = 0.f;
+		attack[i] = release[i] = -1.f;
+	}
 
 	int64_t end(int i, int64_t frames) const {
 		return i + 1 < count ? start[i + 1] : frames;
@@ -177,42 +205,84 @@ struct Slices {
 	}
 };
 
-// Transients: where the energy of the sample's slope (its first difference,
-// so the attacks stand out) rises by `riseDb` over the 20 ms before, at least
-// 60 ms apart, each placed at the zero crossing just before its attack.
-inline std::vector<int64_t> detectTransients(const Sample &s, float riseDb) {
-	std::vector<int64_t> out {0};
-	const int H = std::max(64, (int)(s.rate * 0.005f));   // 5 ms hops
+// Onsets. For every 5 ms hop, how sharply the sound starts there:
+// - DRUMS: the energy of the sample's slope (its first difference, so attacks
+//   stand out) over the 20 ms before, in dB;
+// - TONAL: the spectral flux, the share of the spectrum that is new compared
+//   with the hop before (a new note at the same level counts), on the same
+//   dB-like scale.
+// Each local peak is a candidate, placed at the zero crossing just before its
+// attack, with its strength; picking them at a threshold gives the cuts, so
+// "about N slices" is a search over the threshold, not new analyses.
+struct Onset {
+	int64_t pos;
+	float strength;
+};
+
+inline std::vector<Onset> findOnsets(const Sample &s, bool tonal) {
+	std::vector<Onset> out;
+	const int H = std::max(64, (int)(s.rate * 0.005f));
 	const int64_t n = s.frames / H;
 	if (n < 8)
 		return out;
+	std::vector<float> d((size_t)n, 0.f);
 	std::vector<float> L((size_t)n);
 	float top = -240.f;
 	for (int64_t i = 0; i < n; i++) {
 		double e = 0;
 		for (int64_t k = i * H; k < (i + 1) * H; k++) {
-			float d = s.mono(k) - s.mono(k - 1);
-			e += (double)d * d;
+			float x = s.mono(k) - s.mono(k - 1);
+			e += (double)x * x;
 		}
 		L[(size_t)i] = 10.f * std::log10((float)(e / H) + 1e-12f);
 		top = std::max(top, L[(size_t)i]);
 	}
-	const int back = 4;
-	const int64_t gap = (int64_t)(0.06f * s.rate);
-	// a hit in the first 10 ms is the start of slice 1; later ones may follow it closely
-	const int64_t lead = (int64_t)(0.01f * s.rate);
-	int64_t last = -gap;
-	for (int64_t i = back; i < n && (int)out.size() < MAX_SLICES; i++) {
-		float before = 0.f;
-		for (int j = 1; j <= back; j++)
-			before += L[(size_t)(i - j)];
-		before /= back;
-		// a rise, and loud enough not to be noise in a quiet tail
-		if (L[(size_t)i] - before < riseDb || L[(size_t)i] < top - 40.f)
+	if (!tonal) {
+		for (int64_t i = 4; i < n; i++) {
+			float before = 0.25f * (L[(size_t)i - 1] + L[(size_t)i - 2] + L[(size_t)i - 3] + L[(size_t)i - 4]);
+			d[(size_t)i] = L[(size_t)i] - before;
+		}
+	}
+	else {
+		const int N = 1024;
+		PFFFT_Setup *setup = pffft_new_setup(N, PFFFT_REAL);
+		float *in = (float *)pffft_aligned_malloc(N * sizeof(float));
+		float *spec = (float *)pffft_aligned_malloc(N * sizeof(float));
+		// against the spectrum one window earlier: a new note fades in over
+		// several hops, and only the whole window shows all of it as new
+		const int lag = std::max(1, N / H);
+		std::vector<std::vector<float>> past(lag, std::vector<float>(N / 2, 0.f));
+		std::vector<float> win(N);
+		for (int k = 0; k < N; k++)
+			win[k] = 0.5f - 0.5f * std::cos(2.f * (float)M_PI * k / N);
+		for (int64_t i = 0; i < n; i++) {
+			int64_t c = i * H + H / 2 - N / 2;
+			for (int k = 0; k < N; k++)
+				in[k] = s.mono(c + k) * win[k];
+			pffft_transform_ordered(setup, in, spec, nullptr, PFFFT_FORWARD);
+			std::vector<float> &old = past[(size_t)(i % lag)];
+			double rise = 0, total = 0;
+			for (int b = 1; b < N / 2; b++) {
+				float m = std::sqrt(spec[2 * b] * spec[2 * b] + spec[2 * b + 1] * spec[2 * b + 1]);
+				rise += std::max(0.f, m - old[b]);
+				total += m;
+				old[b] = m;
+			}
+			// twice the dB of (1 + new share): a new note at the same level ~ 12
+			d[(size_t)i] = i >= lag ? 40.f * std::log10(1.f + (float)(rise / (total + 1e-9))) : 0.f;
+		}
+		pffft_aligned_free(in);
+		pffft_aligned_free(spec);
+		pffft_destroy_setup(setup);
+	}
+	for (int64_t i = 1; i + 1 < n; i++) {
+		float v = d[(size_t)i];
+		// a peak, a rise, and loud enough not to be noise in a quiet tail
+		if (v < 1.f || v < d[(size_t)i - 1] || v <= d[(size_t)i + 1] || L[(size_t)i] < top - 40.f)
 			continue;
-		// the attack: the first frame of this hop and the one before whose slope
+		// the attack: the first frame of the hops around the peak whose slope
 		// reaches a quarter of the steepest there
-		int64_t a = (i - 1) * H, b = (i + 1) * H;
+		int64_t a = std::max<int64_t>(1, (i - 2) * H), b = (i + 1) * H;
 		float steep = 0.f;
 		for (int64_t k = a; k < b; k++)
 			steep = std::max(steep, std::fabs(s.mono(k) - s.mono(k - 1)));
@@ -231,12 +301,52 @@ inline std::vector<int64_t> detectTransients(const Sample &s, float riseDb) {
 				break;
 			}
 		}
-		if (pos < lead || pos - last < gap)
-			continue;
-		out.push_back(pos);
-		last = pos;
+		out.push_back({pos, v});
 	}
 	return out;
+}
+
+// the cuts at a threshold (dB of rise): 0 first, then onsets at least 60 ms
+// apart; one in the first 10 ms is the start of slice 1
+inline std::vector<int64_t> pickOnsets(const std::vector<Onset> &onsets, float threshold, float rate) {
+	std::vector<int64_t> cuts {0};
+	const int64_t gap = (int64_t)(0.06f * rate), lead = (int64_t)(0.01f * rate);
+	int64_t last = -gap;
+	for (const Onset &o : onsets) {
+		if ((int)cuts.size() >= MAX_SLICES)
+			break;
+		if (o.strength < threshold || o.pos < lead || o.pos - last < gap)
+			continue;
+		cuts.push_back(o.pos);
+		last = o.pos;
+	}
+	return cuts;
+}
+
+// the threshold that gives the number of slices nearest to `slices`
+inline std::vector<int64_t> pickAbout(const std::vector<Onset> &onsets, int slices, float rate) {
+	std::vector<int64_t> best = pickOnsets(onsets, 1.f, rate);
+	float lo = 1.f, hi = 60.f;
+	for (int it = 0; it < 24; it++) {
+		float t = 0.5f * (lo + hi);
+		std::vector<int64_t> c = pickOnsets(onsets, t, rate);
+		if (std::abs((int)c.size() - slices) < std::abs((int)best.size() - slices))
+			best = c;
+		if ((int)c.size() > slices)
+			lo = t;
+		else
+			hi = t;
+	}
+	return best;
+}
+
+// the dB of rise a sensitivity (0..1) asks for
+inline float riseForSensitivity(float sens) {
+	return 15.f - 11.f * std::max(0.f, std::min(1.f, sens));
+}
+
+inline std::vector<int64_t> detectTransients(const Sample &s, float riseDb, bool tonal = false) {
+	return pickOnsets(findOnsets(s, tonal), riseDb, s.rate);
 }
 
 // ---------------------------------------------------------------- filter
@@ -523,6 +633,9 @@ struct Voice {
 	bool ownRegion = false;
 	bool oneShot = false;
 	int choke = 0;            // the slice's choke group
+	float pitchOffset = 0.f;  // the slice's tuning, on top of pitchSemis
+	float gainL = 1.f, gainR = 1.f;   // the slice's level and pan
+	float attackMs = -1.f, releaseMs = -1.f;   // the slice's envelope, below 0: the knobs
 	PlayHead::Region region {};
 };
 
@@ -736,11 +849,11 @@ struct Engine {
 	void envelope(Voice &v, const PlaySettings &p) {
 		if (v.gate) {
 			// never faster than 1 ms: a note starting mid-wave would click
-			float a = 1.f / (std::max(1.f, p.attackMs) * 0.001f * rate);
+			float a = 1.f / (std::max(1.f, v.attackMs >= 0.f ? v.attackMs : p.attackMs) * 0.001f * rate);
 			v.env = std::min(1.f, v.env + a);
 		}
 		else {
-			float rel = std::max(2.f, p.releaseMs) * 0.001f * rate;
+			float rel = std::max(2.f, v.releaseMs >= 0.f ? v.releaseMs : p.releaseMs) * 0.001f * rate;
 			v.env = std::max(0.f, v.env - 1.f / rel);
 		}
 		if (v.fadingOut) {
@@ -808,13 +921,13 @@ struct Engine {
 							st.written++;
 						}
 						st.st.setFormantFactor(1.f, ps.timeMode == TIME_STRETCH_FORMANT);
-						st.st.setTransposeSemitones(v.pitchSemis);
+						st.st.setTransposeSemitones(v.pitchSemis + v.pitchOffset);
 						st.st.outputSeek(Stretcher::Input{&st, 0}, seekLen);
 						st.consumed = seekLen;
 						st.started = true;
 					}
 					st.st.setFormantFactor(1.f, ps.timeMode == TIME_STRETCH_FORMANT);
-					st.st.setTransposeSemitones(v.pitchSemis);
+					st.st.setTransposeSemitones(v.pitchSemis + v.pitchOffset);
 					int count = (int)std::floor(st.acc + ps.speed * STRETCH_BLOCK);
 					st.acc += ps.speed * STRETCH_BLOCK - count;
 					while (st.written < st.consumed + count) {
@@ -838,9 +951,9 @@ struct Engine {
 					v.gate = false, v.env = 0.f;
 			}
 			else {
-				if (v.pitchSemis != v.ratioSemis) {
-					v.ratioSemis = v.pitchSemis;
-					v.ratio = std::exp2((double)v.pitchSemis / 12.0);
+				if (v.pitchSemis + v.pitchOffset != v.ratioSemis) {
+					v.ratioSemis = v.pitchSemis + v.pitchOffset;
+					v.ratio = std::exp2((double)v.ratioSemis / 12.0);
 				}
 				step = srcRatio * v.ratio * (preview ? 1.0 : (double)ps.speed);
 				float fade = endFade(v, r, step);
@@ -863,8 +976,8 @@ struct Engine {
 				rr = v.filter.process(1, rr, ps.filter);
 			}
 			float g = v.env * v.fadeGain * v.velocity * p.gain;
-			outL[v.outChannel] += l * g;
-			outR[v.outChannel] += rr * g;
+			outL[v.outChannel] += l * g * v.gainL;
+			outR[v.outChannel] += rr * g * v.gainR;
 			v.age++;
 			if (!v.gate && v.env <= 0.f)
 				release(v);

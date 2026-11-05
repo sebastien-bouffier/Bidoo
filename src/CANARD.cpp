@@ -503,8 +503,11 @@ struct CANARD : BidooModule {
 
 	void process(const ProcessArgs &args) override;
 
+	// the folder is made on demand: Rack does not create it, and writing the
+	// sample into a folder that does not exist fails (the sample is then lost
+	// between sessions)
 	std::string storagePath() {
-		return rack::system::join(getPatchStorageDirectory(), "sample.wav");
+		return rack::system::join(createPatchStorageDirectory(), "sample.wav");
 	}
 
 	void onSave(const SaveEvent &e) override {

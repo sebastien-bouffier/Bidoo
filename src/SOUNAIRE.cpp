@@ -11,6 +11,7 @@
 #define DR_FLAC_IMPLEMENTATION
 #include "dep/dr_flac/dr_flac.h"
 #include <atomic>
+#include <cstring>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -112,6 +113,7 @@ struct SOUNAIRE : BidooModule {
 		LEVEL_PARAM,
 		MODE_PARAM,
 		PLAY_PARAM,
+		REC_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -128,6 +130,10 @@ struct SOUNAIRE : BidooModule {
 		TRIG_INPUT,
 		SLICE_INPUT,
 		RESET_INPUT,
+		CLOCK_INPUT,
+		INL_INPUT,
+		INR_INPUT,
+		REC_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -195,7 +201,41 @@ struct SOUNAIRE : BidooModule {
 	std::atomic<Slices *> retiredSlices {nullptr};
 	Slices *slices = nullptr;      // audio thread
 	bool detectOnLoad = true;      // saved
-	int sensitivity = 1;           // 0 low, 1 medium, 2 high; saved
+	float sensitivity = 0.64f;     // 0..1 (about 8 dB of rise); saved
+	int detector = 0;              // 0: drums (attacks), 1: tonal (spectral change); saved
+
+	// ---- clock sync (CLOCK input): the sample's loop follows the tempo
+	int clockPpqn = 1;             // pulses per beat; saved
+	int loopBeats = 0;             // the loop's length in beats, 0: guessed; saved
+	dsp::SchmittTrigger clockIn;
+	int64_t clockCount = 0;        // samples since the last pulse
+	double clockInterval = 0;      // samples between pulses, 0: no clock yet
+	std::atomic<float> syncBpm {0.f};      // for the display, 0: not synced
+	std::atomic<int> syncBeats {0};
+
+	// ---- recording (IN L, IN R, REC): into chunks the worker keeps ready
+	struct RecChunk {
+		static constexpr int FRAMES = 16384;
+		float f[2][FRAMES];
+		int used = 0;
+	};
+	static constexpr int REC_SPARES = 16;
+	static constexpr int REC_MAX_CHUNKS = 4096;   // 5 minutes at 192 kHz
+	std::atomic<RecChunk *> recSpare[REC_SPARES];
+	RecChunk *recChunks[REC_MAX_CHUNKS] = {};
+	int recCount = 0;
+	int64_t recFrames = 0, recLimit = 0;
+	bool recording = false;
+	bool recStereo = false;
+	std::atomic<int> recDone {-1};          // chunks of a finished recording, for the worker
+	std::atomic<float> recRate {48000.f};
+	std::atomic<bool> recStereoDone {false};
+	std::atomic<float> recSeconds {0.f};    // for the display
+
+	// ---- the patch storage folder, known once added (the worker cannot ask Rack)
+	std::mutex storageMutex;
+	std::string storageDir;
+	std::string jobExportDir, jobExportFile;
 	std::atomic<int> lastSlice {-1};   // the slice played last, for the display
 	std::atomic<int> keyHeld[MAX_VOICES];  // the key each held gate plays, -1: none (for the keyboard strip)
 	// a key clicked on the keyboard strip: plays while the mouse is held
@@ -209,6 +249,7 @@ struct SOUNAIRE : BidooModule {
 	bool trigOn = false;
 
 	// ---- audio thread state
+	float syncFactor = 1.f;        // the clock's speed factor for the loop
 	bool held[MAX_VOICES] = {};
 	int legatoChannel = 0;
 	float outL[MAX_VOICES] = {}, outR[MAX_VOICES] = {};
@@ -248,6 +289,9 @@ struct SOUNAIRE : BidooModule {
 		configParam(LEVEL_PARAM, 0.f, 1.f, 0.8f, "Level", "%", 0.f, 100.f);
 		configSwitch(MODE_PARAM, 0.f, 1.f, 0.f, "Mode", {"Keys (one sample over a key range)", "Slices (one slice per key)"});
 		configSwitch(PLAY_PARAM, 0.f, (float)NUM_PLAY_TYPES, 0.f, "Slice play type", {"As set per slice", "One shot", "Gate", "Loop", "Ping-pong", "Reverse", "Reverse loop"});
+		configSwitch(REC_PARAM, 0.f, 1.f, 0.f, "Record (IN L / IN R; replaces the sample)", {"Off", "Recording"});
+		getParamQuantity(REC_PARAM)->randomizeEnabled = false;
+		getParamQuantity(MODE_PARAM)->randomizeEnabled = false;
 		configInput(VOCT_INPUT, "V/oct (polyphonic)");
 		configInput(GATE_INPUT, "Gate (polyphonic)");
 		configInput(VEL_INPUT, "Velocity (0-10 V, polyphonic)");
@@ -261,6 +305,10 @@ struct SOUNAIRE : BidooModule {
 		configInput(TRIG_INPUT, "Slice trigger (SLICES mode): plays the slice SLICE picks, or the next one; held like a gate");
 		configInput(SLICE_INPUT, "Slice select (SLICES mode, 0-10 V across the slices, read at each TRIG)");
 		configInput(RESET_INPUT, "Reset (SLICES mode): the next TRIG plays slice 1");
+		configInput(CLOCK_INPUT, "Clock: the sample loops in time with it (1 pulse per beat, see menu)");
+		configInput(INL_INPUT, "Record left (5 V = full scale)");
+		configInput(INR_INPUT, "Record right (left when unpatched: a mono recording)");
+		configInput(REC_INPUT, "Record gate (records while high)");
 		configOutput(L_OUTPUT, "Left");
 		configOutput(R_OUTPUT, "Right");
 		engine.prepare(48000.f);
@@ -269,6 +317,8 @@ struct SOUNAIRE : BidooModule {
 		slices = new Slices;
 		for (auto &k : keyHeld)
 			k = -1;
+		for (auto &c : recSpare)
+			c = nullptr;
 		worker = std::thread([this] { work(); });
 	}
 
@@ -287,6 +337,10 @@ struct SOUNAIRE : BidooModule {
 		delete slices;
 		delete pendingSlices.exchange(nullptr);
 		delete retiredSlices.exchange(nullptr);
+		for (auto &c : recSpare)
+			delete c.exchange(nullptr);
+		for (RecChunk *&c : recChunks)
+			delete c;
 	}
 
 	// ---------------------------------------------------------------- slices
@@ -319,15 +373,13 @@ struct SOUNAIRE : BidooModule {
 				if (u.count > 0 && p <= u.start[u.count - 1])
 					continue;
 				u.start[u.count] = u.count == 0 ? 0 : p;
-				u.type[u.count] = (uint8_t)type;
-				u.choke[u.count] = 0;
+				u.resetSettings(u.count, type);
 				u.count++;
 			}
 			if (u.count == 0) {
 				u.count = 1;
 				u.start[0] = 0;
-				u.type[0] = (uint8_t)type;
-				u.choke[0] = 0;
+				u.resetSettings(0, type);
 			}
 		}
 		selectedSlice = 0;
@@ -346,12 +398,10 @@ struct SOUNAIRE : BidooModule {
 				return;
 			for (int k = u.count; k > i + 1; k--) {
 				u.start[k] = u.start[k - 1];
-				u.type[k] = u.type[k - 1];
-				u.choke[k] = u.choke[k - 1];
+				u.copySettings(k - 1, k);
 			}
 			u.start[i + 1] = f;
-			u.type[i + 1] = u.type[i];
-			u.choke[i + 1] = u.choke[i];
+			u.copySettings(i, i + 1);
 			u.count++;
 			selectedSlice = i + 1;
 		}
@@ -367,8 +417,7 @@ struct SOUNAIRE : BidooModule {
 				return;
 			for (int k = i; k + 1 < u.count; k++) {
 				u.start[k] = u.start[k + 1];
-				u.type[k] = u.type[k + 1];
-				u.choke[k] = u.choke[k + 1];
+				u.copySettings(k + 1, k);
 			}
 			u.count--;
 			selectedSlice = i - 1;
@@ -412,6 +461,42 @@ struct SOUNAIRE : BidooModule {
 		publishSlices();
 	}
 
+	// a slice's level (dB), tune (semitones), pan, attack or release (ms, < 0: the knobs)
+	enum SliceSetting { SET_LEVEL, SET_TUNE, SET_PAN, SET_ATTACK, SET_RELEASE };
+	void setSliceSetting(int i, int which, float v) {
+		{
+			std::lock_guard<std::mutex> lock(sliceMutex);
+			if (i < 0 || i >= uiSlices.count)
+				return;
+			Slices &u = uiSlices;
+			switch (which) {
+				case SET_LEVEL: u.level[i] = clamp(v, -36.f, 12.f); break;
+				case SET_TUNE: u.tune[i] = clamp(v, -24.f, 24.f); break;
+				case SET_PAN: u.pan[i] = clamp(v, -1.f, 1.f); break;
+				case SET_ATTACK: u.attack[i] = v < 0.f ? -1.f : std::min(v, 2000.f); break;
+				default: u.release[i] = v < 0.f ? -1.f : std::min(v, 5000.f); break;
+			}
+		}
+		publishSlices();
+	}
+
+	float sliceSetting(int i, int which) {
+		std::lock_guard<std::mutex> lock(sliceMutex);
+		i = clamp(i, 0, uiSlices.count - 1);
+		const float *t[5] = {uiSlices.level, uiSlices.tune, uiSlices.pan, uiSlices.attack, uiSlices.release};
+		return t[clamp(which, 0, 4)][i];
+	}
+
+	// the whole slice state back (undo / redo)
+	void restoreSlices(const Slices &u) {
+		{
+			std::lock_guard<std::mutex> lock(sliceMutex);
+			uiSlices = u;
+		}
+		selectedSlice = clamp((int)selectedSlice, 0, u.count - 1);
+		publishSlices();
+	}
+
 	void setAllSliceTypes(int type) {
 		{
 			std::lock_guard<std::mutex> lock(sliceMutex);
@@ -436,10 +521,22 @@ struct SOUNAIRE : BidooModule {
 		return db[clamp(sens, 0, 2)];
 	}
 
-	void requestDetect() {
+	// the cuts again, at the sensitivity, or about n slices (UI thread: quick
+	// enough for loops, and an undo step can be made of it)
+	void detectNow(int about = 0) {
+		std::shared_ptr<Sample> s = displaySample();
+		if (!s)
+			return;
+		std::vector<Onset> onsets = findOnsets(*s, detector == 1);
+		std::vector<int64_t> cuts = about > 0 ? pickAbout(onsets, about, s->rate) : pickOnsets(onsets, riseForSensitivity(sensitivity), s->rate);
+		setSlices(cuts, getSlices().type[0]);
+	}
+
+	void requestExport(const std::string &dir, const std::string &file) {
 		{
 			std::lock_guard<std::mutex> lock(jobMutex);
-			jobDetect = sensitivity;
+			jobExportDir = dir;
+			jobExportFile = file;
 		}
 		jobCv.notify_all();
 	}
@@ -483,9 +580,10 @@ struct SOUNAIRE : BidooModule {
 			int poolPreset = -1;
 			float poolRate = 0.f;
 			int detect = -1;
+			std::string exportDir, exportFile;
 			{
 				std::unique_lock<std::mutex> lock(jobMutex);
-				jobCv.wait_for(lock, std::chrono::milliseconds(50), [&] { return quit || !jobPath.empty() || jobAnalyse || jobPoolPreset >= 0 || jobDetect >= 0; });
+				jobCv.wait_for(lock, std::chrono::milliseconds(20), [&] { return quit || !jobPath.empty() || jobAnalyse || jobPoolPreset >= 0 || jobDetect >= 0 || !jobExportDir.empty() || !jobExportFile.empty(); });
 				if (quit)
 					return;
 				std::swap(path, jobPath);
@@ -499,6 +597,8 @@ struct SOUNAIRE : BidooModule {
 				jobPoolPreset = -1;
 				detect = jobDetect;
 				jobDetect = -1;
+				std::swap(exportDir, jobExportDir);
+				std::swap(exportFile, jobExportFile);
 			}
 			delete[] retiredPool.exchange(nullptr);
 			if (poolPreset >= 0 && !pendingPool.load()) {
@@ -512,36 +612,46 @@ struct SOUNAIRE : BidooModule {
 				std::lock_guard<std::mutex> lock(sampleMutex);
 				owned.erase(std::remove_if(owned.begin(), owned.end(), [&](const std::shared_ptr<Sample> &p) { return p.get() == u; }), owned.end());
 			}
+			// recording: spare chunks ready, touched here so the audio thread never
+			// takes a page fault on them
+			for (auto &c : recSpare) {
+				if (!c.load()) {
+					RecChunk *k = new RecChunk;
+					std::memset(k->f, 0, sizeof(k->f));
+					c.store(k, std::memory_order_release);
+				}
+			}
+			int done = recDone.load();
+			if (done >= 0) {
+				std::shared_ptr<Sample> s = std::make_shared<Sample>();
+				s->channels = recStereoDone ? 2 : 1;
+				s->rate = recRate;
+				s->bits = 24;
+				s->name = "Recording";
+				int64_t n = 0;
+				for (int c = 0; c < done; c++)
+					n += recChunks[c]->used;
+				for (int ch = 0; ch < s->channels; ch++)
+					s->ch[ch].reserve((size_t)n);
+				for (int c = 0; c < done; c++) {
+					for (int ch = 0; ch < s->channels; ch++)
+						s->ch[ch].insert(s->ch[ch].end(), recChunks[c]->f[ch], recChunks[c]->f[ch] + recChunks[c]->used);
+					delete recChunks[c];
+					recChunks[c] = nullptr;
+				}
+				s->frames = n;
+				if (n > 16) {
+					s->analyse();
+					installSample(s, false);
+				}
+				// only now may the audio thread record again
+				recDone = -1;
+			}
 			if (!path.empty()) {
 				std::string error;
 				std::shared_ptr<Sample> s = loadSampleFile(path, error);
 				if (s) {
-					if (!keep) {
-						float note = autoRoot ? detectRootNote(*s, 0, s->frames) : -1.f;
-						if (note > 0)
-							pendingRoot = note;
-						else
-							clearCents = true;   // the old sample's offset means nothing here
-					}
-					{
-						std::lock_guard<std::mutex> lock(sampleMutex);
-						owned.push_back(s);
-						shown = s;
-						sampleName = s->name;
-					}
-					// wait until the audio thread took the previous one
-					while (pending.load() && !quit)
-						std::this_thread::sleep_for(std::chrono::milliseconds(5));
-					pending = s.get();
-					if (!keep) {
-						dirty = true;
-						resetMarkers = true;
-						// a new sample: cut at its transients, or one slice
-						if (detectOnLoad)
-							setSlices(detectTransients(*s, riseDb(sensitivity)), PLAY_ONE_SHOT);
-						else
-							setSlices({0}, PLAY_ONE_SHOT);
-					}
+					installSample(s, keep);
 					lastError.clear();
 				}
 				else {
@@ -549,11 +659,13 @@ struct SOUNAIRE : BidooModule {
 				}
 				loading = false;
 			}
+			if (!exportDir.empty() || !exportFile.empty())
+				exportNow(exportDir, exportFile);
 			if (detect >= 0) {
 				std::shared_ptr<Sample> s = displaySample();
 				if (s) {
 					int type = getSlices().type[0];
-					setSlices(detectTransients(*s, riseDb(detect)), type);
+					setSlices(pickOnsets(findOnsets(*s, detector == 1), riseForSensitivity(sensitivity), s->rate), type);
 				}
 			}
 			if (analyse) {
@@ -573,6 +685,80 @@ struct SOUNAIRE : BidooModule {
 
 	std::atomic<bool> resetMarkers {false};
 
+	// a loaded or recorded sample to play (worker thread); `keep`: from the
+	// patch, so its root, markers and slices stay as saved
+	void installSample(std::shared_ptr<Sample> s, bool keep) {
+		if (!keep) {
+			float note = autoRoot ? detectRootNote(*s, 0, s->frames) : -1.f;
+			if (note > 0)
+				pendingRoot = note;
+			else
+				clearCents = true;   // the old sample's offset means nothing here
+		}
+		{
+			std::lock_guard<std::mutex> lock(sampleMutex);
+			owned.push_back(s);
+			shown = s;
+			sampleName = s->name;
+		}
+		// wait until the audio thread took the previous one
+		while (pending.load() && !quit)
+			std::this_thread::sleep_for(std::chrono::milliseconds(5));
+		pending = s.get();
+		if (!keep) {
+			dirty = true;
+			resetMarkers = true;
+			// a new sample: cut at its transients, or one slice
+			if (detectOnLoad)
+				setSlices(pickOnsets(findOnsets(*s, detector == 1), riseForSensitivity(sensitivity), s->rate), PLAY_ONE_SHOT);
+			else
+				setSlices({0}, PLAY_ONE_SHOT);
+			// kept in the patch storage now, so saving the patch has nothing to wait for
+			std::string dir;
+			{
+				std::lock_guard<std::mutex> lock(storageMutex);
+				dir = storageDir;
+			}
+			if (!dir.empty() && flacWriteFile(rack::system::join(dir, "sample.flac"), s->ch, s->channels, s->frames, (int)s->rate, s->bits))
+				dirty = false;
+		}
+	}
+
+	// every slice as its own WAV in `dir`, or the sample as one WAV (worker thread)
+	void exportNow(const std::string &dir, const std::string &file) {
+		std::shared_ptr<Sample> s = displaySample();
+		if (!s)
+			return;
+		auto write = [&](const std::string &path, int64_t a, int64_t b) {
+			drwav_data_format format;
+			format.container = drwav_container_riff;
+			format.format = DR_WAVE_FORMAT_IEEE_FLOAT;
+			format.channels = s->channels;
+			format.sampleRate = (drwav_uint32)s->rate;
+			format.bitsPerSample = 32;
+			drwav wav;
+			if (!drwav_init_file_write(&wav, path.c_str(), &format, nullptr))
+				return;
+			std::vector<float> buf((size_t)(b - a) * s->channels);
+			for (int64_t i = a; i < b; i++)
+				for (int c = 0; c < s->channels; c++)
+					buf[(size_t)(i - a) * s->channels + c] = s->ch[c][(size_t)i];
+			drwav_write_pcm_frames(&wav, (drwav_uint64)(b - a), buf.data());
+			drwav_uninit(&wav);
+		};
+		if (!file.empty())
+			write(file, 0, s->frames);
+		if (!dir.empty()) {
+			Slices u = getSlices();
+			std::string base = rack::system::getStem(s->name);
+			for (int i = 0; i < u.count; i++) {
+				int64_t a = std::min(u.start[i], s->frames), b = std::min(u.end(i, s->frames), s->frames);
+				if (b > a)
+					write(rack::system::join(dir, rack::string::f("%s_%02d.wav", base.c_str(), i + 1)), a, b);
+			}
+		}
+	}
+
 	std::shared_ptr<Sample> displaySample() {
 		std::lock_guard<std::mutex> lock(sampleMutex);
 		return shown;
@@ -580,8 +766,11 @@ struct SOUNAIRE : BidooModule {
 
 	// ---------------------------------------------------------------- patch
 
+	// the folder is made on demand: Rack does not create it, and writing the
+	// sample into a folder that does not exist fails (the sample is then lost
+	// between sessions)
 	std::string storagePath() {
-		return rack::system::join(getPatchStorageDirectory(), "sample.flac");
+		return rack::system::join(createPatchStorageDirectory(), "sample.flac");
 	}
 
 	void onSave(const SaveEvent &e) override {
@@ -596,6 +785,10 @@ struct SOUNAIRE : BidooModule {
 	}
 
 	void onAdd(const AddEvent &e) override {
+		{
+			std::lock_guard<std::mutex> lock(storageMutex);
+			storageDir = createPatchStorageDirectory();
+		}
 		std::string path = rack::system::join(getPatchStorageDirectory(), "sample.flac");
 		if (rack::system::isFile(path))
 			requestLoad(path, true);
@@ -614,7 +807,10 @@ struct SOUNAIRE : BidooModule {
 		json_object_set_new(rootJ, "rootCents", json_real(rootCents));
 		json_object_set_new(rootJ, "sampleName", json_string(sampleName.c_str()));
 		json_object_set_new(rootJ, "detectOnLoad", json_boolean(detectOnLoad));
-		json_object_set_new(rootJ, "sensitivity", json_integer(sensitivity));
+		json_object_set_new(rootJ, "sensitivity", json_real(sensitivity));
+		json_object_set_new(rootJ, "detector", json_integer(detector));
+		json_object_set_new(rootJ, "clockPpqn", json_integer(clockPpqn));
+		json_object_set_new(rootJ, "loopBeats", json_integer(loopBeats));
 		json_object_set_new(rootJ, "selectedSlice", json_integer(selectedSlice));
 		Slices u = getSlices();
 		json_t *slicesJ = json_array();
@@ -623,6 +819,11 @@ struct SOUNAIRE : BidooModule {
 			json_array_append_new(sJ, json_integer(u.start[i]));
 			json_array_append_new(sJ, json_integer(u.type[i]));
 			json_array_append_new(sJ, json_integer(u.choke[i]));
+			json_array_append_new(sJ, json_real(u.level[i]));
+			json_array_append_new(sJ, json_real(u.tune[i]));
+			json_array_append_new(sJ, json_real(u.pan[i]));
+			json_array_append_new(sJ, json_real(u.attack[i]));
+			json_array_append_new(sJ, json_real(u.release[i]));
 			json_array_append_new(slicesJ, sJ);
 		}
 		json_object_set_new(rootJ, "slices", slicesJ);
@@ -639,7 +840,10 @@ struct SOUNAIRE : BidooModule {
 		rootSeen = params[ROOT_PARAM].getValue();   // params come in before data: not a change by hand
 		if (json_t *j = json_object_get(rootJ, "sampleName")) sampleName = json_string_value(j);
 		if (json_t *j = json_object_get(rootJ, "detectOnLoad")) detectOnLoad = json_boolean_value(j);
-		if (json_t *j = json_object_get(rootJ, "sensitivity")) sensitivity = clamp((int)json_integer_value(j), 0, 2);
+		if (json_t *j = json_object_get(rootJ, "sensitivity")) sensitivity = clamp((float)json_number_value(j), 0.f, 1.f);
+		if (json_t *j = json_object_get(rootJ, "detector")) detector = clamp((int)json_integer_value(j), 0, 1);
+		if (json_t *j = json_object_get(rootJ, "clockPpqn")) clockPpqn = clamp((int)json_integer_value(j), 1, 24);
+		if (json_t *j = json_object_get(rootJ, "loopBeats")) loopBeats = clamp((int)json_integer_value(j), 0, 64);
 		if (json_t *slicesJ = json_object_get(rootJ, "slices")) {
 			std::lock_guard<std::mutex> lock(sliceMutex);
 			Slices &u = uiSlices;
@@ -652,6 +856,12 @@ struct SOUNAIRE : BidooModule {
 				u.start[u.count] = u.count == 0 ? 0 : (int64_t)json_integer_value(json_array_get(sJ, 0));
 				u.type[u.count] = (uint8_t)clamp((int)json_integer_value(json_array_get(sJ, 1)), 0, NUM_PLAY_TYPES - 1);
 				u.choke[u.count] = (uint8_t)clamp((int)json_integer_value(json_array_get(sJ, 2)), 0, 4);
+				u.level[u.count] = (float)json_number_value(json_array_get(sJ, 3));
+				u.tune[u.count] = (float)json_number_value(json_array_get(sJ, 4));
+				u.pan[u.count] = (float)json_number_value(json_array_get(sJ, 5));
+				json_t *aJ = json_array_get(sJ, 6), *rJ = json_array_get(sJ, 7);
+				u.attack[u.count] = aJ ? (float)json_number_value(aJ) : -1.f;
+				u.release[u.count] = rJ ? (float)json_number_value(rJ) : -1.f;
 				u.count++;
 			}
 			if (u.count == 0)
@@ -674,7 +884,7 @@ struct SOUNAIRE : BidooModule {
 		p.reverse = params[REVERSE_PARAM].getValue() > 0.5f;
 		p.timeMode = (int)params[TIME_MODE_PARAM].getValue();
 		// speed and resonance: the knobs here, each voice adds its own CV (voiceSpeed, voiceResonance)
-		p.speed = clamp(std::pow(2.f, params[SPEED_PARAM].getValue()), 0.0625f, 8.f);
+		p.speed = clamp(std::pow(2.f, params[SPEED_PARAM].getValue()) * syncFactor, 0.0625f, 8.f);
 		// as the knobs show them: 0-2 s and 2 ms-5 s, exponential
 		p.attackMs = std::pow(2000.f, params[ATTACK_PARAM].getValue()) - 1.f;
 		p.releaseMs = 2.f * std::pow(2500.f, params[RELEASE_PARAM].getValue());
@@ -749,7 +959,14 @@ struct SOUNAIRE : BidooModule {
 		own.reverse = type == PLAY_REVERSE || type == PLAY_REVERSE_LOOP;
 		bool oneShot = type == PLAY_ONE_SHOT || type == PLAY_REVERSE;
 		engine.noteOn(slot, slot >= MAX_VOICES ? 0 : c, semitones(c), vel, p, startOffset, cutoffNote(c), &own, oneShot);
-		engine.voices[slot].choke = group;
+		sounaire::Voice &v = engine.voices[slot];
+		v.choke = group;
+		v.pitchOffset = slices->tune[i];
+		float g = std::pow(10.f, slices->level[i] / 20.f), pan = slices->pan[i];
+		v.gainL = g * std::min(1.f, 1.f - pan);
+		v.gainR = g * std::min(1.f, 1.f + pan);
+		v.attackMs = slices->attack[i];
+		v.releaseMs = slices->release[i];
 		lastSlice = i;
 	}
 
@@ -771,9 +988,9 @@ struct SOUNAIRE : BidooModule {
 		float x = params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getPolyVoltage(c);
 		if (x != speedX[c]) {
 			speedX[c] = x;
-			speedOut[c] = clamp(std::pow(2.f, x), 0.0625f, 8.f);
+			speedOut[c] = std::pow(2.f, x);
 		}
-		return speedOut[c];
+		return clamp(speedOut[c] * syncFactor, 0.0625f, 8.f);
 	}
 
 	float voiceResonance(int c) {
@@ -790,6 +1007,100 @@ struct SOUNAIRE : BidooModule {
 
 	float velocity(int c) {
 		return inputs[VEL_INPUT].isConnected() ? clamp(inputs[VEL_INPUT].getPolyVoltage(c) * 0.1f, 0.f, 1.f) : 1.f;
+	}
+
+	// The loop's length in beats (set, or guessed: the power of two that puts
+	// the loop between 70 and 180 BPM, nearest 120), and the speed that plays
+	// it in time with the clock. Without a clock for 2 s the speed is 1.
+	static int guessBeats(double seconds) {
+		int best = 4;
+		double bestD = 1e9;
+		for (int b = 1; b <= 64; b *= 2) {
+			double bpm = 60.0 * b / seconds;
+			double d = (bpm >= 70.0 && bpm < 180.0) ? std::fabs(bpm - 120.0) : 1e6 + std::fabs(bpm - 120.0);
+			if (d < bestD) {
+				bestD = d;
+				best = b;
+			}
+		}
+		return best;
+	}
+
+	void syncClock(const ProcessArgs &args) {
+		syncFactor = 1.f;
+		syncBpm = 0.f;
+		if (!inputs[CLOCK_INPUT].isConnected()) {
+			clockInterval = 0;
+			return;
+		}
+		clockCount++;
+		if (clockIn.process(inputs[CLOCK_INPUT].getVoltage(), 0.1f, 1.f)) {
+			// a change of tempo is followed within a beat; a steady one smoothly
+			if (clockInterval <= 0 || std::fabs(clockCount - clockInterval) > 0.1 * clockInterval)
+				clockInterval = (double)clockCount;
+			else
+				clockInterval += 0.5 * (clockCount - clockInterval);
+			clockCount = 0;
+		}
+		const Sample *s = engine.current;
+		if (clockInterval <= 0 || clockCount > 2.0 * args.sampleRate + clockInterval || !s || s->frames < 16)
+			return;
+		double bpm = 60.0 * args.sampleRate / (clockInterval * clockPpqn);
+		double seconds = s->frames / (double)s->rate;
+		int beats = loopBeats > 0 ? loopBeats : guessBeats(seconds);
+		syncFactor = (float)(seconds * bpm / (60.0 * beats));
+		syncBpm = (float)bpm;
+		syncBeats = beats;
+	}
+
+	// REC (button, or the gate while high) records IN L / IN R; the recording
+	// replaces the sample when it stops (up to 5 minutes)
+	void recordInput(const ProcessArgs &args) {
+		bool want = params[REC_PARAM].getValue() > 0.5f || inputs[REC_INPUT].getVoltage() >= 1.f;
+		if (want && !recording && recDone.load() < 0 && inputs[INL_INPUT].isConnected()) {
+			recording = true;
+			recCount = 0;
+			recFrames = 0;
+			recLimit = (int64_t)(300.f * args.sampleRate);
+			recStereo = inputs[INR_INPUT].isConnected();
+		}
+		auto finish = [&]() {
+			recording = false;
+			recRate = args.sampleRate;
+			recStereoDone = recStereo;
+			recDone = recCount;
+			params[REC_PARAM].setValue(0.f);
+		};
+		if (!recording) {
+			recSeconds = 0.f;
+			return;
+		}
+		if (!want) {
+			finish();
+			return;
+		}
+		RecChunk *ch = recCount > 0 ? recChunks[recCount - 1] : nullptr;
+		if (!ch || ch->used >= RecChunk::FRAMES) {
+			ch = nullptr;
+			if (recCount < REC_MAX_CHUNKS)
+				for (int i = 0; i < REC_SPARES && !ch; i++)
+					ch = recSpare[i].exchange(nullptr, std::memory_order_acq_rel);
+			if (ch) {
+				ch->used = 0;
+				recChunks[recCount++] = ch;
+			}
+		}
+		if (!ch || recFrames >= recLimit) {
+			// out of chunks (the worker fell behind) or 5 minutes reached
+			finish();
+			return;
+		}
+		float l = inputs[INL_INPUT].getVoltage() * 0.2f;
+		ch->f[0][ch->used] = l;
+		ch->f[1][ch->used] = recStereo ? inputs[INR_INPUT].getVoltage() * 0.2f : l;
+		ch->used++;
+		recFrames++;
+		recSeconds = (float)(recFrames / args.sampleRate);
 	}
 
 	void process(const ProcessArgs &args) override {
@@ -826,6 +1137,9 @@ struct SOUNAIRE : BidooModule {
 				slices = n;
 			}
 		}
+
+		syncClock(args);
+		recordInput(args);
 
 		PlaySettings p = settings();
 		// stretchers for the time mode, built off the audio thread
