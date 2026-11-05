@@ -30,41 +30,42 @@ struct DUKE : BidooModule {
 	dsp::SchmittTrigger nadaTrigger;
 
 	DUKE() {
-    config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(ADONF_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(NADA_PARAM, 0.0f, 1.0f, 0.0f);
-
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configButton(ADONF_PARAM, "All sliders to the top");
+		configButton(NADA_PARAM, "All sliders to the bottom");
 		for (int i = 0; i < 4; i++) {
-			configParam(MAX_PARAM + i, 0.0f, 10.0f, 10.0f);
-			configParam(MIN_PARAM + i, 0.0f, 10.0f, 0.0f);
-      configParam(TYPE_PARAM + i, 0.0f, 1.0f, 0.0f);
-      configParam(SLIDER_PARAM + i, 0.0f, 10.0f, 0.0f);
+			std::string n = std::to_string(i + 1);
+			configParam(MAX_PARAM + i, 0.0f, 10.0f, 10.0f, "Max " + n, " V");
+			configParam(MIN_PARAM + i, 0.0f, 10.0f, 0.0f, "Min " + n, " V");
+			configSwitch(TYPE_PARAM + i, 0.0f, 1.0f, 0.0f, "Range " + n, {"0 to 10 V", "-5 to 5 V"});
+			configParam(SLIDER_PARAM + i, 0.0f, 10.0f, 0.0f, "Slider " + n, "%", 0.f, 10.f);
+			configInput(SLIDER_INPUT + i, "Slider " + n + " CV (added, 0-10 V: full travel; polyphonic)");
+			configOutput(CV_OUTPUT + i, "CV " + n);
 		}
-  }
+	}
 
-	void process(const ProcessArgs &args) override;
-};
-
-
-void DUKE::process(const ProcessArgs &args) {
-	if (aDonfTrigger.process(params[ADONF_PARAM].value)) {
-		for (int i = 0; i < 4; i ++) {
+	void process(const ProcessArgs &args) override {
+		if (aDonfTrigger.process(params[ADONF_PARAM].getValue())) {
+			for (int i = 0; i < 4; i++)
 				params[SLIDER_PARAM + i].setValue(10.f);
 		}
-	}
-
-	if (nadaTrigger.process(params[NADA_PARAM].value)) {
-		for (int i = 0; i < 4; i ++) {
+		if (nadaTrigger.process(params[NADA_PARAM].getValue())) {
+			for (int i = 0; i < 4; i++)
 				params[SLIDER_PARAM + i].setValue(0.f);
 		}
+		for (int i = 0; i < 4; i++) {
+			float offset = 5.0f * params[TYPE_PARAM + i].getValue();
+			float min = params[MIN_PARAM + i].getValue() - offset;
+			float max = params[MAX_PARAM + i].getValue() - offset;
+			float slider = params[SLIDER_PARAM + i].getValue();
+			// one output channel per channel of the slider's CV
+			int channels = std::max(1, inputs[SLIDER_INPUT + i].getChannels());
+			for (int c = 0; c < channels; c++)
+				outputs[CV_OUTPUT + i].setVoltage(min + clamp(slider + inputs[SLIDER_INPUT + i].getVoltage(c), 0.0f, 10.0f) * (max - min) / 10.0f, c);
+			outputs[CV_OUTPUT + i].setChannels(channels);
+		}
 	}
-
-	for (int i = 0; i < 4; i ++) {
-			float min = params[MIN_PARAM + i].getValue() - 5.0f * params[TYPE_PARAM + i].getValue();
-			float max = params[MAX_PARAM + i].getValue() - 5.0f * params[TYPE_PARAM + i].getValue();
-			outputs[CV_OUTPUT + i].setVoltage(min + clamp(params[SLIDER_PARAM + i].getValue() + inputs[SLIDER_INPUT + i].getVoltage(), 0.0f , 10.0f) * (max - min) / 10.0f);
-	}
-}
+};
 
 struct DUKEWidget : BidooWidget {
 	DUKEWidget(DUKE *module) {
