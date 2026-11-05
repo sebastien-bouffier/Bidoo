@@ -31,28 +31,56 @@ struct LOURDE : BidooModule {
 	};
 
 
+	bool state[PORT_MAX_CHANNELS] = {};
+	// knob + CV of the first channel, for the displays
+	float shown[4] = {};
+
 	LOURDE() {
-    config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(WEIGHT1, -5.0f, 5.0f, 0.0f);
-    configParam(WEIGHT2, -5.0f, 5.0f, 0.0f);
-    configParam(WEIGHT3, -5.0f, 5.0f, 0.0f);
-    configParam(OUTFLOOR, -10.0f, 10.0f, 0.0f);
-  }
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		for (int i = 0; i < 3; i++) {
+			configParam(WEIGHT1 + i, -5.0f, 5.0f, 0.0f, "Weight " + std::to_string(i + 1));
+			configInput(IN1 + i, "Input " + std::to_string(i + 1));
+			configInput(INWEIGHT1 + i, "Weight " + std::to_string(i + 1) + " CV");
+		}
+		configParam(OUTFLOOR, -10.0f, 10.0f, 0.0f, "Threshold");
+		configInput(INFLOOR, "Threshold CV");
+		configOutput(OUT, "Gate (high while the weighted sum reaches the threshold)");
+	}
 
 	void process(const ProcessArgs &args) override;
 };
 
+// 0.1 either side of the threshold, so a sum sitting on it doesn't chatter
+static const float LOURDE_HYSTERESIS = 0.1f;
 
 void LOURDE::process(const ProcessArgs &args) {
-  float sum = clamp(params[WEIGHT1].getValue()+inputs[INWEIGHT1].getVoltage(),-5.0f,5.0f)*inputs[IN1].getVoltage() + clamp(params[WEIGHT2].getValue()+inputs[INWEIGHT2].getVoltage(),-5.0f,5.0f)*inputs[IN2].getVoltage()
-	+ clamp(params[WEIGHT3].getValue()+inputs[INWEIGHT3].getVoltage(),-5.0f,5.0f)*inputs[IN3].getVoltage();
-	outputs[OUT].setVoltage(sum >= clamp(params[OUTFLOOR].getValue()+inputs[INFLOOR].getVoltage(),-10.0f,10.0f) ? 10.0f : 0.0f);
+	int channels = 1;
+	for (int i = 0; i < 3; i++)
+		channels = std::max(channels, inputs[IN1 + i].getChannels());
+	for (int c = 0; c < channels; c++) {
+		float w[3], sum = 0.f;
+		for (int i = 0; i < 3; i++) {
+			w[i] = clamp(params[WEIGHT1 + i].getValue() + inputs[INWEIGHT1 + i].getPolyVoltage(c), -5.0f, 5.0f);
+			sum += w[i] * inputs[IN1 + i].getPolyVoltage(c);
+		}
+		float floor = clamp(params[OUTFLOOR].getValue() + inputs[INFLOOR].getPolyVoltage(c), -10.0f, 10.0f);
+		if (state[c] ? sum < floor - LOURDE_HYSTERESIS : sum >= floor + LOURDE_HYSTERESIS)
+			state[c] = !state[c];
+		outputs[OUT].setVoltage(state[c] ? 10.0f : 0.0f, c);
+		if (c == 0) {
+			shown[0] = w[0];
+			shown[1] = w[1];
+			shown[2] = w[2];
+			shown[3] = floor;
+		}
+	}
+	outputs[OUT].setChannels(channels);
 }
 
-struct LabelDisplayWidget : TransparentWidget {
-  Param *value;
+struct LourdeValueDisplay : TransparentWidget {
+  float *value = nullptr;
 
-  LabelDisplayWidget() {
+  LourdeValueDisplay() {
 
   };
 
@@ -60,7 +88,7 @@ struct LabelDisplayWidget : TransparentWidget {
 		if (layer == 1) {
 			if (value) {
 	      char display[128];
-	  		snprintf(display, sizeof(display), "%2.2f", value->getValue());
+	  		snprintf(display, sizeof(display), "%2.2f", *value);
 	  		nvgFontSize(args.vg, 14.0f);
 	  		nvgFillColor(args.vg, YELLOW_BIDOO);
 	  		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
@@ -90,26 +118,26 @@ struct LOURDEWidget : BidooWidget {
     addParam(createParam<BidooBlueKnob>(Vec(22.5,110), module, LOURDE::WEIGHT2));
     addParam(createParam<BidooBlueKnob>(Vec(22.5,190), module, LOURDE::WEIGHT3));
 
-		LabelDisplayWidget *displayW1 = new LabelDisplayWidget();
+		LourdeValueDisplay *displayW1 = new LourdeValueDisplay();
 		displayW1->box.pos = Vec(15,45);
-		displayW1->value = module ? &module->params[LOURDE::WEIGHT1] : NULL;
+		displayW1->value = module ? &module->shown[0] : NULL;
 		addChild(displayW1);
 
-		LabelDisplayWidget *displayW2 = new LabelDisplayWidget();
+		LourdeValueDisplay *displayW2 = new LourdeValueDisplay();
 		displayW2->box.pos = Vec(15,125);
-		displayW2->value = module ? &module->params[LOURDE::WEIGHT2] : NULL;
+		displayW2->value = module ? &module->shown[1] : NULL;
 		addChild(displayW2);
 
-		LabelDisplayWidget *displayW3 = new LabelDisplayWidget();
+		LourdeValueDisplay *displayW3 = new LourdeValueDisplay();
 		displayW3->box.pos = Vec(15,205);
-		displayW3->value = module ? &module->params[LOURDE::WEIGHT3] : NULL;
+		displayW3->value = module ? &module->shown[2] : NULL;
 		addChild(displayW3);
 
     addParam(createParam<BidooBlueKnob>(Vec(22.5,282), module, LOURDE::OUTFLOOR));
 
-		LabelDisplayWidget *displayOF = new LabelDisplayWidget();
+		LourdeValueDisplay *displayOF = new LourdeValueDisplay();
 		displayOF->box.pos = Vec(15,296);
-		displayOF->value = module ? &module->params[LOURDE::OUTFLOOR] : NULL;
+		displayOF->value = module ? &module->shown[3] : NULL;
 		addChild(displayOF);
 
     addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 289.0f), module, LOURDE::INFLOOR));

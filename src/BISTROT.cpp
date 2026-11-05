@@ -4,73 +4,91 @@
 
 using namespace std;
 
+// An 8-bit ADC and DAC in sign + magnitude over +-5 V: bit 8 is the sign,
+// bits 1-7 the level in 127 steps.
 struct BISTROT : BidooModule {
 	enum ParamIds {
-		LINK_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
 		INPUT,
-    ADCCLOCK_INPUT,
-    DACCLOCK_INPUT,
+		ADCCLOCK_INPUT,
+		DACCLOCK_INPUT,
 		BIT_INPUT,
 		NUM_INPUTS = BIT_INPUT + 8
 	};
 	enum OutputIds {
 		OUTPUT,
-    BIT_OUTPUT,
+		BIT_OUTPUT,
 		NUM_OUTPUTS  = BIT_OUTPUT + 8
 	};
 	enum LightIds {
-    LINK_LIGHT,
-    BIT_INPUT_LIGHTS,
-    BIT_OUTPUT_LIGHTS = BIT_INPUT_LIGHTS + 8,
+		BIT_INPUT_LIGHTS,
+		BIT_OUTPUT_LIGHTS = BIT_INPUT_LIGHTS + 8,
 		NUM_LIGHTS = BIT_OUTPUT_LIGHTS + 8
 	};
 
-  dsp::SchmittTrigger linkTrigger, acdClockTrigger, dacClockTrigger;
-
-  unsigned char in = 0;
-  unsigned char out = 0;
+	dsp::SchmittTrigger adcClockTrigger[PORT_MAX_CHANNELS], dacClockTrigger[PORT_MAX_CHANNELS];
+	unsigned char in[PORT_MAX_CHANNELS] = {};
+	unsigned char out[PORT_MAX_CHANNELS] = {};
 
 	BISTROT() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configInput(INPUT, "Audio (polyphonic, +-5 V full scale)");
+		configInput(ADCCLOCK_INPUT, "ADC clock (unpatched: every sample)");
+		configInput(DACCLOCK_INPUT, "DAC clock (unpatched: every sample)");
+		configOutput(OUTPUT, "Audio");
+		for (int i = 0; i < 8; i++) {
+			std::string bit = i == 7 ? "Bit 8 (sign)" : "Bit " + std::to_string(i + 1);
+			configOutput(BIT_OUTPUT + i, "ADC " + bit);
+			configInput(BIT_INPUT + i, "DAC " + bit + " (high from 1 V; unpatched: follows the ADC)");
+		}
 	}
 
-	~BISTROT() {
-  }
+	static unsigned char encode(float v) {
+		float a = std::min(std::fabs(v) * (127.0f / 5.0f), 127.0f);
+		return (unsigned char)std::lround(a) | (v < 0.0f ? 0x80 : 0);
+	}
+
+	static float decode(unsigned char b) {
+		float a = (b & 0x7F) * (5.0f / 127.0f);
+		return (b & 0x80) ? -a : a;
+	}
 
 	void process(const ProcessArgs &args) override;
 };
 
-
 void BISTROT::process(const ProcessArgs &args) {
-    if ((!inputs[ADCCLOCK_INPUT].isConnected()) || (acdClockTrigger.process(inputs[ADCCLOCK_INPUT].getVoltage())))
-    {
-      in = roundf(clamp(clamp(inputs[INPUT].getVoltage(),-10.0f,10.0f) / 20.0f + 0.5f, 0.0f, 1.0f) * 255);
-    }
+	int channels = std::max(1, inputs[INPUT].getChannels());
+	for (int i = 0; i < 8; i++)
+		channels = std::max(channels, inputs[BIT_INPUT + i].getChannels());
 
-    for (int i = 0 ; i != 8 ; i++)
-    {
-      int bitValue = ((in & (1U << i)) != 0);
-      lights[BIT_INPUT_LIGHTS+i].setBrightness(1-bitValue);
-      outputs[BIT_OUTPUT+i].setVoltage((1-bitValue) * 10);
-    }
+	for (int c = 0; c < channels; c++) {
+		if (!inputs[ADCCLOCK_INPUT].isConnected() || adcClockTrigger[c].process(inputs[ADCCLOCK_INPUT].getPolyVoltage(c)))
+			in[c] = encode(inputs[INPUT].getVoltage(c));
+		for (int i = 0; i < 8; i++)
+			outputs[BIT_OUTPUT + i].setVoltage((in[c] >> i) & 1 ? 10.0f : 0.0f, c);
 
-    if ((!inputs[DACCLOCK_INPUT].isConnected()) || (dacClockTrigger.process(inputs[DACCLOCK_INPUT].getVoltage())))
-    {
-      for (int i = 0 ; i != 8 ; i++)
-      {
-        if ((inputs[BIT_INPUT+i].isConnected()) && (inputs[BIT_INPUT+i].getVoltage() != 0)) {
-          out |= 1U << i;
-        }
-				else {
-					out &= ~(1U << i);
-				}
-        lights[BIT_OUTPUT_LIGHTS+i].setBrightness((out >> i) & 1U);
-      }
-    }
-		outputs[OUTPUT].setVoltage(-1.0f * clamp(((((float)out/255.0f))-0.5f)*10.0f,-10.0f,10.0f));
+		if (!inputs[DACCLOCK_INPUT].isConnected() || dacClockTrigger[c].process(inputs[DACCLOCK_INPUT].getPolyVoltage(c))) {
+			unsigned char b = 0;
+			for (int i = 0; i < 8; i++) {
+				bool high = inputs[BIT_INPUT + i].isConnected() ? inputs[BIT_INPUT + i].getPolyVoltage(c) >= 1.0f : ((in[c] >> i) & 1);
+				if (high)
+					b |= 1 << i;
+			}
+			out[c] = b;
+		}
+		outputs[OUTPUT].setVoltage(decode(out[c]), c);
+	}
+	outputs[OUTPUT].setChannels(channels);
+	for (int i = 0; i < 8; i++)
+		outputs[BIT_OUTPUT + i].setChannels(channels);
+
+	// the lights show the first channel
+	for (int i = 0; i < 8; i++) {
+		lights[BIT_INPUT_LIGHTS + i].setBrightness((in[0] >> i) & 1);
+		lights[BIT_OUTPUT_LIGHTS + i].setBrightness((out[0] >> i) & 1);
+	}
 }
 
 struct BISTROTWidget : BidooWidget {

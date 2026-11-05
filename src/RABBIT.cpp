@@ -33,29 +33,23 @@ struct RABBIT : BidooModule {
 	bool bitOff[8];
 	bool bitRev[8];
 
-	///Tooltip
-	struct tpCycle : ParamQuantity {
-		std::string getDisplayValueString() override {
-			if (getValue() < 1.f)
-				return "Push";//press
-			else
-				return "Pushed";//pressed
-		}
-	};
-	///Tooltip
-
 	RABBIT() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		for (int i = 0; i < 8; i++) {
-			configParam<tpCycle>(BITOFF_PARAM + i, 0.f, 1.f, 0.f, "Bit " + std::to_string(i + 1));
-			configParam<tpCycle>(BITREV_PARAM + i, 0.f, 1.f, 0.f, "Bit " + std::to_string(i + 1) + " Reverse");
+			std::string bit = i == 7 ? "Bit 8 (sign)" : "Bit " + std::to_string(i + 1);
+			configButton(BITOFF_PARAM + i, bit + " off");
+			configButton(BITREV_PARAM + i, bit + " reverse");
+			configInput(BITOFF_INPUT + i, bit + " off toggle trigger");
+			configInput(BITREV_INPUT + i, bit + " reverse toggle trigger");
 		}
-
+		configInput(L_INPUT, "Left (polyphonic)");
+		configInput(R_INPUT, "Right (polyphonic)");
+		configOutput(L_OUTPUT, "Left");
+		configOutput(R_OUTPUT, "Right");
+		configBypass(L_INPUT, L_OUTPUT);
+		configBypass(R_INPUT, R_OUTPUT);
 		memset(&bitOff, 0, 8 * sizeof(bool));
 		memset(&bitRev, 0, 8 * sizeof(bool));
-	}
-
-	~RABBIT() {
 	}
 
 	void onRandomize() override {
@@ -65,42 +59,43 @@ struct RABBIT : BidooModule {
 		}
 	}
 
-	void process(const ProcessArgs &args) override {
-		float in_L = clamp(inputs[L_INPUT].getVoltage(), -10.0f, 10.0f);
-		float in_R = clamp(inputs[R_INPUT].getVoltage(), -10.0f, 10.0f);
+	// sign + magnitude over +-5 V: bit 8 is the sign, bits 1-7 the level in
+	// 127 steps, so a bit turned off pulls the signal towards 0 V
+	static unsigned char encode(float v) {
+		float a = std::min(std::fabs(v) * (127.0f / 5.0f), 127.0f);
+		return (unsigned char)std::lround(a) | (v < 0.0f ? 0x80 : 0);
+	}
 
-		in_L = roundf(clamp(in_L / 20.0f + 0.5f, 0.0f, 1.0f) * 255);//std
-		in_R = roundf(clamp(in_R / 20.0f + 0.5f, 0.0f, 1.0f) * 255);
+	static float decode(unsigned char b) {
+		float a = (b & 0x7F) * (5.0f / 127.0f);
+		return (b & 0x80) ? -a : a;
+	}
 
-		unsigned char red_L = in_L;
-		unsigned char red_R = in_R;
-
+	unsigned char crush(unsigned char b) const {
 		for (int i = 0; i < 8; i++) {
-
-			if (bitOffTrigger[i].process(params[BITOFF_PARAM + i].getValue() + inputs[BITOFF_INPUT + i].getVoltage())) {
-				bitOff[i] = !bitOff[i];
-			}
-
-			if (bitRevTrigger[i].process(params[BITREV_PARAM + i].getValue() + inputs[BITREV_INPUT + i].getVoltage())) {
-				bitRev[i] = !bitRev[i];
-			}
-
-			if (bitOff[i]) {
-				red_L &= ~(1 << i);
-				red_R &= ~(1 << i);
-			} else {
-				if (bitRev[i]) {
-					red_L ^= ~(1 << i);
-					red_R ^= ~(1 << i);
-				}
-			}
-
-			lights[BITOFF_LIGHTS + i].setBrightness(bitOff[i] ? 1.0f : 0.0f);//red
-			lights[BITREV_LIGHTS + i].setBrightness(bitRev[i] ? 1.0f : 0.0f);//blue
+			if (bitOff[i])
+				b &= ~(1 << i);
+			else if (bitRev[i])
+				b ^= (1 << i);
 		}
+		return b;
+	}
 
-		outputs[L_OUTPUT].setVoltage(clamp(((((float)red_L / 255.0f)) - 0.5f)*20.0f, -10.0f, 10.0f));
-		outputs[R_OUTPUT].setVoltage(clamp(((((float)red_R / 255.0f)) - 0.5f)*20.0f, -10.0f, 10.0f));
+	void process(const ProcessArgs &args) override {
+		for (int i = 0; i < 8; i++) {
+			if (bitOffTrigger[i].process(params[BITOFF_PARAM + i].getValue() + inputs[BITOFF_INPUT + i].getVoltage()))
+				bitOff[i] = !bitOff[i];
+			if (bitRevTrigger[i].process(params[BITREV_PARAM + i].getValue() + inputs[BITREV_INPUT + i].getVoltage()))
+				bitRev[i] = !bitRev[i];
+			lights[BITOFF_LIGHTS + i].setBrightness(bitOff[i] ? 1.0f : 0.0f);
+			lights[BITREV_LIGHTS + i].setBrightness(bitRev[i] ? 1.0f : 0.0f);
+		}
+		for (int side = 0; side < 2; side++) {
+			int channels = std::max(1, inputs[L_INPUT + side].getChannels());
+			for (int c = 0; c < channels; c++)
+				outputs[L_OUTPUT + side].setVoltage(decode(crush(encode(inputs[L_INPUT + side].getVoltage(c)))), c);
+			outputs[L_OUTPUT + side].setChannels(channels);
+		}
 	}
 
 	json_t *dataToJson() override {

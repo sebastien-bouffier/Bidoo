@@ -33,40 +33,67 @@ struct DILEMO : BidooModule {
 		NUM_LIGHTS
 	};
 
-	bool in1AND = false;
-	bool in2AND = false;
-	bool in1OR = false;
-	bool in2OR = false;
-	bool in1XOR = false;
-	bool in2XOR = false;
-	bool inNOT = false;
+	// each input's state per channel, with 0.1 V of hysteresis
+	bool high[NUM_INPUTS][PORT_MAX_CHANNELS] = {};
 
 	DILEMO() {
-    config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(THRESHOLD_PARAM, 0.0f, 10.0f, 0.0f);
-  }
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configParam(THRESHOLD_PARAM, 0.0f, 10.0f, 0.0f, "Threshold", " V");
+		configInput(IN1_AND, "AND input 1");
+		configInput(IN2_AND, "AND input 2");
+		configInput(IN_NOT, "NOT input");
+		configInput(IN1_OR, "OR input 1");
+		configInput(IN2_OR, "OR input 2");
+		configInput(IN1_XOR, "XOR input 1");
+		configInput(IN2_XOR, "XOR input 2");
+		configOutput(AND_OUT, "AND");
+		configOutput(NAND_OUT, "NAND");
+		configOutput(OR_OUT, "OR");
+		configOutput(NOR_OUT, "NOR");
+		configOutput(XOR_OUT, "XOR");
+		configOutput(XNOR_OUT, "XNOR");
+		configOutput(NOT_OUT, "NOT");
+	}
 
-	void process(const ProcessArgs &args) override;
+	bool read(int input, int c, float threshold) {
+		float v = inputs[input].getPolyVoltage(c);
+		bool &h = high[input][c];
+		if (h ? v <= threshold - 0.1f : v > threshold + 0.1f)
+			h = !h;
+		return h;
+	}
+
+	// a gate and its inverse, polyphonic over the channels of its inputs
+	void gate(int in1, int in2, int out, int outInv, int op, float threshold) {
+		int channels = std::max(1, std::max(inputs[in1].getChannels(), in2 >= 0 ? inputs[in2].getChannels() : 0));
+		for (int c = 0; c < channels; c++) {
+			bool a = read(in1, c, threshold);
+			bool r;
+			if (op == 0)
+				r = a && read(in2, c, threshold);
+			else if (op == 1)
+				r = a || read(in2, c, threshold);
+			else if (op == 2)
+				r = a != read(in2, c, threshold);
+			else
+				r = a;
+			if (out >= 0)
+				outputs[out].setVoltage(r ? 10.0f : 0.0f, c);
+			outputs[outInv].setVoltage(r ? 0.0f : 10.0f, c);
+		}
+		if (out >= 0)
+			outputs[out].setChannels(channels);
+		outputs[outInv].setChannels(channels);
+	}
+
+	void process(const ProcessArgs &args) override {
+		float threshold = params[THRESHOLD_PARAM].getValue();
+		gate(IN1_AND, IN2_AND, AND_OUT, NAND_OUT, 0, threshold);
+		gate(IN1_OR, IN2_OR, OR_OUT, NOR_OUT, 1, threshold);
+		gate(IN1_XOR, IN2_XOR, XOR_OUT, XNOR_OUT, 2, threshold);
+		gate(IN_NOT, -1, -1, NOT_OUT, 3, threshold);
+	}
 };
-
-
-void DILEMO::process(const ProcessArgs &args) {
-  in1AND = inputs[IN1_AND].getVoltage()>params[THRESHOLD_PARAM].getValue() ? true : false;
-	in2AND = inputs[IN2_AND].getVoltage()>params[THRESHOLD_PARAM].getValue() ? true : false;
-	in1OR = inputs[IN1_OR].getVoltage()>params[THRESHOLD_PARAM].getValue() ? true : false;
-	in2OR = inputs[IN2_OR].getVoltage()>params[THRESHOLD_PARAM].getValue() ? true : false;
-	in1XOR = inputs[IN1_XOR].getVoltage()>params[THRESHOLD_PARAM].getValue() ? true : false;
-	in2XOR = inputs[IN2_XOR].getVoltage()>params[THRESHOLD_PARAM].getValue() ? true : false;
-	inNOT = inputs[IN_NOT].getVoltage()>params[THRESHOLD_PARAM].getValue() ? true : false;
-
-	outputs[AND_OUT].setVoltage(in1AND && in2AND ? 10.0f : 0.0f);
-	outputs[NAND_OUT].setVoltage(!(in1AND && in2AND) ? 10.0f : 0.0f);
-	outputs[OR_OUT].setVoltage(in1OR || in2OR ? 10.0f : 0.0f);
-	outputs[NOR_OUT].setVoltage(!(in1OR || in2OR) ? 10.0f : 0.0f);
-	outputs[XOR_OUT].setVoltage(in1XOR ^ in2XOR ? 10.0f : 0.0f);
-	outputs[XNOR_OUT].setVoltage(!(in1XOR ^ in2XOR) ? 10.0f : 0.0f);
-	outputs[NOT_OUT].setVoltage(!inNOT ? 10.0f : 0.0f);
-}
 
 struct DILEMOWidget : BidooWidget {
 	DILEMOWidget(DILEMO *module) {
