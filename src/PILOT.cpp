@@ -70,7 +70,8 @@ struct PILOT : BidooModule {
 	};
 	enum OutputIds {
 		CV_OUTPUTS,
-		NUM_OUTPUTS = CV_OUTPUTS + 16
+		POLY_OUTPUT = CV_OUTPUTS + 16,
+		NUM_OUTPUTS
 	};
 	enum LightIds {
 		WEOM_LIGHT,
@@ -97,6 +98,7 @@ struct PILOT : BidooModule {
 	int oldBottomScene = 0;
 	int bank = 0;
 	float morph = 0.0f;
+	double morphPos = 0.0;
 	bool pulses[16] = {false};
 	float speed = 1e-3f;
 	int moveType = 5;
@@ -145,46 +147,68 @@ struct PILOT : BidooModule {
 	PILOT() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 
-		configParam(BOTTOMSCENE_PARAM, 0.0f, 15.0f, 0.0f);
-		configParam(BOTTOMSCENEPLUS_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(BOTTOMSCENEMINUS_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(BOTTOMSCENERND_PARAM, 0.0f, 10.0f, 0.0f);
-    configParam(SAVEBOTTOM_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(TOPSCENE_PARAM, 0.0f, 15.0f, 0.0f);
-		configParam(TOPSCENEPLUS_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(TOPSCENEMINUS_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(TOPSCENERND_PARAM, 0.0f, 10.0f, 0.0f);
-    configParam(SAVETOP_PARAM, 0.0f, 10.0f, 0.0f);
-
-    configParam(GOBOTTOM_PARAM, 0.0f, 10.0f, 0.0f);
-    configParam(GOTOP_PARAM, 0.0f, 10.0f, 0.0f);
-    configParam(MORPH_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(MOVETYPE_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(MOVENEXT_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(SPEED_PARAM, 1e-9f, 1.0f, 0.5f);
-		configParam(WEOM_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(LENGTH_PARAM, 0.0f, 15.0f, 15.0f);
-		configParam(CURVE_PARAM, 0.0f, 10.0f, 15.0f);
-		configParam(RECORD_PARAM, 0.0f, 10.0f, 0.0f);
-
-		configParam(RNDTOP_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(FRNDTOP_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(RNDBOTTOM_PARAM, 0.0f, 10.0f, 0.0f);
-		configParam(FRNDBOTTOM_PARAM, 0.0f, 10.0f, 0.0f);
-
-		configParam(BANK_PARAM, 0.0f, 15.0f, 0.0f);
-
-		configParam(AX_PARAM, -1.0f, 2.0f, 0.5f);
-		configParam(AY_PARAM, -5.0f, 5.0f, 0.5f);
-		configParam(BX_PARAM, -1.0f, 2.0f, 0.5f);
-		configParam(BY_PARAM, -5.0f, 5.0f, 0.5f);
-
-  	for (int i = 0; i < 16; i++) {
-      configParam(CONTROLS_PARAMS + i, 0.0f, 1.0f, 0.0f);
-      configParam(TYPE_PARAMS + i, 0.0f, 10.0f,  0.0f);
-			configParam(VOLTAGE_PARAMS + i, 0.0f, 10.0f, 0.0f);
-  	}
-  }
+		configParam(BOTTOMSCENE_PARAM, 0.0f, 15.0f, 0.0f, "Bottom scene", "", 0.f, 1.f, 1.f);
+		configParam(TOPSCENE_PARAM, 0.0f, 15.0f, 0.0f, "Top scene", "", 0.f, 1.f, 1.f);
+		paramQuantities[BOTTOMSCENE_PARAM]->snapEnabled = true;
+		paramQuantities[TOPSCENE_PARAM]->snapEnabled = true;
+		configButton(BOTTOMSCENEPLUS_PARAM, "Bottom scene +");
+		configButton(BOTTOMSCENEMINUS_PARAM, "Bottom scene -");
+		configButton(BOTTOMSCENERND_PARAM, "Bottom scene: random");
+		configButton(SAVEBOTTOM_PARAM, "Save the controls to the bottom scene");
+		configButton(TOPSCENEPLUS_PARAM, "Top scene +");
+		configButton(TOPSCENEMINUS_PARAM, "Top scene -");
+		configButton(TOPSCENERND_PARAM, "Top scene: random");
+		configButton(SAVETOP_PARAM, "Save the controls to the top scene");
+		configButton(GOBOTTOM_PARAM, "Go to the bottom scene");
+		configButton(GOTOP_PARAM, "Go to the top scene");
+		configParam(MORPH_PARAM, 0.0f, 1.0f, 0.0f, "Morph", "%", 0.f, 100.f);
+		configButton(MOVETYPE_PARAM, "Move type");
+		configButton(MOVENEXT_PARAM, "Move");
+		// knob 0: a move takes 60 s, knob 1: 1 ms
+		configParam(SPEED_PARAM, 0.0f, 1.0f, 0.5f, "Move time", " s", 1.f / 60000.f, 60.f);
+		configButton(WEOM_PARAM, "Wait mode");
+		configParam(LENGTH_PARAM, 0.0f, 15.0f, 15.0f, "Length", " scenes", 0.f, 1.f, 1.f);
+		paramQuantities[LENGTH_PARAM]->snapEnabled = true;
+		configButton(CURVE_PARAM, "Curve on/off");
+		configButton(RECORD_PARAM, "Record");
+		configButton(RNDTOP_PARAM, "Randomise the top scene");
+		configButton(FRNDTOP_PARAM, "Randomise the top scene and the control types");
+		configButton(RNDBOTTOM_PARAM, "Randomise the bottom scene");
+		configButton(FRNDBOTTOM_PARAM, "Randomise the bottom scene and the control types");
+		configParam(BANK_PARAM, 0.0f, 15.0f, 0.0f, "Bank", "", 0.f, 1.f, 1.f);
+		paramQuantities[BANK_PARAM]->snapEnabled = true;
+		configParam(AX_PARAM, -1.0f, 2.0f, 0.5f, "Curve point A, X");
+		configParam(AY_PARAM, -5.0f, 5.0f, 0.5f, "Curve point A, Y");
+		configParam(BX_PARAM, -1.0f, 2.0f, 0.5f, "Curve point B, X");
+		configParam(BY_PARAM, -5.0f, 5.0f, 0.5f, "Curve point B, Y");
+		for (int i = 0; i < 16; i++) {
+			std::string n = "Control " + std::to_string(i + 1);
+			configParam(CONTROLS_PARAMS + i, 0.0f, 1.0f, 0.0f, n, "%", 0.f, 100.f);
+			configButton(TYPE_PARAMS + i, n + " type");
+			configButton(VOLTAGE_PARAMS + i, n + " range (0-10 V or -5-5 V)");
+			configOutput(CV_OUTPUTS + i, n);
+		}
+		configOutput(POLY_OUTPUT, "All 16 controls (polyphonic)");
+		configInput(BOTTOMSCENE_INPUT, "Bottom scene (0-10 V over the 16 scenes)");
+		configInput(TOPSCENE_INPUT, "Top scene (0-10 V over the 16 scenes)");
+		configInput(MORPH_INPUT, "Morph (0-10 V)");
+		configInput(BOTTOMSCENEPLUS_INPUT, "Bottom scene + trigger");
+		configInput(BOTTOMSCENEMINUS_INPUT, "Bottom scene - trigger");
+		configInput(BOTTOMSCENERND_INPUT, "Bottom scene random trigger");
+		configInput(TOPSCENEPLUS_INPUT, "Top scene + trigger");
+		configInput(TOPSCENEMINUS_INPUT, "Top scene - trigger");
+		configInput(TOPSCENERND_INPUT, "Top scene random trigger");
+		configInput(AX_INPUT, "Curve point A, X CV");
+		configInput(AY_INPUT, "Curve point A, Y CV");
+		configInput(BX_INPUT, "Curve point B, X CV");
+		configInput(BY_INPUT, "Curve point B, Y CV");
+		configInput(BANK_INPUT, "Bank (0-10 V over the 16 banks)");
+		configInput(SPEED_INPUT, "Move time CV (0-10 V: full range)");
+		configInput(GOBOTTOM_INPUT, "Go to the bottom scene trigger");
+		configInput(GOTOP_INPUT, "Go to the top scene trigger");
+		configInput(MOVENEXT_INPUT, "Move trigger");
+		configInput(RESET_INPUT, "Reset trigger");
+	}
 
 	float getXBez(float pos)
 	{
@@ -372,7 +396,7 @@ void PILOT::process(const ProcessArgs &args) {
 	oldTopScene = topScene;
 	oldBottomScene = bottomScene;
 
-	bank = params[BANK_PARAM].getValue()+rescale(inputs[BANK_INPUT].getVoltage(),0.f,10.0f,0.0f,15.0f);
+	bank = clamp((int)params[BANK_PARAM].getValue() + (int)std::floor(inputs[BANK_INPUT].getVoltage() * 1.6f), 0, 15);
 
 	if (copyBankArmed) {
 		for (int i=0; i<16;i++) {
@@ -412,7 +436,8 @@ void PILOT::process(const ProcessArgs &args) {
 		}
 	}
 
-	speed = powf(clamp(params[SPEED_PARAM].getValue()+inputs[SPEED_INPUT].getVoltage()/10.0f,1e-9f,1.0f),16.0f);
+	float moveTime = 60.f * std::pow(1.f / 60000.f, clamp(params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage() / 10.0f, 0.0f, 1.0f));
+	speed = args.sampleTime / moveTime;
 
 	length = params[LENGTH_PARAM].getValue();
 
@@ -467,7 +492,7 @@ void PILOT::process(const ProcessArgs &args) {
 					params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()+1.0f)%(length+1));
 				}
 				else if ((dice >= 0.5f) && (dice < 0.75f)) {
-					if (params[TOPSCENE_PARAM].getValue()>0.0f) {
+					if (params[BOTTOMSCENE_PARAM].getValue()>0.0f) {
 						params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()-1.0f));
 					}
 					else {
@@ -519,10 +544,10 @@ void PILOT::process(const ProcessArgs &args) {
 				}
 				else if ((dice >= 0.5f) && (dice < 0.75f)) {
 					if (params[TOPSCENE_PARAM].getValue()>0.0f) {
-						params[TOPSCENE_PARAM].setValue(int(params[BOTTOMSCENE_PARAM].getValue()-1.0f));
+						params[BOTTOMSCENE_PARAM].setValue(int(params[TOPSCENE_PARAM].getValue()-1.0f));
 					}
 					else {
-						params[TOPSCENE_PARAM].setValue(length);
+						params[BOTTOMSCENE_PARAM].setValue(length);
 					}
 				}
 				else {
@@ -539,7 +564,7 @@ void PILOT::process(const ProcessArgs &args) {
 	else {
 		if (topScenePlusTrigger.process(params[TOPSCENEPLUS_PARAM].getValue()+inputs[TOPSCENEPLUS_INPUT].getVoltage()))
 		{
-			params[TOPSCENE_PARAM].setValue(clamp((int)(params[TOPSCENE_PARAM].getValue() + 1.0f)%16, 0, length));
+			params[TOPSCENE_PARAM].setValue(clamp((int)(params[TOPSCENE_PARAM].getValue() + 1.0f)%(length+1), 0, length));
 		}
 		else if (topSceneMinusTrigger.process(params[TOPSCENEMINUS_PARAM].getValue()+inputs[TOPSCENEMINUS_INPUT].getVoltage()))
 		{
@@ -555,7 +580,7 @@ void PILOT::process(const ProcessArgs &args) {
 		{
 			params[TOPSCENE_PARAM].setValue(clamp(floor(random::uniform()*(length+1)), 0.0f, (float)length));
 		}
-		topScene = params[TOPSCENE_PARAM].getValue();
+		topScene = clamp((int)params[TOPSCENE_PARAM].getValue(), 0, 15);
 	}
 
 	if (inputs[BOTTOMSCENE_INPUT].isConnected()) {
@@ -580,7 +605,7 @@ void PILOT::process(const ProcessArgs &args) {
 		{
 			params[BOTTOMSCENE_PARAM].setValue(clamp(floor(random::uniform()*(length+1)), 0.0f, (float)length));
 		}
-		bottomScene = params[BOTTOMSCENE_PARAM].getValue();
+		bottomScene = clamp((int)params[BOTTOMSCENE_PARAM].getValue(), 0, 15);
 	}
 
 	if ((recordingStatus == 0) && ((oldTopScene != topScene) || (oldBottomScene != bottomScene))) {
@@ -664,7 +689,11 @@ void PILOT::process(const ProcessArgs &args) {
 		}
 
 		if (moving && !morphFocused) {
-			params[MORPH_PARAM].setValue(clamp(params[MORPH_PARAM].getValue()+speed*(forward?1.0f:-1.0f),0.0f,1.0f));
+			// in double: a 60 s move adds 3e-7 per sample, too fine for a float
+			if ((float)morphPos != params[MORPH_PARAM].getValue())
+				morphPos = params[MORPH_PARAM].getValue();
+			morphPos = clamp(morphPos + (double)speed * (forward ? 1.0 : -1.0), 0.0, 1.0);
+			params[MORPH_PARAM].setValue((float)morphPos);
 			if ((params[MORPH_PARAM].getValue() == 0.0f) || (params[MORPH_PARAM].getValue() == 1.0f)) {
 				moving = false;
 			}
@@ -758,7 +787,9 @@ void PILOT::process(const ProcessArgs &args) {
 		else {
 			outputs[CV_OUTPUTS + i].setVoltage(params[CONTROLS_PARAMS+i].getValue()*10.0f-5.0f*voltageTypes[i]);
 		}
+		outputs[POLY_OUTPUT].setVoltage(outputs[CV_OUTPUTS + i].getVoltage(), i);
 	}
+	outputs[POLY_OUTPUT].setChannels(16);
 }
 
 struct PILOTLabelDisplay : SvgWidget {
@@ -1433,6 +1464,8 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(ledsXAnchor + led_offset + controlsSpacer * (i%4), diffYled_offset + ledsYAnchor + led_offset + controlsSpacer * floor(i/4)), module, PILOT::VOLTAGE_LIGHTS + i*3));
 		addOutput(createOutput<PJ301MPort>(Vec(outputsXAnchor + outputsSpacer * (i%4), outputsYAnchor + outputsSpacer * floor(i/4)), module, PILOT::CV_OUTPUTS + i));
 	}
+	// level with the last row of outputs
+	addOutput(createOutput<PJ301MPort>(Vec(288, outputsYAnchor + outputsSpacer * 3), module, PILOT::POLY_OUTPUT));
 
 	const int curveXAnchor = 16;
 	const int curveYAnchor = 102;

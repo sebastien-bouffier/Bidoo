@@ -28,7 +28,8 @@ struct MOIRE : BidooModule {
 	};
 	enum OutputIds {
 		CV_OUTPUTS,
-		NUM_OUTPUTS = CV_OUTPUTS + 16
+		POLY_OUTPUT = CV_OUTPUTS + 16,
+		NUM_OUTPUTS
 	};
 	enum LightIds {
 		TYPE_LIGHTS,
@@ -43,24 +44,31 @@ struct MOIRE : BidooModule {
 	bool controlFocused[16] = {false};
 
 	dsp::SchmittTrigger typeTriggers[16];
-	dsp::SchmittTrigger rndTrigger;
+	dsp::SchmittTrigger rndTrigger, saveTrigger, targetTrigger, currentTrigger;
 
 	MOIRE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-    configParam(SAVE_PARAM, 0.0f, 1.0f, 0.0f);
-    configParam(TARGETSCENE_PARAM, 0.0f, 15.1f, 0.0f);
-    configParam(CURRENTSCENE_PARAM, 0.0f, 15.1f, 0.0f);
-    configParam(ADONF_PARAM, 0.0f, 1.0f, 0.0f);
-    configParam(NADA_PARAM, 0.0f, 1.0f, 0.0f);
-    configParam(MORPH_PARAM, 0.0f, 10.0f, 0.0f);
-    configParam(VOLTAGE_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(RND_PARAM, 0.0f, 1.0f, 0.0f);
-
-  	for (int i = 0; i < 16; i++) {
-      configParam(CONTROLS_PARAMS + i, 0.0f, 10.0f, 0.0f);
-      configParam(TYPE_PARAMS + i, 0.0f, 1.0f,  0.0f);
-  	}
-  }
+		configButton(SAVE_PARAM, "Save the controls to the target scene");
+		configButton(RND_PARAM, "Randomise the target scene");
+		configButton(ADONF_PARAM, "Go to the target scene");
+		configButton(NADA_PARAM, "Go to the current scene");
+		configParam(TARGETSCENE_PARAM, 0.0f, 15.0f, 0.0f, "Target scene", "", 0.f, 1.f, 1.f);
+		configParam(CURRENTSCENE_PARAM, 0.0f, 15.0f, 0.0f, "Current scene", "", 0.f, 1.f, 1.f);
+		paramQuantities[TARGETSCENE_PARAM]->snapEnabled = true;
+		paramQuantities[CURRENTSCENE_PARAM]->snapEnabled = true;
+		configParam(MORPH_PARAM, 0.0f, 10.0f, 0.0f, "Morph", "%", 0.f, 10.f);
+		configSwitch(VOLTAGE_PARAM, 0.0f, 1.0f, 0.0f, "Output range", {"0 to 10 V", "-5 to 5 V"});
+		for (int i = 0; i < 16; i++) {
+			std::string n = "Control " + std::to_string(i + 1);
+			configParam(CONTROLS_PARAMS + i, 0.0f, 10.0f, 0.0f, n, " V");
+			configButton(TYPE_PARAMS + i, n + " type (CV or gate)");
+			configOutput(CV_OUTPUTS + i, n);
+		}
+		configOutput(POLY_OUTPUT, "All 16 controls (polyphonic)");
+		configInput(TARGETSCENE_INPUT, "Target scene (0-10 V over the 16 scenes)");
+		configInput(CURRENTSCENE_INPUT, "Current scene (0-10 V over the 16 scenes)");
+		configInput(MORPH_INPUT, "Morph (0-10 V)");
+	}
 
   void process(const ProcessArgs &args) override;
 
@@ -139,8 +147,24 @@ struct MOIRE : BidooModule {
 };
 
 void MOIRE::process(const ProcessArgs &args) {
-	targetScene = clamp(floor(inputs[TARGETSCENE_INPUT].getVoltage() * 1.5f) + params[TARGETSCENE_PARAM].getValue() , 0.0f, 15.0f);
-	currentScene = clamp(floor(inputs[CURRENTSCENE_INPUT].getVoltage() * 1.5f) + params[CURRENTSCENE_PARAM].getValue() , 0.0f, 15.0f);
+	targetScene = clamp((int)std::floor(inputs[TARGETSCENE_INPUT].getVoltage() * 1.6f) + (int)params[TARGETSCENE_PARAM].getValue(), 0, 15);
+	currentScene = clamp((int)std::floor(inputs[CURRENTSCENE_INPUT].getVoltage() * 1.6f) + (int)params[CURRENTSCENE_PARAM].getValue(), 0, 15);
+
+	// the scene buttons work from the engine, so MIDI and CV mapping reach them
+	if (saveTrigger.process(params[SAVE_PARAM].getValue())) {
+		for (int i = 0; i < 16; i++)
+			scenes[targetScene][i] = currentValues[i];
+	}
+	if (targetTrigger.process(params[ADONF_PARAM].getValue())) {
+		params[MORPH_PARAM].setValue(10.0f);
+		for (int i = 0; i < 16; i++)
+			controlFocused[i] = false;
+	}
+	if (currentTrigger.process(params[NADA_PARAM].getValue())) {
+		params[MORPH_PARAM].setValue(0.0f);
+		for (int i = 0; i < 16; i++)
+			controlFocused[i] = false;
+	}
 
 	if (rndTrigger.process(params[RND_PARAM].getValue())) {
 		randomizeTargetScene();
@@ -160,7 +184,7 @@ void MOIRE::process(const ProcessArgs &args) {
 			if (controlTypes[i] == 0) {
 				currentValues[i] = rescale(coeff,0.0f,10.0f,scenes[currentScene][i],scenes[targetScene][i]);
 			} else {
-				if (coeff == 10.f) {
+				if (coeff >= 5.f) {
 					currentValues[i] = scenes[targetScene][i];
 				}
 				else {
@@ -172,7 +196,9 @@ void MOIRE::process(const ProcessArgs &args) {
 			currentValues[i] = params[CONTROLS_PARAMS + i].getValue();
 		}
 		outputs[CV_OUTPUTS + i].setVoltage(currentValues[i] - 5.0f * params[VOLTAGE_PARAM].getValue());
+		outputs[POLY_OUTPUT].setVoltage(outputs[CV_OUTPUTS + i].getVoltage(), i);
 	}
+	outputs[POLY_OUTPUT].setChannels(16);
 }
 
 struct MOIREWidget : BidooWidget {
@@ -181,34 +207,6 @@ struct MOIREWidget : BidooWidget {
 	void step() override;
 	void appendContextMenu(ui::Menu *menu) override;
   MOIREWidget(MOIRE *module);
-};
-
-struct MOIRECKD6 : BlueCKD6 {
-	void onButton(const event::Button &e) override {
-		MOIREWidget *parent = dynamic_cast<MOIREWidget*>(this->parent);
-		MOIRE *module = dynamic_cast<MOIRE*>(this->getParamQuantity()->module);
-		if (parent && module) {
-			if (this->getParamQuantity()->paramId == MOIRE::ADONF_PARAM) {
-				parent->morphButton->getParamQuantity()->setValue(10.0f);
-				for (int i = 0; i<16; i++){
-					parent->controls[i]->getParamQuantity()->setValue(module->scenes[module->targetScene][i]);
-					module->controlFocused[i] = false;
-				}
-			} else if (this->getParamQuantity()->paramId == MOIRE::NADA_PARAM) {
-				parent->morphButton->getParamQuantity()->setValue(0.0f);
-				for (int i = 0; i<16; i++){
-					parent->controls[i]->getParamQuantity()->setValue(module->scenes[module->currentScene][i]);
-					module->controlFocused[i] = false;
-				}
-			}
-			else if (this->getParamQuantity()->paramId == MOIRE::SAVE_PARAM) {
-				for (int i = 0 ; i < 16; i++) {
-					module->scenes[module->targetScene][i] = parent->controls[i]->getParamQuantity()->getValue();
-				}
-			}
-		}
-		BlueCKD6::onButton(e);
-	}
 };
 
 struct MOIREDisplay : TransparentWidget {
@@ -277,8 +275,8 @@ MOIREWidget::MOIREWidget(MOIRE *module) {
 	static const float portX0[10] = {20,34,48,62,76,90,120,150,180,210};
 	static const float portY0[12] = {20,50,80,110,140,170,200,230,260,290,320,350};
 
-	addParam(createParam<MOIRECKD6>(Vec(portX0[5], portY0[0]+18), module, MOIRE::SAVE_PARAM));
-	addParam(createParam<MOIRECKD6>(Vec(portX0[5]+30, portY0[0]+18), module, MOIRE::RND_PARAM));
+	addParam(createParam<BlueCKD6>(Vec(portX0[5], portY0[0]+18), module, MOIRE::SAVE_PARAM));
+	addParam(createParam<BlueCKD6>(Vec(portX0[5]+30, portY0[0]+18), module, MOIRE::RND_PARAM));
 
   addParam(createParam<BidooBlueSnapTrimpot>(Vec(portX0[0], portY0[1]+16), module, MOIRE::TARGETSCENE_PARAM));
 	MOIREDisplay *displayTarget = new MOIREDisplay();
@@ -293,8 +291,8 @@ MOIREWidget::MOIREWidget(MOIRE *module) {
 	displayCurrent->value = module ? &module->currentScene : NULL;
 	addChild(displayCurrent);
 
-	addParam(createParam<MOIRECKD6>(Vec(portX0[0]-5, portY0[3]-3), module, MOIRE::ADONF_PARAM));
-	addParam(createParam<MOIRECKD6>(Vec(portX0[0]-5, portY0[4]+5), module, MOIRE::NADA_PARAM));
+	addParam(createParam<BlueCKD6>(Vec(portX0[0]-5, portY0[3]-3), module, MOIRE::ADONF_PARAM));
+	addParam(createParam<BlueCKD6>(Vec(portX0[0]-5, portY0[4]+5), module, MOIRE::NADA_PARAM));
 
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[0]+21), module, MOIRE::TARGETSCENE_INPUT));
 	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[7]-6), module, MOIRE::CURRENTSCENE_INPUT));
@@ -304,6 +302,8 @@ MOIREWidget::MOIREWidget(MOIRE *module) {
 	addParam(morphButton);
 
 	addParam(createParam<CKSS>(Vec(40, 279), module, MOIRE::VOLTAGE_PARAM));
+	// under the range switch, level with the last row of outputs
+	addOutput(createOutput<PJ301MPort>(Vec(35.15f, 320), module, MOIRE::POLY_OUTPUT));
 
 	for (int i = 0; i < 16; i++) {
 		controls[i] = createParam<MOIREColoredKnob>(Vec(portX0[i%4+5]+1, portY0[int(i/4) + 2] + 2), module, MOIRE::CONTROLS_PARAMS + i);

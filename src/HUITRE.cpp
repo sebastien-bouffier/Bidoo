@@ -43,13 +43,19 @@ struct HUITRE : BidooModule {
 
 	HUITRE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(MODE_PARAM, 0.0f, 1.0f, 0.0f);
+		configButton(MODE_PARAM, "Pattern outputs: trigger or gate");
 		for (int i = 0; i < 8; i++) {
-			configParam(TRIG_PARAM+i, 0.0f, 10.0f, 0.0f);
-			configParam(PATTERN_PARAM+i, 0.0f, 10.0f,0.00f+ i*10.0f/8.0f);
-			configParam(CV1_PARAM+i, 0.0f, 10.0f, 0.0f);
-			configParam(CV2_PARAM+i, 0.0f, 10.0f, 0.0f);
+			std::string n = "Pattern " + std::to_string(i + 1);
+			configButton(TRIG_PARAM+i, "Select " + n);
+			configParam(PATTERN_PARAM+i, 0.0f, 10.0f,0.00f+ i*10.0f/8.0f, n + " CV", " V");
+			configParam(CV1_PARAM+i, 0.0f, 10.0f, 0.0f, n + " CV 1", " V");
+			configParam(CV2_PARAM+i, 0.0f, 10.0f, 0.0f, n + " CV 2", " V");
+			configOutput(PATTERNTRIG_OUTPUT+i, n + " trigger (or gate)");
 		}
+		configInput(MEASURE_INPUT, "Measure (the selection changes on it; unpatched: at once)");
+		configOutput(PATTERN_OUTPUT, "Pattern CV");
+		configOutput(CV1_OUTPUT, "CV 1");
+		configOutput(CV2_OUTPUT, "CV 2");
   }
 
   void process(const ProcessArgs &args) override;
@@ -83,7 +89,8 @@ void HUITRE::process(const ProcessArgs &args) {
 	lights[MODE_LIGHT + 1].setBrightness(mode ? 1 : 0);
 	lights[MODE_LIGHT + 2].setBrightness(mode ? 0 : 1);
 
-	if ((syncTrigger.process(inputs[MEASURE_INPUT].getVoltage())) && (currentPattern != nextPattern)) {
+	bool measure = inputs[MEASURE_INPUT].isConnected() ? syncTrigger.process(inputs[MEASURE_INPUT].getVoltage()) : true;
+	if (measure && (currentPattern != nextPattern)) {
 		currentPattern = nextPattern;
 		gatePulse.trigger(1e-3f);
 	}
