@@ -114,6 +114,7 @@ struct PILOT : BidooModule {
 	int copyBankId = -1;
 	bool copyBankArmed = false;
 	int copySceneId = -1;
+	int copySceneBankId = -1;
 	bool showTapes = false;
 
 	dsp::SchmittTrigger typeTriggers[16];
@@ -236,6 +237,14 @@ struct PILOT : BidooModule {
 			controlTypes[i] = 0;
 		}
 		moveType = 5;
+	}
+
+	// Pastes the copied scene into this bank's scene; nothing before a copy.
+	void pasteScene(int scene) {
+		if (copySceneBankId < 0 || copySceneId < 0)
+			return;
+		for (int i=0; i<16;i++)
+			scenes[bank][scene][i] = scenes[copySceneBankId][copySceneId][i];
 	}
 
 	void randomizeScene(int scene) {
@@ -399,12 +408,13 @@ void PILOT::process(const ProcessArgs &args) {
 	bank = clamp((int)params[BANK_PARAM].getValue() + (int)std::floor(inputs[BANK_INPUT].getVoltage() * 1.6f), 0, 15);
 
 	if (copyBankArmed) {
-		for (int i=0; i<16;i++) {
-			for (int j=0; j<16; j++) {
-				scenes[bank][i][j] = scenes[copyBankId][i][j];
+		if (copyBankId >= 0) {
+			for (int i=0; i<16;i++) {
+				for (int j=0; j<16; j++) {
+					scenes[bank][i][j] = scenes[copyBankId][i][j];
+				}
 			}
 		}
-		copyBankId = -1;
 		copyBankArmed = false;
 	}
 
@@ -1267,7 +1277,7 @@ struct PilotBankBtn : BidooBlueSnapKnob {
 struct PILOTCopyTopSceneItem : MenuItem {
 	PILOT *module;
 	void onAction(const event::Action &e) override {
-		module->copyBankId = module->bank;
+		module->copySceneBankId = module->bank;
 		module->copySceneId = module->topScene;
 	}
 };
@@ -1275,9 +1285,7 @@ struct PILOTCopyTopSceneItem : MenuItem {
 struct PILOTPasteTopSceneItem : MenuItem {
 	PILOT *module;
 	void onAction(const event::Action &e) override {
-		for (int i=0; i<16;i++) {
-				module->scenes[module->bank][module->topScene][i] = module->scenes[module->copyBankId][module->copySceneId][i];
-		}
+		module->pasteScene(module->topScene);
 	}
 };
 
@@ -1286,15 +1294,13 @@ struct PilotTopSceneBtn : BidooBlueSnapTrimpot {
 		if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
 			if (e.key == GLFW_KEY_C) {
 				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
-				mod->copyBankId = mod->bank;
+				mod->copySceneBankId = mod->bank;
 				mod->copySceneId = mod->topScene;
 			}
 
 			if (e.key == GLFW_KEY_V) {
 				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
-				for (int i=0; i<16;i++) {
-						mod->scenes[mod->bank][mod->topScene][i] = mod->scenes[mod->copyBankId][mod->copySceneId][i];
-				}
+				mod->pasteScene(mod->topScene);
 			}
 		}
 		BidooBlueSnapTrimpot::onHoverKey(e);
@@ -1313,7 +1319,7 @@ struct PilotTopSceneBtn : BidooBlueSnapTrimpot {
 struct PILOTCopyBottomSceneItem : MenuItem {
 	PILOT *module;
 	void onAction(const event::Action &e) override {
-		module->copyBankId = module->bank;
+		module->copySceneBankId = module->bank;
 		module->copySceneId = module->bottomScene;
 	}
 };
@@ -1321,9 +1327,7 @@ struct PILOTCopyBottomSceneItem : MenuItem {
 struct PILOTPasteBottomSceneItem : MenuItem {
 	PILOT *module;
 	void onAction(const event::Action &e) override {
-		for (int i=0; i<16;i++) {
-				module->scenes[module->bank][module->bottomScene][i] = module->scenes[module->copyBankId][module->copySceneId][i];
-		}
+		module->pasteScene(module->bottomScene);
 	}
 };
 
@@ -1332,15 +1336,13 @@ struct PilotBottomSceneBtn : BidooBlueSnapTrimpot {
 		if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
 			if (e.key == GLFW_KEY_C) {
 				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
-				mod->copyBankId = mod->bank;
+				mod->copySceneBankId = mod->bank;
 				mod->copySceneId = mod->bottomScene;
 			}
 
 			if (e.key == GLFW_KEY_V) {
 				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
-				for (int i=0; i<16;i++) {
-						mod->scenes[mod->bank][mod->bottomScene][i] = mod->scenes[mod->copyBankId][mod->copySceneId][i];
-				}
+				mod->pasteScene(mod->bottomScene);
 			}
 		}
 		BidooBlueSnapTrimpot::onHoverKey(e);

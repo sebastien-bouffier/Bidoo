@@ -1078,6 +1078,8 @@ struct ENCORE : BidooModule {
 	}
 
 	void pasteTrack(const int fromPattern, const int fromTrack, const int toPattern, const int toTrack) {
+		if (fromPattern < 0 || fromTrack < 0)
+			return;
 		nTracksAttibutes[toPattern][toTrack].setMainAttributes(nTracksAttibutes[fromPattern][fromTrack].getMainAttributes());
 		nTracksAttibutes[toPattern][toTrack].setRefAttributes(nTracksAttibutes[fromPattern][fromTrack].getRefAttributes());
 		trackHead[toPattern][toTrack] = trackHead[fromPattern][fromTrack];
@@ -1090,6 +1092,8 @@ struct ENCORE : BidooModule {
 	}
 
 	void pasteTrig(const int fromPattern, const int fromTrack, const int fromTrig, const int toPattern, const int toTrack, const int toTrig) {
+		if (fromPattern < 0 || fromTrack < 0 || fromTrig < 0)
+			return;
 		int index = nTrigsAttibutes[toPattern][toTrack][toTrig].getTrigIndex();
 		nTrigsAttibutes[toPattern][toTrack][toTrig].setMainAttributes(nTrigsAttibutes[fromPattern][fromTrack][fromTrig].getMainAttributes());
 		nTrigsAttibutes[toPattern][toTrack][toTrig].setTrigIndex(index);
@@ -1104,12 +1108,16 @@ struct ENCORE : BidooModule {
 	}
 
 	void pastePattern() {
+		if (copyPatternId < 0)
+			return;
 		for (int i=0; i<8; i++) {
 			pasteTrack(copyPatternId,i,currentPattern,i);
 		}
 	}
 	
 	void pastePage(const int fromPage, const int toPage) {
+		if (fromPage < 0)
+			return;
 		for(int i=0; i<16; i++) {
 			pasteTrig(currentPattern,currentTrack,i+(fromPage*16),currentPattern,currentTrack,i+(toPage*16));
 		}
@@ -1822,10 +1830,7 @@ struct EncoretrigPageBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 		ENCORE *mod = static_cast<ENCORE*>(getParamQuantity()->module);
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
 			mod->trigPage = getParamQuantity()->paramId - ENCORE::TRIGPAGE_PARAM;
-			if (mod->currentTrig>48) mod->currentTrig = mod->currentTrig - 48;
-			if (mod->currentTrig>32) mod->currentTrig = mod->currentTrig - 32;
-			if (mod->currentTrig>16) mod->currentTrig = mod->currentTrig - 16;
-			mod->currentTrig = mod->trigPage*16 + mod->currentTrig;
+			mod->currentTrig = mod->trigPage*16 + mod->currentTrig%16;
 			mod->updateTrigToParams();
 			e.consume(this);
 		}
