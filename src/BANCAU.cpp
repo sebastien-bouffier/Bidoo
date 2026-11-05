@@ -3,6 +3,115 @@
 
 using namespace std;
 
+// One slope of a Serge-style universal slope generator, 0 to 10 V.
+// A trigger rises to 10 V then falls back to rest (IN if patched, else 0 V);
+// triggers are ignored while rising and restart the rise from the current
+// level while falling. At rest the output slews to IN.
+struct BancauSlope {
+	enum Stage { IDLE, RISE, FALL };
+	Stage stage = IDLE;
+	float out = 0.f;
+	double u = 0.0;          // progress through the current segment, 0..1 (double: 20 s segments)
+	float endPulse = 0.f;    // seconds left of the end-of-cycle pulse
+	dsp::SchmittTrigger trig;
+
+	static constexpr float TOP = 10.f;
+	static constexpr float K = 4.f;  // exponential curve: a capacitor charging
+
+	// segment shape: x (0..1 of the way) against u (0..1 of the time)
+	static float shape(float u, bool curved) {
+		return curved ? (1.f - std::exp(-K * u)) / (1.f - std::exp(-K)) : u;
+	}
+	static float inverse(float x, bool curved) {
+		x = clamp(x, 0.f, 1.f);
+		return curved ? -std::log(1.f - x * (1.f - std::exp(-K))) / K : x;
+	}
+
+	void startRise(bool riseCurve) {
+		stage = RISE;
+		u = inverse(out / TOP, riseCurve);
+	}
+
+	// dt: sample time; riseT and fallT: seconds for a full 0-10 V segment
+	void process(float dt, float riseT, float fallT, bool riseCurve, bool fallCurve, bool cycle,
+	             bool trigger, bool inPatched, float in) {
+		float rest = inPatched ? in : 0.f;
+		if (trigger && stage != RISE)
+			startRise(riseCurve);
+		if (stage == IDLE && cycle)
+			startRise(riseCurve);
+
+		if (stage == IDLE) {
+			// slew to IN, at the rise or fall time per 10 V
+			if (inPatched && out != in) {
+				bool up = in > out;
+				float t = up ? riseT : fallT;
+				bool curved = up ? riseCurve : fallCurve;
+				if (curved) {
+					out += (in - out) * (1.f - std::exp(-K * dt / t));
+					if (std::fabs(in - out) < 1e-5f)
+						out = in;
+				}
+				else {
+					float step = TOP * dt / t;
+					out = up ? std::min(out + step, in) : std::max(out - step, in);
+				}
+			}
+		}
+		else {
+			// a segment may end inside the sample: the time left carries over
+			float left = dt;
+			for (int n = 0; n < 4 && left > 0.f && stage != IDLE; n++) {
+				if (stage == RISE) {
+					double nu = u + (double)left / riseT;
+					if (nu < 1.f) {
+						u = nu;
+						out = TOP * shape((float)u, riseCurve);
+						left = 0.f;
+					}
+					else {
+						left = (float)((nu - 1.0) * riseT);
+						stage = FALL;
+						u = 0.0;
+						out = TOP;
+					}
+				}
+				else {
+					float span = TOP - rest;
+					if (span <= 1e-4f) {
+						out = rest;
+						stage = IDLE;
+						break;
+					}
+					double nu = u + (double)left / fallT;
+					if (nu < 1.f) {
+						u = nu;
+						out = rest + span * (1.f - shape((float)u, fallCurve));
+						left = 0.f;
+					}
+					else {
+						left = (float)((nu - 1.0) * fallT);
+						out = rest;
+						stage = IDLE;
+						endPulse = 1e-3f;
+						if (cycle) {
+							stage = RISE;
+							u = inverse(out / TOP, riseCurve);
+						}
+					}
+				}
+			}
+		}
+		if (endPulse > 0.f)
+			endPulse -= dt;
+	}
+
+	// high at rest, and for 1 ms at the end of each cycle
+	bool end() const {
+		return stage == IDLE || endPulse > 0.f;
+	}
+};
+
 struct BANCAU : BidooModule {
 	enum ParamIds {
 		RISE1_PARAM,
@@ -51,158 +160,71 @@ struct BANCAU : BidooModule {
 		NUM_LIGHTS
 	};
 
-	dsp::SchmittTrigger trig1Trigger, trig2Trigger;
-	int oscStep1 = 0;
-	float rise1 = 0.0f;
-	float fall1 = 0.0f;
-	float rise1CV = 0.0f;
-	float fall1CV = 0.0f;
-	float pitch1 = 0.0f;
+	BancauSlope slope[2][PORT_MAX_CHANNELS];
 
-	int oscStep2 = 0;
-	float rise2 = 0.0f;
-	float fall2 = 0.0f;
-	float rise2CV = 0.0f;
-	float fall2CV = 0.0f;
-	float pitch2 = 0.0f;
-
-	float out1 = 0.0f;
-	float pulse1 = 0.0f;
-	float end1 = 0.0f;
-
-	float out2 = 0.0f;
-	float bp2 = 0.0f;
-	float end2 = 0.0f;
+	// knob 0..1: 0.2 ms to 20 s for a full 0-10 V segment
+	static float knobTime(float k) {
+		return 0.0002f * std::pow(10.f, 5.f * k);
+	}
 
 	BANCAU() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-
-		configParam(RISE1_PARAM, 0.f, 1.f, 0.f, "Rise");
-		configParam(FALL1_PARAM, 0.f, 1.f, 0.f, "Fall");
-		configParam(RISECV1_PARAM, -1.f, 1.f, 0.f, "Rise CV");
-		configParam(FALLCV1_PARAM, -1.f, 1.f, 0.f, "Fall CV");
-		configParam(RISEEXP1_PARAM, 0.f, 1.f, 0.f, "Exp");
-		configParam(FALLEXP1_PARAM, 0.f, 1.f, 0.f, "Exp");
-		configParam(CYCLE1_PARAM, 0.f, 1.f, 0.f, "Cycle");
-		configParam(RISE2_PARAM, 0.f, 1.f, 0.f, "Rise");
-		configParam(FALL2_PARAM, 0.f, 1.f, 0.f, "Fall");
-		configParam(RISECV2_PARAM, -1.f, 1.f, 0.f, "Rise CV");
-		configParam(FALLCV2_PARAM, -1.f, 1.f, 0.f, "Fall CV");
-		configParam(RISEEXP2_PARAM, 0.f, 1.f, 0.f, "Exp");
-		configParam(FALLEXP2_PARAM, 0.f, 1.f, 0.f, "Exp");
-		configParam(CYCLE2_PARAM, 0.f, 1.f, 0.f, "Cycle");
+		for (int s = 0; s < 2; s++) {
+			std::string n = std::to_string(s + 1) + " ";
+			int o = s * 4;
+			configParam(RISE1_PARAM + o, 0.f, 1.f, 0.5f, n + "Rise time", " ms", 100000.f, 0.2f);
+			configParam(FALL1_PARAM + o, 0.f, 1.f, 0.5f, n + "Fall time", " ms", 100000.f, 0.2f);
+			configParam(RISECV1_PARAM + o, -1.f, 1.f, 0.f, n + "Rise CV amount (octaves per volt)", "%", 0.f, 100.f);
+			configParam(FALLCV1_PARAM + o, -1.f, 1.f, 0.f, n + "Fall CV amount (octaves per volt)", "%", 0.f, 100.f);
+			configSwitch(RISEEXP1_PARAM + 2 * s, 0.f, 1.f, 0.f, n + "Rise curve", {"Linear", "Exponential"});
+			configSwitch(FALLEXP1_PARAM + 2 * s, 0.f, 1.f, 0.f, n + "Fall curve", {"Linear", "Exponential"});
+			configSwitch(CYCLE1_PARAM + s, 0.f, 1.f, 0.f, n + "Cycle", {"Off", "On"});
+			int i = s * 6;
+			configInput(IN1_INPUT + i, n + "In (slewed at rest, the level a trigger falls back to)");
+			configInput(TRIG1_INPUT + i, n + "Trigger");
+			configInput(VOCT1_INPUT + i, n + "V/oct (rise and fall)");
+			configInput(RISECV1_INPUT + i, n + "Rise CV");
+			configInput(FALLCV1_INPUT + i, n + "Fall CV");
+			configInput(BOTHCV1_INPUT + i, n + "Rise and fall CV");
+			configOutput(OUT1_OUTPUT + 3 * s, n + "Out (0-10 V)");
+			configOutput(END1_OUTPUT + 3 * s, n + "End (high at rest, 1 ms pulse per cycle)");
+		}
+		configOutput(PULSE1_OUTPUT, "1 Pulse (high above 5 V)");
+		configOutput(BP2_OUTPUT, "2 Bipolar out (-5 to 5 V)");
 	}
 
 	void process(const ProcessArgs &args) override {
-		pitch1 = dsp::FREQ_C4 * dsp::approxExp2_taylor5(inputs[VOCT1_INPUT].getVoltage() + 30) / 1073741824;
-
-		rise1CV = params[RISEEXP1_PARAM].getValue() == 0 ? (params[RISECV1_PARAM].getValue() * rescale(clamp(inputs[RISECV1_INPUT].getVoltage() + inputs[BOTHCV1_INPUT].getVoltage(),-10.0f,10.0f),-10.f,10.f,-1.f, 1.f))	: (params[RISECV1_PARAM].getValue() * out1/10.0f);
-		fall1CV = params[FALLEXP1_PARAM].getValue() == 0 ? (params[FALLCV1_PARAM].getValue() * rescale(clamp(inputs[FALLCV1_INPUT].getVoltage() + inputs[BOTHCV1_INPUT].getVoltage(),-10.0f,10.0f),-10.f,10.f,-1.f, 1.f))	: (params[FALLCV1_PARAM].getValue() * out1/10.0f);
-		rise1 = std::pow(params[RISE1_PARAM].getValue() + rise1CV,4.f);
-		fall1 = std::pow(params[FALL1_PARAM].getValue() + fall1CV,4.f);
-		// rise1 = exp(params[RISE1_PARAM].getValue() + rise1CV)-1.0f;
-		// fall1 = exp(params[FALL1_PARAM].getValue() + fall1CV)-1.0f;
-
-		float in1 = inputs[IN1_INPUT].getVoltage();
-
-		if (((inputs[TRIG1_INPUT].isConnected() && trig1Trigger.process(inputs[TRIG1_INPUT].getVoltage())) || (params[CYCLE1_PARAM].getValue()==1)) && ((oscStep1==0) || (oscStep1==3))) {
-			oscStep1=1;
+		for (int s = 0; s < 2; s++) {
+			int p = s * 4, i = s * 6;
+			Input &in = inputs[IN1_INPUT + i], &trig = inputs[TRIG1_INPUT + i], &voct = inputs[VOCT1_INPUT + i];
+			Input &riseCv = inputs[RISECV1_INPUT + i], &fallCv = inputs[FALLCV1_INPUT + i], &bothCv = inputs[BOTHCV1_INPUT + i];
+			int channels = 1;
+			for (Input *x : {&in, &trig, &voct, &riseCv, &fallCv, &bothCv})
+				channels = std::max(channels, x->getChannels());
+			float riseBase = knobTime(params[RISE1_PARAM + p].getValue());
+			float fallBase = knobTime(params[FALL1_PARAM + p].getValue());
+			float riseAmt = params[RISECV1_PARAM + p].getValue(), fallAmt = params[FALLCV1_PARAM + p].getValue();
+			bool riseCurve = params[RISEEXP1_PARAM + 2 * s].getValue() > 0.5f;
+			bool fallCurve = params[FALLEXP1_PARAM + 2 * s].getValue() > 0.5f;
+			bool cycle = params[CYCLE1_PARAM + s].getValue() > 0.5f;
+			for (int c = 0; c < channels; c++) {
+				BancauSlope &sl = slope[s][c];
+				float both = bothCv.getPolyVoltage(c), oct = voct.getPolyVoltage(c);
+				// each volt halves the time (positive amount) or doubles it
+				float riseT = clamp(riseBase * dsp::exp2_taylor5(-(riseAmt * (riseCv.getPolyVoltage(c) + both) + oct)), args.sampleTime, 200.f);
+				float fallT = clamp(fallBase * dsp::exp2_taylor5(-(fallAmt * (fallCv.getPolyVoltage(c) + both) + oct)), args.sampleTime, 200.f);
+				bool t = trig.isConnected() && sl.trig.process(trig.getPolyVoltage(c));
+				sl.process(args.sampleTime, riseT, fallT, riseCurve, fallCurve, cycle, t, in.isConnected(), in.getPolyVoltage(c));
+				outputs[OUT1_OUTPUT + 3 * s].setVoltage(sl.out, c);
+				outputs[END1_OUTPUT + 3 * s].setVoltage(sl.end() ? 10.f : 0.f, c);
+				if (s == 0)
+					outputs[PULSE1_OUTPUT].setVoltage(sl.out > 5.f ? 10.f : 0.f, c);
+				else
+					outputs[BP2_OUTPUT].setVoltage(sl.out - 5.f, c);
+			}
+			for (int o = 0; o < 3; o++)
+				outputs[3 * s + o].setChannels(channels);
 		}
-
-		end1=10.f;
-
-		if ((inputs[IN1_INPUT].isConnected() && (in1 > out1)) || (oscStep1==1)) {
-			if (rise1==0.f)	{
-				out1=in1;
-				oscStep1=2;
-			}
-			else {
-				out1=out1+args.sampleTime/(rise1*(inputs[VOCT1_INPUT].isConnected() ? 1.0f/pitch1 : 1));
-				end1=0.f;
-			}
-			if (inputs[IN1_INPUT].isConnected() && (out1 >= in1)) {
-				out1=in1;
-			}
-			if ((oscStep1==1) && (out1 >= 8)) {
-				oscStep1=2;
-				out1=8;
-			}
-		}
-		else if ((inputs[IN1_INPUT].isConnected() && (in1 < out1)) || (oscStep1==2)) {
-			if (fall1==0.f)	{
-				out1=in1;
-				oscStep1=3;
-			}
-			else {
-				out1=out1-args.sampleTime/(fall1*(inputs[VOCT1_INPUT].isConnected() ? 1.0f/pitch1 : 1));
-				end1=0.f;
-			}
-			if (inputs[IN1_INPUT].isConnected() && (out1 <= in1)) {
-				out1=in1;
-			}
-			if ((oscStep1==2) && (out1 <= 0)) {
-				oscStep1=3;
-				out1=0;
-			}
-		}
-
-		outputs[OUT1_OUTPUT].setVoltage(out1);
-		outputs[END1_OUTPUT].setVoltage(end1);
-		outputs[PULSE1_OUTPUT].setVoltage(out1>5.0f?10.0f:0.0f);
-
-		pitch2 = dsp::FREQ_C4 * dsp::approxExp2_taylor5(inputs[VOCT2_INPUT].getVoltage() + 30) / 1073741824;
-
-		rise2CV = params[RISEEXP2_PARAM].getValue() == 0 ? (params[RISECV2_PARAM].getValue() * rescale(clamp(inputs[RISECV2_INPUT].getVoltage() + inputs[BOTHCV2_INPUT].getVoltage(),-10.0f,10.0f),-10.f,10.f,-1.f, 1.f))	: (params[RISECV2_PARAM].getValue() * out2/10.0f);
-		fall2CV = params[FALLEXP2_PARAM].getValue() == 0 ? (params[FALLCV2_PARAM].getValue() * rescale(clamp(inputs[FALLCV2_INPUT].getVoltage() + inputs[BOTHCV2_INPUT].getVoltage(),-10.0f,10.0f),-10.f,10.f,-1.f, 1.f))	: (params[FALLCV2_PARAM].getValue() * out2/10.0f);
-		rise2 = std::pow(params[RISE2_PARAM].getValue() + rise2CV,4.f);
-		fall2 = std::pow(params[FALL2_PARAM].getValue() + fall2CV,4.f);
-
-		float in2 = inputs[IN2_INPUT].getVoltage();
-
-		if (((inputs[TRIG2_INPUT].isConnected() && trig2Trigger.process(inputs[TRIG2_INPUT].getVoltage())) || (params[CYCLE2_PARAM].getValue()==1)) && ((oscStep2==0) || (oscStep2==3))) {
-			oscStep2=1;
-		}
-
-		end2=10.f;
-
-		if ((inputs[IN2_INPUT].isConnected() && (in2 > out2)) || (oscStep2==1)) {
-			if (rise2==0.f)	{
-				out2=in2;
-				oscStep2=2;
-			}
-			else {
-				out2=out2+args.sampleTime/(rise2*(inputs[VOCT2_INPUT].isConnected() ? 1.0f/pitch2 : 1));
-				end2=0.f;
-			}
-			if (inputs[IN2_INPUT].isConnected() && (out2 >= in2)) {
-				out2=in2;
-			}
-			if ((oscStep2==1) && (out2 >= 8)) {
-				oscStep2=2;
-				out2=8;
-			}
-		}
-		else if ((inputs[IN2_INPUT].isConnected() && (in2 < out2)) || (oscStep2==2)) {
-			if (fall2==0.f)	{
-				out2=in2;
-				oscStep2=3;
-			}
-			else {
-				out2=out2-args.sampleTime/(fall2*(inputs[VOCT2_INPUT].isConnected() ? 1.0f/pitch2 : 1));
-				end2=0.f;
-			}
-			if (inputs[IN2_INPUT].isConnected() && (out2 <= in2)) {
-				out2=in2;
-			}
-			if ((oscStep2==2) && (out2 <= 0)) {
-				oscStep2=3;
-				out2=0;
-			}
-		}
-
-		outputs[OUT2_OUTPUT].setVoltage(out2);
-		outputs[END2_OUTPUT].setVoltage(end2);
-		outputs[BP2_OUTPUT].setVoltage(out2-5.0f);
 	}
 };
 
