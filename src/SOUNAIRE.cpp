@@ -145,6 +145,7 @@ struct SOUNAIRE : BidooModule {
 	std::atomic<const Sample *> unused {nullptr};
 	std::atomic<bool> dirty {false};      // the sample in the patch storage is out of date
 	std::atomic<float> pendingRoot {-1000.f};
+	std::atomic<bool> clearCents {false};   // a new sample came without a detected root
 	std::atomic<bool> loading {false};
 	std::string lastError;
 
@@ -172,13 +173,15 @@ struct SOUNAIRE : BidooModule {
 	bool polyOut = true;
 	int bendRange = 2;
 	float rootCents = 0.f;         // the detected root's offset from the note
+	float rootSeen = 60.f;         // ROOT as last seen: a change by hand clears rootCents
 	std::string sampleName;
 
 	// ---- audio thread state
-	dsp::SchmittTrigger gates[MAX_VOICES];
 	bool held[MAX_VOICES] = {};
 	int legatoChannel = 0;
 	float outL[MAX_VOICES] = {}, outR[MAX_VOICES] = {};
+	// per channel speed: exp2 worked out again only when knob + CV move
+	float speedX[MAX_VOICES], speedOut[MAX_VOICES];
 	// preview (Alt+click on the display)
 	std::atomic<float> previewPos {-1.f};
 	std::atomic<bool> previewHeld {false};
@@ -216,12 +219,14 @@ struct SOUNAIRE : BidooModule {
 		configInput(VEL_INPUT, "Velocity (0-10 V, polyphonic)");
 		configInput(BEND_INPUT, "Pitch bend (-5 to 5 V: the bend range)");
 		configInput(START_INPUT, "Start offset (0-10 V: through the region, polyphonic)");
-		configInput(SPEED_INPUT, "Speed CV (1 V doubles it)");
+		configInput(SPEED_INPUT, "Speed CV (1 V doubles it, polyphonic)");
 		configInput(CUTOFF_INPUT, "Cutoff CV (1V/oct, polyphonic)");
-		configInput(RES_INPUT, "Resonance CV (0-10 V)");
+		configInput(RES_INPUT, "Resonance CV (0-10 V, polyphonic)");
 		configOutput(L_OUTPUT, "Left");
 		configOutput(R_OUTPUT, "Right");
 		engine.prepare(48000.f);
+		std::fill(speedX, speedX + MAX_VOICES, 1e9f);
+		std::fill(speedOut, speedOut + MAX_VOICES, 1.f);
 		worker = std::thread([this] { work(); });
 	}
 
@@ -308,10 +313,12 @@ struct SOUNAIRE : BidooModule {
 				std::string error;
 				std::shared_ptr<Sample> s = loadSampleFile(path, error);
 				if (s) {
-					if (autoRoot && !keep) {
-						float note = detectRootNote(*s, 0, s->frames);
+					if (!keep) {
+						float note = autoRoot ? detectRootNote(*s, 0, s->frames) : -1.f;
 						if (note > 0)
 							pendingRoot = note;
+						else
+							clearCents = true;   // the old sample's offset means nothing here
 					}
 					{
 						std::lock_guard<std::mutex> lock(sampleMutex);
@@ -401,6 +408,7 @@ struct SOUNAIRE : BidooModule {
 		if (json_t *j = json_object_get(rootJ, "polyOut")) polyOut = json_boolean_value(j);
 		if (json_t *j = json_object_get(rootJ, "bendRange")) bendRange = clamp((int)json_integer_value(j), 1, 48);
 		if (json_t *j = json_object_get(rootJ, "rootCents")) rootCents = json_number_value(j);
+		rootSeen = params[ROOT_PARAM].getValue();   // params come in before data: not a change by hand
 		if (json_t *j = json_object_get(rootJ, "sampleName")) sampleName = json_string_value(j);
 	}
 
@@ -416,13 +424,14 @@ struct SOUNAIRE : BidooModule {
 		p.xfadeMs = params[XFADE_PARAM].getValue();
 		p.reverse = params[REVERSE_PARAM].getValue() > 0.5f;
 		p.timeMode = (int)params[TIME_MODE_PARAM].getValue();
-		p.speed = clamp(std::pow(2.f, params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage()), 0.0625f, 8.f);
+		// speed and resonance: the knobs here, each voice adds its own CV (voiceSpeed, voiceResonance)
+		p.speed = clamp(std::pow(2.f, params[SPEED_PARAM].getValue()), 0.0625f, 8.f);
 		// as the knobs show them: 0-2 s and 2 ms-5 s, exponential
 		p.attackMs = std::pow(2000.f, params[ATTACK_PARAM].getValue()) - 1.f;
 		p.releaseMs = 2.f * std::pow(2500.f, params[RELEASE_PARAM].getValue());
 		p.filter.mode = (int)params[FILTER_MODE_PARAM].getValue();
 		p.filter.stages = (int)params[SLOPE_PARAM].getValue() + 1;
-		p.filter.resonance = clamp(params[RESONANCE_PARAM].getValue() + inputs[RES_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
+		p.filter.resonance = params[RESONANCE_PARAM].getValue();
 		const Sample *s = engine.current;
 		float norm = (autoNormalize && s && s->peak > 1e-6f) ? 0.891f / s->peak : 1.f;
 		p.gain = norm * params[LEVEL_PARAM].getValue() * 5.f;
@@ -436,13 +445,36 @@ struct SOUNAIRE : BidooModule {
 		return note - (params[ROOT_PARAM].getValue() + rootCents * 0.01f) + params[TUNE_PARAM].getValue() + params[FINE_PARAM].getValue() * 0.01f + bend;
 	}
 
+	// LOW above HIGH plays the same range the keyboard strip shows
 	bool inRange(int c) {
 		int note = (int)std::round(inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f + 60.f);
-		return note >= (int)params[LOW_PARAM].getValue() && note <= (int)params[HIGH_PARAM].getValue();
+		int lo = (int)params[LOW_PARAM].getValue(), hi = (int)params[HIGH_PARAM].getValue();
+		return note >= std::min(lo, hi) && note <= std::max(lo, hi);
 	}
 
 	float cutoffNote(int c) {
 		return params[CUTOFF_PARAM].getValue() + inputs[CUTOFF_INPUT].getPolyVoltage(c) * 12.f;
+	}
+
+	float voiceSpeed(int c) {
+		float x = params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getPolyVoltage(c);
+		if (x != speedX[c]) {
+			speedX[c] = x;
+			speedOut[c] = clamp(std::pow(2.f, x), 0.0625f, 8.f);
+		}
+		return speedOut[c];
+	}
+
+	float voiceResonance(int c) {
+		return clamp(params[RESONANCE_PARAM].getValue() + inputs[RES_INPUT].getPolyVoltage(c) * 0.1f, 0.f, 1.f);
+	}
+
+	// what follows the channel while the voice plays
+	void track(Voice &v, int c) {
+		v.pitchSemis = semitones(c);
+		v.cutoffNote = cutoffNote(c);
+		v.speed = voiceSpeed(c);
+		v.resonance = voiceResonance(c);
 	}
 
 	float velocity(int c) {
@@ -463,10 +495,16 @@ struct SOUNAIRE : BidooModule {
 			params[LOOP_START_PARAM].setValue(0.f);
 			params[LOOP_END_PARAM].setValue(1.f);
 		}
+		// ROOT turned by hand, or a new sample without a detected root: no offset
+		if (clearCents.exchange(false) || params[ROOT_PARAM].getValue() != rootSeen) {
+			rootSeen = params[ROOT_PARAM].getValue();
+			rootCents = 0.f;
+		}
 		float root = pendingRoot.exchange(-1000.f);
 		if (root > -999.f) {
 			float n = std::round(root);
 			params[ROOT_PARAM].setValue(clamp(n, 0.f, 127.f));
+			rootSeen = params[ROOT_PARAM].getValue();
 			rootCents = (root - n) * 100.f;
 		}
 
@@ -492,7 +530,7 @@ struct SOUNAIRE : BidooModule {
 
 		if (legato) {
 			// one voice: the latest note sets the pitch; a new note while another
-			// is held glides there without starting the sample again
+			// is held moves the pitch there at once, without starting the sample again
 			bool anyHeld = false;
 			for (int c = 0; c < channels; c++) {
 				bool was = held[c];
@@ -517,10 +555,8 @@ struct SOUNAIRE : BidooModule {
 					}
 			}
 			Voice &v = engine.voices[0];
-			if (v.active && !v.fadingOut) {
-				v.pitchSemis = semitones(legatoChannel);
-				v.cutoffNote = cutoffNote(legatoChannel);
-			}
+			if (v.active && !v.fadingOut)
+				track(v, legatoChannel);
 			for (int c = 1; c < MAX_VOICES; c++)
 				if (engine.voices[c].gate)
 					engine.noteOff(c);
@@ -534,10 +570,8 @@ struct SOUNAIRE : BidooModule {
 					engine.noteOff(c);
 				held[c] = g;
 				Voice &v = engine.voices[c];
-				if (v.active && !v.fadingOut && c < channels) {
-					v.pitchSemis = semitones(c);
-					v.cutoffNote = cutoffNote(c);
-				}
+				if (v.active && !v.fadingOut && c < channels)
+					track(v, c);
 			}
 		}
 

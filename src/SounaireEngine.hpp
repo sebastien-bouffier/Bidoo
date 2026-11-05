@@ -393,6 +393,8 @@ struct Voice {
 	float pitchSemis = 0.f;   // from the root note, bend and tune included
 	float velocity = 1.f;
 	float cutoffNote = 120.f;
+	float speed = 1.f;        // the knob plus this channel's CV
+	float resonance = 0.f;    // the knob plus this channel's CV
 	int stretch = -1;         // index in the stretch pool, -1: repitch
 	int tail = 0;             // stretch: output frames left once the tape has ended
 	int filterCount = 0;
@@ -565,6 +567,8 @@ struct Engine {
 		v.pitchSemis = semis;
 		v.velocity = velocity;
 		v.cutoffNote = cutoffNote;
+		v.speed = p.speed;
+		v.resonance = p.filter.resonance;
 		v.filter.reset();
 		// stretched when a warmed-up pool is there and has a free stretcher, else repitched
 		if (p.timeMode != TIME_REPITCH && poolReady(p.timeMode)) {
@@ -637,8 +641,11 @@ struct Engine {
 			bool preview = i == PREVIEW;
 			PlaySettings ps;
 			const PlaySettings &pr = p;
-			if (!preview)
+			if (!preview) {
 				ps = pr;
+				ps.speed = v.speed;
+				ps.filter.resonance = v.resonance;
+			}
 			else {
 				ps = pr;
 				ps.loopMode = LOOP_OFF;

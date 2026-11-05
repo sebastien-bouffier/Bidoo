@@ -33,7 +33,8 @@ struct DILEMO : BidooModule {
 		NUM_LIGHTS
 	};
 
-	// each input's state per channel, with 0.1 V of hysteresis
+	// each input's state per channel; goes high above threshold + 0.1 V and low at or below
+	// the threshold, so 0/10 V gates work at the default 0 V threshold
 	bool high[NUM_INPUTS][PORT_MAX_CHANNELS] = {};
 
 	DILEMO() {
@@ -58,7 +59,7 @@ struct DILEMO : BidooModule {
 	bool read(int input, int c, float threshold) {
 		float v = inputs[input].getPolyVoltage(c);
 		bool &h = high[input][c];
-		if (h ? v <= threshold - 0.1f : v > threshold + 0.1f)
+		if (h ? v <= threshold : v > threshold + 0.1f)
 			h = !h;
 		return h;
 	}

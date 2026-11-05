@@ -124,7 +124,7 @@ struct BORDL : BidooModule {
 	void randomizeGates() {
 		for (int i = 0; i < 8; i++) {
 			params[TRIG_COUNT_PARAM + i].setValue((int)(random::uniform() * 7.f + 1.f));
-			params[TRIG_TYPE_PARAM + i].setValue((int)(random::uniform() * 5.f));
+			params[TRIG_TYPE_PARAM + i].setValue((int)(random::uniform() * 6.f));
 		}
 	}
 };

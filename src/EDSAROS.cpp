@@ -225,6 +225,9 @@ struct EDSAROS : BidooModule {
 	// gate length, then the release. Off: the gate holds the sustain.
 	bool triggerMode = false;
 	bool oneShot[16] = {false};
+	// The voice reached S END with no loop: silent until the gate falls or a
+	// new trigger, rather than starting again.
+	bool ended[16] = {false};
 	dsp::SchmittTrigger zeroCrossingTrigger;
 	dsp::SchmittTrigger trigTriggers[16];
 	int lastChannels = 0;
@@ -238,7 +241,7 @@ struct EDSAROS : BidooModule {
 		configParam(RELEASESTART_PARAM, 0.0f, 10.0f, 10.0f, "Release start", "%", 0.f, 10.f);
 
 		configSwitch(LOOPMODE_PARAM, 0.0f, 2.0f, 0.0f, "Loop mode", {"None", "Forward", "Ping-pong"});
-		configSwitch(RELEASEMODE_PARAM, 0.0f, 3.0f, 0.0f, "Release mode", {"Cut", "Play to the end", "Forward loop", "Ping-pong loop"});
+		configSwitch(RELEASEMODE_PARAM, 0.0f, 3.0f, 1.0f, "Release mode", {"Cut", "Play to the end", "Forward loop", "Ping-pong loop"});
 		configSwitch(LINKTYPE_PARAM, 0.0f, 3.0f, 0.0f, "Link points mode", {"None", "Offset", "Offset, widening", "Offset, narrowing"});
 
 		configParam(ATTACK_PARAM, 0.0f, 20.0f, 0.0f, "Attack time", " s");
@@ -478,7 +481,7 @@ void EDSAROS::process(const ProcessArgs &args) {
 				rev_voices[i].set_sample (smp->revMip);
 				rev_voices[i].set_interp (interp_pack);
 				rev_voices[i].clear_buffers ();
-				play[i] = rel[i] = false;
+				play[i] = rel[i] = ended[i] = false;
 				gain[i] = 0.f;
 				audio[i].clear();
 				direction[i] = 1;
@@ -508,7 +511,7 @@ void EDSAROS::process(const ProcessArgs &args) {
 	// One voice per channel of the pitch or gate input, whichever has more.
 	int channels = std::max(std::max(inputs[PITCH_INPUT].getChannels(), inputs[TRIG_INPUT].getChannels()), 1);
 	for (int i = channels; i < lastChannels; i++) {
-		play[i] = rel[i] = false;
+		play[i] = rel[i] = ended[i] = false;
 		gain[i] = 0.f;
 		audio[i].clear();
 	}
@@ -529,22 +532,26 @@ void EDSAROS::process(const ProcessArgs &args) {
 			if (rise) {
 				play[i] = false;
 				oneShot[i] = true;
+				ended[i] = false;
 			}
-			gateHigh = oneShot[i] && (!play[i] || voiceTime[i] < attack + decay);
+			gateHigh = oneShot[i] && !ended[i] && (!play[i] || voiceTime[i] < attack + decay);
 			if (!gateHigh)
 				oneShot[i] = false;
 		}
 		if (gateHigh) {
-			if (!play[i]) {
-				voiceTime[i]=0.0f;
-				rel[i]=false;
-				setPos(i, sampleStart, revIndex(sampleStart));
-				direction[i]=1;
-				audio[i].clear();
+			if (!ended[i]) {
+				if (!play[i]) {
+					voiceTime[i]=0.0f;
+					rel[i]=false;
+					setPos(i, sampleStart, revIndex(sampleStart));
+					direction[i]=1;
+					audio[i].clear();
+				}
+				play[i]=true;
 			}
-			play[i]=true;
 		}
 		else {
+			ended[i] = false;
 			if (play[i]) {
 				voiceTime[i]=0.0f;
 				rel[i]=true;
@@ -576,9 +583,11 @@ void EDSAROS::process(const ProcessArgs &args) {
 		}
 
 		if ((play[i] || rel[i]) && feed[i]) {
-			if (loopMode==0 && internalIntegerPosition[i]>=sampleEnd) {
-				rel[i]=false;
-				setPos(i, sampleEnd, revIndex(sampleEnd));
+			// The loop mode drives the held phase, the release mode the release.
+			if (loopMode==0 && internalIntegerPosition[i]>=sampleEnd && play[i]) {
+				play[i]=false;
+				ended[i]=true;
+				setPos(i, sampleStart, revIndex(sampleStart));
 			}
 			else if (loopMode==1 && internalIntegerPosition[i]>=loopEnd && play[i]) {
 				voices[i].set_playback_pos(static_cast <rspl::Int64> (loopStart) << 32);
@@ -596,15 +605,12 @@ void EDSAROS::process(const ProcessArgs &args) {
 				voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleStart) << 32);
 				rel[i]=false;
 			}
-			else if (releaseMode==1 && internalIntegerPosition[i]>=sampleEnd) {
+			else if (releaseMode==1 && internalIntegerPosition[i]>=sampleEnd && rel[i]) {
 				voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleStart) << 32);
 				rel[i]=false;
 			}
 			else if (releaseMode==2 && internalIntegerPosition[i]>=sampleEnd && rel[i]) {
 				voices[i].set_playback_pos(static_cast <rspl::Int64> (releaseStart) << 32);
-			}
-			else if (releaseMode==2 && internalIntegerPosition[i]>=sampleEnd && !rel[i]) {
-				voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleStart) << 32);
 			}
 			else if (releaseMode==3 && direction[i]==1 && internalIntegerPosition[i]>=sampleEnd && rel[i]) {
 				setPos(i, releaseStart, revIndex(sampleEnd));
@@ -656,6 +662,7 @@ void EDSAROS::process(const ProcessArgs &args) {
 					if (maxOut < nbr_spl)
 						nbr_spl = std::max(maxOut, 0L);
 					if (nbr_spl <= 0 && pos >= 0) {
+						ended[i] = play[i];
 						play[i] = false;
 						rel[i] = false;
 					}
@@ -684,7 +691,9 @@ void EDSAROS::process(const ProcessArgs &args) {
 
 		float out = 0.f;
 		if (audio[i].size()>=1) {
-			bool silent = ((loopStart==loopEnd) && (internalIntegerPosition[i]>=loopStart)) || ((releaseStart==sampleEnd) && (internalIntegerPosition[i]>=releaseStart));
+			// An empty loop or release loop mutes only while it is in use.
+			bool silent = (play[i] && loopMode>0 && (loopStart==loopEnd) && (internalIntegerPosition[i]>=loopStart))
+				|| (rel[i] && releaseMode>=2 && (releaseStart==sampleEnd) && (internalIntegerPosition[i]>=releaseStart));
 			if (!silent)
 				out = *audio[i].startData()*5.0f*gain[i]*sampleGain;
 			audio[i].startIncr(1);
@@ -848,10 +857,11 @@ struct EDSAROSDisplay : OpaqueWidget {
 
   void onDragMove(const event::DragMove &e) override {
 		float zoom = 1.0f;
-    if (e.mouseDelta.y < 0.0f) {
-      zoom = 1.0f/(((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) ? 3.0f : 2.0f);
+		// As in cANARd: drag up zooms in, drag down out, the same step both ways.
+    if (e.mouseDelta.y > 0.0f) {
+      zoom = 1.0f/(((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) ? 2.0f : 1.1f);
     }
-    else if (e.mouseDelta.y > 0.0f) {
+    else if (e.mouseDelta.y < 0.0f) {
       zoom = ((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) ? 2.0f : 1.1f;
     }
     zoomWidth = clamp(zoomWidth*zoom,width,zoomWidth*((APP->window->getMods() & RACK_MOD_MASK) == (GLFW_MOD_SHIFT) ? 2.0f : 1.1f));

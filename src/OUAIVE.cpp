@@ -265,6 +265,14 @@ void OUAIVE::process(const ProcessArgs &args) {
 	speed = clamp(std::exp2(params[SPEED_PARAM].getValue() + params[CVSPEED_PARAM].getValue() * inputs[SPEED_INPUT].getVoltage()), 1.f / 16.f, 16.f);
 	sliceLength = std::max(total / nbSlices, 1);
 
+	// Reset stops playback (the only way to stop a repeating sound) and rewinds
+	// the slices so the next trigger, even on this same sample, plays slice 1.
+	if (posResetTrigger.process(inputs[POS_RESET_INPUT].getVoltage(), 0.1f, 1.f)) {
+		play = false;
+		sliceIndex = -1;
+		samplePos = 0.0f;
+	}
+
 	float posCv = clamp(inputs[POS_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
 	bool trig = playTrigger.process(inputs[GATE_INPUT].getVoltage(), 0.1f, 1.f);
 	bool gate = playTrigger.isHigh();
@@ -298,11 +306,6 @@ void OUAIVE::process(const ProcessArgs &args) {
 		samplePos = clamp((float)((readMode != 1) ? sliceIndex * sliceLength : (sliceIndex + 1) * sliceLength - 1), 0.0f, total - 1.0f);
 	}
 	gateWasHigh = gate;
-
-	if (posResetTrigger.process(inputs[POS_RESET_INPUT].getVoltage(), 0.1f, 1.f)) {
-		sliceIndex = 0;
-		samplePos = 0.0f;
-	}
 
 	float outL = 0.f, outR = 0.f;
 	if (play && total > 0 && samplePos >= 0 && samplePos < total) {
@@ -364,6 +367,12 @@ struct OUAIVEDisplay : OpaqueWidget {
 
 	OUAIVEDisplay() {
 
+	}
+
+	// Zoom anchors at the click point, as in cANARd.
+	void onButton(const event::Button &e) override {
+		refX = e.pos.x;
+		OpaqueWidget::onButton(e);
 	}
 
   void onDragStart(const event::DragStart &e) override {

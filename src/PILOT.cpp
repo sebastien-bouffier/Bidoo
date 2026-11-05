@@ -235,6 +235,11 @@ struct PILOT : BidooModule {
 				}
 			}
 			controlTypes[i] = 0;
+			controlOverrideTypes[i] = true;
+			voltageTypes[i] = 0;
+			controlRootNotes[i] = 0;
+			controlScales[i] = 0;
+			labels[i] = "";
 		}
 		moveType = 5;
 	}
@@ -256,14 +261,15 @@ struct PILOT : BidooModule {
 	void frandomizeScene(int scene) {
 		for (int i = 0; i < 16; i++) {
 				scenes[bank][scene][i]=random::uniform();
-				controlTypes[i] = clamp(floor(random::uniform()*3.0f), 0.0f,2.0f);
+				// every type, note modes included
+				controlTypes[i] = random::u32() % 5;
 		}
 	}
 
 	void randomizeScenes() {
 		for (int i = 0; i < 16; i++) {
 			randomizeScene(i);
-			controlTypes[i] = clamp(floor(random::uniform()*3.0f), 0.0f,2.0f);
+			controlTypes[i] = random::u32() % 5;
 		}
 	}
 
@@ -1098,7 +1104,8 @@ struct CtrlSinMenuItem : ui::MenuItem {
 		PILOT *module = dynamic_cast<PILOT*>(param->module);
 		for (int i = 0 ; i < 16; i++) {
 			if (i<=module->length) {
-				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = sin((float)(module->length-i)*M_PI/(module->length));
+				// one scene: the formula's ends are sin(pi) = 0, avoid 0/0
+				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = module->length > 0 ? sin((float)(module->length-i)*M_PI/(module->length)) : 0.0f;
 			}
 			else {
 				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;

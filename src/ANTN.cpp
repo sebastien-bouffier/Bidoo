@@ -447,11 +447,14 @@ struct ANTNTextField : LedDisplayTextField {
 	}
 
 	void onChange(const ChangeEvent& e) override {
-		if (module && getText().size()>0)
+		if (module)
     {
       std::string tText = getText();
       tText.erase(std::remove_if(tText.begin(), tText.end(), [](unsigned char x){return std::isspace(x);}), tText.end());
       module->setUrl(tText);
+      // An emptied field clears the URL and stops what was playing.
+      if (tText.empty())
+        module->playing = false;
     }
 	}
 };

@@ -169,6 +169,23 @@ struct FORK : BidooModule {
 		configOutput(SIGNAL_OUTPUT, "Audio");
 	}
 
+	void onReset() override {
+		preset = 0;
+	}
+
+	json_t *dataToJson() override {
+		json_t *rootJ = BidooModule::dataToJson();
+		json_object_set_new(rootJ, "preset", json_integer(preset));
+		return rootJ;
+	}
+
+	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
+		json_t *presetJ = json_object_get(rootJ, "preset");
+		if (presetJ)
+			preset = clamp((int)json_integer_value(presetJ), 0, NUM_PRESETS - 1);
+	}
+
 	void process(const ProcessArgs &args) override;
 };
 

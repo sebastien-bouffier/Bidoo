@@ -317,6 +317,9 @@ void ACNE::process(const ProcessArgs &args) {
 			sceneOutMutes[currentSnapshot] = sceneOutMutes[copySnapshot];
 			copyState = false;
 			loadScene();
+		} else {
+			// pressed again on the copied scene: cancel
+			copyState = false;
 		}
 	}
 	lights[COPY_LIGHT].setBrightness(copyState ? 1 : 0);

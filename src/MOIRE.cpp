@@ -83,8 +83,8 @@ struct MOIRE : BidooModule {
 
 	void randomizeTargetScene() {
 		for (int i = 0; i < 16; i++) {
+				// values only: modes are global, shared by every scene
 				scenes[targetScene][i]=random::uniform()*10;
-				controlTypes[i] = (random::uniform()>0.5f) ? 1 : 0;
 		}
 	}
 

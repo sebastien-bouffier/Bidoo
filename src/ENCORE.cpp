@@ -47,14 +47,14 @@ struct TrigAttibutes {
 	}
 
 	inline void randomizeProbs() {
-		setTrigProba(random::uniform()*7.0f);
+		setTrigProba(random::uniform()*8.0f);
 		setTrigCount(random::uniform()*100.0f);
 		setTrigCountReset(random::uniform()*100.0f);
 	}
 
 	inline void fullRandomize() {
 		randomize();
-		setTrigPulseCount(random::uniform()*10.0f);
+		setTrigPulseCount(1 + random::uniform()*9.0f);
 	}
 
 	inline bool getTrigActive() {return (mainAttributes & TRIG_ACTIVE) != 0;}
@@ -269,7 +269,7 @@ struct TrackAttibutes {
 
 	inline void randomize() {
 		setTrackLength(1+random::uniform()*63);
-		setTrackReadMode(random::uniform()*4);
+		setTrackReadMode(random::uniform()*5);
 	}
 
 	inline void fullRandomize() {
@@ -491,9 +491,9 @@ struct ENCORE : BidooModule {
 		// Trig timing is in ticks, 32 per step; shown in steps.
 		configParam(TRIGCV1_PARAM, -10.0f, 10.0f, 0.0f, "Trig CV1", " V");
 		configParam(TRIGCV2_PARAM, -10.0f, 10.0f, 0.0f, "Trig CV2", " V");
-		configParam(TRIGLENGTH_PARAM, 1.0f, 2048.0f, 16.0f, "Trig length", " steps", 0.f, 1.f / 32.f);
+		configParam(TRIGLENGTH_PARAM, 1.0f, 2048.0f, 15.0f, "Trig length", " steps", 0.f, 1.f / 32.f);
 		configParam(TRIGPULSECOUNT_PARAM, 1.0f, 64.0f, 1.0f, "Pulse count");
-		configParam(TRIGPULSEDISTANCE_PARAM, 0.0f, 32.0f, 0.0f, "Pulse distance", " steps", 0.f, 1.f / 32.f);
+		configParam(TRIGPULSEDISTANCE_PARAM, 0.0f, 32.0f, 1.0f, "Pulse distance", " steps", 0.f, 1.f / 32.f);
 		configSwitch(TRIGTYPE_PARAM, 0.0f, 2.0f, 0.0f, "Trig type", {"INT. (internal gate)", "GATE1 (G1 input)", "GATE2 (G2 input)"});
 		configParam(TRIGTRIM_PARAM, -31.0f, 31.0f, 0.0f, "Trim", " steps", 0.f, 1.f / 32.f);
 		configParam(TRIGSLIDE_PARAM, 0.0f, 1.0f, 0.0f, "Slide");
@@ -846,6 +846,7 @@ struct ENCORE : BidooModule {
 					g.setTrigSemiTones(clamp(g.getTrigSemiTones(), 0, 11));
 					g.setTrigType(clamp(g.getTrigType(), 0, 2));
 					g.setTrigProba(clamp(g.getTrigProba(), 0, 7));
+					g.setTrigPulseCount(clamp(g.getTrigPulseCount(), 1, 64));
 					trigTrim[i][j][k] = clamp(trigTrim[i][j][k], -31, 31);
 					trigLength[i][j][k] = clamp(trigLength[i][j][k], 1, 2048);
 					trigPulseDistance[i][j][k] = clamp(trigPulseDistance[i][j][k], 0, 32);
@@ -1507,7 +1508,7 @@ struct ENCORE : BidooModule {
 			return;
 		}
 
-		trackSetCurrentTrig(track, fill, pNei, false, forceTrig, killTrig);
+		trackSetCurrentTrig(track, fill, pNei, false, forceTrig, killTrig, dice);
 	}
 
 	void trackMoveNext(const int track, const bool clock, const bool fill, const bool pNei, const bool forceTrig = false, const bool killTrig = false, const float dice = 0.0f) {
@@ -1623,7 +1624,7 @@ void ENCORE::process(const ProcessArgs &args) {
 				lights[TRIGPAGE_LIGHTS+3*i].setBrightness(0.0f);
 				lights[TRIGPAGE_LIGHTS+3*i+2].setBrightness(1.0f);
 			}
-			else if ((tCT >= (i*16)) && (tCT<(16*(i+1)-1))) {
+			else if ((tCT >= (i*16)) && (tCT<(16*(i+1)))) {
 				lights[TRIGPAGE_LIGHTS+3*i].setBrightness(1.0f);
 				lights[TRIGPAGE_LIGHTS+3*i+2].setBrightness(0.0f);
 			}
@@ -1702,8 +1703,8 @@ void ENCORE::process(const ProcessArgs &args) {
 
 	if (run) {
 		// Starting plays from the top, like the reset input.
-		globalReset = resetTrigger.process(rescale(inputs[RESET_INPUT].getVoltage(), 0.1f, 2.f, 0.f, 1.f)) || runStarted;
-		clockTrigged = clockTrigger.process(rescale(inputs[EXTCLOCK_INPUT].getVoltage(), 0.1f, 2.f, 0.f, 1.f));
+		globalReset = resetTrigger.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f) || runStarted;
+		clockTrigged = clockTrigger.process(inputs[EXTCLOCK_INPUT].getVoltage(), 0.1f, 1.f);
 
 		// A requested pattern takes over when the current one ends, and starts
 		// all its tracks from the top.
@@ -1721,7 +1722,7 @@ void ENCORE::process(const ProcessArgs &args) {
 		}
 
 		for (int i=0; i<8;i++) {
-			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage())) {
+			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage(), 0.1f, 1.f)) {
 				trackReset(i, fill || fills[i], i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre(), forceTrigs[i], killTrigs[i], dice[i]);
 			}
       else if ((!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset) || patternStart) {

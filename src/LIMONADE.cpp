@@ -473,6 +473,8 @@ struct LIMONADE : BidooModule {
 		if ((ops & OP_WINDOW_FRAME) && has) table.frames[i].window();
 		if (ops & OP_SMOOTH_WT) table.smooth();
 		if ((ops & OP_SMOOTH_FRAME) && has) table.frames[i].smooth();
+		// An edited morphed frame becomes an original, so the edit is saved with the patch.
+		if ((ops & (OP_NORMALIZE_FRAME | OP_WINDOW_FRAME | OP_SMOOTH_FRAME)) && has) table.frames[i].morphed = false;
 		if (ops & OP_ADD_FRAME) table.addFrame(i);
 		if ((ops & OP_REMOVE_FRAME) && has) table.removeFrame(i);
 		if (ops & OP_REC_WT) {

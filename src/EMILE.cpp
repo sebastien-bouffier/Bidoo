@@ -97,10 +97,11 @@ struct EMILE : BidooModule {
 	PFFFT_Setup *pffftSetup;
 	float *fftIn;
 	float *fftOut;
-	bool r = false;
-	bool g = false;
-	bool b = false;
-	bool a = false;
+	// All four colours on, so a new EMILE plays the image straight away.
+	bool r = true;
+	bool g = true;
+	bool b = true;
+	bool a = true;
 	dsp::SchmittTrigger rTrigger, gTrigger, bTrigger, aTrigger;
 	float curve = 0.0f;
 
@@ -209,6 +210,10 @@ struct EMILE : BidooModule {
 	}
 
 	void process(const ProcessArgs &args) override;
+
+	void onReset() override {
+		r = g = b = a = true;
+	}
 
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();

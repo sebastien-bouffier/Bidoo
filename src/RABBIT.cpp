@@ -52,6 +52,11 @@ struct RABBIT : BidooModule {
 		memset(&bitRev, 0, 8 * sizeof(bool));
 	}
 
+	void onReset() override {
+		memset(&bitOff, 0, 8 * sizeof(bool));
+		memset(&bitRev, 0, 8 * sizeof(bool));
+	}
+
 	void onRandomize() override {
 		for (int i=0; i<8; i++) {
 			bitOff[i]=random::uniform()>0.5f;
