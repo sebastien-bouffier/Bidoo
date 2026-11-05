@@ -32,6 +32,7 @@ struct RABBIT : BidooModule {
 
 	bool bitOff[8];
 	bool bitRev[8];
+	float crushMix = 0.f;   // 0: the input clean, 1: crushed
 
 	RABBIT() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -95,10 +96,20 @@ struct RABBIT : BidooModule {
 			lights[BITOFF_LIGHTS + i].setBrightness(bitOff[i] ? 1.0f : 0.0f);
 			lights[BITREV_LIGHTS + i].setBrightness(bitRev[i] ? 1.0f : 0.0f);
 		}
+		// with no bit switched the input passes clean; the crushing fades in
+		// (5 ms) as soon as one bit is off or reversed
+		bool active = false;
+		for (int i = 0; i < 8; i++)
+			active = active || bitOff[i] || bitRev[i];
+		float step = 1.f / (0.005f * args.sampleRate);
+		crushMix = active ? std::min(crushMix + step, 1.f) : std::max(crushMix - step, 0.f);
 		for (int side = 0; side < 2; side++) {
 			int channels = std::max(1, inputs[L_INPUT + side].getChannels());
-			for (int c = 0; c < channels; c++)
-				outputs[L_OUTPUT + side].setVoltage(decode(crush(encode(inputs[L_INPUT + side].getVoltage(c)))), c);
+			for (int c = 0; c < channels; c++) {
+				float in = inputs[L_INPUT + side].getVoltage(c);
+				float out = crushMix > 0.f ? in + (decode(crush(encode(in))) - in) * crushMix : in;
+				outputs[L_OUTPUT + side].setVoltage(out, c);
+			}
 			outputs[L_OUTPUT + side].setChannels(channels);
 		}
 	}

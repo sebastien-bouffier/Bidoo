@@ -100,6 +100,7 @@ struct PILOT : BidooModule {
 	float morph = 0.0f;
 	double morphPos = 0.0;
 	bool pulses[16] = {false};
+	bool wasAtEnd = false;   // MORPH at 0 or 1 on the previous sample (yellow WAIT gates)
 	float speed = 1e-3f;
 	int moveType = 5;
 	bool moving = false;
@@ -718,6 +719,11 @@ void PILOT::process(const ProcessArgs &args) {
 		morph = params[MORPH_PARAM].getValue();
 	}
 
+	// yellow WAIT: a gate control fires once when MORPH reaches an end
+	bool atEnd = (morph == 0.0f) || (morph == 1.0f);
+	bool arrived = atEnd && !wasAtEnd;
+	wasAtEnd = atEnd;
+
 	for (int i = 0; i < 16; i++) {
 		if (recordingStatus==3 && i==currentFocus) {
 			if (params[MORPH_PARAM].getValue() == 0.0f) {
@@ -773,7 +779,7 @@ void PILOT::process(const ProcessArgs &args) {
 
 		pulses[i] = gatePulses[i].process(args.sampleTime) && (params[CONTROLS_PARAMS+i].getValue()>0.0f);
 
-		if ((changeDir && waitEOM!=hesitate) || (waitEOM==hesitate && ((morph==0.0f) || (morph==1.0f)) && !pulses[i])) {
+		if ((changeDir && waitEOM!=hesitate) || (waitEOM==hesitate && arrived)) {
 			if (params[CONTROLS_PARAMS+i].getValue()>0.0f)  {
 				gatePulses[i].trigger(powf(params[CONTROLS_PARAMS+i].getValue(),8.0f));
 			}

@@ -465,6 +465,13 @@ struct LIMONADE : BidooModule {
 		if (ops & OP_MORPH_SPECTRUM) { table.morph(wtTable::MORPH_SPECTRUM); morphType = 1; }
 		if (ops & OP_MORPH_SPECTRUM_CONSTANT_PHASE) { table.morph(wtTable::MORPH_SPECTRUM_CONSTANT_PHASE); morphType = 2; }
 		if (ops & OP_REMOVE_MORPH) { table.deleteMorphing(); morphType = -1; }
+		// On a morphed table the whole-table tools process the original frames
+		// and the in-betweens are morphed again from them: only the originals
+		// are saved, so this is what a reload rebuilds. (Normalize WT is one
+		// gain for every frame and morphs the same either way.)
+		bool remorph = (ops & (OP_NORMALIZE_ALL_FRAMES | OP_REMOVE_DC | OP_WINDOW_WT | OP_SMOOTH_WT)) && morphType >= 0;
+		if (remorph)
+			table.deleteMorphing();
 		if (ops & OP_NORMALIZE_WT) table.normalize();
 		if ((ops & OP_NORMALIZE_FRAME) && has) table.frames[i].normalize();
 		if (ops & OP_NORMALIZE_ALL_FRAMES) table.normalizeAllFrames();
@@ -473,6 +480,8 @@ struct LIMONADE : BidooModule {
 		if ((ops & OP_WINDOW_FRAME) && has) table.frames[i].window();
 		if (ops & OP_SMOOTH_WT) table.smooth();
 		if ((ops & OP_SMOOTH_FRAME) && has) table.frames[i].smooth();
+		if (remorph)
+			table.morph(morphType == 0 ? wtTable::MORPH_WAVE : (morphType == 1 ? wtTable::MORPH_SPECTRUM : wtTable::MORPH_SPECTRUM_CONSTANT_PHASE));
 		// An edited morphed frame becomes an original, so the edit is saved with the patch.
 		if ((ops & (OP_NORMALIZE_FRAME | OP_WINDOW_FRAME | OP_SMOOTH_FRAME)) && has) table.frames[i].morphed = false;
 		if (ops & OP_ADD_FRAME) table.addFrame(i);

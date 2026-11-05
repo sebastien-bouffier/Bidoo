@@ -1702,7 +1702,8 @@ void ENCORE::process(const ProcessArgs &args) {
 	}
 
 	if (run) {
-		// Starting plays from the top, like the reset input.
+		// Starting plays from the top, like the reset input; it also restarts
+		// the tracks with their own RST input, which the reset input leaves alone.
 		globalReset = resetTrigger.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f) || runStarted;
 		clockTrigged = clockTrigger.process(inputs[EXTCLOCK_INPUT].getVoltage(), 0.1f, 1.f);
 
@@ -1725,7 +1726,7 @@ void ENCORE::process(const ProcessArgs &args) {
 			if (trackResetTriggers[i].process(inputs[TRACKRESET_INPUTS+i].getVoltage(), 0.1f, 1.f)) {
 				trackReset(i, fill || fills[i], i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre(), forceTrigs[i], killTrigs[i], dice[i]);
 			}
-      else if ((!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset) || patternStart) {
+      else if ((!inputs[TRACKRESET_INPUTS+i].isConnected() && globalReset) || runStarted || patternStart) {
 				trackReset(i, fill || fills[i], i == 0 ? false : nTracksAttibutes[currentPattern][i-1].getTrackPre(), forceTrigs[i], killTrigs[i], dice[i]);
 			}
 			else {
