@@ -22,11 +22,27 @@ struct SIGMA : BidooModule {
 
 	SIGMA() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		for (int i = 0; i < NUM_OUTPUTS; i++) {
+			for (int k = 0; k < 3; k++)
+				configInput(3 * i + k, string::f("Sum %d, input %d", i + 1, k + 1));
+			configOutput(i, string::f("Sum %d", i + 1));
+		}
 	}
 
+	// Polyphonic: each output has as many channels as its widest input; a
+	// mono input is added to every channel.
 	void process(const ProcessArgs &args) override {
 		for (int i = 0; i < NUM_OUTPUTS; i++) {
-			outputs[i].setVoltage(inputs[3 * i].getVoltage() + inputs[3 * i + 1].getVoltage() + inputs[3 * i + 2].getVoltage());
+			int channels = 0;
+			for (int k = 0; k < 3; k++)
+				channels = std::max(channels, inputs[3 * i + k].getChannels());
+			for (int c = 0; c < channels; c++) {
+				float sum = 0.f;
+				for (int k = 0; k < 3; k++)
+					sum += inputs[3 * i + k].getPolyVoltage(c);
+				outputs[i].setVoltage(sum, c);
+			}
+			outputs[i].setChannels(channels);
 		}
 	}
 };

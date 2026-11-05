@@ -25,13 +25,36 @@ struct MS : BidooModule {
 		NUM_LIGHTS
 	};
 
-	MS() { config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS); }
+	MS() {
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configInput(L_INPUT, "Left");
+		configInput(R_INPUT, "Right");
+		configInput(M_INPUT, "Mid");
+		configInput(S_INPUT, "Side");
+		configOutput(M_OUTPUT, "Mid ((L+R)/2)");
+		configOutput(S_OUTPUT, "Side ((L-R)/2)");
+		configOutput(L_OUTPUT, "Left (M+S)");
+		configOutput(R_OUTPUT, "Right (M-S)");
+	}
 
+	// Polyphonic: each channel on its own; a mono input reaches every channel.
 	void process(const ProcessArgs &args) override {
-		outputs[S_OUTPUT].setVoltage(0.5f * (inputs[L_INPUT].getVoltage() - inputs[R_INPUT].getVoltage()));
-		outputs[M_OUTPUT].setVoltage(0.5f * (inputs[L_INPUT].getVoltage() + inputs[R_INPUT].getVoltage()));
-		outputs[L_OUTPUT].setVoltage(inputs[M_INPUT].getVoltage() + inputs[S_INPUT].getVoltage());
-		outputs[R_OUTPUT].setVoltage(inputs[M_INPUT].getVoltage() - inputs[S_INPUT].getVoltage());
+		int enc = std::max(inputs[L_INPUT].getChannels(), inputs[R_INPUT].getChannels());
+		for (int c = 0; c < enc; c++) {
+			float l = inputs[L_INPUT].getPolyVoltage(c), r = inputs[R_INPUT].getPolyVoltage(c);
+			outputs[M_OUTPUT].setVoltage(0.5f * (l + r), c);
+			outputs[S_OUTPUT].setVoltage(0.5f * (l - r), c);
+		}
+		outputs[M_OUTPUT].setChannels(enc);
+		outputs[S_OUTPUT].setChannels(enc);
+		int dec = std::max(inputs[M_INPUT].getChannels(), inputs[S_INPUT].getChannels());
+		for (int c = 0; c < dec; c++) {
+			float m = inputs[M_INPUT].getPolyVoltage(c), s = inputs[S_INPUT].getPolyVoltage(c);
+			outputs[L_OUTPUT].setVoltage(m + s, c);
+			outputs[R_OUTPUT].setVoltage(m - s, c);
+		}
+		outputs[L_OUTPUT].setChannels(dec);
+		outputs[R_OUTPUT].setChannels(dec);
 	}
 };
 
