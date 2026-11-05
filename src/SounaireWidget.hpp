@@ -582,26 +582,93 @@ struct SounaireDisplay : OpaqueWidget {
 	}
 };
 
-// the keys from C-1 to G9: the playing range in blue, the root in orange, the
-// keys being played in paper; a click plays a key
+// Under the display. KEYS mode: a piano of three octaves around the playing
+// range (or the root when the range is wider), with octave names; the range in
+// blue, the root in orange, the keys being played in paper; the wheel shifts
+// it by an octave. SLICES mode: one pad per slice, lined up with its part of
+// the waveform (and the display's zoom), with its number and key; a pad lights
+// while its slice plays. A click plays the key or the pad's slice while held;
+// dragging moves to the keys or pads passed over.
 struct SounaireKeys : OpaqueWidget {
 	SOUNAIRE *module = nullptr;
-	float dragX = 0.f;
+	SounaireDisplay *display = nullptr;
+	float dragX = 0.f, dragY = 0.f;
 	int clicked = -1;
+	int octaveShift = 0;
 
-	int keyAt(float x) const {
-		return clamp((int)(x / box.size.x * 128.f), 0, 127);
+	static bool isBlack(int k) {
+		int pc = ((k % 12) + 12) % 12;
+		return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10;
 	}
 
-	// a click plays the key (in SLICES mode its slice) while held; dragging
-	// moves to the keys passed over
+	// KEYS mode: the first key shown (a C), for 36 keys
+	int firstKey() const {
+		int lo = (int)module->params[SOUNAIRE::LOW_PARAM].getValue(), hi = (int)module->params[SOUNAIRE::HIGH_PARAM].getValue();
+		int a = std::min(lo, hi), b = std::max(lo, hi);
+		int root = (int)module->params[SOUNAIRE::ROOT_PARAM].getValue();
+		int from = b - a < 36 ? (a / 12) * 12 : ((root - 12) / 12) * 12;
+		if (b - a < 36 && b >= from + 36)
+			from += 12;
+		return clamp(from + 12 * octaveShift, 0, 128 - 36);
+	}
+
+	// KEYS mode: the key under (x, y): a black key on the top 60%, else the white
+	int pianoKeyAt(float x, float y) const {
+		int from = firstKey();
+		float ww = box.size.x / 21.f;   // 21 white keys in three octaves
+		int wi = clamp((int)(x / ww), 0, 20);
+		int white = from;
+		for (int n = 0, k = from; k < from + 36; k++)
+			if (!isBlack(k) && n++ == wi) {
+				white = k;
+				break;
+			}
+		if (y < box.size.y * 0.6f) {
+			float fx = x / ww - wi;
+			if (fx < 0.3f && white - 1 >= from && isBlack(white - 1))
+				return white - 1;
+			if (fx > 0.7f && white + 1 < from + 36 && isBlack(white + 1))
+				return white + 1;
+		}
+		return white;
+	}
+
+	// SLICES mode: the slice under x, in the display's view
+	int sliceAt(float x) const {
+		std::shared_ptr<sounaire::Sample> s = module->displaySample();
+		if (!s || s->frames < 2 || !display)
+			return -1;
+		return module->getSlices().at((int64_t)((double)display->xToPos(x) * s->frames));
+	}
+
+	int keyAt(float x, float y) const {
+		if (module->sliceMode()) {
+			int i = sliceAt(x);
+			return i < 0 ? -1 : (int)module->params[SOUNAIRE::ROOT_PARAM].getValue() + i;
+		}
+		return pianoKeyAt(x, y);
+	}
+
+	void onHoverScroll(const event::HoverScroll &e) override {
+		if (!module || module->sliceMode())
+			return;
+		e.consume(this);
+		octaveShift += e.scrollDelta.y > 0 ? 1 : -1;
+		octaveShift = clamp(octaveShift, -10, 10);
+	}
+
 	void onButton(const event::Button &e) override {
 		if (!module || e.button != GLFW_MOUSE_BUTTON_LEFT)
 			return;
 		if (e.action == GLFW_PRESS) {
 			e.consume(this);
 			dragX = e.pos.x;
-			clicked = keyAt(e.pos.x);
+			dragY = e.pos.y;
+			clicked = keyAt(e.pos.x, e.pos.y);
+			if (clicked < 0)
+				return;
+			if (module->sliceMode())
+				module->selectedSlice = clicked - (int)module->params[SOUNAIRE::ROOT_PARAM].getValue();
 			module->mouseHeld = true;
 			module->mouseKey = clicked;
 		}
@@ -615,8 +682,9 @@ struct SounaireKeys : OpaqueWidget {
 		if (!module || clicked < 0)
 			return;
 		dragX += e.mouseDelta.x / getAbsoluteZoom();
-		int k = keyAt(dragX);
-		if (k != clicked) {
+		dragY += e.mouseDelta.y / getAbsoluteZoom();
+		int k = keyAt(dragX, dragY);
+		if (k >= 0 && k != clicked) {
 			clicked = k;
 			module->mouseKey = k;
 		}
@@ -628,49 +696,128 @@ struct SounaireKeys : OpaqueWidget {
 		clicked = -1;
 	}
 
-	void drawLayer(const DrawArgs &args, int layer) override {
+	bool keyPlayed(int k) const {
+		for (int c = 0; c < MAX_VOICES; c++)
+			if (module->keyHeld[c] == k)
+				return true;
+		return module->mouseShown == k;
+	}
+
+	void drawPiano(const DrawArgs &args, std::shared_ptr<window::Font> f) {
 		using namespace sounaire_ui;
-		if (layer == 1 && module) {
-			float W = box.size.x, H = box.size.y, kw = W / 128.f;
-			int lo = (int)module->params[SOUNAIRE::LOW_PARAM].getValue(), hi = (int)module->params[SOUNAIRE::HIGH_PARAM].getValue();
-			int root = (int)module->params[SOUNAIRE::ROOT_PARAM].getValue();
-			if (module->sliceMode()) {
-				// one key per slice from BASE; the selected slice's key in orange
-				lo = root;
-				hi = root + module->getSlices().count - 1;
-				root += module->selectedSlice;
-			}
-			for (int k = 0; k < 128; k++) {
-				int pc = k % 12;
-				bool black = pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10;
-				bool inRange = k >= std::min(lo, hi) && k <= std::max(lo, hi);
+		float W = box.size.x, H = box.size.y, ww = W / 21.f;
+		int from = firstKey();
+		int lo = (int)module->params[SOUNAIRE::LOW_PARAM].getValue(), hi = (int)module->params[SOUNAIRE::HIGH_PARAM].getValue();
+		int a = std::min(lo, hi), b = std::max(lo, hi);
+		int root = (int)module->params[SOUNAIRE::ROOT_PARAM].getValue();
+		int wi = 0;
+		for (int k = from; k < from + 36; k++) {
+			if (isBlack(k))
+				continue;
+			bool in = k >= a && k <= b, played = keyPlayed(k);
+			NVGcolor c = played ? PAPER : (k == root ? ORANGE : (in ? BLUE : TRACK));
+			nvgBeginPath(args.vg);
+			nvgRect(args.vg, wi * ww + 0.5f, 0, ww - 1.f, H);
+			nvgFillColor(args.vg, c);
+			nvgFill(args.vg);
+			if (played) {
 				nvgBeginPath(args.vg);
-				nvgRect(args.vg, k * kw, black ? 0 : 0, std::max(1.f, kw - 0.4f), black ? H * 0.62f : H);
-				NVGcolor c = black ? INK : (inRange ? BLUE : TRACK);
-				if (black && inRange)
-					c = nvgRGB(0x1F, 0x3F, 0xAF);
-				if (k == root)
-					c = ORANGE;
-				nvgFillColor(args.vg, c);
-				nvgFill(args.vg);
-			}
-			// the keys being played: paper, with an ink dot at the bottom
-			for (int c = 0; c <= MAX_VOICES; c++) {
-				int k = c < MAX_VOICES ? (int)module->keyHeld[c] : (int)module->mouseShown;
-				if (k < 0 || k > 127)
-					continue;
-				int pc = k % 12;
-				bool black = pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10;
-				float h = black ? H * 0.62f : H;
-				nvgBeginPath(args.vg);
-				nvgRect(args.vg, k * kw, 0, std::max(1.f, kw - 0.4f), h);
-				nvgFillColor(args.vg, PAPER);
-				nvgFill(args.vg);
-				nvgBeginPath(args.vg);
-				nvgRect(args.vg, k * kw, h - 2.5f, std::max(1.f, kw - 0.4f), 2.5f);
+				nvgRect(args.vg, wi * ww + 0.5f, H - 3, ww - 1.f, 3);
 				nvgFillColor(args.vg, INK);
 				nvgFill(args.vg);
 			}
+			if (k % 12 == 0 && f && f->handle >= 0) {
+				nvgFontFaceId(args.vg, f->handle);
+				nvgFontSize(args.vg, 8.f);
+				nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_BOTTOM);
+				nvgFillColor(args.vg, (in && !played && k != root) ? PAPER : INK);
+				nvgText(args.vg, wi * ww + ww / 2, H - 3, sounaire_ui::noteName((float)k).c_str(), nullptr);
+			}
+			wi++;
+		}
+		wi = 0;
+		for (int k = from; k < from + 36; k++) {
+			if (!isBlack(k)) {
+				wi++;
+				continue;
+			}
+			bool in = k >= a && k <= b, played = keyPlayed(k);
+			NVGcolor c = played ? PAPER : (k == root ? ORANGE : (in ? nvgRGB(0x1F, 0x3F, 0xAF) : INK));
+			nvgBeginPath(args.vg);
+			nvgRect(args.vg, wi * ww - ww * 0.3f, 0, ww * 0.6f, H * 0.6f);
+			nvgFillColor(args.vg, c);
+			nvgFill(args.vg);
+			nvgStrokeColor(args.vg, INK);
+			nvgStrokeWidth(args.vg, 0.6f);
+			nvgStroke(args.vg);
+		}
+	}
+
+	void drawPads(const DrawArgs &args, std::shared_ptr<window::Font> f) {
+		using namespace sounaire_ui;
+		std::shared_ptr<sounaire::Sample> s = module->displaySample();
+		float W = box.size.x, H = box.size.y;
+		if (!s || s->frames < 2 || !display) {
+			nvgBeginPath(args.vg);
+			nvgRoundedRect(args.vg, 0, 0, W, H, 3);
+			nvgFillColor(args.vg, TRACK);
+			nvgFill(args.vg);
+			return;
+		}
+		sounaire::Slices u = module->getSlices();
+		int sel = clamp((int)module->selectedSlice, 0, u.count - 1);
+		int base = (int)module->params[SOUNAIRE::ROOT_PARAM].getValue();
+		// how loud each slice sounds now
+		float lit[sounaire::MAX_SLICES] = {};
+		for (int i = 0; i < sounaire::Engine::SLOTS; i++) {
+			const sounaire::Voice &v = module->engine.voices[i];
+			if (v.active && v.slice >= 0 && v.slice < u.count && v.sample == s.get())
+				lit[v.slice] = std::max(lit[v.slice], v.env * v.fadeGain);
+		}
+		double F = (double)s->frames;
+		nvgSave(args.vg);
+		nvgScissor(args.vg, 0, 0, W, H);
+		for (int i = 0; i < u.count; i++) {
+			float x0 = display->posToX(u.start[i] / F) + 0.5f, x1 = display->posToX(u.end(i, s->frames) / F) - 0.5f;
+			if (x1 < 0.f || x0 > W || x1 - x0 < 0.5f)
+				continue;
+			NVGcolor c = i == sel ? ORANGE : BLUE;
+			if (lit[i] > 0.f)
+				c = nvgLerpRGBA(c, PAPER, std::min(1.f, 0.3f + lit[i]));
+			nvgBeginPath(args.vg);
+			nvgRoundedRect(args.vg, x0, 0, x1 - x0, H, 2);
+			nvgFillColor(args.vg, c);
+			nvgFill(args.vg);
+			if (lit[i] > 0.f) {
+				nvgStrokeColor(args.vg, INK);
+				nvgStrokeWidth(args.vg, 1.f);
+				nvgStroke(args.vg);
+			}
+			if (f && f->handle >= 0 && x1 - x0 > 12.f) {
+				float cx = (std::max(x0, 0.f) + std::min(x1, W)) / 2;
+				nvgFontFaceId(args.vg, f->handle);
+				nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+				nvgFillColor(args.vg, lit[i] > 0.f ? INK : PAPER);
+				nvgFontSize(args.vg, 10.f);
+				bool both = x1 - x0 > 30.f;
+				nvgText(args.vg, cx, both ? H * 0.32f : H * 0.5f, std::to_string(i + 1).c_str(), nullptr);
+				if (both) {
+					nvgFontSize(args.vg, 8.f);
+					nvgText(args.vg, cx, H * 0.72f, sounaire_ui::noteName((float)(base + i)).c_str(), nullptr);
+				}
+			}
+		}
+		nvgResetScissor(args.vg);
+		nvgRestore(args.vg);
+	}
+
+	void drawLayer(const DrawArgs &args, int layer) override {
+		if (layer == 1 && module) {
+			std::shared_ptr<window::Font> f = APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
+			if (module->sliceMode())
+				drawPads(args, f);
+			else
+				drawPiano(args, f);
 		}
 		OpaqueWidget::drawLayer(args, layer);
 	}
@@ -745,13 +892,14 @@ struct SOUNAIREWidget : BidooWidget {
 		addChild(display);
 		SounaireKeys *keys = new SounaireKeys;
 		keys->module = module;
+		keys->display = display;
 		keys->box.pos = Vec(10, 104);
-		keys->box.size = Vec(460, 12);
+		keys->box.size = Vec(460, 28);
 		addChild(keys);
 
 		// three rows of eight columns
 		auto cx = [](int col) { return 40.f + 57.f * col; };
-		const float rows[3] = {148.f, 196.f, 244.f};
+		const float rows[3] = {164.f, 212.f, 260.f};
 		auto knob = [&](int col, int row, int param, bool snapped) {
 			app::Knob *k = snapped ? (app::Knob *)createParamCentered<RisoSnapKnob>(Vec(cx(col), rows[row]), module, param)
 			                       : (app::Knob *)createParamCentered<RisoKnob>(Vec(cx(col), rows[row]), module, param);
@@ -795,16 +943,16 @@ struct SOUNAIREWidget : BidooWidget {
 		                SOUNAIRE::START_INPUT, SOUNAIRE::SPEED_INPUT, SOUNAIRE::CUTOFF_INPUT, SOUNAIRE::RES_INPUT,
 		                SOUNAIRE::PITCH_INPUT, SOUNAIRE::PLAY_INPUT};
 		for (int i = 0; i < 10; i++)
-			addInput(createInputCentered<RisoJack>(Vec(jx(i), 290.f), module, row1[i]));
+			addInput(createInputCentered<RisoJack>(Vec(jx(i), 306.f), module, row1[i]));
 		const int row2Col[6] = {0, 1, 2, 3, 5, 6};
 		int row2[6] = {SOUNAIRE::TRIG_INPUT, SOUNAIRE::SLICE_INPUT, SOUNAIRE::RESET_INPUT, SOUNAIRE::CLOCK_INPUT,
 		               SOUNAIRE::INL_INPUT, SOUNAIRE::INR_INPUT};
 		for (int i = 0; i < 6; i++)
-			addInput(createInputCentered<RisoJack>(Vec(jx(row2Col[i]), 332.f), module, row2[i]));
-		addParam(createParamCentered<RisoButton>(Vec(jx(7), 332.f), module, SOUNAIRE::REC_PARAM));
-		addInput(createInputCentered<RisoJack>(Vec(jx(8), 332.f), module, SOUNAIRE::REC_INPUT));
-		RisoJack *l = createOutputCentered<RisoJack>(Vec(452.f, 290.f), module, SOUNAIRE::L_OUTPUT);
-		RisoJack *r = createOutputCentered<RisoJack>(Vec(452.f, 332.f), module, SOUNAIRE::R_OUTPUT);
+			addInput(createInputCentered<RisoJack>(Vec(jx(row2Col[i]), 348.f), module, row2[i]));
+		addParam(createParamCentered<RisoButton>(Vec(jx(7), 348.f), module, SOUNAIRE::REC_PARAM));
+		addInput(createInputCentered<RisoJack>(Vec(jx(8), 348.f), module, SOUNAIRE::REC_INPUT));
+		RisoJack *l = createOutputCentered<RisoJack>(Vec(452.f, 306.f), module, SOUNAIRE::L_OUTPUT);
+		RisoJack *r = createOutputCentered<RisoJack>(Vec(452.f, 348.f), module, SOUNAIRE::R_OUTPUT);
 		l->onInk = r->onInk = true;
 		addOutput(l);
 		addOutput(r);
@@ -960,7 +1108,7 @@ struct SOUNAIREWidget : BidooWidget {
 
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Drag a marker; Shift: snap to a zero crossing"));
-		menu->addChild(createMenuLabel("Wheel: zoom; Shift+wheel: scroll"));
+		menu->addChild(createMenuLabel("Wheel: zoom; Shift+wheel: scroll; on the keyboard: octave"));
 		menu->addChild(createMenuLabel("Ctrl+Shift+drag: region for the root note"));
 		menu->addChild(createMenuLabel("Alt+click: preview from there"));
 		menu->addChild(createMenuLabel("Slices: click selects, double-click adds or removes a cut (Ctrl+Z undoes)"));

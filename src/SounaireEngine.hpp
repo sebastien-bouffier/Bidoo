@@ -633,6 +633,7 @@ struct Voice {
 	bool ownRegion = false;
 	bool oneShot = false;
 	int choke = 0;            // the slice's choke group
+	int slice = -1;           // SLICES mode: the slice it plays (for the pads)
 	float pitchOffset = 0.f;  // the slice's tuning, on top of pitchSemis
 	float gainL = 1.f, gainR = 1.f;   // the slice's level and pan
 	float attackMs = -1.f, releaseMs = -1.f;   // the slice's envelope, below 0: the knobs

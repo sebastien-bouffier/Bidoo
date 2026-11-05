@@ -961,6 +961,7 @@ struct SOUNAIRE : BidooModule {
 		engine.noteOn(slot, slot >= MAX_VOICES ? 0 : c, semitones(c), vel, p, startOffset, cutoffNote(c), &own, oneShot);
 		sounaire::Voice &v = engine.voices[slot];
 		v.choke = group;
+		v.slice = i;
 		v.pitchOffset = slices->tune[i];
 		float g = std::pow(10.f, slices->level[i] / 20.f), pan = slices->pan[i];
 		v.gainL = g * std::min(1.f, 1.f - pan);
