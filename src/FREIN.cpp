@@ -1,10 +1,7 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/digital.hpp"
-#include "dsp/ringbuffer.hpp"
-#include "dep/filters/pitchshifter.h"
-
-#define BUFF_SIZE 262144
+#include <vector>
 
 using namespace std;
 
@@ -31,83 +28,123 @@ struct FREIN : BidooModule {
 		NUM_LIGHTS = BREAK_LIGHT + 3
 	};
 
+	enum State { PLAY, BREAK, STOPPED, START, CATCHUP };
+
 	dsp::SchmittTrigger trigTrigger;
 	dsp::SchmittTrigger startTrigger;
-	dsp::DoubleRingBuffer<float, BUFF_SIZE> in_Buffer;
-	bool breakOn = false;
-	float breakSamples = 0.0f;
+	State state = PLAY;
 	float speed = 1.0f;
-	float speedUp = 0.0f;
-	float head = 0.0f;
+	float speedStep = 0.0f;
+	double head = 0.0;      // read position, in samples since the break or start
+	long long written = 0;  // samples written since the break or start
+	float catchup = 0.0f;   // crossfade from the delayed tape to the live input
+	// one tape per channel; the read lags the input by at most half the
+	// longest time (3 s), so 1.5 s of tape is enough
+	std::vector<float> tape[PORT_MAX_CHANNELS];
+	int tapeSize = 1;
 
 	FREIN() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(TRIG_PARAM, 0.0f, 1.0f, 0.0f, "Trig");
-		configParam(SPEED_PARAM, 0.5f, 3.0f, 1.0f, "Speed");
+		configButton(TRIG_PARAM, "Break (tape stop)");
+		configButton(START_PARAM, "Start (tape spin-up)");
+		configParam(SPEED_PARAM, 0.5f, 3.0f, 1.0f, "Stop/start time", " s");
+		configInput(INPUT, "Audio (polyphonic)");
+		configInput(TRIG_INPUT, "Break trigger");
+		configInput(START_INPUT, "Start trigger");
+		configInput(SPEED_INPUT, "Time CV (0-10 V: +0-2.5 s)");
+		configOutput(OUTPUT, "Audio");
+		configBypass(INPUT, OUTPUT);
+		resize(48000.f);
+	}
+
+	void resize(float sampleRate) {
+		tapeSize = (int)(1.5f * sampleRate) + 8;
+		for (auto &t : tape)
+			t.assign(tapeSize, 0.0f);
+		state = PLAY;
+		speed = 1.0f;
+	}
+
+	void onSampleRateChange(const SampleRateChangeEvent &e) override {
+		resize(e.sampleRate);
+	}
+
+	float read(int c, double pos) const {
+		long long i = (long long)pos;
+		float f = (float)(pos - (double)i);
+		float a = tape[c][i % tapeSize], b = tape[c][(i + 1) % tapeSize];
+		return a + (b - a) * f;
 	}
 
 	void process(const ProcessArgs &args) override {
-
+		float time = clamp(params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage() * 0.25f, 0.5f, 3.0f);
 		if (trigTrigger.process(params[TRIG_PARAM].getValue() + inputs[TRIG_INPUT].getVoltage())) {
-			breakOn = true;
-			breakSamples = args.sampleRate*clamp(params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage(),0.5f,3.0f);
-			speedUp = 1.0f/breakSamples;
+			state = BREAK;
 			speed = 1.0f;
-			head = 0.0f;
-			in_Buffer.clear();
+			speedStep = 1.0f / (args.sampleRate * time);
+			head = 0.0;
+			written = 0;
 		}
-
-		if (trigTrigger.process(params[START_PARAM].getValue() + inputs[START_INPUT].getVoltage())) {
-			in_Buffer.clear();
-			breakOn = false;
+		if (startTrigger.process(params[START_PARAM].getValue() + inputs[START_INPUT].getVoltage()) && state != PLAY && state != CATCHUP) {
+			state = START;
 			speed = 0.0f;
-			speedUp = 0.05f;
+			speedStep = 1.0f / (args.sampleRate * time);
+			head = 0.0;
+			written = 0;
 		}
 
-		in_Buffer.push(inputs[INPUT].getVoltage());
+		int channels = std::max(1, inputs[INPUT].getChannels());
+		bool tapeRuns = state == BREAK || state == START || state == CATCHUP;
+		if (tapeRuns) {
+			int w = (int)(written % tapeSize);
+			for (int c = 0; c < channels; c++)
+				tape[c][w] = inputs[INPUT].getVoltage(c);
+		}
 
-		if (breakOn) {
-			if (speed > 0.0f) {
-				int xi = head;
-				float xf = head - xi;
-				float crossfaded = crossfade(*(in_Buffer.startData()+xi), *(in_Buffer.startData()+xi+1), xf);
-				if (speed<=0.1f) {
-					outputs[OUTPUT].setVoltage(crossfaded*10.0f*speed);
-				}
-				else {
-					outputs[OUTPUT].setVoltage(crossfaded);
-				}
-				speed = max(speed-speedUp,0.0f);
-				head = min (head+speed,(float)in_Buffer.size());
-				lights[BREAK_LIGHT].setBrightness(0.0f);
-				lights[BREAK_LIGHT+1].setBrightness(0.0f);
-				lights[BREAK_LIGHT+2].setBrightness(1.0f);
+		// fades in and out over the slowest tenth of the speed
+		float gain = std::min(1.0f, speed * 10.0f);
+		for (int c = 0; c < channels; c++) {
+			float out;
+			switch (state) {
+				case PLAY: out = inputs[INPUT].getVoltage(c); break;
+				case STOPPED: out = 0.0f; break;
+				case CATCHUP: out = read(c, head) + (inputs[INPUT].getVoltage(c) - read(c, head)) * catchup; break;
+				default: out = read(c, head) * gain; break;
 			}
-			else
-			{
-				outputs[OUTPUT].setVoltage(0.0f);
-				lights[BREAK_LIGHT].setBrightness(1.0f);
-				lights[BREAK_LIGHT+1].setBrightness(0.0f);
-				lights[BREAK_LIGHT+2].setBrightness(0.0f);
-				in_Buffer.clear();
+			outputs[OUTPUT].setVoltage(out, c);
+		}
+		outputs[OUTPUT].setChannels(channels);
+
+		if (tapeRuns) {
+			head += speed;
+			written++;
+		}
+		if (state == BREAK) {
+			speed -= speedStep;
+			if (speed <= 0.0f) {
+				speed = 0.0f;
+				state = STOPPED;
 			}
 		}
-		else {
-			if (speed<1.0f) {
-				outputs[OUTPUT].setVoltage(*in_Buffer.startData()*speed);
-				lights[BREAK_LIGHT].setBrightness(0.0f);
-				lights[BREAK_LIGHT+1].setBrightness(0.0f);
-				lights[BREAK_LIGHT+2].setBrightness(1.0f);
-				speed = min(speed+speedUp,1.0f);
+		else if (state == START) {
+			speed += speedStep;
+			if (speed >= 1.0f) {
+				// up to speed: the tape now lags the input, crossfade back to it
+				speed = 1.0f;
+				state = CATCHUP;
+				catchup = 0.0f;
 			}
-			else {
-				lights[BREAK_LIGHT].setBrightness(0.0f);
-				lights[BREAK_LIGHT+1].setBrightness(1.0f);
-				lights[BREAK_LIGHT+2].setBrightness(0.0f);
-				outputs[OUTPUT].setVoltage(*in_Buffer.startData());
-			}
-			in_Buffer.startIncr(1);
 		}
+		else if (state == CATCHUP) {
+			catchup += 1.0f / (0.01f * args.sampleRate);
+			if (catchup >= 1.0f)
+				state = PLAY;
+		}
+
+		bool moving = state == BREAK || state == START || state == CATCHUP;
+		lights[BREAK_LIGHT].setBrightness(state == STOPPED ? 1.0f : 0.0f);
+		lights[BREAK_LIGHT + 1].setBrightness(state == PLAY ? 1.0f : 0.0f);
+		lights[BREAK_LIGHT + 2].setBrightness(moving ? 1.0f : 0.0f);
 	}
 };
 
