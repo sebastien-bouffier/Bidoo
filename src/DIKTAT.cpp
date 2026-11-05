@@ -39,6 +39,7 @@ struct DIKTAT : BidooModule {
 
 	int currentChannel = 0;
 	bool globalMode = true;
+	int editedSlot = 0;    // the slot the ROOT and SCALE knobs edit: 0 in global mode
 	int rootNote[16] = {0};
 	int scale[16] = {0};
 	float inputNote[16] = {0.0f};
@@ -73,7 +74,21 @@ struct DIKTAT : BidooModule {
 		configOutput(NOTE_THIRTEENTH_OUTPUT, "Thirteenth");
 
 		configSwitch(GLOBAL_PARAM, 0, 1, 0, "Mode", {"Individual","Global"});
+		resetSlots();
   }
+
+	// Every slot starts as the knobs' defaults.
+	void resetSlots() {
+		for (int i = 0; i < 16; i++) {
+			rootNote[i] = 0;
+			scale[i] = 1;
+		}
+		editedSlot = 0;
+	}
+
+	void onReset() override {
+		resetSlots();
+	}
 
   void process(const ProcessArgs &args) override;
 
@@ -113,21 +128,27 @@ struct DIKTAT : BidooModule {
 		if (globalModeJ) {
 			globalMode = json_boolean_value(globalModeJ);
 		}
+		// The saved knobs show this slot.
+		editedSlot = globalMode ? 0 : currentChannel;
 	}
 };
 
 void DIKTAT::process(const ProcessArgs &args) {
-	if (currentChannel != params[CHANNEL_PARAM].getValue()) {
-		currentChannel = params[CHANNEL_PARAM].getValue();
-		params[ROOT_NOTE_PARAM].setValue(rootNote[currentChannel]);
-		params[SCALE_PARAM].setValue(scale[currentChannel]);
+	// In global mode every channel uses slot 0, so the knobs edit slot 0
+	// whatever CHANNEL shows; in individual mode they edit CHANNEL's slot.
+	currentChannel = clamp((int)params[CHANNEL_PARAM].getValue(), 0, 15);
+	globalMode = params[GLOBAL_PARAM].getValue() > 0.5f;
+	int slot = globalMode ? 0 : currentChannel;
+	if (slot != editedSlot) {
+		editedSlot = slot;
+		params[ROOT_NOTE_PARAM].setValue(rootNote[slot]);
+		params[SCALE_PARAM].setValue(scale[slot]);
 	}
 	else {
-		rootNote[currentChannel] = params[ROOT_NOTE_PARAM].getValue();
-		scale[currentChannel] = params[SCALE_PARAM].getValue();
+		rootNote[slot] = params[ROOT_NOTE_PARAM].getValue();
+		scale[slot] = params[SCALE_PARAM].getValue();
 	}
 
-	globalMode = params[GLOBAL_PARAM].getValue();
 	int c = std::max(inputs[NOTE_INPUT].getChannels(), 1);
 
 	outputs[NOTE_TONIC_OUTPUT].setChannels(c);
@@ -138,26 +159,31 @@ void DIKTAT::process(const ProcessArgs &args) {
 	outputs[NOTE_ELEVENTH_OUTPUT].setChannels(c);
 	outputs[NOTE_THIRTEENTH_OUTPUT].setChannels(c);
 
-	for (int i=0;i<c;i++) {
-
-
+	// Root and scale for all 16 channels, so the displays are right for any
+	// CHANNEL. A mono CV applies to every channel; in global mode channel 1's
+	// CV drives them all.
+	for (int i=0;i<16;i++) {
+		int k = globalMode ? 0 : i;
 		if (inputs[ROOT_NOTE_INPUT].isConnected()) {
-			// 0-10 V adds 0-11 semitones to the root; root No stays No.
-			int r = rootNote[globalMode ? 0 : i];
-			lRootNote[i] = r < 0 ? r : clamp((int)(r + clamp(inputs[ROOT_NOTE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f, 10.0f) * 1.1f), 0, 11);
+			// 0-10 V adds 0-11 semitones to the root, round the octave; root No stays No.
+			int r = rootNote[k];
+			int semis = (int)(clamp(inputs[ROOT_NOTE_INPUT].getPolyVoltage(k), 0.0f, 10.0f) * 1.1f);
+			lRootNote[i] = r < 0 ? r : (r + semis) % 12;
 		}
 		else {
-			lRootNote[i] = rootNote[globalMode ? 0 : i];
+			lRootNote[i] = rootNote[k];
 		}
 
 		if (inputs[SCALE_INPUT].isConnected()) {
 			// 0-10 V moves through the whole scale list from the knob's scale.
-			lScale[i] = clamp((int)std::round(scale[globalMode ? 0 : i] + clamp(inputs[SCALE_INPUT].getVoltage(globalMode ? 0 : i), 0.0f, 10.0f) * (quantizer::numScales - 1) / 10.0f), 0, quantizer::numScales - 1);
+			lScale[i] = clamp((int)std::round(scale[k] + clamp(inputs[SCALE_INPUT].getPolyVoltage(k), 0.0f, 10.0f) * (quantizer::numScales - 1) / 10.0f), 0, quantizer::numScales - 1);
 		}
 		else {
-			lScale[i] = scale[globalMode ? 0 : i];
+			lScale[i] = scale[k];
 		}
+	}
 
+	for (int i=0;i<c;i++) {
 		inputNote[i] = inputs[NOTE_INPUT].getVoltage(i);
 
 		chord = quant.closestChordInScale(inputNote[i], lRootNote[i], lScale[i]);

@@ -11,6 +11,27 @@ namespace waves {
   // resamples it to currentSampleRate. On failure the result is empty and
   // sampleCount is 0.
   template <int N>
+  static std::vector<rack::dsp::Frame<N>> resample(const std::vector<rack::dsp::Frame<N>> &in, float fromRate, float toRate) {
+    rack::dsp::SampleRateConverter<N> conv;
+    conv.setRates(fromRate, toRate);
+    conv.setQuality(SPEEX_RESAMPLER_QUALITY_DESKTOP);
+    int count = in.size();
+    std::vector<rack::dsp::Frame<N>> out((size_t)std::ceil((double)count * toRate / fromRate) + 256);
+    int inDone = 0, outDone = 0;
+    while (inDone < count && outDone < (int)out.size()) {
+      int inCount = count - inDone;
+      int outCount = out.size() - outDone;
+      conv.process(&in[inDone], &inCount, &out[outDone], &outCount);
+      if (inCount == 0 && outCount == 0)
+        break;
+      inDone += inCount;
+      outDone += outCount;
+    }
+    out.resize(outDone);
+    return out;
+  }
+
+  template <int N>
   static std::vector<rack::dsp::Frame<N>> loadFrames(const std::string &path, const float currentSampleRate, std::string &waveFileName, std::string &waveExtension, int &sampleChannels, int &sampleRate, int &sampleCount) {
     waveFileName = rack::system::getFilename(path);
     waveExtension = rack::system::getExtension(waveFileName);
@@ -64,23 +85,8 @@ namespace waves {
     sampleCount = result.size();
 
     if ((sampleCount > 0) && (sampleRate > 0) && (sampleRate != currentSampleRate)) {
-      rack::dsp::SampleRateConverter<N> conv;
-      conv.setRates(sampleRate, currentSampleRate);
-      conv.setQuality(SPEEX_RESAMPLER_QUALITY_DESKTOP);
-      std::vector<rack::dsp::Frame<N>> subResult((size_t)std::ceil((double)sampleCount * currentSampleRate / sampleRate) + 256);
-      int inDone = 0, outDone = 0;
-      while (inDone < sampleCount && outDone < (int)subResult.size()) {
-        int inCount = sampleCount - inDone;
-        int outCount = subResult.size() - outDone;
-        conv.process(&result[inDone], &inCount, &subResult[outDone], &outCount);
-        if (inCount == 0 && outCount == 0)
-          break;
-        inDone += inCount;
-        outDone += outCount;
-      }
-      subResult.resize(outDone);
-      sampleCount = outDone;
-      return subResult;
+      result = resample<N>(result, sampleRate, currentSampleRate);
+      sampleCount = result.size();
     }
 
     return result;
@@ -94,27 +100,27 @@ namespace waves {
     return loadFrames<2>(path, currentSampleRate, waveFileName, waveExtension, sampleChannels, sampleRate, sampleCount);
   }
 
-  void saveWave(std::vector<rack::dsp::Frame<2>> &sample, int sampleRate, std::string path) {
+  std::vector<rack::dsp::Frame<2>> resampleStereo(const std::vector<rack::dsp::Frame<2>> &frames, float fromRate, float toRate) {
+    return resample<2>(frames, fromRate, toRate);
+  }
+
+  // Float, so nothing above full scale clips (a recording of a 10 V signal
+  // is stored at 2.0).
+  bool saveWave(const std::vector<rack::dsp::Frame<2>> &sample, int sampleRate, std::string path) {
     drwav_data_format format;
     format.container = drwav_container_riff;
-    format.format = DR_WAVE_FORMAT_PCM;
+    format.format = DR_WAVE_FORMAT_IEEE_FLOAT;
     format.channels = 2;
     format.sampleRate = sampleRate;
     format.bitsPerSample = 32;
 
-    int *pSamples = (int*)calloc(2*sample.size(),sizeof(int));
-    memset(pSamples, 0, 2*sample.size()*sizeof(int));
-    for (unsigned int i = 0; i < sample.size(); i++) {
-    	*(pSamples+2*i)= floor(sample[i].samples[0]*1990000000);
-    	*(pSamples+2*i+1)= floor(sample[i].samples[1]*1990000000);
-    }
-
     drwav wav;
-    drwav_init_file_write(&wav, path.c_str(), &format, NULL);
-    drwav_write_pcm_frames(&wav, 2*sample.size(), pSamples);
+    if (!drwav_init_file_write(&wav, path.c_str(), &format, NULL))
+      return false;
+    // Frame<2> is two packed floats: the frames are already interleaved.
+    drwav_uint64 written = drwav_write_pcm_frames(&wav, sample.size(), sample.data());
     drwav_uninit(&wav);
-
-    free(pSamples);
+    return written == sample.size();
   }
 
 }

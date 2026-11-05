@@ -140,8 +140,17 @@ struct CANARD : BidooModule {
 	std::atomic<float> recRate{48000.f};
 	std::atomic<bool> clearRequested{false};
 
+	// A sample that matches no file (a recording, or a file with a recording
+	// added or a slice deleted) is stored in the patch, as sample.wav.
+	std::atomic<bool> inPatch{false};
+	std::atomic<bool> storeDirty{false};   // sample.wav is out of date
+	std::atomic<int> storesDone{0};
+	bool loadStored = false;               // set by dataFromJson, used by onAdd
+	std::vector<int> storedSlices;
+	int storedRate = 0;
+
 	// Worker: loads, saves, slice edits, recordings.
-	enum JobType { LOAD, SAVE, CLEAR, DELETE_SLICE, ADD_MARKER, DELETE_MARKER, TRANSIENTS };
+	enum JobType { LOAD, SAVE, CLEAR, DELETE_SLICE, ADD_MARKER, DELETE_MARKER, TRANSIENTS, STORE, LOAD_STORED, RESAMPLE };
 	struct Job { JobType type; std::string path; int value; std::vector<int> slices; float rate; };
 	std::thread worker;
 	std::mutex jobMutex;
@@ -304,29 +313,55 @@ struct CANARD : BidooModule {
 
 	void runJob(const Job &job) {
 		switch (job.type) {
-			case LOAD: {
+			case LOAD:
+			case LOAD_STORED: {
 				std::string name, ext;
 				int ch = 0, sr = 0, cnt = 0;
 				CanardSample *s = new CanardSample();
 				s->frames = waves::getStereoWav(job.path, job.rate, name, ext, ch, sr, cnt);
 				s->sampleRate = job.rate;
+				inPatch = job.type == LOAD_STORED;
+				storeDirty = false;
 				if (s->frames.empty()) {
 					delete s;
 					publish(nullptr);
 					break;
 				}
-				// Slices from a patch, at the rate they were saved at (the job's rate).
+				// Slices from a patch: job.value is the rate they were saved at.
 				s->slices = job.slices;
+				if (job.value > 0 && job.value != (int)job.rate)
+					for (int &x : s->slices)
+						x = (int)std::round(x * (double)job.rate / job.value);
 				publish(s);
 				break;
 			}
 			case SAVE: {
 				CanardSample *l = live.load(std::memory_order_acquire);
-				if (l && l->size() > 0)
-					waves::saveWave(l->frames, l->sampleRate, job.path);
+				if (l && l->size() > 0 && waves::saveWave(l->frames, l->sampleRate, job.path))
+					inPatch = false;  // the file now holds this sample
+				break;
+			}
+			case STORE: {
+				CanardSample *l = live.load(std::memory_order_acquire);
+				if (l && l->size() > 0 && waves::saveWave(l->frames, l->sampleRate, job.path))
+					storeDirty = false;
+				storesDone++;
+				break;
+			}
+			case RESAMPLE: {
+				CanardSample *s = copyLive();
+				if (!s)
+					break;
+				double ratio = job.rate / s->sampleRate;
+				s->frames = waves::resampleStereo(s->frames, s->sampleRate, job.rate);
+				for (int &x : s->slices)
+					x = (int)std::round(x * ratio);
+				s->sampleRate = job.rate;
+				publish(s);
 				break;
 			}
 			case CLEAR:
+				inPatch = false;
 				publish(nullptr);
 				break;
 			case DELETE_SLICE: {
@@ -341,6 +376,9 @@ struct CANARD : BidooModule {
 					s->slices.erase(s->slices.begin() + sel);
 					for (size_t i = sel; i < s->slices.size(); i++)
 						s->slices[i] -= (to - from);
+					// The audio no longer matches the file.
+					inPatch = true;
+					storeDirty = true;
 				}
 				if (s->frames.empty()) {
 					delete s;
@@ -402,6 +440,7 @@ struct CANARD : BidooModule {
 					lastPath.clear();
 					waveFileName.clear();
 				}
+				inPatch = false;
 				publish(nullptr);
 			}
 			int done = recDone.load();
@@ -430,21 +469,26 @@ struct CANARD : BidooModule {
 					delete s;
 					s = nullptr;
 				}
+				inPatch = s != nullptr;
+				storeDirty = s != nullptr;
 				publish(s);
 				// Only now may the audio thread start another recording.
 				recDone.store(-1);
 			}
 			float rr = reloadRate.exchange(0.f);
 			lock.lock();
-			if (rr > 0.f && !lastPath.empty()) {
-				// Slices move with the new rate.
+			if (rr > 0.f) {
 				CanardSample *l = live.load(std::memory_order_acquire);
-				std::vector<int> sl;
-				if (l)
-					for (int s : l->slices)
-						sl.push_back((int)std::round(s * (double)rr / l->sampleRate));
-				jobs.push_back({LOAD, lastPath, 0, sl, rr});
-				busy++;
+				if (!inPatch && !lastPath.empty() && l) {
+					// Back from the file at the new rate; the slices move with it.
+					jobs.push_back({LOAD, lastPath, (int)l->sampleRate, l->slices, rr});
+					busy++;
+				}
+				else if (l) {
+					// No file holds it: converted in memory.
+					jobs.push_back({RESAMPLE, "", 0, {}, rr});
+					busy++;
+				}
 			}
 			if (jobs.empty())
 				continue;
@@ -459,9 +503,44 @@ struct CANARD : BidooModule {
 
 	void process(const ProcessArgs &args) override;
 
+	std::string storagePath() {
+		return rack::system::join(getPatchStorageDirectory(), "sample.wav");
+	}
+
+	void onSave(const SaveEvent &e) override {
+		std::string path = storagePath();
+		if (!inPatch) {
+			if (rack::system::isFile(path))
+				rack::system::remove(path);
+			return;
+		}
+		if (!storeDirty && rack::system::isFile(path))
+			return;
+		// Written by the worker, which owns the sample; wait for it (it only
+		// runs short jobs, but give up rather than hang the save).
+		int before = storesDone.load();
+		post({STORE, path, 0, {}, 0.f});
+		for (int i = 0; i < 10000 && storesDone.load() == before; i++)
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
+
+	void onAdd(const AddEvent &e) override {
+		if (!loadStored)
+			return;
+		loadStored = false;
+		std::string path = storagePath();
+		if (rack::system::isFile(path))
+			post({LOAD_STORED, path, storedRate, storedSlices, engineRate()});
+		else
+			inPatch = false;
+	}
+
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
-		json_object_set_new(rootJ, "lastPath", json_string(getPath().c_str()));
+		bool stored = inPatch;
+		json_object_set_new(rootJ, "lastPath", json_string(stored ? "" : getPath().c_str()));
+		json_object_set_new(rootJ, "inPatch", json_boolean(stored));
+		json_object_set_new(rootJ, "fileName", json_string(getFileName().c_str()));
 		json_object_set_new(rootJ, "reverse", json_boolean(reverse));
 		json_t *slicesJ = json_array();
 		std::shared_ptr<CanardSample> s;
@@ -469,9 +548,11 @@ struct CANARD : BidooModule {
 			std::lock_guard<std::mutex> lock(uiMutex);
 			s = uiSample;
 		}
-		if (s)
+		if (s) {
 			for (int x : s->slices)
 				json_array_append_new(slicesJ, json_integer(x));
+			json_object_set_new(rootJ, "sliceRate", json_integer((int)s->sampleRate));
+		}
 		json_object_set_new(rootJ, "slices", slicesJ);
 		return rootJ;
 	}
@@ -480,17 +561,30 @@ struct CANARD : BidooModule {
 		BidooModule::dataFromJson(rootJ);
 		json_t *reverseJ = json_object_get(rootJ, "reverse");
 		reverse = reverseJ && json_is_true(reverseJ);
+		std::vector<int> sl;
+		json_t *slicesJ = json_object_get(rootJ, "slices");
+		size_t i;
+		json_t *sliceJ;
+		if (slicesJ)
+			json_array_foreach(slicesJ, i, sliceJ)
+				sl.push_back(json_integer_value(sliceJ));
+		json_t *rateJ = json_object_get(rootJ, "sliceRate");
+		int rate = rateJ ? (int)json_integer_value(rateJ) : 0;
+		json_t *inPatchJ = json_object_get(rootJ, "inPatch");
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
-		if (lastPathJ && json_string_value(lastPathJ)[0]) {
-			std::vector<int> sl;
-			json_t *slicesJ = json_object_get(rootJ, "slices");
-			size_t i;
-			json_t *sliceJ;
-			if (slicesJ)
-				json_array_foreach(slicesJ, i, sliceJ)
-					sl.push_back(json_integer_value(sliceJ));
-			loadFile(json_string_value(lastPathJ), sl);
+		if (inPatchJ && json_is_true(inPatchJ)) {
+			// sample.wav, from the patch storage, once the module is added (onAdd).
+			loadStored = true;
+			inPatch = true;  // so a save before the load ends keeps sample.wav
+			storedSlices = sl;
+			storedRate = rate;
+			json_t *nameJ = json_object_get(rootJ, "fileName");
+			std::lock_guard<std::mutex> lock(jobMutex);
+			lastPath.clear();
+			waveFileName = nameJ ? json_string_value(nameJ) : "";
 		}
+		else if (lastPathJ && json_string_value(lastPathJ)[0])
+			post({LOAD, json_string_value(lastPathJ), rate, sl, engineRate()});
 	}
 
 	void calcLoop() {
