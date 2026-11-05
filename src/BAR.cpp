@@ -1,7 +1,6 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
-#include "dsp/ringbuffer.hpp"
-#include "dsp/digital.hpp"
+#include "BarCompressor.hpp"
 
 using namespace std;
 
@@ -35,42 +34,62 @@ struct BAR : BidooModule {
 		NUM_LIGHTS
 	};
 
-	dsp::DoubleRingBuffer<float,16384> vu_L_Buffer, vu_R_Buffer;
-	dsp::DoubleRingBuffer<float,512> rms_L_Buffer, rms_R_Buffer;
-	float runningVU_L_Sum = 1e-6f, runningRMS_L_Sum = 1e-6f, rms_L = -96.3f, vu_L = -96.3f, peakL = -96.3f;
-	float runningVU_R_Sum = 1e-6f, runningRMS_R_Sum = 1e-6f, rms_R = -96.3f, vu_R = -96.3f, peakR = -96.3f;
+	// what the display reads
+	float rms_L = -96.3f, vu_L = -96.3f, peakL = -96.3f, in_L_dBFS = -96.3f;
+	float rms_R = -96.3f, vu_R = -96.3f, peakR = -96.3f, in_R_dBFS = -96.3f;
+	float SC_rms_L = -96.3f, SC_vu_L = -96.3f, SC_peakL = -96.3f, SC_in_L_dBFS = -96.3f;
+	float SC_rms_R = -96.3f, SC_vu_R = -96.3f, SC_peakR = -96.3f, SC_in_R_dBFS = -96.3f;
+	float gaindB = 0.0f, ratio = 1.0f, threshold = 0.0f, knee = 0.0f;
+	float attackTime = 10.0f, releaseTime = 10.0f, makeup = 0.0f, mix = 1.0f;
+	int lookAhead = 0;
 
-	float in_L_dBFS = 1e-6f;
-	float in_R_dBFS = 1e-6f;
-
-	dsp::DoubleRingBuffer<float,16384> SC_vu_L_Buffer, SC_vu_R_Buffer;
-	dsp::DoubleRingBuffer<float,512> SC_rms_L_Buffer, SC_rms_R_Buffer;
-	float SC_runningVU_L_Sum = 1e-6f, SC_runningRMS_L_Sum = 1e-6f, SC_rms_L = -96.3f, SC_vu_L = -96.3f, SC_peakL = -96.3f;
-	float SC_runningVU_R_Sum = 1e-6f, SC_runningRMS_R_Sum = 1e-6f, SC_rms_R = -96.3f, SC_vu_R = -96.3f, SC_peakR = -96.3f;
-
-	float SC_in_L_dBFS = 1e-6f;
-	float SC_in_R_dBFS = 1e-6f;
-
-	float dist = 0.0f, gain = 1.0f, gaindB = 1.0f, ratio = 1.0f, threshold = 1.0f, knee = 0.0f;
-	float attackTime = 0.0f, releaseTime = 0.0f, makeup = 1.0f, previousPostGain = 1.0f, mix = 1.0f;
-	int indexVU = 0, indexRMS = 0, lookAheadWriteIndex=0;
-	int maxIndexVU = 0, maxIndexRMS = 0, maxLookAheadWriteIndex=0;
-	int lookAhead;
-	float buffL[20000] = {0.0f}, buffR[20000] = {0.0f};
+	BarSettings settings;
+	BarPeakHold hold;
+	BarGain comp;
+	BarDelay delayL, delayR;
+	BarMeter meter[4];
 	dsp::SchmittTrigger bypassTrigger;
 	bool bypass = false;
+	float bypassAmount = 0.0f;
 
 	BAR() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(THRESHOLD_PARAM, -93.6f, 0.0f, 0.0f, "Threshold");
-		configParam(RATIO_PARAM, 1.0f, 20.0f, 1.0f, "Ratio");
-		configParam(ATTACK_PARAM, 1.0f, 100.0f, 10.0f, "Attack");
-		configParam(RELEASE_PARAM, 1.0f, 300.0f, 10.0f, "Release");
-		configParam(KNEE_PARAM, 0.0f, 24.0f, 6.0f, "Knee");
-		configParam(MAKEUP_PARAM, 0.0f, 60.0f, 0.0f, "Make up");
-		configParam(MIX_PARAM, 0.0f, 1.0f, 1.0f, "Mix");
-		configParam(LOOKAHEAD_PARAM, 0.0f, 200.0f, 0.0f, "Lookahead");
-		configParam(BYPASS_PARAM, 0.0f, 1.0f, 0.0f, "Bypass");
+		configParam(THRESHOLD_PARAM, -93.6f, 0.0f, 0.0f, "Threshold", " dB");
+		configParam(RATIO_PARAM, 1.0f, 20.0f, 1.0f, "Ratio", ":1");
+		configParam(ATTACK_PARAM, 1.0f, 100.0f, 10.0f, "Attack", " ms");
+		configParam(RELEASE_PARAM, 1.0f, 300.0f, 10.0f, "Release", " ms");
+		configParam(KNEE_PARAM, 0.0f, 24.0f, 6.0f, "Knee", " dB");
+		configParam(MAKEUP_PARAM, 0.0f, 60.0f, 0.0f, "Make-up gain", " dB");
+		configParam(MIX_PARAM, 0.0f, 1.0f, 1.0f, "Mix", "%", 0.0f, 100.0f);
+		configParam(LOOKAHEAD_PARAM, 0.0f, 200.0f, 0.0f, "Lookahead", "% of the attack");
+		configButton(BYPASS_PARAM, "Bypass");
+		configInput(IN_L_INPUT, "Left");
+		configInput(IN_R_INPUT, "Right (follows left when unpatched)");
+		configInput(SC_L_INPUT, "Sidechain left");
+		configInput(SC_R_INPUT, "Sidechain right (follows left when unpatched)");
+		configOutput(OUT_L_OUTPUT, "Left");
+		configOutput(OUT_R_OUTPUT, "Right");
+		configBypass(IN_L_INPUT, OUT_L_OUTPUT);
+		configBypass(IN_R_INPUT, OUT_R_OUTPUT);
+		delayL.resize(48000.0f);
+		delayR.resize(48000.0f);
+	}
+
+	void onSampleRateChange(const SampleRateChangeEvent &e) override {
+		delayL.resize(e.sampleRate);
+		delayR.resize(e.sampleRate);
+	}
+
+	json_t *dataToJson() override {
+		json_t *rootJ = BidooModule::dataToJson();
+		json_object_set_new(rootJ, "bypass", json_boolean(bypass));
+		return rootJ;
+	}
+
+	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
+		bypass = json_boolean_value(json_object_get(rootJ, "bypass"));
+		bypassAmount = bypass ? 1.0f : 0.0f;
 	}
 
 	void process(const ProcessArgs &args) override;
@@ -83,164 +102,53 @@ void BAR::process(const ProcessArgs &args) {
 	}
 	lights[BYPASS_LIGHT].setBrightness(bypass ? 1.0f : 0.0f);
 
-	if (indexVU>=16384) {
-		runningVU_L_Sum -= *vu_L_Buffer.startData();
-		runningVU_R_Sum -= *vu_R_Buffer.startData();
-		vu_L_Buffer.startIncr(1);
-		vu_R_Buffer.startIncr(1);
-		SC_runningVU_L_Sum -= *SC_vu_L_Buffer.startData();
-		SC_runningVU_R_Sum -= *SC_vu_R_Buffer.startData();
-		SC_vu_L_Buffer.startIncr(1);
-		SC_vu_R_Buffer.startIncr(1);
-		indexVU--;
+	settings.update(params[THRESHOLD_PARAM].getValue(), params[RATIO_PARAM].getValue(), params[ATTACK_PARAM].getValue(),
+		params[RELEASE_PARAM].getValue(), params[KNEE_PARAM].getValue(), params[MAKEUP_PARAM].getValue(),
+		params[MIX_PARAM].getValue(), params[LOOKAHEAD_PARAM].getValue(), args.sampleRate);
+	threshold = settings.threshold; ratio = settings.ratio; attackTime = settings.attack; releaseTime = settings.release;
+	knee = settings.knee; makeup = settings.makeup; mix = settings.mix; lookAhead = (int)settings.lookAhead;
+
+	bool inConnected = inputs[IN_L_INPUT].isConnected() || inputs[IN_R_INPUT].isConnected();
+	bool sc = inputs[SC_L_INPUT].isConnected() || inputs[SC_R_INPUT].isConnected();
+	float inL = inputs[IN_L_INPUT].getVoltage();
+	float inR = inputs[IN_R_INPUT].isConnected() ? inputs[IN_R_INPUT].getVoltage() : inL;
+	float scL = inputs[SC_L_INPUT].getVoltage();
+	float scR = inputs[SC_R_INPUT].isConnected() ? inputs[SC_R_INPUT].getVoltage() : scL;
+
+	// stereo linked: the louder side drives both
+	float level = hold.process(sc ? std::max(std::fabs(scL), std::fabs(scR)) : std::max(std::fabs(inL), std::fabs(inR)), settings.bucket);
+	float reduction = comp.process(barToDb(level), settings);
+	gaindB = settings.makeup + reduction;
+	float g = barDbToGain(gaindB) * settings.mix + (1.0f - settings.mix);
+
+	float fade = 1.0f / (0.005f * args.sampleRate);
+	bypassAmount = bypass ? std::min(bypassAmount + fade, 1.0f) : std::max(bypassAmount - fade, 0.0f);
+	g += (1.0f - g) * bypassAmount;
+
+	float fadeDelay = 1.0f / (0.01f * args.sampleRate);
+	outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(delayL.process(inL, settings.delay, fadeDelay) * g));
+	outputs[OUT_R_OUTPUT].setVoltage(bidooSoftLimit(delayR.process(inR, settings.delay, fadeDelay) * g));
+
+	if (inConnected) {
+		meter[0].process(inL, args.sampleRate);
+		meter[1].process(inR, args.sampleRate);
 	}
-
-	if (indexRMS>=512) {
-		runningRMS_L_Sum -= *rms_L_Buffer.startData();
-		runningRMS_R_Sum -= *rms_R_Buffer.startData();
-		rms_L_Buffer.startIncr(1);
-		rms_R_Buffer.startIncr(1);
-		SC_runningRMS_L_Sum -= *SC_rms_L_Buffer.startData();
-		SC_runningRMS_R_Sum -= *SC_rms_R_Buffer.startData();
-		SC_rms_L_Buffer.startIncr(1);
-		SC_rms_R_Buffer.startIncr(1);
-		indexRMS--;
-	}
-
-	indexVU++;
-	indexRMS++;
-
-	buffL[lookAheadWriteIndex]=inputs[IN_L_INPUT].getVoltage();
-	buffR[lookAheadWriteIndex]=inputs[IN_R_INPUT].getVoltage();
-
-	if (inputs[IN_L_INPUT].isConnected())
-		in_L_dBFS = max(20.0f*log10((abs(inputs[IN_L_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
-	else
-		in_L_dBFS = -96.3f;
-
-	if (inputs[SC_L_INPUT].isConnected())
-		SC_in_L_dBFS = max(20.0f*log10((abs(inputs[SC_L_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
-	else
-		SC_in_L_dBFS = -96.3f;
-
-	if (inputs[IN_R_INPUT].isConnected())
-		in_R_dBFS = max(20.0f*log10((abs(inputs[IN_R_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
-	else
-		in_R_dBFS = -96.3f;
-
-	if (inputs[SC_R_INPUT].isConnected())
-		SC_in_R_dBFS = max(20.0f*log10((abs(inputs[SC_R_INPUT].getVoltage())+1e-6f) * 0.2f), -96.3f);
-	else
-		SC_in_R_dBFS = -96.3f;
-
-	float data_L = in_L_dBFS*in_L_dBFS;
-	float data_R = in_R_dBFS*in_R_dBFS;
-
-	float SC_data_L = SC_in_L_dBFS*SC_in_L_dBFS;
-	float SC_data_R = SC_in_R_dBFS*SC_in_R_dBFS;
-
-	if (!vu_L_Buffer.full()) {
-		vu_L_Buffer.push(data_L);
-		vu_R_Buffer.push(data_R);
-		SC_vu_L_Buffer.push(SC_data_L);
-		SC_vu_R_Buffer.push(SC_data_R);
-	}
-
-	if (!rms_L_Buffer.full()) {
-		rms_L_Buffer.push(data_L);
-		rms_R_Buffer.push(data_R);
-		SC_rms_L_Buffer.push(SC_data_L);
-		SC_rms_R_Buffer.push(SC_data_R);
-	}
-
-	runningVU_L_Sum += data_L;
-	runningRMS_L_Sum += data_L;
-	runningVU_R_Sum += data_R;
-	runningRMS_R_Sum += data_R;
-	rms_L = clamp(-1 * sqrtf(runningRMS_L_Sum/512), -96.3f,0.0f);
-	vu_L = clamp(-1 * sqrtf(runningVU_L_Sum/16384), -96.3f,0.0f);
-	rms_R = clamp(-1 * sqrtf(runningRMS_R_Sum/512), -96.3f,0.0f);
-	vu_R = clamp(-1 * sqrtf(runningVU_R_Sum/16384), -96.3f,0.0f);
-
-	SC_runningVU_L_Sum += SC_data_L;
-	SC_runningRMS_L_Sum += SC_data_L;
-	SC_runningVU_R_Sum += SC_data_R;
-	SC_runningRMS_R_Sum += SC_data_R;
-	SC_rms_L = clamp(-1 * sqrtf(SC_runningRMS_L_Sum/512), -96.3f,0.0f);
-	SC_vu_L = clamp(-1 * sqrtf(SC_runningVU_L_Sum/16384), -96.3f,0.0f);
-	SC_rms_R = clamp(-1 * sqrtf(SC_runningRMS_R_Sum/512), -96.3f,0.0f);
-	SC_vu_R = clamp(-1 * sqrtf(SC_runningVU_R_Sum/16384), -96.3f,0.0f);
-
-	threshold = params[THRESHOLD_PARAM].getValue();
-	attackTime = params[ATTACK_PARAM].getValue();
-	releaseTime = params[RELEASE_PARAM].getValue();
-	ratio = params[RATIO_PARAM].getValue();
-	knee = params[KNEE_PARAM].getValue();
-	makeup = params[MAKEUP_PARAM].getValue();
-
-	if (in_L_dBFS>peakL)
-		peakL=in_L_dBFS;
-	else
-		peakL -= 50.0f / args.sampleRate;
-
-	if (in_R_dBFS>peakR)
-		peakR=in_R_dBFS;
-	else
-		peakR -= 50.0f / args.sampleRate;
-
-	if (SC_in_L_dBFS>SC_peakL)
-		SC_peakL=SC_in_L_dBFS;
-	else
-		SC_peakL -= 50.0f / args.sampleRate;
-
-	if (SC_in_R_dBFS>SC_peakR)
-		SC_peakR=SC_in_R_dBFS;
-	else
-		SC_peakR -= 50.0f / args.sampleRate;
-
-	float slope = 1.0f/ratio-1.0f;
-	float maxIn = (inputs[SC_L_INPUT].isConnected() || inputs[SC_R_INPUT].isConnected()) ? max(SC_in_L_dBFS,SC_in_R_dBFS) : max(in_L_dBFS,in_R_dBFS);
-	float dist = maxIn-threshold;
-	float gcurve = 0.0f;
-
-	if (dist<-1.0f*knee/2.0f)
-		gcurve = maxIn;
-	else if ((dist > -1.0f * knee * 0.5f) && (dist < knee * 0.5f)) {
-		gcurve = maxIn + slope * pow(dist + knee *0.5f, 2.0f) / (2.0f * knee);
-	} else {
-		gcurve = maxIn + slope * dist;
-	}
-
-	float preGain = gcurve - maxIn;
-	float postGain = 0.0f;
-	float cAtt = exp(-1.0f/(attackTime * args.sampleRate * 0.001f));
-	float cRel = exp(-1.0f/(releaseTime * args.sampleRate * 0.001f));
-
-	if (preGain<previousPostGain) {
-		postGain = cAtt * previousPostGain + (1.0f-cAtt) * preGain;
-	} else {
-		postGain = cRel * previousPostGain + (1.0f-cRel) * preGain;
-	}
-
-	previousPostGain = postGain;
-	gaindB = makeup + postGain;
-	gain = pow(10.0f, gaindB/20.0f);
-
-	mix = params[MIX_PARAM].getValue();
-	lookAhead = params[LOOKAHEAD_PARAM].getValue();
-
-	int nbSamples = clamp(floor(lookAhead * attackTime * args.sampleRate * 0.000001f),0.0f,19999.0f);
-	int readIndex;
-	if (lookAheadWriteIndex-nbSamples>=0)
-	  readIndex = (lookAheadWriteIndex-nbSamples)%20000;
 	else {
-		readIndex = 20000 - abs(lookAheadWriteIndex-nbSamples);
+		meter[0].clear();
+		meter[1].clear();
 	}
-
-	outputs[OUT_L_OUTPUT].setVoltage(buffL[readIndex] * (bypass ? 1.0f : (gain*mix + (1.0f - mix))));
-	outputs[OUT_R_OUTPUT].setVoltage(buffR[readIndex] * (bypass ? 1.0f : (gain*mix + (1.0f - mix))));
-
-	lookAheadWriteIndex = (lookAheadWriteIndex+1)%20000;
+	if (sc) {
+		meter[2].process(scL, args.sampleRate);
+		meter[3].process(scR, args.sampleRate);
+	}
+	else {
+		meter[2].clear();
+		meter[3].clear();
+	}
+	rms_L = meter[0].rmsDb; vu_L = meter[0].vuDb; peakL = meter[0].peakDb; in_L_dBFS = meter[0].inDb;
+	rms_R = meter[1].rmsDb; vu_R = meter[1].vuDb; peakR = meter[1].peakDb; in_R_dBFS = meter[1].inDb;
+	SC_rms_L = meter[2].rmsDb; SC_vu_L = meter[2].vuDb; SC_peakL = meter[2].peakDb; SC_in_L_dBFS = meter[2].inDb;
+	SC_rms_R = meter[3].rmsDb; SC_vu_R = meter[3].vuDb; SC_peakR = meter[3].peakDb; SC_in_R_dBFS = meter[3].inDb;
 }
 
 struct BARDisplay : TransparentWidget {
@@ -336,9 +244,9 @@ struct BARDisplay : TransparentWidget {
 
 				nvgFillColor(args.vg, ORANGE_BIDOO);
 				nvgBeginPath(args.vg);
-				if (inL>rmsL+3.0f)
+				if (SC_inL>SC_rmsL+3.0f)
 					nvgRoundedRect(args.vg,widthSpacer+width2+spacer2,max(height-SC_inL+1.0f,0.f),width2,SC_inL-SC_rmsL-2.0f,0.0f);
-				if (inR>rmsR+3.0f)
+				if (SC_inR>SC_rmsR+3.0f)
 					nvgRoundedRect(args.vg,2.0f*widthSpacer-spacer2,max(height-SC_inR+1.0f,0.f),width2,SC_inR-SC_rmsR-2.0f,0.0f);
 				nvgFill(args.vg);
 				nvgClosePath(args.vg);
