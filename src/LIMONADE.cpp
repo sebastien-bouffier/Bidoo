@@ -22,26 +22,121 @@ static const char PNG_FILTERS[] = "PNG:png";
 // Largest frame size the recorder can hold for a whole table.
 static const size_t MAX_FRAME_SIZE = 4 * FS;
 
+// WAV files carry the samples per frame in a "clm " chunk ("<!>2048 ..."),
+// as Serum and most wavetable synths read and write it.
+static drwav_uint64 readClmChunk(void *user, drwav_read_proc onRead, drwav_seek_proc onSeek, void *readSeekUser, const drwav_chunk_header *header, drwav_container container, const drwav_fmt *fmt) {
+	if (memcmp(header->id.fourcc, "clm ", 4) != 0)
+		return 0;
+	char text[64] = {};
+	size_t n = onRead(readSeekUser, text, std::min((size_t)header->sizeInBytes, sizeof(text) - 1));
+	int size = 0;
+	if (sscanf(text, "<!>%d", &size) == 1 && size > 0)
+		*(size_t*)user = size;
+	return n;
+}
+
+// Mono WAV in memory: channels averaged, cycle set from the "clm " chunk (0 if none).
+static bool decodeWav(const std::vector<uint8_t> &bytes, std::vector<float> &mono, size_t &cycle) {
+	cycle = 0;
+	drwav wav;
+	if (bytes.empty() || !drwav_init_memory_ex(&wav, bytes.data(), bytes.size(), readClmChunk, &cycle, 0, NULL))
+		return false;
+	unsigned channels = std::max(wav.channels, (drwav_uint16)1);
+	std::vector<float> data(wav.totalPCMFrameCount * channels);
+	size_t frames = drwav_read_pcm_frames_f32(&wav, wav.totalPCMFrameCount, data.data());
+	drwav_uninit(&wav);
+	mono.resize(frames);
+	for (size_t i = 0; i < frames; i++) {
+		float sum = 0.f;
+		for (unsigned c = 0; c < channels; c++) sum += data[i * channels + c];
+		mono[i] = sum / channels;
+	}
+	return frames > 0;
+}
+
+struct WavBuffer {
+	std::vector<uint8_t> bytes;
+	size_t pos = 0;
+};
+
+static size_t wavBufferWrite(void *user, const void *data, size_t size) {
+	WavBuffer *b = (WavBuffer*)user;
+	if (b->bytes.size() < b->pos + size)
+		b->bytes.resize(b->pos + size);
+	memcpy(b->bytes.data() + b->pos, data, size);
+	b->pos += size;
+	return size;
+}
+
+static drwav_bool32 wavBufferSeek(void *user, int offset, drwav_seek_origin origin) {
+	WavBuffer *b = (WavBuffer*)user;
+	long base = origin == DRWAV_SEEK_SET ? 0 : origin == DRWAV_SEEK_CUR ? (long)b->pos : (long)b->bytes.size();
+	long pos = base + offset;
+	if (pos < 0 || (size_t)pos > b->bytes.size())
+		return DRWAV_FALSE;
+	b->pos = pos;
+	return DRWAV_TRUE;
+}
+
+// Mono 32-bit float WAV in memory, `cycle` samples per frame.
+static std::vector<uint8_t> encodeWav(const std::vector<float> &samples, int sampleRate, size_t cycle) {
+	std::string clm = "<!>" + std::to_string(cycle) + " 00000000 wavetable (Bidoo liMonADe)";
+	drwav_metadata meta = {};
+	meta.type = drwav_metadata_type_unknown;
+	memcpy(meta.data.unknown.id, "clm ", 4);
+	meta.data.unknown.chunkLocation = drwav_metadata_location_top_level;
+	meta.data.unknown.dataSizeInBytes = clm.size();
+	meta.data.unknown.pData = (drwav_uint8*)clm.data();
+
+	drwav_data_format format;
+	format.container = drwav_container_riff;
+	format.format = DR_WAVE_FORMAT_IEEE_FLOAT;
+	format.channels = 1;
+	format.sampleRate = sampleRate;
+	format.bitsPerSample = 32;
+	WavBuffer buffer;
+	drwav wav;
+	if (!drwav_init_write_with_metadata(&wav, &format, wavBufferWrite, wavBufferSeek, &buffer, NULL, &meta, 1))
+		return {};
+	size_t written = drwav_write_pcm_frames(&wav, samples.size(), samples.data());
+	drwav_uninit(&wav);
+	if (written != samples.size())
+		return {};
+	return buffer.bytes;
+}
+
+static std::vector<uint8_t> readBytes(const std::string &path) {
+	try {
+		return rack::system::readFile(path);
+	}
+	catch (Exception &e) {
+		WARN("liMonADe: cannot read %s: %s", path.c_str(), e.what());
+		return {};
+	}
+}
+
+static bool writeBytes(const std::string &path, const std::vector<uint8_t> &bytes) {
+	try {
+		rack::system::writeFile(path, bytes);
+		return true;
+	}
+	catch (Exception &e) {
+		WARN("liMonADe: cannot write %s: %s", path.c_str(), e.what());
+		return false;
+	}
+}
+
 // Reads a WAV or AIFF file, channels averaged to mono. Empty on failure.
-static std::vector<float> readMonoAudio(const std::string &path) {
+// `cycle` is the frame size the file states, 0 if it states none.
+static std::vector<float> readMonoAudio(const std::string &path, size_t &cycle) {
 	std::vector<float> mono;
+	cycle = 0;
 	std::string ext = rack::string::lowercase(rack::system::getExtension(path));
 	if (ext == ".wav") {
-		unsigned int channels;
-		unsigned int sampleRate;
-		drwav_uint64 frames;
-		float *data = drwav_open_file_and_read_pcm_frames_f32(path.c_str(), &channels, &sampleRate, &frames, NULL);
-		if (!data) {
+		if (!decodeWav(readBytes(path), mono, cycle)) {
 			WARN("liMonADe: cannot read %s", path.c_str());
-			return mono;
+			mono.clear();
 		}
-		mono.resize(frames);
-		for (size_t i = 0; i < frames; i++) {
-			float sum = 0.f;
-			for (unsigned int c = 0; c < channels; c++) sum += data[i * channels + c];
-			mono[i] = sum / channels;
-		}
-		drwav_free(data, NULL);
 	}
 	else if (ext == ".aif" || ext == ".aiff") {
 		AudioFile<float> audioFile;
@@ -68,7 +163,8 @@ static std::vector<float> readMonoAudio(const std::string &path) {
 static bool readPng(const std::string &path, std::vector<float> &samples, unsigned &width) {
 	std::vector<unsigned char> image;
 	unsigned height = 0;
-	unsigned error = lodepng::decode(image, width, height, path, LCT_RGB);
+	std::vector<uint8_t> bytes = readBytes(path);
+	unsigned error = bytes.empty() ? 78 : lodepng::decode(image, width, height, bytes, LCT_RGB);
 	if (error) {
 		WARN("liMonADe: cannot read %s: %s", path.c_str(), lodepng_error_text(error));
 		return false;
@@ -84,39 +180,34 @@ static bool readPng(const std::string &path, std::vector<float> &samples, unsign
 	return true;
 }
 
-static void writeWav(const wtTable &table, int sampleRate, const std::string &path, size_t first, size_t count) {
-	drwav_data_format format;
-	format.container = drwav_container_riff;
-	format.format = DR_WAVE_FORMAT_IEEE_FLOAT;
-	format.channels = 1;
-	format.sampleRate = sampleRate;
-	format.bitsPerSample = 32;
-	drwav wav;
-	if (!drwav_init_file_write(&wav, path.c_str(), &format, NULL)) {
-		WARN("liMonADe: cannot write %s", path.c_str());
-		return;
-	}
-	for (size_t i = first; i < first + count; i++)
-		drwav_write_pcm_frames(&wav, FS, table.frames[i].sample.data());
-	drwav_uninit(&wav);
+// Writers take a copy of the frames, FS samples each, so that no lock is held during disk access.
+static void writeWav(const std::vector<float> &samples, int sampleRate, const std::string &path) {
+	std::vector<uint8_t> bytes = encodeWav(samples, sampleRate, FS);
+	if (bytes.empty())
+		WARN("liMonADe: cannot encode %s", path.c_str());
+	else
+		writeBytes(path, bytes);
 }
 
-// Inverse of readPng.
-static void writePng(const wtTable &table, const std::string &path) {
-	size_t height = table.nFrames;
+// Inverse of readPng, 8 bits per sample.
+static void writePng(const std::vector<float> &samples, const std::string &path) {
+	size_t height = samples.size() / FS;
 	std::vector<unsigned char> image(FS * height * 4);
 	for (size_t i = 0; i < height; i++) {
-		const wtFrame &frame = table.frames[i];
+		const float *frame = samples.data() + i * FS;
 		unsigned char *row = image.data() + 4 * (height - i - 1) * FS;
 		for (size_t j = 0; j < FS; j++) {
-			unsigned char v = (unsigned char)(clamp(frame.sample[j] * 0.5f + 0.5f, 0.f, 1.f) * 255.f + 0.5f);
+			unsigned char v = (unsigned char)(clamp(frame[j] * 0.5f + 0.5f, 0.f, 1.f) * 255.f + 0.5f);
 			row[4 * j] = row[4 * j + 1] = row[4 * j + 2] = v;
 			row[4 * j + 3] = 255;
 		}
 	}
-	unsigned error = lodepng::encode(path, image, FS, height);
+	std::vector<unsigned char> bytes;
+	unsigned error = lodepng::encode(bytes, image, FS, height);
 	if (error)
 		WARN("liMonADe: cannot write %s: %s", path.c_str(), lodepng_error_text(error));
+	else
+		writeBytes(path, bytes);
 }
 
 struct LIMONADE : BidooModule {
@@ -402,11 +493,13 @@ struct LIMONADE : BidooModule {
 
 	// UI thread
 	void loadSample(const std::string &path) {
-		std::vector<float> data = readMonoAudio(path);
+		size_t cycle;
+		std::vector<float> data = readMonoAudio(path, cycle);
 		if (data.empty())
 			return;
 		lastPath = path;
-		size_t fsz = frameSize;
+		// A frame size stated by the file wins over the one typed on the panel.
+		size_t fsz = cycle > 0 ? cycle : (size_t)frameSize;
 		postJob([this, data, fsz](wtTable &t) {
 			t.loadSample(data.size(), fsz, true, data.data());
 			t.calcFFT();
@@ -415,7 +508,8 @@ struct LIMONADE : BidooModule {
 	}
 
 	void loadFrame(const std::string &path) {
-		std::vector<float> data = readMonoAudio(path);
+		size_t cycle;
+		std::vector<float> data = readMonoAudio(path, cycle);
 		if (data.empty())
 			return;
 		lastPath = path;
@@ -441,6 +535,15 @@ struct LIMONADE : BidooModule {
 			t.calcFFT();
 			morphType = -1;
 		});
+	}
+
+	// Copy of `count` frames from `first`, FS samples each, for the exports.
+	std::vector<float> copyFrames(size_t first, size_t count) {
+		std::lock_guard<std::mutex> lock(tableMutex);
+		std::vector<float> samples;
+		for (size_t i = first; i < std::min(first + count, table.nFrames); i++)
+			samples.insert(samples.end(), table.frames[i].sample.begin(), table.frames[i].sample.end());
+		return samples;
 	}
 
 	// Spectrum editor drag on one bin of one frame.
@@ -1052,52 +1155,62 @@ struct moduleDisplayPlayedFrameItem : MenuItem {
 	}
 };
 
-// Asks for a file path; empty if cancelled.
-static std::string limonadeFileDialog(LIMONADE *module, osdialog_file_action action, const char *filterSpec) {
+// Asks for a file path; empty if cancelled. Saving adds `ext` when the name has none.
+static std::string limonadeFileDialog(LIMONADE *module, osdialog_file_action action, const char *filterSpec, const std::string &defaultName = "", const std::string &ext = "") {
 	std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
 	osdialog_filters* filters = osdialog_filters_parse(filterSpec);
-	char *path = osdialog_file(action, dir.c_str(), action == OSDIALOG_SAVE ? "Untitled" : NULL, filters);
+	char *path = osdialog_file(action, dir.c_str(), action == OSDIALOG_SAVE ? defaultName.c_str() : NULL, filters);
 	osdialog_filters_free(filters);
 	std::string result;
 	if (path) {
 		result = path;
 		free(path);
 	}
+	if (!result.empty() && !ext.empty() && rack::string::lowercase(rack::system::getExtension(result)) != ext)
+		result += ext;
 	return result;
 }
 
+// Every frame as played (morphed ones included), FS samples each, one after the other.
 struct moduleSaveWavetableAsWavItem : MenuItem {
 	LIMONADE *module;
 	void onAction(const event::Action &e) override {
-		std::string path = limonadeFileDialog(module, OSDIALOG_SAVE, WAV_FILTERS);
-		if (path.empty())
+		std::vector<float> samples = module->copyFrames(0, NF);
+		if (samples.empty())
 			return;
-		std::lock_guard<std::mutex> lock(module->tableMutex);
-		writeWav(module->table, APP->engine->getSampleRate(), path, 0, module->table.nFrames);
+		std::string path = limonadeFileDialog(module, OSDIALOG_SAVE, WAV_FILTERS, "wavetable.wav", ".wav");
+		if (!path.empty())
+			writeWav(samples, APP->engine->getSampleRate(), path);
 	}
 };
 
+// The edited frame: the one the Edited frame knob points at, shown in the editor.
 struct moduleSaveFrameAsWavItem : MenuItem {
 	LIMONADE *module;
 	void onAction(const event::Action &e) override {
-		std::string path = limonadeFileDialog(module, OSDIALOG_SAVE, WAV_FILTERS);
-		if (path.empty())
+		size_t frame;
+		{
+			std::lock_guard<std::mutex> lock(module->tableMutex);
+			frame = module->table.frameAt(module->params[LIMONADE::INDEX_PARAM].getValue());
+		}
+		std::vector<float> samples = module->copyFrames(frame, 1);
+		if (samples.empty())
 			return;
-		std::lock_guard<std::mutex> lock(module->tableMutex);
-		if (module->table.nFrames > 0)
-			writeWav(module->table, APP->engine->getSampleRate(), path, module->table.frameAt(module->params[LIMONADE::INDEX_PARAM].getValue()), 1);
+		std::string path = limonadeFileDialog(module, OSDIALOG_SAVE, WAV_FILTERS, "frame " + std::to_string(frame + 1) + ".wav", ".wav");
+		if (!path.empty())
+			writeWav(samples, APP->engine->getSampleRate(), path);
 	}
 };
 
 struct moduleSaveWavetableAsPngItem : MenuItem {
 	LIMONADE *module;
 	void onAction(const event::Action &e) override {
-		std::string path = limonadeFileDialog(module, OSDIALOG_SAVE, PNG_FILTERS);
-		if (path.empty())
+		std::vector<float> samples = module->copyFrames(0, NF);
+		if (samples.empty())
 			return;
-		std::lock_guard<std::mutex> lock(module->tableMutex);
-		if (module->table.nFrames > 0)
-			writePng(module->table, path);
+		std::string path = limonadeFileDialog(module, OSDIALOG_SAVE, PNG_FILTERS, "wavetable.png", ".png");
+		if (!path.empty())
+			writePng(samples, path);
 	}
 };
 
@@ -1302,16 +1415,30 @@ struct LIMONADEWidget : BidooWidget {
 		playedFrameItem->rightText = (m->displayPlayedFrame == 0) ? "ON✔ OFF" : "ON  OFF✔";
 		playedFrameItem->module = m;
 		menu->addChild(playedFrameItem);
+		size_t nFrames, editedFrame;
+		{
+			std::lock_guard<std::mutex> lock(m->tableMutex);
+			nFrames = m->table.nFrames;
+			editedFrame = m->table.frameAt(m->params[LIMONADE::INDEX_PARAM].getValue());
+		}
+		menu->addChild(new MenuSeparator());
+		menu->addChild(createMenuLabel("Export"));
 		moduleSaveWavetableAsWavItem *saveWavetableAsWavItem = new moduleSaveWavetableAsWavItem;
-		saveWavetableAsWavItem->text = "Save wavetable as wav";
+		saveWavetableAsWavItem->text = "Wavetable (all frames) to WAV...";
+		saveWavetableAsWavItem->rightText = std::to_string(nFrames) + " x " + std::to_string(FS);
+		saveWavetableAsWavItem->disabled = nFrames == 0;
 		saveWavetableAsWavItem->module = m;
 		menu->addChild(saveWavetableAsWavItem);
 		moduleSaveFrameAsWavItem *saveFrameAsWavItem = new moduleSaveFrameAsWavItem;
-		saveFrameAsWavItem->text = "Save frame as wav";
+		saveFrameAsWavItem->text = "Edited frame (single cycle) to WAV...";
+		saveFrameAsWavItem->rightText = nFrames ? "frame " + std::to_string(editedFrame + 1) + "/" + std::to_string(nFrames) : "";
+		saveFrameAsWavItem->disabled = nFrames == 0;
 		saveFrameAsWavItem->module = m;
 		menu->addChild(saveFrameAsWavItem);
 		moduleSaveWavetableAsPngItem *saveWavetableAsPngItem = new moduleSaveWavetableAsPngItem;
-		saveWavetableAsPngItem->text = "Save wavetable as png";
+		saveWavetableAsPngItem->text = "Wavetable to PNG image...";
+		saveWavetableAsPngItem->rightText = "8-bit";
+		saveWavetableAsPngItem->disabled = nFrames == 0;
 		saveWavetableAsPngItem->module = m;
 		menu->addChild(saveWavetableAsPngItem);
 	}

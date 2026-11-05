@@ -161,12 +161,14 @@ struct wtFrame {
         std::fill(sample.begin(), sample.end(), wav[0]);
         return;
       }
-      float step = (float)(sCount - 1) / FS;
+      // One cycle: the last sample leads back to the first, and FS samples copy as is.
+      double step = (double)sCount / FS;
       for (size_t i = 0; i < FS; i++) {
-        float pos = i * step;
-        size_t index = std::min((size_t)pos, sCount - 2);
-        float t = pos - index;
-        sample[i] = wav[index] + t * (wav[index + 1] - wav[index]);
+        double pos = i * step;
+        size_t index = std::min((size_t)pos, sCount - 1);
+        float t = (float)(pos - index);
+        float next = wav[(index + 1) % sCount];
+        sample[i] = wav[index] + t * (next - wav[index]);
       }
     }
     else {
