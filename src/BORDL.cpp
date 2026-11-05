@@ -79,12 +79,12 @@ struct BORDL : BidooModule {
 	BORDL() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configMetro(*this);
-		configSwitch(PLAY_MODE_PARAM, 0.f, 4.f, 0.f, "Play mode", {"Forward", "Backward", "Ping-pong", "Random", "Brownian"});
-		configSwitch(COUNT_MODE_PARAM, 0.f, 1.f, 0.f, "Count mode", {"Steps", "Pulses"});
+		configButton(PLAY_MODE_PARAM, "Play mode (forward, backward, ping-pong, random, brownian)");
+		configButton(COUNT_MODE_PARAM, "Count mode (steps or pulses)");
 		configOutput(ACC_OUTPUT, "Accent");
 		for (int i = 0; i < 8; i++) {
-			configSwitch(TRIG_SLIDE_PARAM + i, 0.f, 1.f, 0.f, string::f("Stage %d slide", i + 1), {"Off", "On"});
-			configSwitch(TRIG_SKIP_PARAM + i, 0.f, 1.f, 0.f, string::f("Stage %d skip", i + 1), {"Off", "On"});
+			configButton(TRIG_SLIDE_PARAM + i, string::f("Stage %d slide", i + 1));
+			configButton(TRIG_SKIP_PARAM + i, string::f("Stage %d skip", i + 1));
 			configParam(TRIG_GATEPROB_PARAM + i, 0.f, 1.f, 1.f, string::f("Stage %d probability", i + 1), "%", 0.f, 100.f);
 			configParam(TRIG_PITCHRND_PARAM + i, 0.f, 1.f, 0.f, string::f("Stage %d random pitch (100%% = +-5 V)", i + 1), "%", 0.f, 100.f);
 			configParam(TRIG_ACCENT_PARAM + i, 0.f, 10.f, 0.f, string::f("Stage %d accent", i + 1), " V");
@@ -111,8 +111,8 @@ struct BORDL : BidooModule {
 
 	void randomizeSlidesSkips() {
 		for (int i = 0; i < 8; i++) {
-			params[TRIG_SLIDE_PARAM + i].setValue(random::uniform() > 0.8f);
-			params[TRIG_SKIP_PARAM + i].setValue(random::uniform() > 0.85f);
+			engine.patterns[engine.selectedPattern].stageSlide[i] = random::uniform() > 0.8f;
+			engine.patterns[engine.selectedPattern].stageSkip[i] = random::uniform() > 0.85f;
 		}
 	}
 
@@ -382,8 +382,8 @@ struct BORDLWidget : BidooWidget {
 		addInput(createInput<PJ301MPort>(Vec(portX0[2], 149.0f),  module, BORDL::GATE_TIME_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(portX0[3], 149.0f),  module, BORDL::SLIDE_TIME_INPUT));
 
-		addParam(createLightParam<VCVLightBezelLatch<RedGreenBlueLight>>(Vec(portX0[0]+3.0f, 199.0f), module, BORDL::PLAY_MODE_PARAM, BORDL::PLAYMODE_LIGHT));
-		addParam(createLightParam<VCVLightBezelLatch<RedGreenBlueLight>>(Vec(portX0[1]+3.0f, 199.0f), module, BORDL::COUNT_MODE_PARAM, BORDL::COUNTMODE_LIGHT));
+		addParam(createLightParam<VCVLightBezel<RedGreenBlueLight>>(Vec(portX0[0]+3.0f, 199.0f), module, BORDL::PLAY_MODE_PARAM, BORDL::PLAYMODE_LIGHT));
+		addParam(createLightParam<VCVLightBezel<RedGreenBlueLight>>(Vec(portX0[1]+3.0f, 199.0f), module, BORDL::COUNT_MODE_PARAM, BORDL::COUNTMODE_LIGHT));
 
 
 		addInput(createInput<PJ301MPort>(Vec(portX0[2], 198.0f),  module, BORDL::PATTERN_INPUT));
@@ -446,8 +446,8 @@ struct BORDLWidget : BidooWidget {
 			}
 
 			const float btnOffset = 3.5f;
-			addParam(createLightParam<SmallLEDLightBezelSwitch<BlueLight>>(Vec(portX1[i]+7.0f + btnOffset, 295.0f + btnOffset), module, BORDL::TRIG_SLIDE_PARAM + i, BORDL::SLIDES_LIGHTS + i));
-			addParam(createLightParam<SmallLEDLightBezelSwitch<BlueLight>>(Vec(portX1[i]+7.0f + btnOffset, 316.0f + btnOffset), module, BORDL::TRIG_SKIP_PARAM + i, BORDL::SKIPS_LIGHTS + i));
+			addParam(createLightParam<SmallLEDLightBezel<BlueLight>>(Vec(portX1[i]+7.0f + btnOffset, 295.0f + btnOffset), module, BORDL::TRIG_SLIDE_PARAM + i, BORDL::SLIDES_LIGHTS + i));
+			addParam(createLightParam<SmallLEDLightBezel<BlueLight>>(Vec(portX1[i]+7.0f + btnOffset, 316.0f + btnOffset), module, BORDL::TRIG_SKIP_PARAM + i, BORDL::SKIPS_LIGHTS + i));
 
 			addOutput(createOutput<TinyPJ301MPort>(Vec(portX1[i]+9.0f, 344.0f), module, BORDL::STEP_OUTPUT + i));
 		}

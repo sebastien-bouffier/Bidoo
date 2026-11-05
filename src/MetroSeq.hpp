@@ -284,8 +284,9 @@ void configMetro(M &m) {
 }
 
 // M is the module. Its shared controls have the same ids in DTROY and BORDL.
-// M::EXTENDED adds BORDL's probability, random pitch and accent, and its
-// play, count, slide and skip controls are latching switches holding the value.
+// M::EXTENDED adds BORDL's probability, random pitch and accent. In both, the
+// play, count, slide and skip controls are momentary buttons that toggle (or
+// cycle) the pattern's value, so a MIDI-mapped button press flips them too.
 template <class M>
 struct MetroEngine {
 	dsp::SchmittTrigger clockTrigger;
@@ -350,11 +351,7 @@ struct MetroEngine {
 			m.params[M::TRIG_TYPE_PARAM + i].setValue(p.stageType[i]);
 		}
 		if constexpr (M::EXTENDED) {
-			m.params[M::PLAY_MODE_PARAM].setValue(p.playMode);
-			m.params[M::COUNT_MODE_PARAM].setValue(p.countMode);
 			for (int i = 0; i < 8; i++) {
-				m.params[M::TRIG_SLIDE_PARAM + i].setValue(p.stageSlide[i]);
-				m.params[M::TRIG_SKIP_PARAM + i].setValue(p.stageSkip[i]);
 				m.params[M::TRIG_GATEPROB_PARAM + i].setValue(p.stageGateProb[i]);
 				m.params[M::TRIG_PITCHRND_PARAM + i].setValue(p.stagePitchRnd[i]);
 				m.params[M::TRIG_ACCENT_PARAM + i].setValue(p.stageAccent[i]);
@@ -377,11 +374,7 @@ struct MetroEngine {
 			p.stageType[i] = clamp((int)std::round(m.params[M::TRIG_TYPE_PARAM + i].getValue()), 0, 5);
 		}
 		if constexpr (M::EXTENDED) {
-			p.playMode = clamp((int)std::round(m.params[M::PLAY_MODE_PARAM].getValue()), 0, 4);
-			p.countMode = clamp((int)std::round(m.params[M::COUNT_MODE_PARAM].getValue()), 0, 1);
 			for (int i = 0; i < 8; i++) {
-				p.stageSlide[i] = m.params[M::TRIG_SLIDE_PARAM + i].getValue() > 0.5f;
-				p.stageSkip[i] = m.params[M::TRIG_SKIP_PARAM + i].getValue() > 0.5f;
 				p.stageGateProb[i] = m.params[M::TRIG_GATEPROB_PARAM + i].getValue();
 				p.stagePitchRnd[i] = m.params[M::TRIG_PITCHRND_PARAM + i].getValue();
 				p.stageAccent[i] = m.params[M::TRIG_ACCENT_PARAM + i].getValue();
@@ -426,18 +419,16 @@ struct MetroEngine {
 		}
 		savePanel(m);
 		MetroPattern &ed = patterns[selectedPattern];
-		if constexpr (!M::EXTENDED) {
-			for (int i = 0; i < 8; i++) {
-				if (slideTriggers[i].process(m.params[M::TRIG_SLIDE_PARAM + i].getValue()))
-					ed.stageSlide[i] = !ed.stageSlide[i];
-				if (skipTriggers[i].process(m.params[M::TRIG_SKIP_PARAM + i].getValue()))
-					ed.stageSkip[i] = !ed.stageSkip[i];
-			}
-			if (playModeTrigger.process(m.params[M::PLAY_MODE_PARAM].getValue()))
-				ed.playMode = (ed.playMode + 1) % 5;
-			if (countModeTrigger.process(m.params[M::COUNT_MODE_PARAM].getValue()))
-				ed.countMode = (ed.countMode + 1) % 2;
+		for (int i = 0; i < 8; i++) {
+			if (slideTriggers[i].process(m.params[M::TRIG_SLIDE_PARAM + i].getValue()))
+				ed.stageSlide[i] = !ed.stageSlide[i];
+			if (skipTriggers[i].process(m.params[M::TRIG_SKIP_PARAM + i].getValue()))
+				ed.stageSkip[i] = !ed.stageSkip[i];
 		}
+		if (playModeTrigger.process(m.params[M::PLAY_MODE_PARAM].getValue()))
+			ed.playMode = (ed.playMode + 1) % 5;
+		if (countModeTrigger.process(m.params[M::COUNT_MODE_PARAM].getValue()))
+			ed.countMode = (ed.countMode + 1) % 2;
 		bool reload = false;
 		if (copyTrigger.process(m.params[M::COPY_PARAM].getValue())) {
 			if (copyPattern < 0)
