@@ -12,7 +12,7 @@ struct DFUZE : BidooModule {
 		SIZE_PARAM,
 		REVTIME_PARAM,
 		DAMP_PARAM,
-		FREEZE_PARAM,
+		FREEZE_PARAM,     // unused: kept so saved patches keep their param ids
 		BANDWIDTH_PARAM,
 		EARLYLEVEL_PARAM,
 		TAIL_PARAM,
@@ -23,7 +23,7 @@ struct DFUZE : BidooModule {
 		SIZE_INPUT,
 		REVTIME_INPUT,
 		DAMP_INPUT,
-		FREEZE_INPUT,
+		FREEZE_INPUT,     // unused: kept so saved patches keep their input ids
 		BANDWIDTH_INPUT,
 		EARLYLEVEL_INPUT,
 		TAIL_INPUT,

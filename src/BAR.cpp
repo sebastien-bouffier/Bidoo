@@ -125,9 +125,11 @@ void BAR::process(const ProcessArgs &args) {
 	bypassAmount = bypass ? std::min(bypassAmount + fade, 1.0f) : std::max(bypassAmount - fade, 0.0f);
 	g += (1.0f - g) * bypassAmount;
 
+	// bypassed: no lookahead delay either (the delay crossfades to 0)
 	float fadeDelay = 1.0f / (0.01f * args.sampleRate);
-	outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(delayL.process(inL, settings.delay, fadeDelay) * g));
-	outputs[OUT_R_OUTPUT].setVoltage(bidooSoftLimit(delayR.process(inR, settings.delay, fadeDelay) * g));
+	int delay = bypass ? 0 : settings.delay;
+	outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(delayL.process(inL, delay, fadeDelay) * g));
+	outputs[OUT_R_OUTPUT].setVoltage(bidooSoftLimit(delayR.process(inR, delay, fadeDelay) * g));
 
 	if (inConnected) {
 		meter[0].process(inL, args.sampleRate);

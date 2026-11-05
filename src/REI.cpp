@@ -64,6 +64,14 @@ struct REI : BidooModule {
 
 	dsp::SchmittTrigger freezeTrigger;
 	bool freeze = false;
+
+	// Prism freezes its network algorithms only. For SPRING, NON-LIN and
+	// REVERSE, REI loops the last second of the wet output instead, with a
+	// crossfade at the loop point, and shuts the input out, like Prism does.
+	std::vector<float> histL, histR;  // the wet output, kept while not looping
+	int histW = 0, loopLen = 1, loopX = 1, loopStart = 0, loopPos = 0;
+	bool looping = false;
+	float loopMix = 0.f, loopStep = 0.f;
 	// context menu, saved with the patch
 	int algo = PrismReverb::Hall;
 	int preDelay = 1;
@@ -100,11 +108,58 @@ struct REI : BidooModule {
 		// a short glide of the line lengths, so a moving DECAY bends instead of clicking
 		settings.glideMs = 100.f;
 		prism.prepare(48000.f);
+		prepareLoop(48000.f);
+	}
+
+	void prepareLoop(float sr) {
+		loopLen = (int)sr;            // 1 s loop
+		loopX = (int)(0.05f * sr);    // 50 ms crossfades
+		histL.assign(loopLen + loopX + 1, 0.f);
+		histR.assign(loopLen + loopX + 1, 0.f);
+		histW = loopPos = loopStart = 0;
+		looping = false;
+		loopMix = 0.f;
+		loopStep = 1.f / loopX;
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent &e) override {
 		prism.prepare(e.sampleRate);
+		prepareLoop(e.sampleRate);
 		pos = 0;
+	}
+
+	// The wet output, through the loop when it freezes.
+	void loopFreeze(float &oL, float &oR) {
+		bool want = freeze && !bidoo::dsp::reverb::prism_detail::isFdn(algo);
+		int n = histL.size();
+		if (want && !looping) {
+			// the last second plus a crossfade's length, from the history
+			looping = true;
+			loopStart = (histW - (loopLen + loopX) + n) % n;
+			loopPos = 0;
+		}
+		if (!looping) {
+			histL[histW] = oL;
+			histR[histW] = oR;
+			histW = (histW + 1) % n;
+			return;
+		}
+		float lL = histL[(loopStart + loopPos) % n], lR = histR[(loopStart + loopPos) % n];
+		if (loopPos < loopX) {
+			// the loop's start fades in over the audio that followed its end
+			float w = (float)loopPos / loopX * (float)M_PI * 0.5f;
+			float gIn = std::sin(w), gOut = std::cos(w);
+			int t = (loopStart + loopLen + loopPos) % n;
+			lL = lL * gIn + histL[t] * gOut;
+			lR = lR * gIn + histR[t] * gOut;
+		}
+		if (++loopPos >= loopLen)
+			loopPos = 0;
+		loopMix = want ? std::min(loopMix + loopStep, 1.f) : std::max(loopMix - loopStep, 0.f);
+		oL += (lL - oL) * loopMix;
+		oR += (lR - oR) * loopMix;
+		if (!want && loopMix <= 0.f)
+			looping = false;
 	}
 
 	void onReset() override {
@@ -113,6 +168,7 @@ struct REI : BidooModule {
 		mod = 2;
 		freeze = false;
 		prism.reset();
+		prepareLoop(APP && APP->engine ? APP->engine->getSampleRate() : 48000.f);
 	}
 
 	json_t *dataToJson() override {
@@ -143,9 +199,12 @@ struct REI : BidooModule {
 		// Prism runs at +-1 for +-5 V
 		float l = inputs[IN_L_INPUT].getVoltageSum();
 		float r = inputs[IN_R_INPUT].isConnected() ? inputs[IN_R_INPUT].getVoltageSum() : l;
-		inL[pos] = l * 0.2f;
-		inR[pos] = r * 0.2f;
+		// a looping freeze shuts the input out, as Prism's own freeze does
+		bool shut = freeze && !bidoo::dsp::reverb::prism_detail::isFdn(algo);
+		inL[pos] = shut ? 0.f : l * 0.2f;
+		inR[pos] = shut ? 0.f : r * 0.2f;
 		float oL = wetL[pos] * 5.0f, oR = wetR[pos] * 5.0f;
+		loopFreeze(oL, oR);
 		if (++pos >= BLOCK) {
 			pos = 0;
 			settings.algo = algo;

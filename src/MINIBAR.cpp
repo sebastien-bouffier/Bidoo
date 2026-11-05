@@ -103,6 +103,8 @@ void MINIBAR::process(const ProcessArgs &args) {
 	float fade = 1.0f / (0.005f * args.sampleRate);
 	bypassAmount = bypass ? std::min(bypassAmount + fade, 1.0f) : std::max(bypassAmount - fade, 0.0f);
 	float fadeDelay = 1.0f / (0.01f * args.sampleRate);
+	// bypassed: no lookahead delay either (the delay crossfades to 0)
+	int delayLen = bypass ? 0 : settings.delay;
 
 	int channels = std::max(1, inputs[IN_L_INPUT].getChannels());
 	bool sc = inputs[SC_L_INPUT].isConnected();
@@ -115,7 +117,7 @@ void MINIBAR::process(const ProcessArgs &args) {
 		deepest = std::min(deepest, reduction);
 		float g = barDbToGain(settings.makeup + reduction) * settings.mix + (1.0f - settings.mix);
 		g += (1.0f - g) * bypassAmount;
-		outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(delay[c].process(in, settings.delay, fadeDelay) * g), c);
+		outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(delay[c].process(in, delayLen, fadeDelay) * g), c);
 		if (std::fabs(in) > std::fabs(loudest))
 			loudest = in;
 		if (std::fabs(scIn) > std::fabs(scLoudest))
@@ -351,7 +353,7 @@ struct MINIBARWidget : BidooWidget {
 		tresh->lblDisplay = display;
 		tresh->valueForDisplay = module ? &module->threshold : NULL;
 		tresh->format = "%2.1f";
-		tresh->header = "Tresh.";
+		tresh->header = "Thresh.";
 		tresh->tail = "dB";
 		addParam(tresh);
 
