@@ -50,7 +50,7 @@ struct BAFIS : BidooModule {
 		for (int i = 0; i < 4; i++) {
 			std::string band = "Band " + std::to_string(i + 1) + " ";
 			configParam(Q_PARAM + i, .1f, 1.f, .1f, band + "resonance", "%", 0.f, 100.f);
-			configParam(GAIN_PARAM + i, 1.f, 10.f, 1.f, band + "drive", "%", 0.f, 10.f, -10.f);
+			configParam(GAIN_PARAM + i, 1.f, 10.f, 1.f, band + "drive", "x");
 			configSwitch(TYPE_PARAM + i, 0.f, 2.f, 0.f, band + "distortion", {"tanh", "sin", "digital"});
 			configSwitch(PREPOST_PARAM + i, 0.f, 1.f, 0.f, band + "distortion", {"Before the filter", "After the filter"});
 			configParam(VOLUME_PARAM + i, 0.f, 1.f, 0.5f, band + "volume", "%", 0.f, 100.f);

@@ -1619,7 +1619,7 @@ void PILOTWidget::appendContextMenu(ui::Menu *menu) {
 		holder->box.size.y = 20;
 
 		auto lab = new rack::Label;
-		lab->text = "Label " + std::to_string(i) +  " : ";
+		lab->text = "Label " + std::to_string(i + 1) +  " : ";
 		lab->box.size = 65;
 		holder->addChild(lab);
 

@@ -52,7 +52,7 @@ struct PERCO : BidooModule {
 
 		for (int c = 0; c < channels; c++) {
 			float pitch = freqParam + inputs[CUTOFF_INPUT].getPolyVoltage(c) * freqCvParam;
-			float cutoff = clamp(dsp::FREQ_C4 * dsp::exp2_taylor5(clamp(pitch, -10.f, 10.f)), 1.f, 8000.f);
+			float cutoff = clamp(dsp::FREQ_C4 * dsp::exp2_taylor5(clamp(pitch, -10.f, 10.f)), 1.f, dsp::FREQ_C4 * 32.f);
 			float q = 10.0f * clamp(qParam + inputs[Q_INPUT].getPolyVoltage(c) * 0.2f, 0.1f, 1.0f);
 			filter[c].set(gain[c].get(cutoff, args.sampleRate), q);
 			filter[c].process(inputs[IN].getVoltage(c));

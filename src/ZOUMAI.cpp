@@ -481,51 +481,57 @@ struct ZOUMAI : BidooModule {
 		rightExpander.producerMessage = rightMessages[0];
 		rightExpander.consumerMessage = rightMessages[1];
 
-		configParam(FILL_PARAM, 0.0f, 1.0f, 0.0f);
-    configParam(RUN_PARAM, 0.0f, 1.0f, 0.0f);
+		configButton(FILL_PARAM, "Fill");
+    configButton(RUN_PARAM, "Run");
 
-    configParam(TRIGPAGE_PARAM, 0.0f, 2.0f,  0.0f);
-    configParam(TRIGPAGE_PARAM+1, 0.0f, 2.0f,  0.0f);
-    configParam(TRIGPAGE_PARAM+2, 0.0f, 2.0f,  0.0f);
-    configParam(TRIGPAGE_PARAM+3, 0.0f, 2.0f,  0.0f);
+		// Page buttons: the value only drives the light, the page is set on click.
+		for (int i=0;i<4;i++) {
+			configParam(TRIGPAGE_PARAM+i, 0.0f, 2.0f,  0.0f, "Page " + to_string(i+1) + " (steps " + to_string(i*16+1) + "-" + to_string(i*16+16) + ")");
+		}
 
-    configParam(PATTERN_PARAM, 0.0f, 7.0f, 0.0f);
+    configParam(PATTERN_PARAM, 0.0f, 7.0f, 0.0f, "Pattern", "", 0.f, 1.f, 1.f);
 
-		configParam(TRACKLENGTH_PARAM, 1.0f, 64.0f, 16.0f);
-		configParam(TRACKSPEED_PARAM, 1.0f, 4.0f, 1.0f);
-		configParam(TRACKREADMODE_PARAM, 0.0f, 4.0f, 0.0f);
+		configParam(TRACKLENGTH_PARAM, 1.0f, 64.0f, 16.0f, "Track length", " steps");
+		configParam(TRACKSPEED_PARAM, 1.0f, 4.0f, 1.0f, "Track speed", "x");
+		configSwitch(TRACKREADMODE_PARAM, 0.0f, 4.0f, 0.0f, "Read mode", {"► Forward", "◄ Backward", "►◄ Pendulum", "►* Random", "►? Random walk"});
 		configSwitch(TRACKROOTNOTE_PARAM, 0.0f, 11.0f, 0.0f, "Root note", {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"});
 		configParam(TRACKSCALE_PARAM, 0.0f, quantizer::numScales-1, 0.0f, "Scale (No: not quantized)");
 		paramQuantities[TRACKSCALE_PARAM]->snapEnabled = true;
-		configParam(TRACKQUANTIZECV1_PARAM, 0.0f, 1.0f, 0.0f);
+		configSwitch(TRACKQUANTIZECV1_PARAM, 0.0f, 1.0f, 0.0f, "CV1 quantize", {"Free", "Quantized to scale"});
 
-		configParam(TRIGCV1_PARAM, -10.0f, 10.0f, 0.0f);
-		configParam(TRIGCV2_PARAM, -10.0f, 10.0f, 0.0f);
-		configParam(TRIGLENGTH_PARAM, 0.0f, 64.0f, 0.9f);
-		configParam(TRIGPULSECOUNT_PARAM, 0.0f, 64.0f, 1.0f);
-		configParam(TRIGPULSEDISTANCE_PARAM, 0.0f, 64.0f, 0.1f);
-		configParam(TRIGTYPE_PARAM, 0.0f, 2.0f, 0.0f);
-		configParam(TRIGTRIM_PARAM, -1.0f, 1.0f, 0.0f);
-		configParam(TRIGSLIDE_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(TRIGPROBA_PARAM, 0.0f, 7.0f, 0.0f);
-		configParam(TRIGPROBACOUNT_PARAM, 1.0f, 100.0f, 100.0f);
-		configParam(TRIGPROBACOUNTRESET_PARAM, 1.0f, 100.0f, 1.0f);
-    configParam(TRIGSLIDETYPE_PARAM, 0.0f, 1.0f, 0.0f);
+		configParam(TRIGCV1_PARAM, -10.0f, 10.0f, 0.0f, "Trig CV1", " V");
+		configParam(TRIGCV2_PARAM, -10.0f, 10.0f, 0.0f, "Trig CV2", " V");
+		configParam(TRIGLENGTH_PARAM, 0.0f, 64.0f, 0.9f, "Trig length", " steps");
+		configParam(TRIGPULSECOUNT_PARAM, 0.0f, 64.0f, 1.0f, "Pulse count");
+		configParam(TRIGPULSEDISTANCE_PARAM, 0.0f, 64.0f, 0.1f, "Pulse distance", " steps");
+		configSwitch(TRIGTYPE_PARAM, 0.0f, 2.0f, 0.0f, "Trig type", {"INT. (internal gate)", "GATE1 (G1 input)", "GATE2 (G2 input)"});
+		configParam(TRIGTRIM_PARAM, -1.0f, 1.0f, 0.0f, "Trim", " steps");
+		configParam(TRIGSLIDE_PARAM, 0.0f, 1.0f, 0.0f, "Slide");
+		configSwitch(TRIGPROBA_PARAM, 0.0f, 7.0f, 0.0f, "Trig condition", {"DICE (probability)", "COUNT (first Val. of every Base)", "FILL (only on fill)", "!FILL (not on fill)", "PRE (previous condition played)", "!PRE (previous condition not played)", "NEI (track above played)", "!NEI (track above not played)"});
+		configParam(TRIGPROBACOUNT_PARAM, 1.0f, 100.0f, 100.0f, "Condition value (DICE: %, COUNT: Val.)");
+		configParam(TRIGPROBACOUNTRESET_PARAM, 1.0f, 100.0f, 1.0f, "Count base (COUNT cycle length)");
+    configSwitch(TRIGSLIDETYPE_PARAM, 0.0f, 1.0f, 0.0f, "Slide type", {"FULL (whole trig)", "1 (one step)"});
 
-		configParam(RECORD_PARAM, 0.0f, 1.0f, 0.0f);
-		configParam(QUANTIZE_PARAM, 0.0f, 1.0f, 1.0f);
+		configSwitch(RECORD_PARAM, 0.0f, 1.0f, 0.0f, "Record on selected track", {"Off", "On"});
+		configSwitch(QUANTIZE_PARAM, 0.0f, 1.0f, 1.0f, "Record quantize to steps", {"Off", "On"});
 
   	for (int i=0;i<16;i++) {
-      configParam(STEPS_PARAMS + i, 0.0f, 4.0f, 0.0f);
+      configParam(STEPS_PARAMS + i, 0.0f, 4.0f, 0.0f, "Step " + to_string(i+1) + " (Shift+click: on/off)");
   	}
 
+		// Octave buttons were never configured: keep Rack's implicit 0..1 range.
+		for (int i=0;i<7;i++) {
+			configParam(OCTAVE_PARAMS + i, 0.0f, 1.0f, 0.0f, "Octave " + to_string(i+1));
+		}
+
+		static const char *noteNames[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 		for (int i=0;i<12;i++) {
-      configParam(NOTE_PARAMS + i, 0.0f, 3.0f, 0.0f);
+      configParam(NOTE_PARAMS + i, 0.0f, 3.0f, 0.0f, std::string("Note ") + noteNames[i] + " (click again: trig on/off)");
   	}
 
   	for (int i=0;i<8;i++) {
-      configParam(TRACKSONOFF_PARAMS + i, 0.0f, 2.0f, 1.0f);
-			configParam(TRACKSELECT_PARAMS + i, 0.0f, 1.0f, i == currentTrack ? 1.0f : 0.0f);
+      configSwitch(TRACKSONOFF_PARAMS + i, 0.0f, 2.0f, 1.0f, "Track " + to_string(i+1) + " on/off (Shift+click: solo)", {"Off", "On", "Solo"});
+			configParam(TRACKSELECT_PARAMS + i, 0.0f, 1.0f, i == currentTrack ? 1.0f : 0.0f, "Select track " + to_string(i+1));
 			for (int j=0;j<8;j++) {
 				for (int k=0;k<64;k++) {
 					nTrigsAttibutes[i][j][k].setTrigIndex(k);
@@ -3166,8 +3172,8 @@ struct ZOUMAIWidget : BidooWidget {
 				menu->addChild(construct<ZouPasteTrigItem>(&MenuItem::text, "Paste (over+V)", &ZouPasteTrigItem::module, module));
 				menu->addChild(construct<ZouRandomizeTrigNoteItem>(&MenuItem::text, "Rand Note (over+R)", &ZouRandomizeTrigNoteItem::module, module));
 				menu->addChild(construct<ZouRandomizeTrigNotePlusItem>(&MenuItem::text, "Rand Note+ (over+T)", &ZouRandomizeTrigNotePlusItem::module, module));
-				menu->addChild(construct<ZouRandomizeTrigProbItem>(&MenuItem::text, "Rand Prob (over+U)", &ZouRandomizeTrigProbItem::module, module));
-				menu->addChild(construct<ZouFullRandomizeTrigItem>(&MenuItem::text, "Full Rand (over+Y)", &ZouFullRandomizeTrigItem::module, module));
+				menu->addChild(construct<ZouRandomizeTrigProbItem>(&MenuItem::text, "Rand Prob (over+Y)", &ZouRandomizeTrigProbItem::module, module));
+				menu->addChild(construct<ZouFullRandomizeTrigItem>(&MenuItem::text, "Full Rand (over+U)", &ZouFullRandomizeTrigItem::module, module));
 				menu->addChild(construct<ZouRandomizeTrigCV1Item>(&MenuItem::text, "Rand CV1 (over+F)", &ZouRandomizeTrigCV1Item::module, module));
 				menu->addChild(construct<ZouRandomizeTrigCV2Item>(&MenuItem::text, "Rand CV2 (over+G)", &ZouRandomizeTrigCV2Item::module, module));
 				menu->addChild(construct<ZouTrigUpItem>(&MenuItem::text, "Move Up (over+W)", &ZouTrigUpItem::module, module));
@@ -3181,8 +3187,8 @@ struct ZOUMAIWidget : BidooWidget {
 				menu->addChild(construct<ZouPasteTrackItem>(&MenuItem::text, "Paste (over+V)", &ZouPasteTrackItem::module, module));
 				menu->addChild(construct<ZouRandomizeTrackItem>(&MenuItem::text, "Rand (over+R)", &ZouRandomizeTrackItem::module, module));
 				menu->addChild(construct<ZouRandomizeTrackTrigsNotesItem>(&MenuItem::text, "Rand Notes (over+T)", &ZouRandomizeTrackTrigsNotesItem::module, module));
-				menu->addChild(construct<ZouRandomizeTrackTrigsNotesPlusItem>(&MenuItem::text, "Rand Notes+ (over+U)", &ZouRandomizeTrackTrigsNotesPlusItem::module, module));
-				menu->addChild(construct<ZouRandomizeTrackTrigsProbsItem>(&MenuItem::text, "Rand Probs (over+Y)", &ZouRandomizeTrackTrigsProbsItem::module, module));
+				menu->addChild(construct<ZouRandomizeTrackTrigsNotesPlusItem>(&MenuItem::text, "Rand Notes+ (over+Y)", &ZouRandomizeTrackTrigsNotesPlusItem::module, module));
+				menu->addChild(construct<ZouRandomizeTrackTrigsProbsItem>(&MenuItem::text, "Rand Probs (over+U)", &ZouRandomizeTrackTrigsProbsItem::module, module));
 				menu->addChild(construct<ZouRandomizeTrackTrigsCV1Item>(&MenuItem::text, "Rand CV1 (over+F)", &ZouRandomizeTrackTrigsCV1Item::module, module));
 				menu->addChild(construct<ZouRandomizeTrackTrigsCV2Item>(&MenuItem::text, "Rand CV2 (over+G)", &ZouRandomizeTrackTrigsCV2Item::module, module));
 				menu->addChild(construct<ZouTrackUpItem>(&MenuItem::text, "Move Up (over+W)", &ZouTrackUpItem::module, module));
@@ -3221,8 +3227,8 @@ struct ZOUMAIWidget : BidooWidget {
 				menu->addChild(construct<ZouCopyPageItem>(&MenuItem::text, "Copy (over+C)", &ZouCopyPageItem::module, module));
 				menu->addChild(construct<ZouPastePageItem>(&MenuItem::text, "Paste (over+V)", &ZouPastePageItem::module, module));
 				menu->addChild(construct<ZouRandomizePageTrigsNotesItem>(&MenuItem::text, "Rand Notes (over+T)", &ZouRandomizePageTrigsNotesItem::module, module));
-				menu->addChild(construct<ZouRandomizePageTrigsNotesPlusItem>(&MenuItem::text, "Rand Notes+ (over+U)", &ZouRandomizePageTrigsNotesPlusItem::module, module));
-				menu->addChild(construct<ZouRandomizePageTrigsProbsItem>(&MenuItem::text, "Rand Probs (over+Y)", &ZouRandomizePageTrigsProbsItem::module, module));
+				menu->addChild(construct<ZouRandomizePageTrigsNotesPlusItem>(&MenuItem::text, "Rand Notes+ (over+Y)", &ZouRandomizePageTrigsNotesPlusItem::module, module));
+				menu->addChild(construct<ZouRandomizePageTrigsProbsItem>(&MenuItem::text, "Rand Probs (over+U)", &ZouRandomizePageTrigsProbsItem::module, module));
 				menu->addChild(construct<ZouRandomizePageTrigsCV1Item>(&MenuItem::text, "Rand CV1 (over+F)", &ZouRandomizePageTrigsCV1Item::module, module));
 				menu->addChild(construct<ZouRandomizePageTrigsCV2Item>(&MenuItem::text, "Rand CV2 (over+G)", &ZouRandomizePageTrigsCV2Item::module, module));
 			}));

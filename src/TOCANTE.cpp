@@ -85,6 +85,8 @@ struct TOCANTE : BidooModule {
 		configOutput(OUT_THIRTYSECOND, "Thirty-second");
 		configOutput(OUT_SIXTYFOURTH, "Sixty-fourth");
 		configOutput(OUT_ONEHUNDREDTWENTYEIGHTH, "enCORE clock (128 per quarter)");
+		configInput(RUN_INPUT, "Run toggle trigger");
+		configInput(RESET_INPUT, "Reset trigger");
 		configOutput(OUT_RESET, "Reset");
 		configOutput(OUT_RUN, "Run gate");
 	}
@@ -126,12 +128,12 @@ void TOCANTE::process(const ProcessArgs &args) {
 	const double grids[NUM_GRIDS] = {barLength, beatLength, 1.0 / 3.0, 1.0, 1.0 / 2.0, 1.0 / 4.0, 1.0 / 8.0, 1.0 / 16.0, 1.0 / 128.0};
 	double quartersPerSecond = bpm / 60.0 * beatLength;
 
-	if (runningTrigger.process(params[RUN_PARAM].getValue())) {
+	if (runningTrigger.process(params[RUN_PARAM].getValue() + inputs[RUN_INPUT].getVoltage())) {
 		running = !running;
 		if (running)
 			restart = true;
 	}
-	if (resetTrigger.process(params[RESET_PARAM].getValue()))
+	if (resetTrigger.process(params[RESET_PARAM].getValue() + inputs[RESET_INPUT].getVoltage()))
 		restart = true;
 
 	bool fire[NUM_GRIDS] = {};
@@ -256,11 +258,13 @@ struct TOCANTEWidget : BidooWidget {
 
 		addParam(createParam<LEDBezel>(Vec(41, 160), module, TOCANTE::RESET_PARAM));
 		addChild(createLight<TocanteLight<BlueLight>>(Vec(42.8f, 161.8f), module, TOCANTE::RESET_LIGHT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(45, 190), module, TOCANTE::OUT_RESET));
+		addInput(createInput<TinyPJ301MPort>(Vec(36.3f, 190), module, TOCANTE::RESET_INPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(52.3f, 190), module, TOCANTE::OUT_RESET));
 
 		addParam(createParam<LEDBezel>(Vec(76, 160), module, TOCANTE::RUN_PARAM));
 		addChild(createLight<TocanteLight<BlueLight>>(Vec(77.8f, 161.8f), module, TOCANTE::RUNNING_LIGHT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(80.0f, 190), module, TOCANTE::OUT_RUN));
+		addInput(createInput<TinyPJ301MPort>(Vec(71.3f, 190), module, TOCANTE::RUN_INPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(87.3f, 190), module, TOCANTE::OUT_RUN));
 
 		addParam(createParam<BidooBlueKnob>(Vec(3.0f,90.0f), module, TOCANTE::BPM_PARAM));
 		addParam(createParam<BidooBlueKnob>(Vec(3.0f,155.0f), module, TOCANTE::BPMFINE_PARAM));

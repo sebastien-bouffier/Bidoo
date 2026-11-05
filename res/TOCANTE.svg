@@ -111,12 +111,12 @@
        inkscape:connector-curvature="0" />
     <path
        style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.350962px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m -13.637435,45.449267 -0.0077,6.192458"
+       d="m -13.637435,45.449267 0,3.757083"
        id="path970-3-3"
        inkscape:connector-curvature="0" />
     <path
        style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.350962px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m -22.89492,45.449267 -0.0077,6.192458"
+       d="m -22.89492,45.449267 0,3.757083"
        id="path970-5-2"
        inkscape:connector-curvature="0" />
   </g>
@@ -618,4 +618,18 @@
        d="m -124.45733,386.44067 h -2.55469 v -3.8776 h 2.55469 v 0.45834 h -2.03906 v 1.06249 h 2.03906 v 0.45834 h -2.03906 v 1.4401 h 2.03906 z"
        id="path1209" />
   </g>
+
+
+
+
+<rect id="out-reset" x="13.3085" y="49.7417" width="5.02708" height="5.02708" rx="0.529167" style="fill:#cd1f00;stroke:none" />
+<path id="fork-reset" style="fill:none;stroke:#000000;stroke-width:0.350962;stroke-linecap:butt" d="M 11.5887,49.2125 L 15.8221,49.2125" />
+<path id="fork-in-reset" style="fill:none;stroke:#000000;stroke-width:0.350962;stroke-linecap:butt" d="M 11.5887,49.2125 L 11.5887,50.8" />
+<path id="fork-out-reset" style="fill:none;stroke:#000000;stroke-width:0.350962;stroke-linecap:butt" d="M 15.8221,49.2125 L 15.8221,50.8" />
+<rect id="out-run" x="22.569" y="49.7417" width="5.02708" height="5.02708" rx="0.529167" style="fill:#cd1f00;stroke:none" />
+<path id="fork-run" style="fill:none;stroke:#000000;stroke-width:0.350962;stroke-linecap:butt" d="M 20.8492,49.2125 L 25.0825,49.2125" />
+<path id="fork-in-run" style="fill:none;stroke:#000000;stroke-width:0.350962;stroke-linecap:butt" d="M 20.8492,49.2125 L 20.8492,50.8" />
+<path id="fork-out-run" style="fill:none;stroke:#000000;stroke-width:0.350962;stroke-linecap:butt" d="M 25.0825,49.2125 L 25.0825,50.8" />
+
+
 </svg>

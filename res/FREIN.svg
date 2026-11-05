@@ -279,26 +279,7 @@
      transform="translate(0,0.5543368)"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11667px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
      id="text902-8"
-     aria-label="SPEED">
-    <path
-       id="path930"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11667px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583px"
-       d="m 3.8090714,51.611571 v 0.211873 q -0.095085,-0.06098 -0.1912031,-0.09198 -0.095085,-0.03101 -0.1922367,-0.03101 -0.1477948,0 -0.2335778,0.06925 -0.085783,0.06821 -0.085783,0.185002 0,0.102319 0.055811,0.156063 0.056844,0.05374 0.2108402,0.08992 l 0.1095542,0.0248 q 0.2170414,0.05064 0.3162603,0.159164 0.099219,0.108521 0.099219,0.29559 0,0.220142 -0.136426,0.335897 -0.136426,0.115755 -0.3968756,0.115755 -0.1085207,0 -0.2180749,-0.02377 -0.1095542,-0.02274 -0.220142,-0.06925 v -0.222209 q 0.118856,0.07545 0.2242761,0.110587 0.1064536,0.03514 0.2139408,0.03514 0.1581301,0 0.2459802,-0.07028 0.08785,-0.07131 0.08785,-0.198437 0,-0.115756 -0.060978,-0.176734 -0.059945,-0.06098 -0.2098066,-0.09405 l -0.1116213,-0.02584 q -0.2149742,-0.04857 -0.3121261,-0.146761 -0.097152,-0.09819 -0.097152,-0.26355 0,-0.206706 0.138493,-0.33073 0.1395266,-0.125057 0.3700038,-0.125057 0.088884,0 0.187069,0.02067 0.098185,0.01964 0.2067061,0.05994 z" />
-    <path
-       id="path932"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11667px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583px"
-       d="m 4.4488266,51.730426 v 0.579811 h 0.241846 q 0.1446943,0 0.2253096,-0.07648 0.081649,-0.07648 0.081649,-0.213941 0,-0.13746 -0.080615,-0.212907 -0.080615,-0.07648 -0.2263432,-0.07648 z M 4.2400535,51.55886 h 0.4506191 q 0.2583826,0 0.391708,0.117823 0.1333254,0.116789 0.1333254,0.343132 0,0.22841 -0.1333254,0.345199 -0.1322919,0.116789 -0.391708,0.116789 h -0.241846 v 0.620118 H 4.2400535 Z" />
-    <path
-       id="path934"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11667px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583px"
-       d="m 5.5133627,51.55886 h 0.9157078 v 0.175701 H 5.7221358 v 0.45682 h 0.6759288 v 0.1757 H 5.7221358 v 0.55914 h 0.7265717 v 0.1757 H 5.5133627 Z" />
-    <path
-       id="path936"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11667px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583px"
-       d="m 6.7866719,51.55886 h 0.9157078 v 0.175701 H 6.995445 v 0.45682 h 0.6759288 v 0.1757 H 6.995445 v 0.55914 h 0.7265718 v 0.1757 H 6.7866719 Z" />
-    <path
-       id="path938"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11667px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583px"
-       d="m 8.3069949,52.930355 q 0.2635502,0 0.3679367,-0.129191 0.1043866,-0.130225 0.1043866,-0.469223 0,-0.342098 -0.1043866,-0.47129 -0.103353,-0.130225 -0.3679367,-0.130225 H 8.207776 v 1.199929 z m 0.00413,-1.371495 q 0.3534673,0 0.5208992,0.188103 0.1674319,0.188102 0.1674319,0.584978 0,0.394809 -0.1674319,0.582911 -0.1674319,0.187069 -0.5208992,0.187069 H 7.9979693 V 51.55886 Z" />
-  </g>
+     aria-label="TIME">
+<path d="M 3.47731 51.5589 H 4.78266 V 51.7346 H 4.23488 V 53.1019 H 4.02508 V 51.7346 H 3.47731 Z  M 4.98419 51.5589 H 5.19297 V 53.1019 H 4.98419 Z  M 5.60845 51.5589 H 5.91954 L 6.31331 52.6089 L 6.70916 51.5589 H 7.02025 V 53.1019 H 6.81664 V 51.747 L 6.41873 52.8053 H 6.20893 L 5.81102 51.747 V 53.1019 H 5.60845 Z  M 7.43469 51.5589 H 8.41035 V 51.7346 H 7.64347 V 52.1914 H 8.37831 V 52.3671 H 7.64347 V 52.9262 H 8.42895 V 53.1019 H 7.43469 Z " style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11667px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583px" />
+</g>
 </svg>

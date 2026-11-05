@@ -114,7 +114,7 @@ struct MU : BidooModule {
 		configParam(BPMFINE_PARAM, 0.f, 0.99f, 0.f, "BPM fine");
 		configParam(STEPLENGTH_PARAM, 0.f, 1600.f, 100.f, "Step length", "% of a beat");
 		paramQuantities[STEPLENGTH_PARAM]->snapEnabled = true;
-		configParam(STEPLENGTHFINE_PARAM, -0.5f, 0.5f, 0.f, "Step length fine", "%", 0.f, 100.f);
+		configParam(STEPLENGTHFINE_PARAM, -0.5f, 0.5f, 0.f, "Step length fine", "% of a beat");
 		configParam(NOTELENGTH_PARAM, 0.f, 1.f, 0.f, "Gate length (at least 1 ms)", "% of the step", 0.f, 100.f);
 		configParam(STEPPROBA_PARAM, 0.f, 1.f, 1.f, "Step probability", "%", 0.f, 100.f);
 		configParam(ALTEOSTEPPROBA_PARAM, 0.f, 1.f, 0.f, "Alt end-of-step probability", "%", 0.f, 100.f);
@@ -538,7 +538,7 @@ struct MUWidget : BidooWidget {
 		addInput(activateIn);
 		TinyPJ301MPortWithDisplay* activateOUT = createOutput<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[1]), module, MU::EOSTEP_OUTPUT);
 		activateOUT->lblDisplay = display;
-		activateOUT->valueForDisplay = module ? &module->outputs[MU::BPM_OUTPUT].value : NULL;
+		activateOUT->valueForDisplay = module ? &module->outputs[MU::EOSTEP_OUTPUT].value : NULL;
 		activateOUT->format = "%2.2f V";
 		activateOUT->header = "Step end";
 		addOutput(activateOUT);

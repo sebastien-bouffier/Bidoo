@@ -82,7 +82,8 @@ struct RATEAU : BidooModule {
 		INDEPEDITB_LIGHT,
 		MATRIX_LIGHT,
 		MUTE_LIGHTS,
-		NUM_LIGHTS = MUTE_LIGHTS + 8*3
+		STARTSTOP_LIGHT = MUTE_LIGHTS + 8*3,
+		NUM_LIGHTS
 	};
 
 	RiotBank banks[RIOT_BANKS];
@@ -113,6 +114,7 @@ struct RATEAU : BidooModule {
 	dsp::SchmittTrigger indepEditATrigger;
 	dsp::SchmittTrigger indepEditBTrigger;
 	dsp::SchmittTrigger matrixTrigger;
+	dsp::SchmittTrigger startStopTrigger;
 	dsp::SchmittTrigger modeInputTrigger;
 	dsp::SchmittTrigger muteTriggers[8];
 	dsp::PulseGenerator gatePulses[RIOT_CELLS][RIOT_SETS];
@@ -126,11 +128,12 @@ struct RATEAU : BidooModule {
 			configSwitch(DIV_PARAM + i, 0.0f, 1.0f, i == 0 ? 1.0f : 0.0f, std::string(pages[i]) + " page", {"Off", "On"});
 			getParamQuantity(DIV_PARAM + i)->randomizeEnabled = false;
 		}
-		configButton(INDEPEDITA_PARAM, "Independent mode, rows (outputs 1-4)");
-		configButton(INDEPEDITB_PARAM, "Independent mode, columns (outputs A-D)");
+		configButton(INDEPEDITA_PARAM, "Independent mode A (rows: outputs A1-A4, right)");
+		configButton(INDEPEDITB_PARAM, "Independent mode B (columns: outputs B1-B4, bottom)");
 		configButton(MATRIX_PARAM, "Matrix mode");
-		configButton(STARTSTOP_PARAM, "Start / stop");
-		const char *outs[8] = {"1", "2", "3", "4", "A", "B", "C", "D"};
+		configButton(STARTSTOP_PARAM, "Start / stop the internal clock");
+		configInput(STARTSTOP_INPUT, "Start / stop trigger (internal clock)");
+		const char *outs[8] = {"A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4"};
 		for (int i = 0; i < 8; i++) {
 			configButton(MUTE_PARAMS + i, std::string("Mute output ") + outs[i]);
 			configOutput(GATE_OUTPUTS + i, std::string("Output ") + outs[i]);
@@ -417,6 +420,9 @@ void RATEAU::process(const ProcessArgs &args) {
 		else
 			setMode(previousMode != matrix ? previousMode : indepEditA);
 	}
+	if (startStopTrigger.process(params[STARTSTOP_PARAM].getValue() + inputs[STARTSTOP_INPUT].getVoltage()))
+		running = !running;
+	lights[STARTSTOP_LIGHT].setBrightness(running ? 1 : 0);
 	lights[INDEPEDITA_LIGHT].setBrightness(pMode == indepEditA ? 1 : 0);
 	lights[INDEPEDITB_LIGHT].setBrightness(pMode == indepEditB ? 1 : 0);
 	lights[MATRIX_LIGHT].setBrightness(pMode == matrix ? 1 : 0);
@@ -717,8 +723,12 @@ RATEAUWidget::RATEAUWidget(RATEAU *module) {
 	addParam(createParam<timeshiftRateauBtn>(Vec(btnXAnchor+5*btnOffset, btnYAnchor), module, RATEAU::TIMESHIFT_PARAM));
 	addParam(createParam<pulsewidthRateauBtn>(Vec(btnXAnchor+6*btnOffset, btnYAnchor), module, RATEAU::PULSEWIDTH_PARAM));
 
-	addInput(createInput<PJ301MPort>(Vec(13.0f, 45.0f+intputsAlign), module, RATEAU::CLOCK_INPUT));
-	addInput(createInput<PJ301MPort>(Vec(49.0f, 45.0f+intputsAlign), module, RATEAU::RESET_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(6.0f, 45.0f+intputsAlign), module, RATEAU::CLOCK_INPUT));
+	// RUN: the internal clock's start / stop, in the CLK box
+	addParam(createParam<MiniLEDButton>(Vec(36.85f, 46.3f), module, RATEAU::STARTSTOP_PARAM));
+	addChild(createLight<SmallLight<BlueLight>>(Vec(36.55f, 46.0f), module, RATEAU::STARTSTOP_LIGHT));
+	addInput(createInput<TinyPJ301MPort>(Vec(32.0f, 57.0f), module, RATEAU::STARTSTOP_INPUT));
+	addInput(createInput<PJ301MPort>(Vec(52.0f, 45.0f+intputsAlign), module, RATEAU::RESET_INPUT));
 
 	addParam(createParam<BidooLEDButton>(Vec(80.0f,45.0f), module, RATEAU::INDEPEDITA_PARAM));
 	addChild(createLight<SmallLight<BlueLight>>(Vec(80.0f+ledOffset,45.0f+ledOffset), module, RATEAU::INDEPEDITA_LIGHT));

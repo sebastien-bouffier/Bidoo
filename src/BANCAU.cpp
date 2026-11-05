@@ -189,8 +189,8 @@ struct BANCAU : BidooModule {
 			configOutput(OUT1_OUTPUT + 3 * s, n + "Out (0-10 V)");
 			configOutput(END1_OUTPUT + 3 * s, n + "End (high at rest, 1 ms pulse per cycle)");
 		}
-		configOutput(PULSE1_OUTPUT, "1 Pulse (high above 5 V)");
-		configOutput(BP2_OUTPUT, "2 Bipolar out (-5 to 5 V)");
+		configOutput(PULSE1_OUTPUT, "1 Gate (10 V while Out is above 5 V)");
+		configOutput(BP2_OUTPUT, "2 Norm (Out centred: -5 to 5 V)");
 	}
 
 	void process(const ProcessArgs &args) override {

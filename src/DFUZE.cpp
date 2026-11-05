@@ -12,7 +12,7 @@ struct DFUZE : BidooModule {
 		SIZE_PARAM,
 		REVTIME_PARAM,
 		DAMP_PARAM,
-		FREEZE_PARAM,     // unused: kept so saved patches keep their param ids
+		FREEZE_PARAM,
 		BANDWIDTH_PARAM,
 		EARLYLEVEL_PARAM,
 		TAIL_PARAM,
@@ -23,7 +23,7 @@ struct DFUZE : BidooModule {
 		SIZE_INPUT,
 		REVTIME_INPUT,
 		DAMP_INPUT,
-		FREEZE_INPUT,     // unused: kept so saved patches keep their input ids
+		FREEZE_INPUT,
 		BANDWIDTH_INPUT,
 		EARLYLEVEL_INPUT,
 		TAIL_INPUT,
@@ -36,6 +36,7 @@ struct DFUZE : BidooModule {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
+		FREEZE_LIGHT,
 		NUM_LIGHTS
 	};
 
@@ -44,6 +45,12 @@ struct DFUZE : BidooModule {
 	ty_gverb *verb[2] = {nullptr, nullptr};
 	float size = -1.f;
 	float applied[6] = {-1.f, -1.f, -1.f, -1.f, -1.f, -1.f};
+
+	// FREEZE: gverb has no freeze mode, so its tail is held by an endless
+	// reverb time and no damping while the input fades out (10 ms)
+	dsp::SchmittTrigger freezeTrigger;
+	bool freeze = false;
+	float inGain = 1.f;
 
 	DFUZE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -61,6 +68,8 @@ struct DFUZE : BidooModule {
 		configInput(BANDWIDTH_INPUT, "Input bandwidth CV (0-10 V: full range)");
 		configInput(EARLYLEVEL_INPUT, "Early reflections level CV (0-10 V: full range)");
 		configInput(TAIL_INPUT, "Tail level CV (0-10 V: full range)");
+		configButton(FREEZE_PARAM, "Freeze");
+		configInput(FREEZE_INPUT, "Freeze toggle trigger");
 		configOutput(OUT_L_OUTPUT, "Left");
 		configOutput(OUT_R_OUTPUT, "Right");
 		build(48000.f);
@@ -88,18 +97,39 @@ struct DFUZE : BidooModule {
 		build(e.sampleRate);
 	}
 
+	void onReset() override {
+		freeze = false;
+	}
+
+	json_t *dataToJson() override {
+		json_t *rootJ = BidooModule::dataToJson();
+		json_object_set_new(rootJ, "freeze", json_boolean(freeze));
+		return rootJ;
+	}
+
+	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
+		freeze = json_is_true(json_object_get(rootJ, "freeze"));
+	}
+
 	void process(const ProcessArgs &args) override;
 };
 
 void DFUZE::process(const ProcessArgs &args) {
+	if (freezeTrigger.process(params[FREEZE_PARAM].getValue() + inputs[FREEZE_INPUT].getVoltage()))
+		freeze = !freeze;
+	lights[FREEZE_LIGHT].setBrightness(freeze ? 1.f : 0.f);
+	float fade = 1.f / (0.01f * args.sampleRate);
+	inGain = freeze ? std::max(inGain - fade, 0.f) : std::min(inGain + fade, 1.f);
+
 	// the size glides (50 ms) so a moving size bends the tail instead of clicking
 	float sizeTarget = clamp(params[SIZE_PARAM].getValue() + inputs[SIZE_INPUT].getVoltage() * 30.0f, 1.0f, 300.0f);
 	size = size < 0.f ? sizeTarget : size + (sizeTarget - size) * std::min(1.0f, 1.0f / (0.05f * args.sampleRate));
 
 	float values[6] = {
 		size,
-		clamp(params[REVTIME_PARAM].getValue() + inputs[REVTIME_INPUT].getVoltage() * 5.0f, 0.0f, 50.0f),
-		clamp(params[DAMP_PARAM].getValue() + inputs[DAMP_INPUT].getVoltage() * 0.09f, 0.0f, 0.9f),
+		freeze ? 1e6f : clamp(params[REVTIME_PARAM].getValue() + inputs[REVTIME_INPUT].getVoltage() * 5.0f, 0.0f, 50.0f),
+		freeze ? 0.0f : clamp(params[DAMP_PARAM].getValue() + inputs[DAMP_INPUT].getVoltage() * 0.09f, 0.0f, 0.9f),
 		clamp(params[BANDWIDTH_PARAM].getValue() + inputs[BANDWIDTH_INPUT].getVoltage() * 0.1f, 0.0f, 1.0f),
 		clamp((params[EARLYLEVEL_PARAM].getValue() + inputs[EARLYLEVEL_INPUT].getVoltage()) * 0.1f, 0.0f, 1.0f),
 		clamp((params[TAIL_PARAM].getValue() + inputs[TAIL_INPUT].getVoltage()) * 0.1f, 0.0f, 1.0f)
@@ -124,31 +154,42 @@ void DFUZE::process(const ProcessArgs &args) {
 	float inL = inputs[IN_INPUT].getVoltageSum();
 	float inR = inputs[IN_R_INPUT].isConnected() ? inputs[IN_R_INPUT].getVoltageSum() : inL;
 	float ll, lr, rl, rr;
-	gverb_do(verb[0], inL * 0.1f, &ll, &lr);
-	gverb_do(verb[1], inR * 0.1f, &rl, &rr);
+	gverb_do(verb[0], inL * 0.1f * inGain, &ll, &lr);
+	gverb_do(verb[1], inR * 0.1f * inGain, &rl, &rr);
 	outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(ll * 10.0f));
 	outputs[OUT_R_OUTPUT].setVoltage(bidooSoftLimit(rr * 10.0f));
 }
+
+template <typename BASE>
+struct DFUZELight : BASE {
+	DFUZELight() {
+		this->box.size = mm2px(Vec(6.f, 6.f));
+	}
+};
 
 struct DFUZEWidget : BidooWidget {
 	DFUZEWidget(DFUZE *module) {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/DFUZE.svg"));
 
-		addParam(createParam<BidooBlueKnob>(Vec(13, 50), module, DFUZE::SIZE_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 95), module, DFUZE::REVTIME_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 140), module, DFUZE::DAMP_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 185), module, DFUZE::BANDWIDTH_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 230), module, DFUZE::EARLYLEVEL_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 275), module, DFUZE::TAIL_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(13, 46), module, DFUZE::SIZE_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(13, 86), module, DFUZE::REVTIME_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(13, 126), module, DFUZE::DAMP_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(13, 166), module, DFUZE::BANDWIDTH_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(13, 206), module, DFUZE::EARLYLEVEL_PARAM));
+		addParam(createParam<BidooBlueKnob>(Vec(13, 246), module, DFUZE::TAIL_PARAM));
 
 
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 52.0f), module, DFUZE::SIZE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 97.0f), module, DFUZE::REVTIME_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 142.0f), module, DFUZE::DAMP_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 187.0f), module, DFUZE::BANDWIDTH_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 232.0f), module, DFUZE::EARLYLEVEL_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 277.0f), module, DFUZE::TAIL_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(65.0f, 48.0f), module, DFUZE::SIZE_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(65.0f, 88.0f), module, DFUZE::REVTIME_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(65.0f, 128.0f), module, DFUZE::DAMP_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(65.0f, 168.0f), module, DFUZE::BANDWIDTH_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(65.0f, 208.0f), module, DFUZE::EARLYLEVEL_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(65.0f, 248.0f), module, DFUZE::TAIL_INPUT));
+
+		addParam(createParam<LEDBezel>(Vec(18.5f, 290.5f), module, DFUZE::FREEZE_PARAM));
+		addChild(createLight<DFUZELight<BlueLight>>(Vec(20.3f, 292.3f), module, DFUZE::FREEZE_LIGHT));
+		addInput(createInput<PJ301MPort>(Vec(65.0f, 288.0f), module, DFUZE::FREEZE_INPUT));
 
 		addInput(createInput<TinyPJ301MPort>(Vec(8.0f, 340.0f), module, DFUZE::IN_INPUT));
 		addInput(createInput<TinyPJ301MPort>(Vec(8.0f+22.0f, 340.0f), module, DFUZE::IN_R_INPUT));

@@ -343,7 +343,7 @@ struct TIARE : BidooModule {
 		configInput(PITCH_INPUT, "1V/oct pitch");
 		configInput(FM_INPUT, "Frequency modulation");
 		configInput(SYNC_INPUT, "Sync");
-		configInput(PW_INPUT, "Pulse width modulation");
+		configInput(PW_INPUT, "Pulse width modulation (scaled by PWM, 10 V: the whole range)");
 		configInput(DIST_X_INPUT, "Phase distortion X (0-10 V, replaces the slider)");
 		configInput(DIST_Y_INPUT, "Phase distortion Y (0-10 V, replaces the slider)");
 		configOutput(SIN_OUTPUT, "Sine");
@@ -539,23 +539,28 @@ struct TIAREWidget : BidooWidget {
 		sliderY->box.size = Vec(7, 140 - 8);
 		addParam(sliderY);
 
-		addParam(createParam<CKSS>(Vec(15, 80), module, TIARE::MODE_PARAM));
-		addParam(createParam<CKSS>(Vec(119, 80), module, TIARE::SYNC_PARAM));
+		addParam(createParam<CKSS>(Vec(30, 80), module, TIARE::MODE_PARAM));
+		addParam(createParam<CKSS>(Vec(134, 80), module, TIARE::SYNC_PARAM));
 
-		addParam(createParam<BidooLargeBlueKnob>(Vec(57, 45), module, TIARE::FREQ_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(114, 45), module, TIARE::FINE_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(18, 45), module, TIARE::FM_PARAM));
+		addParam(createParam<BidooLargeBlueKnob>(Vec(72, 45), module, TIARE::FREQ_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(129, 45), module, TIARE::FINE_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(33, 45), module, TIARE::FM_PARAM));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(38, 83), module, TIARE::FM_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(7, 283), module, TIARE::PITCH_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(44, 283), module, TIARE::SYNC_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(81.5f, 283), module, TIARE::DIST_X_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(118.5f, 283), module, TIARE::DIST_Y_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(53, 83), module, TIARE::FM_INPUT));
+		// pulse width, for the square: PW, its modulation amount and input
+		addParam(createParam<BidooBlueTrimpot>(Vec(153.5f, 135), module, TIARE::PW_PARAM));
+		addParam(createParam<BidooBlueTrimpot>(Vec(153.5f, 174), module, TIARE::PWM_PARAM));
+		addInput(createInput<PJ301MPort>(Vec(150.5f, 228), module, TIARE::PW_INPUT));
 
-		addOutput(createOutput<PJ301MPort>(Vec(7, 330), module, TIARE::SIN_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(44, 330), module, TIARE::TRI_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(81.5f, 330), module, TIARE::SAW_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(118.5f, 330), module, TIARE::SQR_OUTPUT));
+		addInput(createInput<PJ301MPort>(Vec(15.36f, 283), module, TIARE::PITCH_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(56.79f, 283), module, TIARE::SYNC_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(98.71f, 283), module, TIARE::DIST_X_INPUT));
+		addInput(createInput<PJ301MPort>(Vec(140.14f, 283), module, TIARE::DIST_Y_INPUT));
+
+		addOutput(createOutput<PJ301MPort>(Vec(15.36f, 330), module, TIARE::SIN_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(56.79f, 330), module, TIARE::TRI_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(98.71f, 330), module, TIARE::SAW_OUTPUT));
+		addOutput(createOutput<PJ301MPort>(Vec(140.14f, 330), module, TIARE::SQR_OUTPUT));
 	}
 
 	void appendContextMenu(Menu *menu) override {

@@ -287,25 +287,11 @@
   </g>
   <g
      transform="translate(0,-56.188032)"
-     aria-label="V/O"
+     aria-label="FREQ"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;line-height:125%;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
      id="text930-7-7-9">
-    <path
-       d="m 84.758506,111.47814 -0.746896,2.0519 h -0.363803 l -0.746896,-2.0519 h 0.292144 l 0.643544,1.80523 0.643544,-1.80523 z"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.264583px"
-       id="path1103"
-       inkscape:connector-curvature="0" />
-    <path
-       d="m 85.979448,111.38581 -0.988053,2.56315 h -0.238401 l 0.983919,-2.56315 z"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.264583px"
-       id="path1105"
-       inkscape:connector-curvature="0" />
-    <path
-       d="m 87.883897,111.71378 q 0.125401,0.13781 0.191547,0.33762 0.06752,0.19982 0.06752,0.45338 0,0.25356 -0.0689,0.45475 -0.06752,0.19981 -0.190169,0.33348 -0.12678,0.13919 -0.300413,0.20947 -0.172254,0.0703 -0.394119,0.0703 -0.216352,0 -0.394118,-0.0717 -0.176389,-0.0717 -0.300413,-0.20809 -0.124023,-0.13642 -0.191547,-0.33486 -0.06615,-0.19844 -0.06615,-0.45337 0,-0.25081 0.06615,-0.44924 0.06615,-0.19982 0.192925,-0.34176 0.121268,-0.13505 0.300413,-0.2067 0.180523,-0.0717 0.39274,-0.0717 0.220487,0 0.395497,0.073 0.176389,0.0717 0.299035,0.20533 z m -0.02481,0.791 q 0,-0.39963 -0.179145,-0.61599 -0.179145,-0.21773 -0.489203,-0.21773 -0.312815,0 -0.49196,0.21773 -0.177767,0.21636 -0.177767,0.61599 0,0.40376 0.181901,0.61874 0.181901,0.21359 0.487826,0.21359 0.305924,0 0.486447,-0.21359 0.181901,-0.21498 0.181901,-0.61874 z"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.264583px"
-       id="path1107"
-       inkscape:connector-curvature="0" />
-  </g>
+<path d="M 81.9452 111.63 H 83.1276 V 111.864 H 82.2236 V 112.47 H 83.0394 V 112.705 H 82.2236 V 113.687 H 81.9452 Z  M 84.5442 112.723 Q 84.6338 112.753 84.7185 112.852 Q 84.8033 112.951 84.8887 113.125 L 85.1712 113.687 H 84.8722 L 84.609 113.159 Q 84.507 112.953 84.4112 112.885 Q 84.3155 112.818 84.1501 112.818 H 83.8469 V 113.687 H 83.5686 V 111.63 H 84.197 Q 84.5497 111.63 84.7234 111.777 Q 84.897 111.925 84.897 112.222 Q 84.897 112.417 84.8067 112.545 Q 84.7165 112.673 84.5442 112.723 Z  M 83.8469 111.858 V 112.589 H 84.197 Q 84.3981 112.589 84.5008 112.496 Q 84.6035 112.403 84.6035 112.222 Q 84.6035 112.042 84.5008 111.95 Q 84.3981 111.858 84.197 111.858 Z  M 85.5295 111.63 H 86.8304 V 111.864 H 85.8079 V 112.473 H 86.7877 V 112.707 H 85.8079 V 113.453 H 86.8552 V 113.687 H 85.5295 Z  M 88.1478 111.819 Q 87.8446 111.819 87.6662 112.045 Q 87.4877 112.271 87.4877 112.66 Q 87.4877 113.049 87.6662 113.275 Q 87.8446 113.501 88.1478 113.501 Q 88.451 113.501 88.628 113.275 Q 88.8051 113.049 88.8051 112.66 Q 88.8051 112.271 88.628 112.045 Q 88.451 111.819 88.1478 111.819 Z  M 88.5378 113.65 88.9043 114.051 H 88.5681 L 88.2635 113.722 Q 88.2181 113.724 88.194 113.726 Q 88.1698 113.727 88.1478 113.727 Q 87.7137 113.727 87.4539 113.437 Q 87.1942 113.147 87.1942 112.66 Q 87.1942 112.173 87.4539 111.883 Q 87.7137 111.593 88.1478 111.593 Q 88.5805 111.593 88.8396 111.883 Q 89.0986 112.173 89.0986 112.66 Q 89.0986 113.019 88.9546 113.274 Q 88.8106 113.529 88.5378 113.65 Z " style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.82222px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.264583px" />
+</g>
   <g
      transform="translate(5.5e-6,-56.188032)"
      aria-label="FINE"

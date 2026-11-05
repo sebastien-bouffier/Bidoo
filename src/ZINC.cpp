@@ -149,8 +149,8 @@ struct ZINC : BidooModule {
 			configParam(BG_PARAM + i, 0.f, 2.f, 1.f, "Band " + std::to_string(i + 1) + " gain", " dB", -10, 20);
 		}
 		// the envelope follows with a time constant of 20 ms x 10^(6 x knob)
-		configParam(ATTACK_PARAM, 0., 0.25, 0., "Attack time", " ms", 1e6f, 20.f);
-		configParam(DECAY_PARAM, 0., 0.25, 0., "Release time", " ms", 1e6f, 20.f);
+		configParam(ATTACK_PARAM, 0., 0.25, 0., "Attack time", " ms", 5e5f, 20.f);
+		configParam(DECAY_PARAM, 0., 0.25, 0., "Decay time", " ms", 5e5f, 20.f);
 		configParam(GMOD_PARAM, 1.f, 10.f, 1.f, "Modulator gain", " dB", -10.f, 20.f);
 		configParam(GCARR_PARAM, 1.f, 10.f, 1.f, "Carrier gain", " dB", -10.f, 20.f);
 		configParam(G_PARAM, 1.f, 10.f, 1.f, "Output gain", " dB", -10.f, 20.f);

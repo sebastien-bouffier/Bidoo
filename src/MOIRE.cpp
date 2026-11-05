@@ -61,7 +61,7 @@ struct MOIRE : BidooModule {
 		for (int i = 0; i < 16; i++) {
 			std::string n = "Control " + std::to_string(i + 1);
 			configParam(CONTROLS_PARAMS + i, 0.0f, 10.0f, 0.0f, n, " V");
-			configButton(TYPE_PARAMS + i, n + " type (CV or gate)");
+			configButton(TYPE_PARAMS + i, n + " morph or jump (a jump changes at MORPH 50%)");
 			configOutput(CV_OUTPUTS + i, n);
 		}
 		configOutput(POLY_OUTPUT, "All 16 controls (polyphonic)");

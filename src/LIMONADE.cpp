@@ -356,6 +356,7 @@ struct LIMONADE : BidooModule {
 		configInput(PITCH_INPUT, "1V/oct pitch");
 		configInput(FM_INPUT, "Frequency modulation");
 		configInput(SYNC_INPUT, "Sync");
+		configInput(SYNCMODE_INPUT, "Sync mode (above 0 V: hard)");
 		configInput(WTINDEX_INPUT, "Played frame");
 		configInput(UNISSONRANGE_INPUT, "Voices range");
 		configInput(IN, "Record");
@@ -749,7 +750,8 @@ void LIMONADE::process(const ProcessArgs &args) {
 
 	// Detune per voice, in units of the voices range.
 	static const float detune[MAX_VOICES + 1][MAX_VOICES] = {{0.f, 0.f, 0.f}, {0.f, 0.f, 0.f}, {-1.f, 1.f, 0.f}, {0.f, 1.f, -1.f}};
-	bool soft = params[SYNC_PARAM].getValue() <= 0.f;
+	// the switch, or a positive voltage at its jack, selects hard sync
+	bool soft = params[SYNC_PARAM].getValue() + inputs[SYNCMODE_INPUT].getVoltage() <= 0.f;
 	bool syncConnected = inputs[SYNC_INPUT].isConnected();
 	float sum[16] = {};
 
