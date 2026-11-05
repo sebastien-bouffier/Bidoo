@@ -1,6 +1,7 @@
 // sOUNAiRe: a sampler. One sample over a key range, 16 voices (poly V/oct and
 // gate), loops with crossfades, reverse, legato, multimode filter, Signalsmith
-// time-stretch, and the sample kept in the patch as FLAC.
+// time-stretch, and the sample kept in the patch as FLAC. In SLICES mode the
+// sample is cut at its transients and each slice plays on its own key.
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "Svf.hpp"
@@ -109,6 +110,8 @@ struct SOUNAIRE : BidooModule {
 		CUTOFF_PARAM,
 		RESONANCE_PARAM,
 		LEVEL_PARAM,
+		MODE_PARAM,
+		PLAY_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -120,6 +123,8 @@ struct SOUNAIRE : BidooModule {
 		SPEED_INPUT,
 		CUTOFF_INPUT,
 		RES_INPUT,
+		PITCH_INPUT,
+		PLAY_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -158,6 +163,7 @@ struct SOUNAIRE : BidooModule {
 	bool jobKeep = false;          // keep markers and root (a patch being loaded)
 	bool jobAnalyse = false;
 	double jobFrom = 0, jobTo = 1;
+	int jobDetect = -1;            // transients to find, at this sensitivity
 	// stretchers: built and warmed up by the worker, swapped in by the audio thread
 	int jobPoolPreset = -1;
 	float jobPoolRate = 0.f;
@@ -175,6 +181,25 @@ struct SOUNAIRE : BidooModule {
 	float rootCents = 0.f;         // the detected root's offset from the note
 	float rootSeen = 60.f;         // ROOT as last seen: a change by hand clears rootCents
 	std::string sampleName;
+
+	// ---- slices (SLICES mode)
+	// the UI and the worker edit `uiSlices` under sliceMutex and publish a copy;
+	// the audio thread swaps the copy in and hands the old one back
+	std::mutex sliceMutex;
+	Slices uiSlices;
+	std::atomic<int> selectedSlice {0};
+	std::atomic<Slices *> pendingSlices {nullptr};
+	std::atomic<Slices *> retiredSlices {nullptr};
+	Slices *slices = nullptr;      // audio thread
+	bool detectOnLoad = true;      // saved
+	int sensitivity = 1;           // 0 low, 1 medium, 2 high; saved
+	std::atomic<int> lastSlice {-1};   // the slice played last, for the display
+	std::atomic<int> keyHeld[MAX_VOICES];  // the key each held gate plays, -1: none (for the keyboard strip)
+	// a key clicked on the keyboard strip: plays while the mouse is held
+	std::atomic<int> mouseKey {-1};         // a new key to start
+	std::atomic<bool> mouseHeld {false};
+	std::atomic<int> mouseShown {-1};       // the key it plays, for the strip
+	bool mouseOn = false;
 
 	// ---- audio thread state
 	bool held[MAX_VOICES] = {};
@@ -214,6 +239,8 @@ struct SOUNAIRE : BidooModule {
 		configParam<NoteQuantity>(CUTOFF_PARAM, 0.f, 135.f, 135.f, "Cutoff (note)");
 		configParam(RESONANCE_PARAM, 0.f, 1.f, 0.f, "Resonance", "%", 0.f, 100.f);
 		configParam(LEVEL_PARAM, 0.f, 1.f, 0.8f, "Level", "%", 0.f, 100.f);
+		configSwitch(MODE_PARAM, 0.f, 1.f, 0.f, "Mode", {"Keys (one sample over a key range)", "Slices (one slice per key)"});
+		configSwitch(PLAY_PARAM, 0.f, (float)NUM_PLAY_TYPES, 0.f, "Slice play type", {"As set per slice", "One shot", "Gate", "Loop", "Ping-pong", "Reverse", "Reverse loop"});
 		configInput(VOCT_INPUT, "V/oct (polyphonic)");
 		configInput(GATE_INPUT, "Gate (polyphonic)");
 		configInput(VEL_INPUT, "Velocity (0-10 V, polyphonic)");
@@ -222,11 +249,16 @@ struct SOUNAIRE : BidooModule {
 		configInput(SPEED_INPUT, "Speed CV (1 V doubles it, polyphonic)");
 		configInput(CUTOFF_INPUT, "Cutoff CV (1V/oct, polyphonic)");
 		configInput(RES_INPUT, "Resonance CV (0-10 V, polyphonic)");
+		configInput(PITCH_INPUT, "Pitch (1V/oct, polyphonic): transposes every note");
+		configInput(PLAY_INPUT, "Slice play type CV (1 V per step, added to PLAY, polyphonic)");
 		configOutput(L_OUTPUT, "Left");
 		configOutput(R_OUTPUT, "Right");
 		engine.prepare(48000.f);
 		std::fill(speedX, speedX + MAX_VOICES, 1e9f);
 		std::fill(speedOut, speedOut + MAX_VOICES, 1.f);
+		slices = new Slices;
+		for (auto &k : keyHeld)
+			k = -1;
 		worker = std::thread([this] { work(); });
 	}
 
@@ -242,6 +274,149 @@ struct SOUNAIRE : BidooModule {
 		delete[] pendingPool.exchange(nullptr);
 		delete[] retiredPool.exchange(nullptr);
 		delete[] engine.pool;
+		delete slices;
+		delete pendingSlices.exchange(nullptr);
+		delete retiredSlices.exchange(nullptr);
+	}
+
+	// ---------------------------------------------------------------- slices
+
+	// a copy of uiSlices for the audio thread (UI or worker thread)
+	void publishSlices() {
+		Slices *n = new Slices;
+		{
+			std::lock_guard<std::mutex> lock(sliceMutex);
+			*n = uiSlices;
+		}
+		delete retiredSlices.exchange(nullptr);
+		delete pendingSlices.exchange(n);
+	}
+
+	Slices getSlices() {
+		std::lock_guard<std::mutex> lock(sliceMutex);
+		return uiSlices;
+	}
+
+	// new cut points; every slice gets `type`
+	void setSlices(const std::vector<int64_t> &starts, int type) {
+		{
+			std::lock_guard<std::mutex> lock(sliceMutex);
+			Slices &u = uiSlices;
+			u.count = 0;
+			for (int64_t p : starts) {
+				if (u.count >= MAX_SLICES)
+					break;
+				if (u.count > 0 && p <= u.start[u.count - 1])
+					continue;
+				u.start[u.count] = u.count == 0 ? 0 : p;
+				u.type[u.count] = (uint8_t)type;
+				u.count++;
+			}
+			if (u.count == 0) {
+				u.count = 1;
+				u.start[0] = 0;
+				u.type[0] = (uint8_t)type;
+			}
+		}
+		selectedSlice = 0;
+		publishSlices();
+	}
+
+	// a cut at frame f; the new slice plays like the one it was cut from
+	void addSlice(int64_t f) {
+		{
+			std::lock_guard<std::mutex> lock(sliceMutex);
+			Slices &u = uiSlices;
+			if (u.count >= MAX_SLICES || f <= 0)
+				return;
+			int i = u.at(f);
+			if (f - u.start[i] < 64 || (i + 1 < u.count && u.start[i + 1] - f < 64))
+				return;
+			for (int k = u.count; k > i + 1; k--) {
+				u.start[k] = u.start[k - 1];
+				u.type[k] = u.type[k - 1];
+			}
+			u.start[i + 1] = f;
+			u.type[i + 1] = u.type[i];
+			u.count++;
+			selectedSlice = i + 1;
+		}
+		publishSlices();
+	}
+
+	// removes cut i (> 0): slice i joins the one before
+	void removeSlice(int i) {
+		{
+			std::lock_guard<std::mutex> lock(sliceMutex);
+			Slices &u = uiSlices;
+			if (i <= 0 || i >= u.count)
+				return;
+			for (int k = i; k + 1 < u.count; k++) {
+				u.start[k] = u.start[k + 1];
+				u.type[k] = u.type[k + 1];
+			}
+			u.count--;
+			selectedSlice = i - 1;
+		}
+		publishSlices();
+	}
+
+	// cut i (> 0) moved to f, between its neighbours
+	void moveSlice(int i, int64_t f) {
+		{
+			std::lock_guard<std::mutex> lock(sliceMutex);
+			Slices &u = uiSlices;
+			if (i <= 0 || i >= u.count)
+				return;
+			int64_t lo = u.start[i - 1] + 64;
+			int64_t hi = (i + 1 < u.count ? u.start[i + 1] : INT64_MAX) - 64;
+			if (hi < lo)
+				return;
+			u.start[i] = std::max(lo, std::min(hi, f));
+		}
+		publishSlices();
+	}
+
+	void setSliceType(int i, int type) {
+		{
+			std::lock_guard<std::mutex> lock(sliceMutex);
+			if (i < 0 || i >= uiSlices.count)
+				return;
+			uiSlices.type[i] = (uint8_t)type;
+		}
+		publishSlices();
+	}
+
+	void setAllSliceTypes(int type) {
+		{
+			std::lock_guard<std::mutex> lock(sliceMutex);
+			for (int i = 0; i < uiSlices.count; i++)
+				uiSlices.type[i] = (uint8_t)type;
+		}
+		publishSlices();
+	}
+
+	void divideSlices(int n) {
+		std::shared_ptr<Sample> sm = displaySample();
+		if (!sm)
+			return;
+		std::vector<int64_t> starts;
+		for (int i = 0; i < n; i++)
+			starts.push_back(sm->frames * i / n);
+		setSlices(starts, getSlices().type[0]);
+	}
+
+	static float riseDb(int sens) {
+		const float db[3] = {12.f, 8.f, 5.f};
+		return db[clamp(sens, 0, 2)];
+	}
+
+	void requestDetect() {
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			jobDetect = sensitivity;
+		}
+		jobCv.notify_all();
 	}
 
 	void requestPool(int preset, float rate) {
@@ -282,9 +457,10 @@ struct SOUNAIRE : BidooModule {
 			double from = 0, to = 1;
 			int poolPreset = -1;
 			float poolRate = 0.f;
+			int detect = -1;
 			{
 				std::unique_lock<std::mutex> lock(jobMutex);
-				jobCv.wait_for(lock, std::chrono::milliseconds(50), [&] { return quit || !jobPath.empty() || jobAnalyse || jobPoolPreset >= 0; });
+				jobCv.wait_for(lock, std::chrono::milliseconds(50), [&] { return quit || !jobPath.empty() || jobAnalyse || jobPoolPreset >= 0 || jobDetect >= 0; });
 				if (quit)
 					return;
 				std::swap(path, jobPath);
@@ -296,6 +472,8 @@ struct SOUNAIRE : BidooModule {
 				poolPreset = jobPoolPreset;
 				poolRate = jobPoolRate;
 				jobPoolPreset = -1;
+				detect = jobDetect;
+				jobDetect = -1;
 			}
 			delete[] retiredPool.exchange(nullptr);
 			if (poolPreset >= 0 && !pendingPool.load()) {
@@ -333,6 +511,11 @@ struct SOUNAIRE : BidooModule {
 					if (!keep) {
 						dirty = true;
 						resetMarkers = true;
+						// a new sample: cut at its transients, or one slice
+						if (detectOnLoad)
+							setSlices(detectTransients(*s, riseDb(sensitivity)), PLAY_ONE_SHOT);
+						else
+							setSlices({0}, PLAY_ONE_SHOT);
 					}
 					lastError.clear();
 				}
@@ -340,6 +523,13 @@ struct SOUNAIRE : BidooModule {
 					lastError = error;
 				}
 				loading = false;
+			}
+			if (detect >= 0) {
+				std::shared_ptr<Sample> s = displaySample();
+				if (s) {
+					int type = getSlices().type[0];
+					setSlices(detectTransients(*s, riseDb(detect)), type);
+				}
 			}
 			if (analyse) {
 				std::shared_ptr<Sample> s;
@@ -398,6 +588,18 @@ struct SOUNAIRE : BidooModule {
 		json_object_set_new(rootJ, "bendRange", json_integer(bendRange));
 		json_object_set_new(rootJ, "rootCents", json_real(rootCents));
 		json_object_set_new(rootJ, "sampleName", json_string(sampleName.c_str()));
+		json_object_set_new(rootJ, "detectOnLoad", json_boolean(detectOnLoad));
+		json_object_set_new(rootJ, "sensitivity", json_integer(sensitivity));
+		json_object_set_new(rootJ, "selectedSlice", json_integer(selectedSlice));
+		Slices u = getSlices();
+		json_t *slicesJ = json_array();
+		for (int i = 0; i < u.count; i++) {
+			json_t *sJ = json_array();
+			json_array_append_new(sJ, json_integer(u.start[i]));
+			json_array_append_new(sJ, json_integer(u.type[i]));
+			json_array_append_new(slicesJ, sJ);
+		}
+		json_object_set_new(rootJ, "slices", slicesJ);
 		return rootJ;
 	}
 
@@ -410,6 +612,26 @@ struct SOUNAIRE : BidooModule {
 		if (json_t *j = json_object_get(rootJ, "rootCents")) rootCents = json_number_value(j);
 		rootSeen = params[ROOT_PARAM].getValue();   // params come in before data: not a change by hand
 		if (json_t *j = json_object_get(rootJ, "sampleName")) sampleName = json_string_value(j);
+		if (json_t *j = json_object_get(rootJ, "detectOnLoad")) detectOnLoad = json_boolean_value(j);
+		if (json_t *j = json_object_get(rootJ, "sensitivity")) sensitivity = clamp((int)json_integer_value(j), 0, 2);
+		if (json_t *slicesJ = json_object_get(rootJ, "slices")) {
+			std::lock_guard<std::mutex> lock(sliceMutex);
+			Slices &u = uiSlices;
+			u.count = 0;
+			size_t i;
+			json_t *sJ;
+			json_array_foreach(slicesJ, i, sJ) {
+				if (u.count >= MAX_SLICES)
+					break;
+				u.start[u.count] = u.count == 0 ? 0 : (int64_t)json_integer_value(json_array_get(sJ, 0));
+				u.type[u.count] = (uint8_t)clamp((int)json_integer_value(json_array_get(sJ, 1)), 0, NUM_PLAY_TYPES - 1);
+				u.count++;
+			}
+			if (u.count == 0)
+				u.count = 1;
+		}
+		publishSlices();
+		if (json_t *j = json_object_get(rootJ, "selectedSlice")) selectedSlice = clamp((int)json_integer_value(j), 0, MAX_SLICES - 1);
 	}
 
 	// ---------------------------------------------------------------- audio
@@ -438,16 +660,65 @@ struct SOUNAIRE : BidooModule {
 		return p;
 	}
 
-	// semitones from the root for channel c
+	bool sliceMode() {
+		return params[MODE_PARAM].getValue() > 0.5f;
+	}
+
+	// semitones from the root for channel c; in SLICES mode the key picks the
+	// slice, so only PITCH, tune and bend move it
 	float semitones(int c) {
-		float note = inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f + 60.f;
+		return semitonesFor(inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f + 60.f, c);
+	}
+
+	// the same for a given note, with channel c's PITCH, bend and tune
+	float semitonesFor(float note, int c) {
 		float bend = clamp(inputs[BEND_INPUT].getPolyVoltage(c), -5.f, 5.f) / 5.f * bendRange;
-		return note - (params[ROOT_PARAM].getValue() + rootCents * 0.01f) + params[TUNE_PARAM].getValue() + params[FINE_PARAM].getValue() * 0.01f + bend;
+		float shift = inputs[PITCH_INPUT].getPolyVoltage(c) * 12.f + params[TUNE_PARAM].getValue() + params[FINE_PARAM].getValue() * 0.01f + bend;
+		if (sliceMode())
+			return shift;
+		return note - (params[ROOT_PARAM].getValue() + rootCents * 0.01f) + shift;
+	}
+
+	// the play type PLAY and its CV force, or -1: each slice's own
+	int playOverride(int c) {
+		int k = (int)std::round(params[PLAY_PARAM].getValue() + inputs[PLAY_INPUT].getPolyVoltage(c));
+		return clamp(k, 0, (int)NUM_PLAY_TYPES) - 1;
+	}
+
+	// SLICES mode: the key from BASE (the ROOT knob) picks the slice; START and
+	// END trim inside it
+	// slot: the engine voice; c: the channel whose CVs it follows
+	void sliceNoteOn(int slot, int c, int note, const PlaySettings &p, double startOffset, float vel) {
+		const Sample *smp = engine.current;
+		if (!smp || !slices || smp->frames < 4)
+			return;
+		int i = note - (int)params[ROOT_PARAM].getValue();
+		if (i < 0 || i >= slices->count)
+			return;
+		int64_t F = smp->frames;
+		int64_t a = clamp(slices->start[i], (int64_t)0, F - 2);
+		int64_t b = clamp(slices->end(i, F), a + 2, F);
+		double t0 = params[START_PARAM].getValue(), t1 = params[END_PARAM].getValue();
+		double sa = a + std::min(t0, t1) * (b - a), sb = a + std::max(t0, t1) * (b - a);
+		int type = playOverride(c);
+		if (type < 0)
+			type = slices->type[i];
+		PlaySettings own = p;
+		own.start = own.loopStart = sa / F;
+		own.end = own.loopEnd = sb / F;
+		own.loopMode = (type == PLAY_LOOP || type == PLAY_REVERSE_LOOP) ? LOOP_FORWARD : (type == PLAY_PINGPONG ? LOOP_PINGPONG : LOOP_OFF);
+		own.reverse = type == PLAY_REVERSE || type == PLAY_REVERSE_LOOP;
+		bool oneShot = type == PLAY_ONE_SHOT || type == PLAY_REVERSE;
+		engine.noteOn(slot, slot == sounaire::Engine::MOUSE ? 0 : c, semitones(c), vel, p, startOffset, cutoffNote(c), &own, oneShot);
+		lastSlice = i;
 	}
 
 	// LOW above HIGH plays the same range the keyboard strip shows
 	bool inRange(int c) {
-		int note = (int)std::round(inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f + 60.f);
+		return noteInRange((int)std::round(inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f + 60.f));
+	}
+
+	bool noteInRange(int note) {
 		int lo = (int)params[LOW_PARAM].getValue(), hi = (int)params[HIGH_PARAM].getValue();
 		return note >= std::min(lo, hi) && note <= std::max(lo, hi);
 	}
@@ -508,6 +779,14 @@ struct SOUNAIRE : BidooModule {
 			rootCents = (root - n) * 100.f;
 		}
 
+		// slices edited in the display or found by the worker
+		if (!retiredSlices.load()) {
+			if (Slices *n = pendingSlices.exchange(nullptr)) {
+				retiredSlices = slices;
+				slices = n;
+			}
+		}
+
 		PlaySettings p = settings();
 		// stretchers for the time mode, built off the audio thread
 		if (Stretcher *pool = pendingPool.exchange(nullptr)) {
@@ -522,7 +801,8 @@ struct SOUNAIRE : BidooModule {
 			requestPool(sounaire::Engine::presetFor(p.timeMode), args.sampleRate);
 			poolRequested = true;
 		}
-		bool legato = params[LEGATO_PARAM].getValue() > 0.5f;
+		bool slicing = sliceMode();
+		bool legato = !slicing && params[LEGATO_PARAM].getValue() > 0.5f;
 		lights[REVERSE_LIGHT].setBrightness(p.reverse ? 1.f : 0.f);
 		lights[LEGATO_LIGHT].setBrightness(legato ? 1.f : 0.f);
 		int channels = std::max(1, std::max(inputs[GATE_INPUT].getChannels(), inputs[VOCT_INPUT].getChannels()));
@@ -564,7 +844,9 @@ struct SOUNAIRE : BidooModule {
 		else {
 			for (int c = 0; c < MAX_VOICES; c++) {
 				bool g = c < channels && inputs[GATE_INPUT].getPolyVoltage(c) >= 1.f;
-				if (g && !held[c] && inRange(c))
+				if (g && !held[c] && slicing)
+					sliceNoteOn(c, c, (int)std::round(inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f + 60.f), p, startOffset(c), velocity(c));
+				else if (g && !held[c] && inRange(c))
 					engine.noteOn(c, c, semitones(c), velocity(c), p, startOffset(c), cutoffNote(c));
 				else if (!g && held[c])
 					engine.noteOff(c);
@@ -573,6 +855,22 @@ struct SOUNAIRE : BidooModule {
 				if (v.active && !v.fadingOut && c < channels)
 					track(v, c);
 			}
+		}
+
+		// a key clicked on the keyboard strip, at full velocity
+		int mk = mouseKey.exchange(-1);
+		if (mk >= 0) {
+			if (slicing)
+				sliceNoteOn(sounaire::Engine::MOUSE, 0, mk, p, 0.0, 1.f);
+			else if (noteInRange(mk))
+				engine.noteOn(sounaire::Engine::MOUSE, 0, semitonesFor((float)mk, 0), 1.f, p, 0.0, cutoffNote(0));
+			mouseOn = true;
+			mouseShown = mk;
+		}
+		if (mouseOn && !mouseHeld) {
+			engine.noteOff(sounaire::Engine::MOUSE);
+			mouseOn = false;
+			mouseShown = -1;
 		}
 
 		// preview from the display
@@ -585,6 +883,10 @@ struct SOUNAIRE : BidooModule {
 			engine.previewOff();
 			previewing = false;
 		}
+
+		// the keys held now, for the keyboard strip
+		for (int c = 0; c < MAX_VOICES; c++)
+			keyHeld[c] = held[c] ? (int)std::round(inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f + 60.f) : -1;
 
 		std::fill(outL, outL + MAX_VOICES, 0.f);
 		std::fill(outR, outR + MAX_VOICES, 0.f);

@@ -80,7 +80,7 @@ struct RisoButton : app::Switch {
 	}
 };
 
-// hex-nut jack: on paper for inputs, on the ink block for outputs
+// round jack: on paper for inputs, on the ink block for outputs
 struct RisoJack : app::PortWidget {
 	bool onInk = false;
 	RisoJack() {
@@ -88,16 +88,9 @@ struct RisoJack : app::PortWidget {
 	}
 	void draw(const DrawArgs &args) override {
 		float c = box.size.x / 2, r = c - 1.f;
+		// a round nut
 		nvgBeginPath(args.vg);
-		for (int i = 0; i < 6; i++) {
-			float a = i * M_PI / 3.f;
-			float x = c + std::cos(a) * r, y = c + std::sin(a) * r;
-			if (i == 0)
-				nvgMoveTo(args.vg, x, y);
-			else
-				nvgLineTo(args.vg, x, y);
-		}
-		nvgClosePath(args.vg);
+		nvgCircle(args.vg, c, c, r);
 		nvgFillColor(args.vg, onInk ? INK : PAPER);
 		nvgFill(args.vg);
 		nvgStrokeColor(args.vg, onInk ? PAPER : INK);
@@ -118,10 +111,14 @@ struct RisoJack : app::PortWidget {
 
 // The waveform: markers, loop, playheads; Shift snaps a dragged marker to a zero
 // crossing, Ctrl+Shift+drag picks the region the root note is found in,
-// Alt+click previews the sample from there.
+// Alt+click previews the sample from there. In SLICES mode: the cuts; a click
+// selects a slice, a cut drags (Shift: zero crossing), a double-click adds a
+// cut there or removes the one under the mouse.
 struct SounaireDisplay : OpaqueWidget {
 	SOUNAIRE *module = nullptr;
 	int dragMarker = -1;          // START, END, LOOP_START, LOOP_END param
+	int dragCut = -1;             // SLICES mode: the cut being dragged
+	float pressX = 0.f;
 	bool selecting = false;
 	float selFrom = 0.f, selTo = 0.f;
 	float dragX = 0.f;
@@ -160,6 +157,43 @@ struct SounaireDisplay : OpaqueWidget {
 		module->paramQuantities[dragMarker]->setValue(pos);
 	}
 
+	// SLICES mode: frame under x, the cut near x (within 5 px), -1 if none
+	int64_t xToFrame(float x, bool snap) const {
+		std::shared_ptr<sounaire::Sample> s = module->displaySample();
+		if (!s || s->frames < 2)
+			return 0;
+		int64_t f = (int64_t)(xToPos(x) * s->frames);
+		return snap ? s->zeroCrossing(f) : f;
+	}
+
+	int cutAt(float x) const {
+		std::shared_ptr<sounaire::Sample> s = module->displaySample();
+		if (!s || s->frames < 2)
+			return -1;
+		sounaire::Slices u = module->getSlices();
+		int best = -1;
+		float bestD = 5.f;
+		for (int i = 1; i < u.count; i++) {
+			float d = std::fabs((float)u.start[i] / s->frames * box.size.x - x);
+			if (d < bestD) {
+				bestD = d;
+				best = i;
+			}
+		}
+		return best;
+	}
+
+	void onDoubleClick(const event::DoubleClick &e) override {
+		if (!module || !module->sliceMode())
+			return;
+		e.consume(this);
+		int cut = cutAt(pressX);
+		if (cut > 0)
+			module->removeSlice(cut);
+		else
+			module->addSlice(xToFrame(pressX, (APP->window->getMods() & RACK_MOD_MASK) & GLFW_MOD_SHIFT));
+	}
+
 	void onButton(const event::Button &e) override {
 		if (!module || e.button != GLFW_MOUSE_BUTTON_LEFT)
 			return;
@@ -167,6 +201,7 @@ struct SounaireDisplay : OpaqueWidget {
 		if (e.action == GLFW_PRESS) {
 			e.consume(this);
 			dragX = e.pos.x;
+			pressX = e.pos.x;
 			if (mods & GLFW_MOD_ALT) {
 				module->previewPos = xToPos(e.pos.x);
 				module->previewHeld = true;
@@ -175,6 +210,15 @@ struct SounaireDisplay : OpaqueWidget {
 			if ((mods & RACK_MOD_CTRL) && (mods & GLFW_MOD_SHIFT)) {
 				selecting = true;
 				selFrom = selTo = xToPos(e.pos.x);
+				return;
+			}
+			if (module->sliceMode()) {
+				dragCut = cutAt(e.pos.x);
+				if (dragCut < 0) {
+					std::shared_ptr<sounaire::Sample> s = module->displaySample();
+					if (s)
+						module->selectedSlice = module->getSlices().at(xToFrame(e.pos.x, false));
+				}
 				return;
 			}
 			dragMarker = markerAt(e.pos.x);
@@ -194,6 +238,7 @@ struct SounaireDisplay : OpaqueWidget {
 					module->requestRootAnalysis(selFrom, selTo);
 			}
 			dragMarker = -1;
+			dragCut = -1;
 		}
 	}
 
@@ -204,6 +249,8 @@ struct SounaireDisplay : OpaqueWidget {
 		int mods = APP->window->getMods() & RACK_MOD_MASK;
 		if (selecting)
 			selTo = xToPos(dragX);
+		else if (dragCut > 0)
+			module->moveSlice(dragCut, xToFrame(dragX, mods & GLFW_MOD_SHIFT));
 		else if (dragMarker >= 0)
 			setMarker(dragX, mods & GLFW_MOD_SHIFT);
 	}
@@ -218,6 +265,7 @@ struct SounaireDisplay : OpaqueWidget {
 				module->requestRootAnalysis(selFrom, selTo);
 		}
 		dragMarker = -1;
+		dragCut = -1;
 	}
 
 	void drawLayer(const DrawArgs &args, int layer) override {
@@ -239,15 +287,31 @@ struct SounaireDisplay : OpaqueWidget {
 		std::shared_ptr<window::Font> f = APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
 		nvgSave(args.vg);
 		nvgScissor(args.vg, 0, 0, W, H);
-		float mid = H * 0.56f, amp = H * 0.38f;
+		// the sample on the top line, the playing information on a line under
+		// the waveform, so a long name never runs into it
+		float B = H - 13.f;
+		float mid = (14.f + B) * 0.5f, amp = (B - 14.f) * 0.46f;
+		bool slicing = module->sliceMode();
+		sounaire::Slices cuts = module->getSlices();
+		int sel = clamp((int)module->selectedSlice, 0, cuts.count - 1);
 		if (s && !s->ovMin.empty()) {
 			float st = module->params[SOUNAIRE::START_PARAM].getValue(), en = module->params[SOUNAIRE::END_PARAM].getValue();
 			float a = std::min(st, en) * W, b = std::max(st, en) * W;
+			if (slicing) {
+				// the whole sample plays; the selected slice is shaded
+				a = 0.f;
+				b = W;
+				float sx0 = (float)cuts.start[sel] / s->frames * W, sx1 = (float)cuts.end(sel, s->frames) / s->frames * W;
+				nvgBeginPath(args.vg);
+				nvgRect(args.vg, sx0, 14, sx1 - sx0, B - 14);
+				nvgFillColor(args.vg, nvgRGBA(0xF0, 0x62, 0x2F, 0x38));
+				nvgFill(args.vg);
+			}
 			// loop region
-			if (module->params[SOUNAIRE::LOOP_MODE_PARAM].getValue() > 0.5f) {
+			if (!slicing && module->params[SOUNAIRE::LOOP_MODE_PARAM].getValue() > 0.5f) {
 				float ls = module->params[SOUNAIRE::LOOP_START_PARAM].getValue(), le = module->params[SOUNAIRE::LOOP_END_PARAM].getValue();
 				nvgBeginPath(args.vg);
-				nvgRect(args.vg, std::min(ls, le) * W, 14, std::fabs(le - ls) * W, H - 14);
+				nvgRect(args.vg, std::min(ls, le) * W, 14, std::fabs(le - ls) * W, B - 14);
 				nvgFillColor(args.vg, nvgRGBA(0x2F, 0x55, 0xD4, 0x40));
 				nvgFill(args.vg);
 			}
@@ -269,12 +333,34 @@ struct SounaireDisplay : OpaqueWidget {
 				nvgFillColor(args.vg, inside ? BLUE : nvgRGBA(0x2F, 0x55, 0xD4, 0x55));
 				nvgFill(args.vg);
 			}
+			// SLICES mode: the cuts, each slice numbered
+			if (slicing && f && f->handle >= 0) {
+				nvgFontFaceId(args.vg, f->handle);
+				nvgFontSize(args.vg, 8.f);
+				nvgTextAlign(args.vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
+				for (int i = 0; i < cuts.count; i++) {
+					float x = (float)cuts.start[i] / s->frames * W;
+					nvgBeginPath(args.vg);
+					nvgMoveTo(args.vg, x, 14);
+					nvgLineTo(args.vg, x, B);
+					nvgStrokeColor(args.vg, i == sel ? ORANGE : PAPER);
+					nvgStrokeWidth(args.vg, 1.f);
+					nvgStroke(args.vg);
+					float next = (float)cuts.end(i, s->frames) / s->frames * W;
+					if (next - x > 9.f) {
+						nvgFillColor(args.vg, i == sel ? ORANGE : PAPER);
+						nvgText(args.vg, x + 2, 15, std::to_string(i + 1).c_str(), nullptr);
+					}
+				}
+			}
 			// start and end
 			for (int id : {SOUNAIRE::START_PARAM, SOUNAIRE::END_PARAM}) {
+				if (slicing)
+					break;
 				float x = module->params[id].getValue() * W;
 				nvgBeginPath(args.vg);
 				nvgMoveTo(args.vg, x, 14);
-				nvgLineTo(args.vg, x, H);
+				nvgLineTo(args.vg, x, B);
 				nvgStrokeColor(args.vg, PAPER);
 				nvgStrokeWidth(args.vg, 1.f);
 				nvgStroke(args.vg);
@@ -287,12 +373,12 @@ struct SounaireDisplay : OpaqueWidget {
 				nvgFillColor(args.vg, PAPER);
 				nvgFill(args.vg);
 			}
-			if (module->params[SOUNAIRE::LOOP_MODE_PARAM].getValue() > 0.5f) {
+			if (!slicing && module->params[SOUNAIRE::LOOP_MODE_PARAM].getValue() > 0.5f) {
 				for (int id : {SOUNAIRE::LOOP_START_PARAM, SOUNAIRE::LOOP_END_PARAM}) {
 					float x = module->params[id].getValue() * W;
 					nvgBeginPath(args.vg);
 					nvgMoveTo(args.vg, x, 14);
-					nvgLineTo(args.vg, x, H);
+					nvgLineTo(args.vg, x, B);
 					nvgStrokeColor(args.vg, ORANGE);
 					nvgStrokeWidth(args.vg, 1.f);
 					nvgStroke(args.vg);
@@ -304,18 +390,19 @@ struct SounaireDisplay : OpaqueWidget {
 				if (!v.active || v.sample != s.get() || s->frames <= 0)
 					continue;
 				double pos = v.head.v;
-				if (module->params[SOUNAIRE::REVERSE_PARAM].getValue() > 0.5f && i != sounaire::Engine::PREVIEW)
+				bool reversed = v.ownRegion ? v.region.reverse : module->params[SOUNAIRE::REVERSE_PARAM].getValue() > 0.5f;
+				if (reversed && i != sounaire::Engine::PREVIEW)
 					pos = s->frames - 1 - pos;
 				float x = (float)(pos / s->frames) * W;
 				nvgBeginPath(args.vg);
-				nvgRect(args.vg, x, 14, 1.f, H - 14);
+				nvgRect(args.vg, x, 14, 1.f, B - 14);
 				nvgFillColor(args.vg, nvgRGBA(0xF2, 0xEE, 0xE4, (unsigned char)(80 + 175 * v.env)));
 				nvgFill(args.vg);
 			}
 		}
 		if (selecting) {
 			nvgBeginPath(args.vg);
-			nvgRect(args.vg, std::min(selFrom, selTo) * W, 14, std::fabs(selTo - selFrom) * W, H - 14);
+			nvgRect(args.vg, std::min(selFrom, selTo) * W, 14, std::fabs(selTo - selFrom) * W, B - 14);
 			nvgFillColor(args.vg, nvgRGBA(0xF0, 0x62, 0x2F, 0x60));
 			nvgFill(args.vg);
 		}
@@ -335,11 +422,23 @@ struct SounaireDisplay : OpaqueWidget {
 			else
 				line = "DROP A WAV, AIFF OR FLAC HERE";
 			nvgText(args.vg, 4, 3, line.c_str(), nullptr);
-			nvgTextAlign(args.vg, NVG_ALIGN_RIGHT | NVG_ALIGN_TOP);
-			std::string root = "ROOT " + sounaire_ui::noteName(module->params[SOUNAIRE::ROOT_PARAM].getValue());
-			if (std::fabs(module->rootCents) >= 0.5f)
-				root += string::f(" %+.0fc", module->rootCents);
-			nvgText(args.vg, W - 4, 3, root.c_str(), nullptr);
+			nvgTextAlign(args.vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BOTTOM);
+			std::string root;
+			if (slicing) {
+				static const char *types[] = {"ONE SHOT", "GATE", "LOOP", "PING-PONG", "REVERSE", "REV LOOP"};
+				int base = (int)module->params[SOUNAIRE::ROOT_PARAM].getValue();
+				int play = (int)module->params[SOUNAIRE::PLAY_PARAM].getValue();
+				root = string::f("SLICE %d/%d %s  KEY %s", sel + 1, cuts.count, types[clamp((int)cuts.type[sel], 0, 5)],
+				                 sounaire_ui::noteName(base + sel).c_str());
+				if (play > 0)
+					root += string::f("  PLAY: %s", types[clamp(play - 1, 0, 5)]);
+			}
+			else {
+				root = "ROOT " + sounaire_ui::noteName(module->params[SOUNAIRE::ROOT_PARAM].getValue());
+				if (std::fabs(module->rootCents) >= 0.5f)
+					root += string::f(" %+.0fc", module->rootCents);
+			}
+			nvgText(args.vg, W - 4, H - 2, root.c_str(), nullptr);
 		}
 		nvgResetScissor(args.vg);
 		nvgRestore(args.vg);
@@ -347,15 +446,64 @@ struct SounaireDisplay : OpaqueWidget {
 	}
 };
 
-// the keys from C-1 to G9: the playing range in blue, the root in orange
-struct SounaireKeys : TransparentWidget {
+// the keys from C-1 to G9: the playing range in blue, the root in orange, the
+// keys being played in paper; a click plays a key
+struct SounaireKeys : OpaqueWidget {
 	SOUNAIRE *module = nullptr;
+	float dragX = 0.f;
+	int clicked = -1;
+
+	int keyAt(float x) const {
+		return clamp((int)(x / box.size.x * 128.f), 0, 127);
+	}
+
+	// a click plays the key (in SLICES mode its slice) while held; dragging
+	// moves to the keys passed over
+	void onButton(const event::Button &e) override {
+		if (!module || e.button != GLFW_MOUSE_BUTTON_LEFT)
+			return;
+		if (e.action == GLFW_PRESS) {
+			e.consume(this);
+			dragX = e.pos.x;
+			clicked = keyAt(e.pos.x);
+			module->mouseHeld = true;
+			module->mouseKey = clicked;
+		}
+		else if (e.action == GLFW_RELEASE) {
+			module->mouseHeld = false;
+			clicked = -1;
+		}
+	}
+
+	void onDragMove(const event::DragMove &e) override {
+		if (!module || clicked < 0)
+			return;
+		dragX += e.mouseDelta.x / getAbsoluteZoom();
+		int k = keyAt(dragX);
+		if (k != clicked) {
+			clicked = k;
+			module->mouseKey = k;
+		}
+	}
+
+	void onDragEnd(const event::DragEnd &e) override {
+		if (module)
+			module->mouseHeld = false;
+		clicked = -1;
+	}
+
 	void drawLayer(const DrawArgs &args, int layer) override {
 		using namespace sounaire_ui;
 		if (layer == 1 && module) {
 			float W = box.size.x, H = box.size.y, kw = W / 128.f;
 			int lo = (int)module->params[SOUNAIRE::LOW_PARAM].getValue(), hi = (int)module->params[SOUNAIRE::HIGH_PARAM].getValue();
 			int root = (int)module->params[SOUNAIRE::ROOT_PARAM].getValue();
+			if (module->sliceMode()) {
+				// one key per slice from BASE; the selected slice's key in orange
+				lo = root;
+				hi = root + module->getSlices().count - 1;
+				root += module->selectedSlice;
+			}
 			for (int k = 0; k < 128; k++) {
 				int pc = k % 12;
 				bool black = pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10;
@@ -370,8 +518,25 @@ struct SounaireKeys : TransparentWidget {
 				nvgFillColor(args.vg, c);
 				nvgFill(args.vg);
 			}
+			// the keys being played: paper, with an ink dot at the bottom
+			for (int c = 0; c <= MAX_VOICES; c++) {
+				int k = c < MAX_VOICES ? (int)module->keyHeld[c] : (int)module->mouseShown;
+				if (k < 0 || k > 127)
+					continue;
+				int pc = k % 12;
+				bool black = pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10;
+				float h = black ? H * 0.62f : H;
+				nvgBeginPath(args.vg);
+				nvgRect(args.vg, k * kw, 0, std::max(1.f, kw - 0.4f), h);
+				nvgFillColor(args.vg, PAPER);
+				nvgFill(args.vg);
+				nvgBeginPath(args.vg);
+				nvgRect(args.vg, k * kw, h - 2.5f, std::max(1.f, kw - 0.4f), 2.5f);
+				nvgFillColor(args.vg, INK);
+				nvgFill(args.vg);
+			}
 		}
-		TransparentWidget::drawLayer(args, layer);
+		OpaqueWidget::drawLayer(args, layer);
 	}
 };
 
@@ -383,16 +548,16 @@ struct SOUNAIREWidget : BidooWidget {
 		SounaireDisplay *display = new SounaireDisplay;
 		display->module = module;
 		display->box.pos = Vec(10, 24);
-		display->box.size = Vec(370, 100);
+		display->box.size = Vec(400, 100);
 		addChild(display);
 		SounaireKeys *keys = new SounaireKeys;
 		keys->module = module;
 		keys->box.pos = Vec(10, 128);
-		keys->box.size = Vec(370, 12);
+		keys->box.size = Vec(400, 12);
 		addChild(keys);
 
 		// three rows of eight columns
-		auto cx = [](int col) { return 34.f + 46.f * col; };
+		auto cx = [](int col) { return 37.f + 49.f * col; };
 		const float rows[3] = {172.f, 228.f, 284.f};
 		auto knob = [&](int col, int row, int param, bool snapped) {
 			app::Knob *k = snapped ? (app::Knob *)createParamCentered<RisoSnapKnob>(Vec(cx(col), rows[row]), module, param)
@@ -423,17 +588,32 @@ struct SOUNAIREWidget : BidooWidget {
 		knob(3, 2, SOUNAIRE::RESONANCE_PARAM, false);
 		knob(4, 2, SOUNAIRE::ATTACK_PARAM, false);
 		knob(5, 2, SOUNAIRE::RELEASE_PARAM, false);
+		knob(6, 2, SOUNAIRE::PLAY_PARAM, true);
+		addParam(createParamCentered<RisoButton>(Vec(cx(7), rows[2]), module, SOUNAIRE::MODE_PARAM));
 
-		// jacks: eight inputs, then the two outputs on the ink block
-		int ins[8] = {SOUNAIRE::VOCT_INPUT, SOUNAIRE::GATE_INPUT, SOUNAIRE::VEL_INPUT, SOUNAIRE::BEND_INPUT,
-		              SOUNAIRE::START_INPUT, SOUNAIRE::SPEED_INPUT, SOUNAIRE::CUTOFF_INPUT, SOUNAIRE::RES_INPUT};
-		for (int i = 0; i < 8; i++)
-			addInput(createInputCentered<RisoJack>(Vec(22.f + 34.f * i, 338.f), module, ins[i]));
-		RisoJack *l = createOutputCentered<RisoJack>(Vec(316.f, 342.f), module, SOUNAIRE::L_OUTPUT);
-		RisoJack *r = createOutputCentered<RisoJack>(Vec(354.f, 342.f), module, SOUNAIRE::R_OUTPUT);
+		// jacks: ten inputs, then the two outputs on the ink block
+		int ins[10] = {SOUNAIRE::VOCT_INPUT, SOUNAIRE::GATE_INPUT, SOUNAIRE::VEL_INPUT, SOUNAIRE::BEND_INPUT,
+		               SOUNAIRE::START_INPUT, SOUNAIRE::SPEED_INPUT, SOUNAIRE::CUTOFF_INPUT, SOUNAIRE::RES_INPUT,
+		               SOUNAIRE::PITCH_INPUT, SOUNAIRE::PLAY_INPUT};
+		for (int i = 0; i < 10; i++)
+			addInput(createInputCentered<RisoJack>(Vec(22.f + 33.f * i, 338.f), module, ins[i]));
+		RisoJack *l = createOutputCentered<RisoJack>(Vec(361.f, 338.f), module, SOUNAIRE::L_OUTPUT);
+		RisoJack *r = createOutputCentered<RisoJack>(Vec(395.f, 338.f), module, SOUNAIRE::R_OUTPUT);
 		l->onInk = r->onInk = true;
 		addOutput(l);
 		addOutput(r);
+	}
+
+	// the knobs that mean something else in SLICES mode say so in their tooltips
+	void step() override {
+		BidooWidget::step();
+		SOUNAIRE *m = dynamic_cast<SOUNAIRE *>(module);
+		if (!m)
+			return;
+		bool sl = m->sliceMode();
+		m->paramQuantities[SOUNAIRE::ROOT_PARAM]->name = sl ? "Base key (slice 1)" : "Root note";
+		m->paramQuantities[SOUNAIRE::START_PARAM]->name = sl ? "Start inside each slice" : "Start";
+		m->paramQuantities[SOUNAIRE::END_PARAM]->name = sl ? "End inside each slice" : "End";
 	}
 
 	void onPathDrop(const PathDropEvent &e) override {
@@ -465,8 +645,31 @@ struct SOUNAIREWidget : BidooWidget {
 			[=]() { int r[] = {1, 2, 7, 12, 24}; for (int i = 0; i < 5; i++) if (r[i] == m->bendRange) return i; return 1; },
 			[=](size_t i) { int r[] = {1, 2, 7, 12, 24}; m->bendRange = r[i]; }));
 		menu->addChild(new MenuSeparator);
+		menu->addChild(createMenuLabel("Slices"));
+		static const std::vector<std::string> types = {"One shot", "Gate", "Loop", "Ping-pong", "Reverse", "Reverse loop"};
+		menu->addChild(createSubmenuItem("Find the transients again", "", [=](Menu *sub) {
+			const char *names[3] = {"Fewer slices (low sensitivity)", "Medium", "More slices (high sensitivity)"};
+			for (int i = 0; i < 3; i++)
+				sub->addChild(createCheckMenuItem(names[i], "", [=]() { return m->sensitivity == i; }, [=]() { m->sensitivity = i; m->requestDetect(); }));
+		}));
+		menu->addChild(createBoolPtrMenuItem("Find the transients when loading", "", &m->detectOnLoad));
+		menu->addChild(createSubmenuItem("Divide equally", "", [=](Menu *sub) {
+			for (int n : {2, 4, 8, 16, 32, 64})
+				sub->addChild(createMenuItem(string::f("%d slices", n), "", [=]() { m->divideSlices(n); }));
+		}));
+		menu->addChild(createMenuItem("One slice (clear the cuts)", "", [=]() { m->setSlices({0}, m->getSlices().type[0]); }));
+		int sel = m->selectedSlice;
+		menu->addChild(createIndexSubmenuItem(string::f("Slice %d plays", sel + 1), types,
+			[=]() { return (size_t)m->getSlices().type[clamp(sel, 0, m->getSlices().count - 1)]; },
+			[=](size_t i) { m->setSliceType(sel, (int)i); }));
+		menu->addChild(createSubmenuItem("Every slice plays", "", [=](Menu *sub) {
+			for (int i = 0; i < (int)types.size(); i++)
+				sub->addChild(createMenuItem(types[i], "", [=]() { m->setAllSliceTypes(i); }));
+		}));
+		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Drag a marker; Shift: snap to a zero crossing"));
 		menu->addChild(createMenuLabel("Ctrl+Shift+drag: region for the root note"));
 		menu->addChild(createMenuLabel("Alt+click: preview from there"));
+		menu->addChild(createMenuLabel("Slices: click selects, double-click adds or removes a cut"));
 	}
 };

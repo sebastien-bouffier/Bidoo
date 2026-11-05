@@ -152,6 +152,92 @@ inline float detectRootNote(const Sample &s, int64_t from, int64_t to) {
 	return pitches[pitches.size() / 2];
 }
 
+// ---------------------------------------------------------------- slices
+
+constexpr int MAX_SLICES = 128;
+enum PlayType { PLAY_ONE_SHOT, PLAY_GATE, PLAY_LOOP, PLAY_PINGPONG, PLAY_REVERSE, PLAY_REVERSE_LOOP, NUM_PLAY_TYPES };
+
+// The slices of the sample, in its frames: slice i runs from start[i] to
+// start[i + 1] (the last one to the end of the sample); start[0] is 0.
+struct Slices {
+	int count = 1;
+	int64_t start[MAX_SLICES] = {};
+	uint8_t type[MAX_SLICES] = {};
+
+	int64_t end(int i, int64_t frames) const {
+		return i + 1 < count ? start[i + 1] : frames;
+	}
+	// the slice holding frame f
+	int at(int64_t f) const {
+		int i = 0;
+		while (i + 1 < count && start[i + 1] <= f)
+			i++;
+		return i;
+	}
+};
+
+// Transients: where the energy of the sample's slope (its first difference,
+// so the attacks stand out) rises by `riseDb` over the 20 ms before, at least
+// 60 ms apart, each placed at the zero crossing just before its attack.
+inline std::vector<int64_t> detectTransients(const Sample &s, float riseDb) {
+	std::vector<int64_t> out {0};
+	const int H = std::max(64, (int)(s.rate * 0.005f));   // 5 ms hops
+	const int64_t n = s.frames / H;
+	if (n < 8)
+		return out;
+	std::vector<float> L((size_t)n);
+	float top = -240.f;
+	for (int64_t i = 0; i < n; i++) {
+		double e = 0;
+		for (int64_t k = i * H; k < (i + 1) * H; k++) {
+			float d = s.mono(k) - s.mono(k - 1);
+			e += (double)d * d;
+		}
+		L[(size_t)i] = 10.f * std::log10((float)(e / H) + 1e-12f);
+		top = std::max(top, L[(size_t)i]);
+	}
+	const int back = 4;
+	const int64_t gap = (int64_t)(0.06f * s.rate);
+	// a hit in the first 10 ms is the start of slice 1; later ones may follow it closely
+	const int64_t lead = (int64_t)(0.01f * s.rate);
+	int64_t last = -gap;
+	for (int64_t i = back; i < n && (int)out.size() < MAX_SLICES; i++) {
+		float before = 0.f;
+		for (int j = 1; j <= back; j++)
+			before += L[(size_t)(i - j)];
+		before /= back;
+		// a rise, and loud enough not to be noise in a quiet tail
+		if (L[(size_t)i] - before < riseDb || L[(size_t)i] < top - 40.f)
+			continue;
+		// the attack: the first frame of this hop and the one before whose slope
+		// reaches a quarter of the steepest there
+		int64_t a = (i - 1) * H, b = (i + 1) * H;
+		float steep = 0.f;
+		for (int64_t k = a; k < b; k++)
+			steep = std::max(steep, std::fabs(s.mono(k) - s.mono(k - 1)));
+		int64_t pos = a;
+		for (int64_t k = a; k < b; k++)
+			if (std::fabs(s.mono(k) - s.mono(k - 1)) >= 0.25f * steep) {
+				pos = k;
+				break;
+			}
+		// back to the zero crossing before it, at most 2 ms
+		int64_t limit = std::max<int64_t>(1, pos - (int64_t)(0.002f * s.rate));
+		for (int64_t k = pos; k > limit; k--) {
+			float x0 = s.mono(k - 1), x1 = s.mono(k);
+			if ((x0 <= 0.f && x1 > 0.f) || (x0 >= 0.f && x1 < 0.f)) {
+				pos = k;
+				break;
+			}
+		}
+		if (pos < lead || pos - last < gap)
+			continue;
+		out.push_back(pos);
+		last = pos;
+	}
+	return out;
+}
+
 // ---------------------------------------------------------------- filter
 
 struct Svf {
@@ -401,12 +487,18 @@ struct Voice {
 	int64_t age = 0;
 	float ratioSemis = 1e9f;   // the pitch the cached ratio was worked out for
 	double ratio = 1.0;
+	// SLICES mode: the voice plays its own slice region; a one shot plays to
+	// the end of it whatever the gate does
+	bool ownRegion = false;
+	bool oneShot = false;
+	PlayHead::Region region {};
 };
 
 // Everything that plays: 16 channels, each with a spare slot for the fade-out of
-// a retriggered note, plus the preview voice. Audio thread only.
+// a retriggered note, plus the clicked key and the preview voice. Audio thread only.
 struct Engine {
-	static constexpr int SLOTS = MAX_VOICES * 2 + 1;
+	static constexpr int SLOTS = MAX_VOICES * 2 + 2;
+	static constexpr int MOUSE = SLOTS - 2;     // a key clicked on the keyboard strip
 	static constexpr int PREVIEW = SLOTS - 1;
 	Voice voices[SLOTS];
 	Stretcher *pool = nullptr;   // STRETCH_POOL stretchers, built by the worker
@@ -551,12 +643,14 @@ struct Engine {
 		v.stretch = -1;   // the stretcher went with the fading copy
 	}
 
-	void noteOn(int slot, int outChannel, float semis, float velocity, const PlaySettings &p, double startOffset, float cutoffNote) {
+	// `own`: a slice's start, end, loop and direction instead of the module's
+	void noteOn(int slot, int outChannel, float semis, float velocity, const PlaySettings &p, double startOffset, float cutoffNote,
+	            const PlaySettings *own = nullptr, bool oneShot = false) {
 		if (!current || current->frames < 4)
 			return;
 		fadeOut(slot);
 		Voice &v = voices[slot];
-		PlayHead::Region r = PlayHead::region(*current, p, rate);
+		PlayHead::Region r = PlayHead::region(*current, own ? *own : p, rate);
 		v = Voice();
 		v.active = true;
 		v.gate = true;
@@ -569,6 +663,9 @@ struct Engine {
 		v.cutoffNote = cutoffNote;
 		v.speed = p.speed;
 		v.resonance = p.filter.resonance;
+		v.ownRegion = own != nullptr;
+		v.oneShot = oneShot;
+		v.region = r;
 		v.filter.reset();
 		// stretched when a warmed-up pool is there and has a free stretcher, else repitched
 		if (p.timeMode != TIME_REPITCH && poolReady(p.timeMode)) {
@@ -581,7 +678,8 @@ struct Engine {
 	}
 
 	void noteOff(int slot) {
-		voices[slot].gate = false;
+		if (!voices[slot].oneShot)
+			voices[slot].gate = false;
 	}
 
 	// Alt+click: plays the sample at its own pitch from `pos` (0..1) while held
@@ -654,7 +752,7 @@ struct Engine {
 				ps.end = 1;
 				ps.filter.mode = FILTER_OFF;
 			}
-			PlayHead::Region r = (!preview && v.sample == current) ? mainRegion : PlayHead::region(s, ps, rate);
+			PlayHead::Region r = v.ownRegion ? v.region : ((!preview && v.sample == current) ? mainRegion : PlayHead::region(s, ps, rate));
 			const double srcRatio = s.rate / rate;
 			float l = 0.f, rr = 0.f;
 			double step = srcRatio;
