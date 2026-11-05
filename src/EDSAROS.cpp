@@ -239,7 +239,7 @@ struct EDSAROS : BidooModule {
 
 		configSwitch(LOOPMODE_PARAM, 0.0f, 2.0f, 0.0f, "Loop mode", {"None", "Forward", "Ping-pong"});
 		configSwitch(RELEASEMODE_PARAM, 0.0f, 3.0f, 0.0f, "Release mode", {"Cut", "Play to the end", "Forward loop", "Ping-pong loop"});
-		configSwitch(LINKTYPE_PARAM, 0.0f, 3.0f, 0.0f, "Link points mode", {"None", "Offset", "Scaled up", "Scaled down"});
+		configSwitch(LINKTYPE_PARAM, 0.0f, 3.0f, 0.0f, "Link points mode", {"None", "Offset", "Offset, widening", "Offset, narrowing"});
 
 		configParam(ATTACK_PARAM, 0.0f, 20.0f, 0.0f, "Attack time", " s");
 		configParam(DECAY_PARAM, 0.0f, 60.0f, 0.2f, "Decay time", " s");
@@ -438,16 +438,19 @@ struct EDSAROS : BidooModule {
 		float pLoopEnd = params[LOOPEND_PARAM].getValue()+inputs[LOOPEND_INPUT].getVoltage();
 		float pRelease = params[RELEASESTART_PARAM].getValue()+inputs[RELEASESTART_INPUT].getVoltage();
 		sampleStart = getSnappedIndex(clamp(start,0.0f,10.0f), true);
-		// Link modes: the other points follow the start.
-		float offset = 0.f, coef = 1.f;
+		// Link modes: the other points follow the start. Offset moves them by
+		// the start value; widening moves them further (start x (1 + position)),
+		// so the region grows as the start moves later; narrowing moves them
+		// less (start x (1 - position)), so the region shrinks.
+		float offset = 0.f;
 		int link = (int)params[LINKTYPE_PARAM].getValue();
+		float position = (float)sampleStart/(float)totalSampleCount;
 		if (link == 1)
 			offset = start;
 		else if (link == 2)
-			offset = start * (1+(float)sampleStart/(float)totalSampleCount);
+			offset = start * (1+position);
 		else if (link == 3)
-			offset = start * (1-(float)sampleStart/(float)totalSampleCount);
-		(void)coef;
+			offset = start * (1-position);
 		sampleEnd = std::max(getSnappedIndex(clamp(pEnd+offset,0.0f,10.0f), false), sampleStart);
 		loopStart = std::min(std::max(getSnappedIndex(clamp(pLoopStart+offset,0.0f,10.0f), true), sampleStart), sampleEnd);
 		loopEnd = std::min(std::max(getSnappedIndex(clamp(pLoopEnd+offset,0.0f,10.0f), false), loopStart), sampleEnd);
@@ -785,26 +788,26 @@ struct EDSAROSLinkDisplay : TransparentWidget {
 
 	void drawLink(const DrawArgs &args, Vec pos) {
 		if (module) {
-			int releaseType = (int)module->params[EDSAROS::LINKTYPE_PARAM].getValue();
+			int linkType = (int)module->params[EDSAROS::LINKTYPE_PARAM].getValue();
 			nvgStrokeWidth(args.vg, 1.0f);
 			nvgStrokeColor(args.vg, YELLOW_BIDOO);
 			nvgFillColor(args.vg, YELLOW_BIDOO);
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 			nvgFontSize(args.vg, 12.0f);
 			nvgTextLetterSpacing(args.vg, -2.0f);
-			if (releaseType == 0) {
+			if (linkType == 0) {
 				std::string s = "-";
 				nvgText(args.vg, 0, 0, s.c_str(), NULL);
 			}
-			else if (releaseType == 1) {
+			else if (linkType == 1) {
 				std::string s = "⇥";
 				nvgText(args.vg, 0, 0, s.c_str(), NULL);
 			}
-			else if (releaseType == 2) {
+			else if (linkType == 2) {
 				std::string s = "⇉";
 				nvgText(args.vg, 0, 0, s.c_str(), NULL);
 			}
-			else if (releaseType == 3) {
+			else if (linkType == 3) {
 				std::string s = "⇄";
 				nvgText(args.vg, 0, 0, s.c_str(), NULL);
 			}
