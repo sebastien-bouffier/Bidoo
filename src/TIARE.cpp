@@ -479,20 +479,25 @@ struct TIAREDisplay : TransparentWidget {
 };
 
 // Thin slider along an edge of the display: a real param widget, so X and Y
-// can be typed in, MIDI-mapped and automated.
+// can be typed in, MIDI-mapped and automated. Its marker is placed as the
+// display places the curve point (the value across the display's length), so
+// both line up whatever the slider's own length and offset.
 struct TiareAxisSlider : app::SliderKnob {
+	float span = 140.f;   // the display's length
+	float offset = 0.f;   // where the slider starts, from the display's start
+
 	void draw(const DrawArgs& args) override {
 		engine::ParamQuantity *pq = getParamQuantity();
-		float v = pq ? pq->getScaledValue() : 0.5f;
+		float v = pq ? pq->getValue() : 0.5f;
 		nvgBeginPath(args.vg);
 		nvgRect(args.vg, 0, 0, box.size.x, box.size.y);
 		nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 0x40));
 		nvgFill(args.vg);
 		nvgBeginPath(args.vg);
 		if (horizontal)
-			nvgRect(args.vg, v * box.size.x - 1.5f, 0, 3.f, box.size.y);
+			nvgRect(args.vg, v * span - offset - 1.5f, 0, 3.f, box.size.y);
 		else
-			nvgRect(args.vg, 0, (1.f - v) * box.size.y - 1.5f, box.size.x, 3.f);
+			nvgRect(args.vg, 0, (1.f - v) * span - offset - 1.5f, box.size.x, 3.f);
 		nvgFillColor(args.vg, nvgRGBA(42, 87, 117, 255));
 		nvgFill(args.vg);
 	}
@@ -528,6 +533,7 @@ struct TIAREWidget : BidooWidget {
 		TiareAxisSlider *sliderX = createParam<TiareAxisSlider>(Vec(5 + 8, 119 + 140 - 7), module, TIARE::DIST_X_PARAM);
 		sliderX->box.size = Vec(140 - 8, 7);
 		sliderX->horizontal = true;
+		sliderX->offset = 8.f;
 		addParam(sliderX);
 		TiareAxisSlider *sliderY = createParam<TiareAxisSlider>(Vec(5, 119), module, TIARE::DIST_Y_PARAM);
 		sliderY->box.size = Vec(7, 140 - 8);
