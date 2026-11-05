@@ -62,6 +62,18 @@ static inline float fixeddelay_read(ty_fixeddelay *p, int n)
   return(p->buf[i]);
 }
 
+/* n samples back, n fractional (linear interpolation) */
+static inline float fixeddelay_read_frac(ty_fixeddelay *p, float n)
+{
+  int i = (int)n;
+  float f = n - (float)i;
+  int a = p->idx - i;
+  if (a < 0) a += p->size;
+  int b = a - 1;
+  if (b < 0) b += p->size;
+  return p->buf[a] + (p->buf[b] - p->buf[a])*f;
+}
+
 static inline void fixeddelay_write(ty_fixeddelay *p, float x)
 {
   p->buf[p->idx] = x;

@@ -35,7 +35,7 @@ void comb::setbuffer(float *buf, int size)
 void comb::changebuffer(float *buf, int size)
 	{
 		if (allocated) {delete[] buffer;}
-		buffer = new float[size];
+		buffer = new float[size]();
 		bufsize = size;
 		bufidx = 0;
 		filterstore = 0;

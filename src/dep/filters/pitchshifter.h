@@ -74,14 +74,20 @@ struct PitchShifter {
 	}
 
 	void process(const float pitchShift, const float *input, float *output) {
+		for (long n = 0; n < fftFrameSize; n++)
+			output[n] = step(pitchShift, input[n]);
+	}
 
-			for (i = 0; i < fftFrameSize; i++) {
-				gInFIFO[gRover] = input[i];
+	// One sample in, one out: the FFT work is done every stepSize samples
+	// instead of all at once every fftFrameSize.
+	float step(const float pitchShift, const float in) {
+				float out;
+				gInFIFO[gRover] = in;
 
 				if(gRover >= inFifoLatency)  // [bsp] 09Mar2019: this fixes the noise burst issue in REI
-					 output[i] = gOutFIFO[gRover-inFifoLatency];
+					 out = gOutFIFO[gRover-inFifoLatency];
 				else
-					 output[i] = 0.0f;
+					 out = 0.0f;
 
 				gRover++;
 
@@ -153,6 +159,6 @@ struct PitchShifter {
 					memmove(gOutputAccum, gOutputAccum+stepSize, fftFrameSize*sizeof(float));
 					for (k = 0; k < inFifoLatency; k++) gInFIFO[k] = gInFIFO[k+stepSize];
 				}
-			}
+				return out;
 	}
 };

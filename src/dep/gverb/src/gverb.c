@@ -67,7 +67,7 @@ ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
     p->fdndels[i] = fixeddelay_make((int)p->maxdelay+1000);
   }
   p->fdngains = (float *)calloc(FDNORDER, sizeof(float));
-  p->fdnlens = (int *)calloc(FDNORDER, sizeof(int));
+  p->fdnlens = (float *)calloc(FDNORDER, sizeof(float));
 
   p->fdndamps = (ty_damper **)calloc(FDNORDER, sizeof(ty_damper *));
   for(i = 0; i < FDNORDER; i++) {
@@ -90,7 +90,7 @@ ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
 #if 0
     p->fdnlens[i] = nearest_prime((int)gb, 0.5);
 #else
-    p->fdnlens[i] = f_round(gb);
+    p->fdnlens[i] = gb;
 #endif
     p->fdngains[i] = -powf((float)p->alpha,p->fdnlens[i]);
   }
@@ -143,8 +143,8 @@ ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
 
   /* Tapped delay section */
 
-  p->tapdelay = fixeddelay_make(44000);
-  p->taps = (int *)calloc(FDNORDER, sizeof(int));
+  p->tapdelay = fixeddelay_make((int)p->maxdelay+1000);
+  p->taps = (float *)calloc(FDNORDER, sizeof(float));
   p->tapgains = (float *)calloc(FDNORDER, sizeof(float));
 
   p->taps[0] = 5+0.410*p->largestdelay;

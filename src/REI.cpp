@@ -1,9 +1,9 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
-#include "dsp/ringbuffer.hpp"
 #include "dep/freeverb/revmodel.hpp"
 #include "dep/filters/pitchshifter.h"
 #include "dsp/digital.hpp"
+#include "Svf.hpp"
 
 #define REIBUFF_SIZE 512
 
@@ -45,25 +45,38 @@ struct REI : BidooModule {
 		NUM_LIGHTS
 	};
 
-	dsp::DoubleRingBuffer<float, REIBUFF_SIZE> in_Buffer;
-	dsp::DoubleRingBuffer<float, 2 * REIBUFF_SIZE> pin_Buffer;
 	revmodel revprocessor;
 	dsp::SchmittTrigger freezeTrigger;
 	bool freeze = false;
 	PitchShifter *pShifter = nullptr;
-	int delay = 0;
+	float shimmer = 0.0f;
+	// freeverb values last set, so its coefficients are worked out only on a change
+	float applied[6] = {-1.f, -1.f, -1.f, -1.f, -1.f, -1.f};
 
 	REI() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(SIZE_PARAM, 0.f, 2.f, .5f, "Room Size", "m", 0.f, 100.f);
-		configParam(DAMP_PARAM, 0.f, 1.f, .5f, "Damping", "%", 0.f, 70.f);
+		configParam(SIZE_PARAM, 0.f, 1.f, .5f, "Room size", "%", 0.f, 100.f);
+		configParam(DAMP_PARAM, 0.f, 1.f, .5f, "Damping", "%", 0.f, 100.f);
 		configParam(WIDTH_PARAM, 0.f, 1.f, .5f, "Width", "%", 0.f, 100.f);
 		configParam(DRY_PARAM, 0.f, 1.f, .5f, "Dry", "%", 0.f, 100.f);
 		configParam(WET_PARAM, 0.f, 1.f, .5f, "Wet", "%", 0.f, 100.f);
-		configParam(SHIMM_PARAM, 0.f, 1.f, 0.f, "Feedback", "%", 0.f, 100.f);
-		configParam(SHIMMPITCH_PARAM, .5f, 4.f, 1.f, "Pitch shift", "x");
-		configParam(FREEZE_PARAM, 0.f, 1.f, 0.f, "Freeze");
-		configSwitch(CLIPPING_PARAM, 0, 1, 0, "Clipping", {"Tanh", "Digi"});
+		configParam(SHIMM_PARAM, 0.f, 1.f, 0.f, "Shimmer feedback", "%", 0.f, 100.f);
+		configParam(SHIMMPITCH_PARAM, -12.f, 24.f, 12.f, "Shimmer pitch", " semitones");
+		paramQuantities[SHIMMPITCH_PARAM]->snapEnabled = true;
+		configButton(FREEZE_PARAM, "Freeze");
+		configSwitch(CLIPPING_PARAM, 0, 1, 0, "Output limit", {"Soft (under 10 V)", "Hard clip at 10 V"});
+		configInput(IN_L_INPUT, "Left");
+		configInput(IN_R_INPUT, "Right (follows left when unpatched)");
+		configInput(SIZE_INPUT, "Room size CV (0-10 V: full range)");
+		configInput(DAMP_INPUT, "Damping CV (0-10 V: full range)");
+		configInput(FREEZE_INPUT, "Freeze toggle trigger");
+		configInput(WIDTH_INPUT, "Width CV (0-10 V: full range)");
+		configInput(SHIMM_INPUT, "Shimmer feedback CV (0-10 V: full range)");
+		configInput(SHIMMPITCH_INPUT, "Shimmer pitch CV (1V/oct)");
+		configInput(DRY_INPUT, "Dry CV (0-10 V: full range)");
+		configInput(WET_INPUT, "Wet CV (0-10 V: full range)");
+		configOutput(OUT_L_OUTPUT, "Left");
+		configOutput(OUT_R_OUTPUT, "Right");
 	}
 
 	~REI() {
@@ -71,55 +84,79 @@ struct REI : BidooModule {
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent &e) override {
+		// comb and allpass lengths scaled from 44.1 kHz
+		revprocessor.setsamplerate(e.sampleRate);
+		for (float &a : applied)
+			a = -1.f;
 		delete pShifter;
 		pShifter = new PitchShifter();
 		pShifter->init(REIBUFF_SIZE, 4, e.sampleRate);
 	}
 
+	json_t *dataToJson() override {
+		json_t *rootJ = BidooModule::dataToJson();
+		json_object_set_new(rootJ, "freeze", json_boolean(freeze));
+		return rootJ;
+	}
+
+	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
+		freeze = json_boolean_value(json_object_get(rootJ, "freeze"));
+	}
+
 	void process(const ProcessArgs &args) override {
-		float outL = 0.0f, outR = 0.0f;
-		float wOutL = 0.0f, wOutR = 0.0f;
-		float inL = 0.0f, inR = 0.0f;
+		if (freezeTrigger.process(params[FREEZE_PARAM].getValue() + inputs[FREEZE_INPUT].getVoltage()))
+			freeze = !freeze;
+		lights[FREEZE_LIGHT].setBrightness(freeze ? 1.f : 0.f);
 
-		revprocessor.setdamp(clamp(params[DAMP_PARAM].getValue() + inputs[DAMP_INPUT].getVoltage(), 0.0f, 1.0f));
-		revprocessor.setroomsize(clamp(params[SIZE_PARAM].getValue() + inputs[SIZE_INPUT].getVoltage(), 0.0f, 1.0f));
-		revprocessor.setwet(clamp(params[WET_PARAM].getValue()+rescale(inputs[WET_INPUT].getVoltage(),0.0f,10.0f,0.0f,1.0f), 0.0f, 1.0f));
-		revprocessor.setdry(clamp(params[DRY_PARAM].getValue()+rescale(inputs[DRY_INPUT].getVoltage(),0.0f,10.0f,0.0f,1.0f), 0.0f, 1.0f));
-		revprocessor.setwidth(clamp(params[WIDTH_PARAM].getValue() + inputs[WIDTH_INPUT].getVoltage(), 0.0f, 1.0f));
-
-		if (freezeTrigger.process(params[FREEZE_PARAM].getValue() + inputs[FREEZE_INPUT].getVoltage())) freeze = !freeze;
-		lights[FREEZE_LIGHT].setBrightness(freeze ? 10 : 0);
-
-		revprocessor.setmode(freeze ? 1.0 : 0.0);
-
-		inL = inputs[IN_L_INPUT].getVoltage()*0.1f;
-		inR = inputs[IN_R_INPUT].getVoltage()*0.1f;
-
-		float fact = clamp(params[SHIMM_PARAM].getValue() + rescale(inputs[SHIMM_INPUT].getVoltage(), 0.0f, 10.0f, 0.0f, 1.0f), 0.0f, 1.0f)*3.0f;
-
-		if (pin_Buffer.size() > REIBUFF_SIZE) {
-			revprocessor.process(inL, inR, fact*(*pin_Buffer.startData()), outL, outR, wOutL, wOutR);
-			pin_Buffer.startIncr(1);
-		} else {
-			revprocessor.process(inL, inR, 0.0f, outL, outR, wOutL, wOutR);
+		float values[6] = {
+			clamp(params[DAMP_PARAM].getValue() + inputs[DAMP_INPUT].getVoltage() * 0.1f, 0.0f, 1.0f),
+			clamp(params[SIZE_PARAM].getValue() + inputs[SIZE_INPUT].getVoltage() * 0.1f, 0.0f, 1.0f),
+			clamp(params[WET_PARAM].getValue() + inputs[WET_INPUT].getVoltage() * 0.1f, 0.0f, 1.0f),
+			clamp(params[DRY_PARAM].getValue() + inputs[DRY_INPUT].getVoltage() * 0.1f, 0.0f, 1.0f),
+			clamp(params[WIDTH_PARAM].getValue() + inputs[WIDTH_INPUT].getVoltage() * 0.1f, 0.0f, 1.0f),
+			freeze ? 1.0f : 0.0f
+		};
+		for (int k = 0; k < 6; k++) {
+			if (values[k] == applied[k])
+				continue;
+			applied[k] = values[k];
+			switch (k) {
+				case 0: revprocessor.setdamp(values[k]); break;
+				case 1: revprocessor.setroomsize(values[k]); break;
+				case 2: revprocessor.setwet(values[k]); break;
+				case 3: revprocessor.setdry(values[k]); break;
+				case 4: revprocessor.setwidth(values[k]); break;
+				case 5: revprocessor.setmode(values[k]); break;
+			}
 		}
 
-		if (params[CLIPPING_PARAM].getValue() == 1.0f) {
-			outL = clamp(outL, -7.0f, 7.0f);
-			outR = clamp(outR, -7.0f, 7.0f);
-		} else {
-			outL = tanh(outL / 5.0f)*7.0f;
-			outR = tanh(outR / 5.0f)*7.0f;
+		float inL = inputs[IN_L_INPUT].getVoltage() * 0.1f;
+		float inR = inputs[IN_R_INPUT].isConnected() ? inputs[IN_R_INPUT].getVoltage() * 0.1f : inL;
+		float fact = clamp(params[SHIMM_PARAM].getValue() + inputs[SHIMM_INPUT].getVoltage() * 0.1f, 0.0f, 1.0f) * 3.0f;
+
+		float outL = 0.0f, outR = 0.0f, wOutL = 0.0f, wOutR = 0.0f;
+		revprocessor.process(inL, inR, fact * shimmer, outL, outR, wOutL, wOutR);
+
+		// shimmer: the output pitch shifted back into the reverb, the FFT work
+		// spread over 128-sample hops
+		if (pShifter) {
+			float semis = params[SHIMMPITCH_PARAM].getValue() + inputs[SHIMMPITCH_INPUT].getVoltage() * 12.f;
+			float ratio = clamp(dsp::exp2_taylor5(semis / 12.f), 0.25f, 4.0f);
+			shimmer = pShifter->step(ratio, (std::tanh(outL / 5.0f) + std::tanh(outR / 5.0f)) * 0.35f);
 		}
 
-		in_Buffer.push((outL + outR)*0.05f);
-
-		if (in_Buffer.full()) {
-			pShifter->process(clamp(params[SHIMMPITCH_PARAM].getValue() + inputs[SHIMMPITCH_INPUT].getVoltage(), 0.5f, 4.0f), in_Buffer.startData(), pin_Buffer.endData());
-			pin_Buffer.endIncr(in_Buffer.size());
-			in_Buffer.clear();
+		// x5: 100% dry is unity, 100% wet about as loud on broadband material
+		outL *= 5.0f;
+		outR *= 5.0f;
+		if (params[CLIPPING_PARAM].getValue() > 0.5f) {
+			outL = clamp(outL, -10.0f, 10.0f);
+			outR = clamp(outR, -10.0f, 10.0f);
 		}
-
+		else {
+			outL = bidooSoftLimit(outL);
+			outR = bidooSoftLimit(outR);
+		}
 		outputs[OUT_L_OUTPUT].setVoltage(outL);
 		outputs[OUT_R_OUTPUT].setVoltage(outR);
 	}

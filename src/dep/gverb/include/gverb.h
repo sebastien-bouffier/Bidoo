@@ -42,13 +42,13 @@ typedef struct {
   float largestdelay;
   ty_fixeddelay **fdndels;
   float *fdngains;
-  int *fdnlens;
+  float *fdnlens;
   ty_damper **fdndamps;
   float fdndamping;
   ty_diffuser **ldifs;
   ty_diffuser **rdifs;
   ty_fixeddelay *tapdelay;
-  int *taps;
+  float *taps;
   float *tapgains;
   float *d;
   float *u;
@@ -116,13 +116,13 @@ static inline void gverb_do(ty_gverb *p, float x, float *yl, float *yr)
   z = diffuser_do(p->ldifs[0],z);
 
   for(i = 0; i < FDNORDER; i++) {
-    p->u[i] = p->tapgains[i]*fixeddelay_read(p->tapdelay,p->taps[i]);
+    p->u[i] = p->tapgains[i]*fixeddelay_read_frac(p->tapdelay,p->taps[i]);
   }
   fixeddelay_write(p->tapdelay,z);
 
   for(i = 0; i < FDNORDER; i++) {
     p->d[i] = damper_do(p->fdndamps[i],
-			p->fdngains[i]*fixeddelay_read(p->fdndels[i],
+			p->fdngains[i]*fixeddelay_read_frac(p->fdndels[i],
 						       p->fdnlens[i]));
   }
 
@@ -164,19 +164,18 @@ static inline void gverb_set_roomsize(ty_gverb *p, const float a)
   }
   p->largestdelay = p->rate * p->roomsize * 0.00294f;
 
-  p->fdnlens[0] = f_round(1.000000f*p->largestdelay);
-  p->fdnlens[1] = f_round(0.816490f*p->largestdelay);
-  p->fdnlens[2] = f_round(0.707100f*p->largestdelay);
-  p->fdnlens[3] = f_round(0.632450f*p->largestdelay);
+  /* fractional lengths: a moving size glides instead of jumping */
+  p->fdnlens[0] = 1.000000f*p->largestdelay;
+  p->fdnlens[1] = 0.816490f*p->largestdelay;
+  p->fdnlens[2] = 0.707100f*p->largestdelay;
+  p->fdnlens[3] = 0.632450f*p->largestdelay;
   for(i = 0; i < FDNORDER; i++) {
     p->fdngains[i] = -powf((float)p->alpha, p->fdnlens[i]);
   }
-
-  p->taps[0] = 5+f_round(0.410f*p->largestdelay);
-  p->taps[1] = 5+f_round(0.300f*p->largestdelay);
-  p->taps[2] = 5+f_round(0.155f*p->largestdelay);
-  p->taps[3] = 5+f_round(0.000f*p->largestdelay);
-
+  p->taps[0] = 5+0.410f*p->largestdelay;
+  p->taps[1] = 5+0.300f*p->largestdelay;
+  p->taps[2] = 5+0.155f*p->largestdelay;
+  p->taps[3] = 5+0.000f*p->largestdelay;
   for(i = 0; i < FDNORDER; i++) {
     p->tapgains[i] = powf((float)p->alpha, p->taps[i]);
   }

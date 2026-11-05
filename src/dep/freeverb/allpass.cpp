@@ -30,7 +30,7 @@ void allpass::setbuffer(float *buf, int size)
 void allpass::changebuffer(float *buf, int size)
 	{
 		if (allocated) {delete[] buffer;}
-		buffer = new float[size];
+		buffer = new float[size]();
 		bufsize = size;
 		bufidx = 0;
 		allocated = true;

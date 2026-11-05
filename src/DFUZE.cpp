@@ -1,5 +1,6 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
+#include "Svf.hpp"
 #include "gverb.h"
 #include "dep/gverb/src/gverb.c"
 #include "dep/gverb/src/gverbdsp.c"
@@ -26,6 +27,7 @@ struct DFUZE : BidooModule {
 		BANDWIDTH_INPUT,
 		EARLYLEVEL_INPUT,
 		TAIL_INPUT,
+		IN_R_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -38,39 +40,94 @@ struct DFUZE : BidooModule {
 	};
 
 
-	ty_gverb *verb;
-	float lOut = 0.f, rOut = 0.f;
+	// one gverb per side
+	ty_gverb *verb[2] = {nullptr, nullptr};
+	float size = -1.f;
+	float applied[6] = {-1.f, -1.f, -1.f, -1.f, -1.f, -1.f};
 
 	DFUZE() {
-    config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(SIZE_PARAM, 0.0f, 300.0f, 0.5f, "Size");
-		configParam(REVTIME_PARAM, 0.0f, 50.0f, 0.5f, "Reverb time");
-		configParam(DAMP_PARAM, 0.0f, 0.9f, 0.5f, "Damping");
-		configParam(BANDWIDTH_PARAM, 0.0f, 1.0f, 0.5f, "Bandwidth");
-    configParam(EARLYLEVEL_PARAM, 0.0f, 10.0f, 5.0f, "Early reflections level");
-    configParam(TAIL_PARAM, 0.0f, 10.0f, 5.0f, "Tail level");
-
-		verb = gverb_new(APP->engine->getSampleRate(), 300, 1, 1, 1, 1, 1, 1, 1);
+		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		configParam(SIZE_PARAM, 1.0f, 300.0f, 30.0f, "Size", " m");
+		configParam(REVTIME_PARAM, 0.0f, 50.0f, 0.5f, "Reverb time", " s");
+		configParam(DAMP_PARAM, 0.0f, 0.9f, 0.5f, "Damping", "%", 0.f, 100.f / 0.9f);
+		configParam(BANDWIDTH_PARAM, 0.0f, 1.0f, 0.5f, "Input bandwidth", "%", 0.f, 100.f);
+		configParam(EARLYLEVEL_PARAM, 0.0f, 10.0f, 5.0f, "Early reflections level", "%", 0.f, 10.f);
+		configParam(TAIL_PARAM, 0.0f, 10.0f, 5.0f, "Tail level", "%", 0.f, 10.f);
+		configInput(IN_INPUT, "Left (polyphonic inputs are summed)");
+		configInput(IN_R_INPUT, "Right (follows left when unpatched)");
+		configInput(SIZE_INPUT, "Size CV (0-10 V: +0-300 m)");
+		configInput(REVTIME_INPUT, "Reverb time CV (0-10 V: +0-50 s)");
+		configInput(DAMP_INPUT, "Damping CV (0-10 V: full range)");
+		configInput(BANDWIDTH_INPUT, "Input bandwidth CV (0-10 V: full range)");
+		configInput(EARLYLEVEL_INPUT, "Early reflections level CV (0-10 V: full range)");
+		configInput(TAIL_INPUT, "Tail level CV (0-10 V: full range)");
+		configOutput(OUT_L_OUTPUT, "Left");
+		configOutput(OUT_R_OUTPUT, "Right");
+		build(48000.f);
 	}
 
 	~DFUZE() {
-		gverb_free(verb);
+		for (ty_gverb *v : verb)
+			if (v)
+				gverb_free(v);
+	}
+
+	// gverb's delays are counted in samples: rebuilt for each sample rate
+	void build(float sampleRate) {
+		for (int i = 0; i < 2; i++) {
+			if (verb[i])
+				gverb_free(verb[i]);
+			verb[i] = gverb_new((int)sampleRate, 300, 1, 1, 1, 1, 1, 1, 1);
+		}
+		size = -1.f;
+		for (float &a : applied)
+			a = -1.f;
+	}
+
+	void onSampleRateChange(const SampleRateChangeEvent &e) override {
+		build(e.sampleRate);
 	}
 
 	void process(const ProcessArgs &args) override;
 };
 
 void DFUZE::process(const ProcessArgs &args) {
-	gverb_set_roomsize(verb, clamp(params[SIZE_PARAM].value+rescale(inputs[SIZE_INPUT].value,0.0f,10.0f,0.0f,300.0f),0.0f,300.0f));
-	gverb_set_revtime(verb, clamp(params[REVTIME_PARAM].value+rescale(inputs[REVTIME_INPUT].value,0.0f,10.0f,0.0f,50.0f),0.0f,50.0f));
-	gverb_set_damping(verb, clamp(params[DAMP_PARAM].value+inputs[DAMP_INPUT].value,0.0f,0.9f));
-	gverb_set_inputbandwidth(verb, clamp(params[BANDWIDTH_PARAM].value+inputs[BANDWIDTH_INPUT].value,0.0f,1.0f));
-	gverb_set_earlylevel(verb, clamp(rescale(params[EARLYLEVEL_PARAM].value+inputs[EARLYLEVEL_INPUT].value,0.0f,10.0f,0.0f,1.0f),0.0f,1.0f));
-	gverb_set_taillevel(verb, clamp(rescale(params[TAIL_PARAM].value+inputs[TAIL_INPUT].value,0.0f,10.0f,0.0f,1.0f),0.0f,1.0f));
+	// the size glides (50 ms) so a moving size bends the tail instead of clicking
+	float sizeTarget = clamp(params[SIZE_PARAM].getValue() + inputs[SIZE_INPUT].getVoltage() * 30.0f, 1.0f, 300.0f);
+	size = size < 0.f ? sizeTarget : size + (sizeTarget - size) * std::min(1.0f, 1.0f / (0.05f * args.sampleRate));
 
-	gverb_do(verb, inputs[IN_INPUT].value/10.0f, &lOut, &rOut);
-	outputs[OUT_L_OUTPUT].setVoltage(lOut);
-	outputs[OUT_R_OUTPUT].setVoltage(rOut);
+	float values[6] = {
+		size,
+		clamp(params[REVTIME_PARAM].getValue() + inputs[REVTIME_INPUT].getVoltage() * 5.0f, 0.0f, 50.0f),
+		clamp(params[DAMP_PARAM].getValue() + inputs[DAMP_INPUT].getVoltage() * 0.09f, 0.0f, 0.9f),
+		clamp(params[BANDWIDTH_PARAM].getValue() + inputs[BANDWIDTH_INPUT].getVoltage() * 0.1f, 0.0f, 1.0f),
+		clamp((params[EARLYLEVEL_PARAM].getValue() + inputs[EARLYLEVEL_INPUT].getVoltage()) * 0.1f, 0.0f, 1.0f),
+		clamp((params[TAIL_PARAM].getValue() + inputs[TAIL_INPUT].getVoltage()) * 0.1f, 0.0f, 1.0f)
+	};
+	// coefficients worked out again only when a value moves
+	for (int k = 0; k < 6; k++) {
+		if (values[k] == applied[k] || (k == 0 && std::fabs(values[k] - applied[k]) < 1e-4f))
+			continue;
+		applied[k] = values[k];
+		for (ty_gverb *v : verb) {
+			switch (k) {
+				case 0: gverb_set_roomsize(v, values[k]); break;
+				case 1: gverb_set_revtime(v, values[k]); break;
+				case 2: gverb_set_damping(v, values[k]); break;
+				case 3: gverb_set_inputbandwidth(v, values[k]); break;
+				case 4: gverb_set_earlylevel(v, values[k]); break;
+				case 5: gverb_set_taillevel(v, values[k]); break;
+			}
+		}
+	}
+
+	float inL = inputs[IN_INPUT].getVoltageSum();
+	float inR = inputs[IN_R_INPUT].isConnected() ? inputs[IN_R_INPUT].getVoltageSum() : inL;
+	float ll, lr, rl, rr;
+	gverb_do(verb[0], inL * 0.1f, &ll, &lr);
+	gverb_do(verb[1], inR * 0.1f, &rl, &rr);
+	outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(ll * 10.0f));
+	outputs[OUT_R_OUTPUT].setVoltage(bidooSoftLimit(rr * 10.0f));
 }
 
 struct DFUZEWidget : BidooWidget {
@@ -93,8 +150,8 @@ struct DFUZEWidget : BidooWidget {
 		addInput(createInput<PJ301MPort>(Vec(65.0f, 232.0f), module, DFUZE::EARLYLEVEL_INPUT));
 		addInput(createInput<PJ301MPort>(Vec(65.0f, 277.0f), module, DFUZE::TAIL_INPUT));
 
-	 	//Changed ports opposite way around
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 330.0f), module, DFUZE::IN_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(8.0f, 340.0f), module, DFUZE::IN_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(8.0f+22.0f, 340.0f), module, DFUZE::IN_R_INPUT));
 		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f, 340.0f), module, DFUZE::OUT_L_OUTPUT));
 		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f+22.0f, 340.0f), module, DFUZE::OUT_R_OUTPUT));
 	}
