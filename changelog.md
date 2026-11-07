@@ -14,6 +14,7 @@ CPU
 - REI, dFUZE, HCTIP, SpORE, liMonADe, EMILE skip work on silence or with no output patched; lIMbO, HCTIP, ForK, TiARE, maGma, sOUNAiRe lighter
 - Cached displays (fLAME, liMonADe, PILOT, sOUNAiRe); the module browser no longer re-reads settings every frame
 Fixes
+- maGma, oAï: two channels triggered on the same sample that choke each other: the lower channel plays, the higher one is cut (both were cut a sample later)
 - eDsaroS: no NaN at note-off with release 0; enCORE: tracks at speeds 3, 5, 6 or 7 no longer drift; DilEMO hysteresis; PILOT blink and curve display; antN fades
 - sOUNAiRe: no lost stretch voices after many sample swaps, no crash on load during autosave, NaN-safe inputs
 - Samples load while a module is bypassed; cANARd saving no longer freezes the UI

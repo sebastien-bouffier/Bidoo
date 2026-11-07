@@ -458,8 +458,9 @@ struct SliceRun {
 
 // One sample of the 16 voices. sampleOf(i) is the sample voice i plays.
 // Choking: a voice is choked when another voice that is playing (or starts
-// now) names it; a voice starting now is never choked, so the newest note
-// wins whatever the voice order.
+// now) names it; a voice starting now is not choked by a voice already
+// playing, so the newest note wins. Two voices starting on the same sample
+// that choke each other: the lower channel plays, the higher one is cut.
 template <class M, class SampleOf>
 void sliceProcess(M &m, SliceRun &run, const Module::ProcessArgs &args, SampleOf sampleOf) {
 	bool full = run.control.process() || run.first;
@@ -497,6 +498,15 @@ void sliceProcess(M &m, SliceRun &run, const Module::ProcessArgs &args, SampleOf
 		for (int j = 0; j < c; j++)
 			if (rise[j])
 				killedMask &= ~(1u << j);
+		// Two voices starting on the same sample that choke each other (either way):
+		// the lower channel has priority, the higher one does not start.
+		for (int j = 0; j < c; j++) {
+			if (!rise[j])
+				continue;
+			int k = sliceKill(m, m.settings[j], j);
+			if (k >= 0 && k < c && k != j && rise[k])
+				killedMask |= 1u << std::max(j, k);
+		}
 	}
 	int fadeLen = sampleread::declickLength(args.sampleRate);
 	for (int i = 0; i < c; i++) {
