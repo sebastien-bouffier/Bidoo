@@ -24,7 +24,7 @@ The plugin includes the following code, each under its own license, in `src/dep`
 | Code | Author | License | Used by |
 |---|---|---|---|
 | [Signalsmith Stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch) and Signalsmith Linear | Geraint Luff / Signalsmith Audio | MIT (`signalsmith/*/LICENSE.txt`) | sOUNAiRe |
-| [dr_flac and dr_wav](https://github.com/mackron/dr_libs) | David Reid | Public domain or MIT-0 (in the headers) | sOUNAiRe, liMonADe, the samplers |
+| [dr_flac and dr_wav](https://github.com/mackron/dr_libs) | David Reid | Public domain or MIT-0 (in the headers) | sOUNAiRe, cOPIA, liMonADe, the samplers |
 | [AudioFile](https://github.com/adamstark/AudioFile) | Adam Stark | MIT (`AudioFile/LICENSE`) | liMonADe, the samplers |
 | [minimp3](https://github.com/lieff/minimp3) | lieff | CC0 1.0 (`minimp3/LICENSE`) | antN |
 | [FAAD2](https://github.com/knik0/faad2) 2.11.4 | M. Bakker, Nero AG and contributors | GPL-2.0-or-later (`faad2/COPYING`) | antN (AAC) |
@@ -34,7 +34,7 @@ The plugin includes the following code, each under its own license, in `src/dep`
 | [LodePNG](https://github.com/lvandeve/lodepng) | Lode Vandevenne | zlib (in `lodepng.h`) | EMILE, liMonADe |
 | Resampler | Laurent de Soras | LGPL-2.1 (`resampler/license.txt`) | antN, eDsaroS, fLAME, the samplers |
 | [Biquad](https://www.earlevel.com/main/2012/11/26/biquad-c-source-code/) | Nigel Redmon | free to use and modify (in `filters/biquad.h`) | the filters in `filters` |
-| bidoo-dsp (excerpt) | Sébastien Bouffier | GPL-3.0-or-later (`bidoo-dsp/README.md`) | REI |
+| bidoo-dsp (excerpt) | Sébastien Bouffier | GPL-3.0-or-later (`bidoo-dsp/README.md`) | REI, cOPIA, bAFIs, lIMbO |
 
 ## Donate
 

@@ -346,6 +346,17 @@
       ]
     },
     {
+      "slug": "COPIA",
+      "name": "cOPIA",
+      "description": "Live resampler: captures bars of the mix on the clock and remixes them with eight glitch slots, lanes and scenes",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#copia",
+      "tags": [
+        "Effect",
+        "Sampler",
+        "Sequencer"
+      ]
+    },
+    {
       "slug": "HCTIP",
       "name": "HCTIP",
       "description": "Pitch shifter",
