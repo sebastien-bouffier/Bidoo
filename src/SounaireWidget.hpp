@@ -156,6 +156,21 @@ inline void sliceEdit(SOUNAIRE *m, const std::string &name, F edit) {
 	APP->history->push(a);
 }
 
+// The slices as the module last published them, copied again only when its
+// edit counter moves (not every frame under the mutex)
+struct SounaireSliceCache {
+	uint32_t version = UINT32_MAX;
+	sounaire::Slices slices;
+	const sounaire::Slices &get(SOUNAIRE *m) {
+		uint32_t v = m->sliceVersion.load();
+		if (v != version) {
+			slices = m->getSlices();
+			version = v;
+		}
+		return slices;
+	}
+};
+
 // The waveform: markers, loop, playheads; Shift snaps a dragged marker to a zero
 // crossing, Ctrl+Shift+drag picks the region the root note is found in,
 // Alt+click previews the sample from there. The wheel zooms around the mouse,
@@ -364,6 +379,208 @@ struct SounaireDisplay : OpaqueWidget {
 			endDrag();
 	}
 
+	// ---- drawing. The waveform, regions, markers and cuts change only with the
+	// sample, the view or an edit: drawn into a framebuffer then. The playheads
+	// and the text lines go on top of it every frame.
+	struct Wave : Widget {
+		SounaireDisplay *d = nullptr;
+		void draw(const DrawArgs &args) override {
+			d->drawWave(args);
+		}
+	};
+	widget::FramebufferWidget *fb = nullptr;
+	SounaireSliceCache sliceCache;
+	double waveKey[16] = {};
+
+	void step() override {
+		if (!fb) {
+			fb = new widget::FramebufferWidget;
+			Wave *w = new Wave;
+			w->d = this;
+			fb->addChild(w);
+			addChild(fb);
+		}
+		fb->box.pos = Vec(0, 0);
+		fb->box.size = box.size;
+		fb->children.front()->box.size = box.size;
+		if (module) {
+			// what the framebuffer shows: drawn again when any of it moves
+			std::shared_ptr<sounaire::Sample> s = module->displaySample();
+			double k[16] = {(double)(uintptr_t)s.get(), v0, v1,
+			                module->params[SOUNAIRE::START_PARAM].getValue(), module->params[SOUNAIRE::END_PARAM].getValue(),
+			                module->params[SOUNAIRE::LOOP_START_PARAM].getValue(), module->params[SOUNAIRE::LOOP_END_PARAM].getValue(),
+			                module->params[SOUNAIRE::LOOP_MODE_PARAM].getValue() > 0.5f ? 1.0 : 0.0, module->sliceMode() ? 1.0 : 0.0,
+			                (double)module->sliceVersion.load(), (double)module->selectedSlice.load(), module->autoNormalize ? 1.0 : 0.0,
+			                box.size.x, box.size.y, 0.0, 0.0};
+			if (std::memcmp(k, waveKey, sizeof(k)) != 0) {
+				std::memcpy(waveKey, k, sizeof(k));
+				fb->setDirty();
+			}
+		}
+		OpaqueWidget::step();
+	}
+
+	// layer 0: nothing (the framebuffer is drawn on the light layer, with the rest)
+	void draw(const DrawArgs &args) override {
+	}
+
+	// the static part, into the framebuffer
+	void drawWave(const DrawArgs &args) {
+		using namespace sounaire_ui;
+		if (!module)
+			return;
+		std::shared_ptr<sounaire::Sample> s = module->displaySample();
+		if (!s || s->ovMin.empty() || s->frames <= 1)
+			return;
+		std::shared_ptr<window::Font> f = APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
+		float W = box.size.x, H = box.size.y;
+		float B = H - 13.f;
+		float mid = (14.f + B) * 0.5f, amp = (B - 14.f) * 0.46f;
+		bool slicing = module->sliceMode();
+		const sounaire::Slices &cuts = sliceCache.get(module);
+		int sel = clamp((int)module->selectedSlice, 0, cuts.count - 1);
+		double F = (double)s->frames;
+		float st = module->params[SOUNAIRE::START_PARAM].getValue(), en = module->params[SOUNAIRE::END_PARAM].getValue();
+		float a = posToX(std::min(st, en)), b = posToX(std::max(st, en));
+		if (slicing) {
+			// the whole sample plays; the selected slice is shaded
+			a = -1.f;
+			b = W + 1.f;
+			float sx0 = posToX(cuts.start[sel] / F), sx1 = posToX(cuts.end(sel, s->frames) / F);
+			nvgBeginPath(args.vg);
+			nvgRect(args.vg, sx0, 14, sx1 - sx0, B - 14);
+			nvgFillColor(args.vg, nvgRGBA(0xF0, 0x62, 0x2F, 0x38));
+			nvgFill(args.vg);
+		}
+		// loop region
+		bool looping = !slicing && module->params[SOUNAIRE::LOOP_MODE_PARAM].getValue() > 0.5f;
+		if (looping) {
+			float ls = module->params[SOUNAIRE::LOOP_START_PARAM].getValue(), le = module->params[SOUNAIRE::LOOP_END_PARAM].getValue();
+			float x0 = posToX(std::min(ls, le)), x1 = posToX(std::max(ls, le));
+			nvgBeginPath(args.vg);
+			nvgRect(args.vg, x0, 14, x1 - x0, B - 14);
+			nvgFillColor(args.vg, nvgRGBA(0x2F, 0x55, 0xD4, 0x40));
+			nvgFill(args.vg);
+		}
+		// waveform, normalized as it plays: from the overview when a pixel
+		// covers more than an overview bin, from the frames when zoomed in; one
+		// path for the part that plays, one for the rest
+		float norm = (module->autoNormalize && s->peak > 1e-6f) ? 0.891f / s->peak : 1.f;
+		int n = (int)s->ovMin.size();
+		double bin = F / n;
+		int cols = std::max(0, (int)W);
+		std::vector<float> los((size_t)cols), his((size_t)cols);
+		for (int i = 0; i < cols; i++) {
+			double f0 = (v0 + (v1 - v0) * i / W) * F, f1 = (v0 + (v1 - v0) * (i + 1) / W) * F;
+			float lo = 1.f, hi = -1.f;
+			if (f1 - f0 >= bin) {
+				int k0 = (int)(f0 / bin), k1 = std::max(k0 + 1, (int)(f1 / bin));
+				for (int k = k0; k < k1 && k < n; k++) {
+					lo = std::min(lo, s->ovMin[k]);
+					hi = std::max(hi, s->ovMax[k]);
+				}
+			}
+			else {
+				int64_t j0 = (int64_t)f0, j1 = std::max(j0 + 1, (int64_t)std::ceil(f1));
+				for (int64_t j = j0; j <= j1 && j < s->frames; j++) {
+					float x = s->mono(j);
+					lo = std::min(lo, x);
+					hi = std::max(hi, x);
+				}
+			}
+			los[(size_t)i] = lo;
+			his[(size_t)i] = hi;
+		}
+		for (int pass = 0; pass < 2; pass++) {
+			nvgBeginPath(args.vg);
+			for (int i = 0; i < cols; i++) {
+				float lo = los[(size_t)i], hi = his[(size_t)i];
+				if (hi < lo || (i >= a && i <= b) != (pass == 0))
+					continue;
+				lo = clamp(lo * norm, -1.f, 1.f);
+				hi = clamp(hi * norm, -1.f, 1.f);
+				nvgRect(args.vg, i, mid - hi * amp, 1.f, std::max(1.f, (hi - lo) * amp));
+			}
+			nvgFillColor(args.vg, pass == 0 ? BLUE : nvgRGBA(0x2F, 0x55, 0xD4, 0x55));
+			nvgFill(args.vg);
+		}
+		// SLICES mode: the cuts, each slice numbered
+		if (slicing) {
+			nvgBeginPath(args.vg);
+			for (int i = 0; i < cuts.count; i++) {
+				float x = posToX(cuts.start[i] / F);
+				float next = posToX(cuts.end(i, s->frames) / F);
+				if (next < 0.f || x > W || i == sel)
+					continue;
+				nvgMoveTo(args.vg, x, 14);
+				nvgLineTo(args.vg, x, B);
+			}
+			nvgStrokeColor(args.vg, PAPER);
+			nvgStrokeWidth(args.vg, 1.f);
+			nvgStroke(args.vg);
+			float xs = posToX(cuts.start[sel] / F);
+			nvgBeginPath(args.vg);
+			nvgMoveTo(args.vg, xs, 14);
+			nvgLineTo(args.vg, xs, B);
+			nvgStrokeColor(args.vg, ORANGE);
+			nvgStroke(args.vg);
+			if (f && f->handle >= 0) {
+				nvgFontFaceId(args.vg, f->handle);
+				nvgFontSize(args.vg, 8.f);
+				nvgTextAlign(args.vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
+				for (int i = 0; i < cuts.count; i++) {
+					float x = posToX(cuts.start[i] / F);
+					float next = posToX(cuts.end(i, s->frames) / F);
+					if (next < 0.f || x > W || next - x <= 9.f)
+						continue;
+					nvgFillColor(args.vg, i == sel ? ORANGE : PAPER);
+					nvgText(args.vg, std::max(x, 0.f) + 2, 15, std::to_string(i + 1).c_str(), nullptr);
+				}
+			}
+		}
+		else {
+			// start and end
+			nvgBeginPath(args.vg);
+			for (int id : {SOUNAIRE::START_PARAM, SOUNAIRE::END_PARAM}) {
+				float x = posToX(module->params[id].getValue());
+				nvgMoveTo(args.vg, x, 14);
+				nvgLineTo(args.vg, x, B);
+			}
+			nvgStrokeColor(args.vg, PAPER);
+			nvgStrokeWidth(args.vg, 1.f);
+			nvgStroke(args.vg);
+			nvgBeginPath(args.vg);
+			for (int id : {SOUNAIRE::START_PARAM, SOUNAIRE::END_PARAM}) {
+				float x = posToX(module->params[id].getValue());
+				float dir = id == SOUNAIRE::START_PARAM ? 1.f : -1.f;
+				nvgMoveTo(args.vg, x, 14);
+				nvgLineTo(args.vg, x + 5 * dir, 14);
+				nvgLineTo(args.vg, x, 20);
+				nvgClosePath(args.vg);
+			}
+			nvgFillColor(args.vg, PAPER);
+			nvgFill(args.vg);
+			if (looping) {
+				nvgBeginPath(args.vg);
+				for (int id : {SOUNAIRE::LOOP_START_PARAM, SOUNAIRE::LOOP_END_PARAM}) {
+					float x = posToX(module->params[id].getValue());
+					nvgMoveTo(args.vg, x, 14);
+					nvgLineTo(args.vg, x, B);
+				}
+				nvgStrokeColor(args.vg, ORANGE);
+				nvgStrokeWidth(args.vg, 1.f);
+				nvgStroke(args.vg);
+			}
+		}
+		// zoomed: where the view is in the sample
+		if (v1 - v0 < 0.999) {
+			nvgBeginPath(args.vg);
+			nvgRect(args.vg, (float)v0 * W, B - 2, std::max(2.f, (float)(v1 - v0) * W), 2);
+			nvgFillColor(args.vg, ORANGE);
+			nvgFill(args.vg);
+		}
+	}
+
 	void drawLayer(const DrawArgs &args, int layer) override {
 		using namespace sounaire_ui;
 		if (layer != 1) {
@@ -375,7 +592,7 @@ struct SounaireDisplay : OpaqueWidget {
 		nvgRoundedRect(args.vg, 0, 0, W, H, 3);
 		nvgFillColor(args.vg, INK);
 		nvgFill(args.vg);
-		if (!module) {
+		if (!module || !fb) {
 			OpaqueWidget::drawLayer(args, layer);
 			return;
 		}
@@ -383,142 +600,28 @@ struct SounaireDisplay : OpaqueWidget {
 		std::shared_ptr<window::Font> f = APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
 		nvgSave(args.vg);
 		nvgScissor(args.vg, 0, 0, W, H);
+		drawChild(fb, args);
 		// the sample on the top line, the playing information on a line under
 		// the waveform, so a long name never runs into it
 		float B = H - 13.f;
-		float mid = (14.f + B) * 0.5f, amp = (B - 14.f) * 0.46f;
 		bool slicing = module->sliceMode();
-		sounaire::Slices cuts = module->getSlices();
+		const sounaire::Slices &cuts = sliceCache.get(module);
 		int sel = clamp((int)module->selectedSlice, 0, cuts.count - 1);
-		if (s && !s->ovMin.empty() && s->frames > 1) {
-			double F = (double)s->frames;
-			float st = module->params[SOUNAIRE::START_PARAM].getValue(), en = module->params[SOUNAIRE::END_PARAM].getValue();
-			float a = posToX(std::min(st, en)), b = posToX(std::max(st, en));
-			if (slicing) {
-				// the whole sample plays; the selected slice is shaded
-				a = -1.f;
-				b = W + 1.f;
-				float sx0 = posToX(cuts.start[sel] / F), sx1 = posToX(cuts.end(sel, s->frames) / F);
-				nvgBeginPath(args.vg);
-				nvgRect(args.vg, sx0, 14, sx1 - sx0, B - 14);
-				nvgFillColor(args.vg, nvgRGBA(0xF0, 0x62, 0x2F, 0x38));
-				nvgFill(args.vg);
-			}
-			// loop region
-			if (!slicing && module->params[SOUNAIRE::LOOP_MODE_PARAM].getValue() > 0.5f) {
-				float ls = module->params[SOUNAIRE::LOOP_START_PARAM].getValue(), le = module->params[SOUNAIRE::LOOP_END_PARAM].getValue();
-				float x0 = posToX(std::min(ls, le)), x1 = posToX(std::max(ls, le));
-				nvgBeginPath(args.vg);
-				nvgRect(args.vg, x0, 14, x1 - x0, B - 14);
-				nvgFillColor(args.vg, nvgRGBA(0x2F, 0x55, 0xD4, 0x40));
-				nvgFill(args.vg);
-			}
-			// waveform, normalized as it plays: from the overview when a pixel
-			// covers more than an overview bin, from the frames when zoomed in
-			float norm = (module->autoNormalize && s->peak > 1e-6f) ? 0.891f / s->peak : 1.f;
-			int n = (int)s->ovMin.size();
-			double bin = F / n;
-			for (int i = 0; i < (int)W; i++) {
-				double f0 = (v0 + (v1 - v0) * i / W) * F, f1 = (v0 + (v1 - v0) * (i + 1) / W) * F;
-				float lo = 1.f, hi = -1.f;
-				if (f1 - f0 >= bin) {
-					int k0 = (int)(f0 / bin), k1 = std::max(k0 + 1, (int)(f1 / bin));
-					for (int k = k0; k < k1 && k < n; k++) {
-						lo = std::min(lo, s->ovMin[k]);
-						hi = std::max(hi, s->ovMax[k]);
-					}
-				}
-				else {
-					int64_t j0 = (int64_t)f0, j1 = std::max(j0 + 1, (int64_t)std::ceil(f1));
-					for (int64_t j = j0; j <= j1 && j < s->frames; j++) {
-						float x = s->mono(j);
-						lo = std::min(lo, x);
-						hi = std::max(hi, x);
-					}
-				}
-				if (hi < lo)
-					continue;
-				lo = clamp(lo * norm, -1.f, 1.f);
-				hi = clamp(hi * norm, -1.f, 1.f);
-				bool inside = i >= a && i <= b;
-				nvgBeginPath(args.vg);
-				nvgRect(args.vg, i, mid - hi * amp, 1.f, std::max(1.f, (hi - lo) * amp));
-				nvgFillColor(args.vg, inside ? BLUE : nvgRGBA(0x2F, 0x55, 0xD4, 0x55));
-				nvgFill(args.vg);
-			}
-			// SLICES mode: the cuts, each slice numbered
-			if (slicing && f && f->handle >= 0) {
-				nvgFontFaceId(args.vg, f->handle);
-				nvgFontSize(args.vg, 8.f);
-				nvgTextAlign(args.vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
-				for (int i = 0; i < cuts.count; i++) {
-					float x = posToX(cuts.start[i] / F);
-					float next = posToX(cuts.end(i, s->frames) / F);
-					if (next < 0.f || x > W)
-						continue;
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, x, 14);
-					nvgLineTo(args.vg, x, B);
-					nvgStrokeColor(args.vg, i == sel ? ORANGE : PAPER);
-					nvgStrokeWidth(args.vg, 1.f);
-					nvgStroke(args.vg);
-					if (next - x > 9.f) {
-						nvgFillColor(args.vg, i == sel ? ORANGE : PAPER);
-						nvgText(args.vg, std::max(x, 0.f) + 2, 15, std::to_string(i + 1).c_str(), nullptr);
-					}
-				}
-			}
-			// start and end
-			for (int id : {SOUNAIRE::START_PARAM, SOUNAIRE::END_PARAM}) {
-				if (slicing)
-					break;
-				float x = posToX(module->params[id].getValue());
-				nvgBeginPath(args.vg);
-				nvgMoveTo(args.vg, x, 14);
-				nvgLineTo(args.vg, x, B);
-				nvgStrokeColor(args.vg, PAPER);
-				nvgStrokeWidth(args.vg, 1.f);
-				nvgStroke(args.vg);
-				nvgBeginPath(args.vg);
-				float dir = id == SOUNAIRE::START_PARAM ? 1.f : -1.f;
-				nvgMoveTo(args.vg, x, 14);
-				nvgLineTo(args.vg, x + 5 * dir, 14);
-				nvgLineTo(args.vg, x, 20);
-				nvgClosePath(args.vg);
-				nvgFillColor(args.vg, PAPER);
-				nvgFill(args.vg);
-			}
-			if (!slicing && module->params[SOUNAIRE::LOOP_MODE_PARAM].getValue() > 0.5f) {
-				for (int id : {SOUNAIRE::LOOP_START_PARAM, SOUNAIRE::LOOP_END_PARAM}) {
-					float x = posToX(module->params[id].getValue());
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, x, 14);
-					nvgLineTo(args.vg, x, B);
-					nvgStrokeColor(args.vg, ORANGE);
-					nvgStrokeWidth(args.vg, 1.f);
-					nvgStroke(args.vg);
-				}
-			}
-			// where the voices are
+		if (s && s->frames > 1) {
+			// where the voices are (a voice may play a copy at the engine's rate:
+			// its position goes through its own length)
 			for (int i = 0; i < sounaire::Engine::SLOTS; i++) {
 				const sounaire::Voice &v = module->engine.voices[i];
-				if (!v.active || v.sample != s.get())
+				if (!v.active || v.origin != s.get() || v.frames <= 1)
 					continue;
 				double pos = v.head.v;
 				bool reversed = v.ownRegion ? v.region.reverse : module->params[SOUNAIRE::REVERSE_PARAM].getValue() > 0.5f;
 				if (reversed && i != sounaire::Engine::PREVIEW)
-					pos = F - 1 - pos;
-				float x = posToX(pos / F);
+					pos = v.frames - 1 - pos;
+				float x = posToX(pos / v.frames);
 				nvgBeginPath(args.vg);
 				nvgRect(args.vg, x, 14, 1.f, B - 14);
-				nvgFillColor(args.vg, nvgRGBA(0xF2, 0xEE, 0xE4, (unsigned char)(80 + 175 * v.env)));
-				nvgFill(args.vg);
-			}
-			// zoomed: where the view is in the sample
-			if (v1 - v0 < 0.999) {
-				nvgBeginPath(args.vg);
-				nvgRect(args.vg, (float)v0 * W, B - 2, std::max(2.f, (float)(v1 - v0) * W), 2);
-				nvgFillColor(args.vg, ORANGE);
+				nvgFillColor(args.vg, nvgRGBA(0xF2, 0xEE, 0xE4, (unsigned char)(80 + 175 * clamp(v.env, 0.f, 1.f))));
 				nvgFill(args.vg);
 			}
 		}
@@ -537,12 +640,13 @@ struct SounaireDisplay : OpaqueWidget {
 			nvgTextAlign(args.vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
 			std::string line;
 			float rec = module->recSeconds;
+			std::string error = module->getLastError();
 			if (rec > 0.f)
 				line = string::f("RECORDING  %.1f s", rec);
 			else if (module->loading)
 				line = "LOADING...";
-			else if (!module->lastError.empty())
-				line = module->lastError;
+			else if (!error.empty())
+				line = error;
 			else if (s)
 				line = string::f("%s  %.1f kHz  %.2f s", s->name.c_str(), s->rate / 1000.f, s->frames / s->rate);
 			else
@@ -592,6 +696,7 @@ struct SounaireDisplay : OpaqueWidget {
 struct SounaireKeys : OpaqueWidget {
 	SOUNAIRE *module = nullptr;
 	SounaireDisplay *display = nullptr;
+	SounaireSliceCache sliceCache;
 	float dragX = 0.f, dragY = 0.f;
 	int clicked = -1;
 	int octaveShift = 0;
@@ -764,14 +869,14 @@ struct SounaireKeys : OpaqueWidget {
 			nvgFill(args.vg);
 			return;
 		}
-		sounaire::Slices u = module->getSlices();
+		const sounaire::Slices &u = sliceCache.get(module);
 		int sel = clamp((int)module->selectedSlice, 0, u.count - 1);
 		int base = (int)module->params[SOUNAIRE::ROOT_PARAM].getValue();
 		// how loud each slice sounds now
 		float lit[sounaire::MAX_SLICES] = {};
 		for (int i = 0; i < sounaire::Engine::SLOTS; i++) {
 			const sounaire::Voice &v = module->engine.voices[i];
-			if (v.active && v.slice >= 0 && v.slice < u.count && v.sample == s.get())
+			if (v.active && v.slice >= 0 && v.slice < u.count && v.origin == s.get())
 				lit[v.slice] = std::max(lit[v.slice], v.env * v.fadeGain);
 		}
 		double F = (double)s->frames;
@@ -884,6 +989,7 @@ struct SOUNAIREWidget : BidooWidget {
 	SOUNAIREWidget(SOUNAIRE *module) {
 		using namespace sounaire_ui;
 		setModule(module);
+		themable = false; // the Riso panel has no other look
 		prepareThemes(asset::plugin(pluginInstance, "res/SOUNAIRE.svg"));
 		SounaireDisplay *display = new SounaireDisplay;
 		display->module = module;
@@ -1000,7 +1106,8 @@ struct SOUNAIREWidget : BidooWidget {
 		}));
 		menu->addChild(createMenuItem("Export the sample as WAV...", "", [=]() {
 			osdialog_filters *filters = osdialog_filters_parse("WAV:wav");
-			std::string stem = rack::system::getStem(m->sampleName.empty() ? std::string("sample") : m->sampleName);
+			std::string name = m->getSampleName();
+			std::string stem = rack::system::getStem(name.empty() ? std::string("sample") : name);
 			char *path = osdialog_file(OSDIALOG_SAVE, nullptr, (stem + ".wav").c_str(), filters);
 			osdialog_filters_free(filters);
 			if (path) {
@@ -1015,6 +1122,7 @@ struct SOUNAIREWidget : BidooWidget {
 		menu->addChild(createBoolPtrMenuItem("Normalize the sample", "", &m->autoNormalize));
 		menu->addChild(createBoolPtrMenuItem("Find the root note when loading", "", &m->autoRoot));
 		menu->addChild(createBoolPtrMenuItem("Polyphonic outputs (one channel per voice)", "", &m->polyOut));
+		menu->addChild(createBoolPtrMenuItem("Equal-power loop crossfade (off: linear)", "", &m->xfadeEqualPower));
 		menu->addChild(createIndexSubmenuItem("Pitch bend range", {"1 semitone", "2 semitones", "7 semitones", "12 semitones", "24 semitones"},
 			[=]() { int r[] = {1, 2, 7, 12, 24}; for (int i = 0; i < 5; i++) if (r[i] == m->bendRange) return i; return 1; },
 			[=](size_t i) { int r[] = {1, 2, 7, 12, 24}; m->bendRange = r[i]; }));

@@ -58,8 +58,7 @@ struct DTROY : BidooModule {
 	enum LightIds {
 		RUNNING_LIGHT,
 		RESET_LIGHT,
-		GATE_LIGHT,
-		STEPS_LIGHTS = GATE_LIGHT + 8,
+		STEPS_LIGHTS, // 8: each step's flash, not drawn: MetroSeq fades it into the slide and skip lights
 		SLIDES_LIGHTS = STEPS_LIGHTS + 8,
 		SKIPS_LIGHTS = SLIDES_LIGHTS + 8,
 		COPY_LIGHT = SKIPS_LIGHTS + 8,
@@ -124,42 +123,37 @@ struct DTROY : BidooModule {
 
 struct DTROYDisplay : TransparentWidget {
 	DTROY *module;
-	int frame = 0;
-
-	std::string note, scale, steps, playMode, selectedPattern, playedPattern;
 
 	DTROYDisplay() {
 
 	}
 
-	void drawMessage(NVGcontext *vg, Vec pos, std::string note, std::string playMode, std::string selectedPattern, std::string playedPattern, std::string steps, std::string scale) {
+	// No strings built per frame: labels are static, numbers go through snprintf.
+	void drawMessage(NVGcontext *vg, Vec pos, const char *note, const char *playMode, const char *selectedPattern, const char *playedPattern, const char *steps, const char *scale) {
 		nvgFontSize(vg, 18.0f);
 		nvgFillColor(vg, YELLOW_BIDOO);
-		nvgText(vg, pos.x + 3.0f, pos.y + 8.0f, playMode.c_str(), NULL);
+		nvgText(vg, pos.x + 3.0f, pos.y + 8.0f, playMode, NULL);
 		nvgFontSize(vg, 14.0f);
-		nvgText(vg, pos.x + 114.0f, pos.y + 7.0f, selectedPattern.c_str(), NULL);
+		nvgText(vg, pos.x + 114.0f, pos.y + 7.0f, selectedPattern, NULL);
 
-		nvgText(vg, pos.x + 30.0f, pos.y + 7.0f, steps.c_str(), NULL);
-		nvgText(vg, pos.x + 3.0f, pos.y + 21.0f, note.c_str(), NULL);
-		nvgText(vg, pos.x + 25.0f, pos.y + 21.0f, scale.c_str(), NULL);
+		nvgText(vg, pos.x + 30.0f, pos.y + 7.0f, steps, NULL);
+		nvgText(vg, pos.x + 3.0f, pos.y + 21.0f, note, NULL);
+		nvgText(vg, pos.x + 25.0f, pos.y + 21.0f, scale, NULL);
 
-		if (++frame <= 30) {
-			nvgText(vg, pos.x + 90.0f, pos.y + 7.0f, playedPattern.c_str(), NULL);
-		}
-		else if (++frame>60) {
-			frame = 0;
-		}
+		// The played pattern blinks: 0.5 s shown, 0.25 s hidden, whatever the frame rate.
+		if (std::fmod(system::getTime(), 0.75) < 0.5)
+			nvgText(vg, pos.x + 90.0f, pos.y + 7.0f, playedPattern, NULL);
 	}
 
-	std::string displayRootNote(int value) {
+	static const char *displayRootNote(int value) {
 		return quantizer::rootNotes[value+1].label.c_str();
 	}
 
-	std::string displayScale(int value) {
+	static const char *displayScale(int value) {
 		return quantizer::scales[value].label.c_str();
 	}
 
-	std::string displayPlayMode(int value) {
+	static const char *displayPlayMode(int value) {
 		switch(value){
 			case 0: return "►";
 			case 1: return "◄";
@@ -173,14 +167,13 @@ struct DTROYDisplay : TransparentWidget {
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
 			if (module) {
-	      note = displayRootNote(module->engine.patterns[module->engine.selectedPattern].rootNote);
-	  		steps = (module->engine.patterns[module->engine.selectedPattern].countMode == 0 ? "steps:" : "pulses:" ) + to_string(module->engine.patterns[module->engine.selectedPattern].numberOfStepsParam);
-	  		playMode = displayPlayMode(module->engine.patterns[module->engine.selectedPattern].playMode);
-	  		scale = displayScale(module->engine.patterns[module->engine.selectedPattern].scale);
-	  		selectedPattern = "P" + to_string(module->engine.selectedPattern + 1);
-	  		playedPattern = "P" + to_string(module->engine.playedPattern + 1);
-	  		drawMessage(args.vg, Vec(0, 20), note, playMode, selectedPattern, playedPattern, steps, scale);
-	    }
+				const MetroPattern &p = module->engine.patterns[module->engine.selectedPattern];
+				char steps[16], selectedPattern[8], playedPattern[8];
+				snprintf(steps, sizeof(steps), "%s%d", p.countMode == 0 ? "steps:" : "pulses:", p.numberOfStepsParam);
+				snprintf(selectedPattern, sizeof(selectedPattern), "P%d", module->engine.selectedPattern + 1);
+				snprintf(playedPattern, sizeof(playedPattern), "P%d", module->engine.playedPattern + 1);
+				drawMessage(args.vg, Vec(0.0f, 20.0f), displayRootNote(p.rootNote), displayPlayMode(p.playMode), selectedPattern, playedPattern, steps, displayScale(p.scale));
+			}
 		}
 		Widget::drawLayer(args, layer);
 	}

@@ -42,6 +42,7 @@ struct MOIRE : BidooModule {
 	float currentValues[16] = {0.0f};
 	int controlTypes[16] = {0};
 	bool controlFocused[16] = {false};
+	dsp::ClockDivider lightDivider;
 
 	dsp::SchmittTrigger typeTriggers[16];
 	dsp::SchmittTrigger rndTrigger, saveTrigger, targetTrigger, currentTrigger;
@@ -58,6 +59,7 @@ struct MOIRE : BidooModule {
 		paramQuantities[CURRENTSCENE_PARAM]->snapEnabled = true;
 		configParam(MORPH_PARAM, 0.0f, 10.0f, 0.0f, "Morph", "%", 0.f, 10.f);
 		configSwitch(VOLTAGE_PARAM, 0.0f, 1.0f, 0.0f, "Output range", {"0 to 10 V", "-5 to 5 V"});
+		lightDivider.setDivision(16);
 		for (int i = 0; i < 16; i++) {
 			std::string n = "Control " + std::to_string(i + 1);
 			configParam(CONTROLS_PARAMS + i, 0.0f, 10.0f, 0.0f, n, " V");
@@ -98,6 +100,7 @@ struct MOIRE : BidooModule {
 				scenes[i][j]=0.0f;
 			}
 			controlTypes[i] = 0.0f;
+			controlFocused[i] = false;
 		}
 	}
 
@@ -170,11 +173,13 @@ void MOIRE::process(const ProcessArgs &args) {
 		randomizeTargetScene();
 	}
 
+	bool lightsNow = lightDivider.process();
 	for (int i = 0; i < 16; i++) {
 		if (typeTriggers[i].process(params[TYPE_PARAMS + i].getValue())) {
 			controlTypes[i] = controlTypes[i] == 0 ? 1 : 0;
 		}
-		lights[TYPE_LIGHTS + i].setBrightness(controlTypes[i]);
+		if (lightsNow)
+			lights[TYPE_LIGHTS + i].setBrightness(controlTypes[i]);
 	}
 
 	float coeff = clamp(inputs[MORPH_INPUT].getVoltage() + params[MORPH_PARAM].getValue(), 0.0f, 10.0f);

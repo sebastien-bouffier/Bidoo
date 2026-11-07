@@ -318,6 +318,13 @@ struct LIMONADE : BidooModule {
 	std::atomic<wtPlayTable*> pending{nullptr};
 	std::atomic<wtPlayTable*> retired{nullptr};
 	wtPlayTable *current = nullptr;
+	// the table before the last one taken, faded out over 10 ms, then retired
+	wtPlayTable *previous = nullptr;
+	float previousGain = 0.f;
+	// bumped on each new play table: the displays copy from the editable table
+	// only when it, or the frame they show, changes
+	std::atomic<uint32_t> tableVersion{0};
+	std::atomic<size_t> tableFrames{0};
 
 	// Recording: the audio thread fills iRec, then hands it to the worker.
 	std::vector<float> iRec;
@@ -397,6 +404,7 @@ struct LIMONADE : BidooModule {
 		if (worker.joinable())
 			worker.join();
 		delete current;
+		delete previous;
 		delete pending.load();
 		delete retired.load();
 	}
@@ -422,8 +430,9 @@ struct LIMONADE : BidooModule {
 			std::deque<std::function<void(wtTable&)>> todo;
 			{
 				std::unique_lock<std::mutex> lock(jobMutex);
-				// The audio thread cannot notify without locking, so also poll for its ops.
-				jobCv.wait_for(lock, std::chrono::milliseconds(5), [&]{ return quit || !jobs.empty() || rebuildRequested; });
+				// The audio thread cannot notify without locking, so also poll for its
+				// ops (buttons, recordings): 20 ms is quicker than a click is felt.
+				jobCv.wait_for(lock, std::chrono::milliseconds(20), [&]{ return quit || !jobs.empty() || rebuildRequested; });
 				todo.swap(jobs);
 			}
 			if (quit)
@@ -455,6 +464,8 @@ struct LIMONADE : BidooModule {
 		wtPlayTable *t = new wtPlayTable();
 		t->build(samples.data(), n);
 		delete pending.exchange(t);
+		tableFrames = n;
+		tableVersion++;
 	}
 
 	// Worker thread, under tableMutex.
@@ -642,11 +653,17 @@ struct LIMONADE : BidooModule {
 };
 
 void LIMONADE::process(const ProcessArgs &args) {
-	// Take the newest play table, once the worker has freed the previous one.
-	if (pending.load(std::memory_order_relaxed) && !retired.load(std::memory_order_acquire)) {
+	// Take the newest play table, once the worker has freed the one before and
+	// the last crossfade is over; the one playing until now fades out (10 ms).
+	if (!previous && pending.load(std::memory_order_relaxed) && !retired.load(std::memory_order_acquire)) {
 		wtPlayTable *p = pending.exchange(nullptr, std::memory_order_acq_rel);
 		if (p) {
-			retired.store(current, std::memory_order_release);
+			if (current && current->nFrames > 0 && p->nFrames > 0 && outputs[OUT].isConnected()) {
+				previous = current;
+				previousGain = 1.f;
+			}
+			else
+				retired.store(current, std::memory_order_release);
 			current = p;
 		}
 	}
@@ -729,7 +746,13 @@ void LIMONADE::process(const ProcessArgs &args) {
 	}
 
 	outputs[OUT].setChannels(channels);
-	if (!current || current->nFrames == 0) {
+	// nothing to play, or nobody listening (recording goes on above)
+	if (!current || current->nFrames == 0 || !outputs[OUT].isConnected()) {
+		if (previous) {
+			retired.store(previous, std::memory_order_release);
+			previous = nullptr;
+		}
+		playedPos.store(clamp(params[WTINDEX_PARAM].getValue() + inputs[WTINDEX_INPUT].getPolyVoltage(0) * params[WTINDEXATT_PARAM].getValue() * 0.1f, 0.f, 1.f), std::memory_order_relaxed);
 		for (int c = 0; c < channels; c++)
 			outputs[OUT].setVoltage(0.f, c);
 		return;
@@ -742,7 +765,9 @@ void LIMONADE::process(const ProcessArgs &args) {
 	float wtAtt = params[WTINDEXATT_PARAM].getValue() * 0.1f;
 	float urParam = params[UNISSONRANGE_PARAM].getValue();
 	// Mipmap level k keeps 1024 >> k harmonics: the lowest level that does not
-	// alias at frequency f is ceil(log2(f * FS / sampleRate)).
+	// alias at frequency f is ceil(log2(f * FS / sampleRate)). Over the upper
+	// half of that octave the next level fades in, so the top harmonics fade
+	// out with the pitch instead of dropping at the boundary.
 	if (args.sampleRate != levelSampleRate) {
 		levelBase = std::log2(dsp::FREQ_C4 * FS / args.sampleRate);
 		levelSampleRate = args.sampleRate;
@@ -777,12 +802,18 @@ void LIMONADE::process(const ProcessArgs &args) {
 			sy[j] = sync[c];
 		}
 		float_4 freq = dsp::FREQ_C4 * dsp::approxExp2_taylor5(p + 30.f) / 1073741824.f;
-		float_4 level = simd::clamp(-simd::floor(-(p + levelBase)), 0.f, (float)(WT_LEVELS - 1));
+		float_4 lv = p + levelBase;
+		float_4 k0 = simd::floor(lv);
+		float_4 level = simd::clamp(k0 + 1.f, 0.f, (float)(WT_LEVELS - 1));
+		float_4 w = simd::clamp(2.f * (lv - k0) - 1.f, 0.f, 1.f);
+		w = simd::ifelse(k0 + 1.f < 0.f, float_4(0.f), w);
 
 		wtOscillator<float_4> &osc = oscillators[g];
 		osc.soft = soft;
 		osc.syncEnabled = syncConnected;
-		float_4 out = osc.process(current, args.sampleTime, freq, ps, level, sy, n);
+		float_4 out = osc.process(current, args.sampleTime, freq, ps, level, w, sy, n);
+		if (previous)
+			out += (osc.readNow(previous, ps, level, w, n) - out) * previousGain;
 		for (int j = 0; j < n; j++)
 			sum[laneChannel[4 * g + j]] += out[j];
 	}
@@ -790,6 +821,14 @@ void LIMONADE::process(const ProcessArgs &args) {
 	float gain = 5.f / voices;
 	for (int c = 0; c < channels; c++)
 		outputs[OUT].setVoltage(clamp(sum[c] * gain, -10.f, 10.f), c);
+
+	if (previous) {
+		previousGain -= 1.f / (0.01f * args.sampleRate);
+		if (previousGain <= 0.f) {
+			retired.store(previous, std::memory_order_release);
+			previous = nullptr;
+		}
+	}
 }
 
 struct LIMONADEBinsDisplay : OpaqueWidget {
@@ -858,12 +897,32 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
     OpaqueWidget::onDragEnd(e);
   }
 
-	void copyFromTable() {
+	// what was copied last: copied again only when one of these changes
+	uint32_t copiedVersion = 0;
+	size_t copiedEdited = (size_t)-1, copiedPlayed = (size_t)-1;
+	bool copiedOnce = false;
+
+	static size_t frameAt(float pos, size_t n) {
+		return n == 0 ? 0 : std::min((size_t)(clamp(pos, 0.f, 1.f) * (n - 1)), n - 1);
+	}
+
+	// true if something new was copied
+	bool copyFromTable() {
+		uint32_t version = module->tableVersion.load();
+		size_t n = module->tableFrames.load();
+		size_t e = frameAt(module->params[LIMONADE::INDEX_PARAM].getValue(), n);
+		size_t p = frameAt(module->playedPos, n);
+		if (copiedOnce && version == copiedVersion && e == copiedEdited && p == copiedPlayed)
+			return false;
+		copiedOnce = true;
+		copiedVersion = version;
+		copiedEdited = e;
+		copiedPlayed = p;
 		std::lock_guard<std::mutex> lock(module->tableMutex);
 		const wtTable &table = module->table;
 		nFrames = table.nFrames;
 		if (nFrames == 0)
-			return;
+			return true;
 		editedFrame = table.frameAt(module->params[LIMONADE::INDEX_PARAM].getValue());
 		const wtFrame &edited = table.frames[editedFrame];
 		std::copy(edited.magnitude.begin(), edited.magnitude.end(), magnitude.begin());
@@ -871,6 +930,7 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 		std::copy(edited.sample.begin(), edited.sample.end(), editedSample.begin());
 		const wtFrame &played = table.frames[table.frameAt(module->playedPos)];
 		std::copy(played.sample.begin(), played.sample.end(), playedSample.begin());
+		return true;
 	}
 
 	void drawWave(const DrawArgs& args, const std::vector<float> &sample, NVGcolor color) {
@@ -891,80 +951,119 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 		nvgStroke(args.vg);
 	}
 
-	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer == 1) {
-			if (module) {
-				copyFromTable();
-				nvgSave(args.vg);
-				size_t tag=1;
+	// the drawing, into the framebuffer: redrawn only when the copy, the
+	// scroll or the display switches change
+	void drawContent(const DrawArgs& args) {
+		if (!module)
+			return;
+		nvgSave(args.vg);
+		size_t tag = 1;
 
-				Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, heightMagn + graphGap + heightPhas));
-				nvgScissor(args.vg, 0, b.pos.y, width, heightMagn + graphGap + heightPhas+12);
+		Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, heightMagn + graphGap + heightPhas));
+		nvgScissor(args.vg, 0, b.pos.y, width, heightMagn + graphGap + heightPhas + 12);
 
-				nvgBeginPath(args.vg);
-				nvgRoundedRect(args.vg, 0, heightMagn + heightPhas + graphGap + 4, width, 8, 2);
-				nvgFillColor(args.vg, nvgRGBA(220,220,220,80));
-				nvgFill(args.vg);
+		nvgBeginPath(args.vg);
+		nvgRoundedRect(args.vg, 0, heightMagn + heightPhas + graphGap + 4, width, 8, 2);
+		nvgFillColor(args.vg, nvgRGBA(220,220,220,80));
+		nvgFill(args.vg);
 
-				nvgBeginPath(args.vg);
-				nvgRoundedRect(args.vg, scrollLeftAnchor, heightMagn + heightPhas + graphGap + 4, 20, 8, 2);
-				nvgFillColor(args.vg, nvgRGBA(220,220,220,255));
-				nvgFill(args.vg);
+		nvgBeginPath(args.vg);
+		nvgRoundedRect(args.vg, scrollLeftAnchor, heightMagn + heightPhas + graphGap + 4, 20, 8, 2);
+		nvgFillColor(args.vg, nvgRGBA(220,220,220,255));
+		nvgFill(args.vg);
 
-				nvgFontSize(args.vg, 16.0f);
-				nvgFillColor(args.vg, YELLOW_BIDOO);
+		nvgFontSize(args.vg, 16.0f);
+		nvgFillColor(args.vg, YELLOW_BIDOO);
 
-				nvgText(args.vg, 130.0f, heightMagn + graphGap * 0.5f + 4, "▲ Magnitude ▼ Phase", NULL);
+		nvgText(args.vg, 130.0f, heightMagn + graphGap * 0.5f + 4, "▲ Magnitude ▼ Phase", NULL);
 
-				if (nFrames>0) {
-					nvgText(args.vg, 0.0f, heightMagn + graphGap * 0.5f + 4, ("Frame " + to_string(editedFrame + 1) + " / " + to_string(nFrames)).c_str(), NULL);
-					for (size_t i = 0; i < FS2/2; i++) {
-						float x, y;
-						x = (float)i * IFS2;
-						y = magnitude[i];
-						Vec p;
-						p.x = b.pos.x + b.size.x * x;
-						p.y = heightMagn * y;
-
-						if (i==tag){
-							nvgBeginPath(args.vg);
-							nvgFillColor(args.vg, nvgRGBA(45, 114, 143, 100));
-							nvgRect(args.vg, p.x, 0, b.size.x * IFS2, heightMagn);
-							nvgRect(args.vg, p.x, heightMagn + graphGap, b.size.x * IFS2, heightPhas);
-							nvgLineCap(args.vg, NVG_MITER);
-							nvgStrokeWidth(args.vg, 0);
-							nvgFill(args.vg);
-							tag *=2;
-						}
-
-						if (p.x < width) {
-							nvgStrokeColor(args.vg, nvgRGBA(45, 114, 143, 100));
-							nvgFillColor(args.vg, YELLOW_BIDOO);
-							nvgLineCap(args.vg, NVG_MITER);
-							nvgStrokeWidth(args.vg, 2);
-							nvgBeginPath(args.vg);
-							nvgRect(args.vg, p.x+1, heightMagn - p.y, b.size.x * IFS2 - 2, p.y);
-							y = phase[i]*IM_PI;
-							p.y = heightPhas * 0.5f * y;
-							nvgRect(args.vg, p.x+1, heightMagn + graphGap + heightPhas * 0.5f - p.y, b.size.x * IFS2-2, p.y);
-							nvgStroke(args.vg);
-							nvgFill(args.vg);
-						}
-					}
+		if (nFrames > 0) {
+			nvgText(args.vg, 0.0f, heightMagn + graphGap * 0.5f + 4, ("Frame " + to_string(editedFrame + 1) + " / " + to_string(nFrames)).c_str(), NULL);
+			float binW = b.size.x * IFS2;
+			// the octave marks (bins 1, 2, 4...), one path
+			nvgBeginPath(args.vg);
+			for (size_t i = 0; i < FS2/2; i++) {
+				if (i == tag) {
+					float x = b.pos.x + b.size.x * (float)i * IFS2;
+					nvgRect(args.vg, x, 0, binW, heightMagn);
+					nvgRect(args.vg, x, heightMagn + graphGap, binW, heightPhas);
+					tag *= 2;
 				}
+			}
+			nvgFillColor(args.vg, nvgRGBA(45, 114, 143, 100));
+			nvgFill(args.vg);
+			// every visible bin's magnitude and phase bars, one path
+			nvgBeginPath(args.vg);
+			for (size_t i = 0; i < FS2/2; i++) {
+				float x = b.pos.x + b.size.x * (float)i * IFS2;
+				if (x >= width)
+					break;
+				if (x + binW < 0.f)
+					continue;
+				float m = heightMagn * magnitude[i];
+				nvgRect(args.vg, x + 1, heightMagn - m, binW - 2, m);
+				float ph = heightPhas * 0.5f * phase[i] * IM_PI;
+				nvgRect(args.vg, x + 1, heightMagn + graphGap + heightPhas * 0.5f - ph, binW - 2, ph);
+			}
+			nvgStrokeColor(args.vg, nvgRGBA(45, 114, 143, 100));
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgLineCap(args.vg, NVG_MITER);
+			nvgStrokeWidth(args.vg, 2);
+			nvgStroke(args.vg);
+			nvgFill(args.vg);
+		}
 
-				nvgResetScissor(args.vg);
+		nvgResetScissor(args.vg);
 
-				if (nFrames > 0) {
-					if (module->displayPlayedFrame == 0)
-						drawWave(args, playedSample, RED_BIDOO);
-					if (module->displayEditedFrame == 0)
-						drawWave(args, editedSample, GREEN_BIDOO);
-				}
-				nvgRestore(args.vg);
+		if (nFrames > 0) {
+			if (module->displayPlayedFrame == 0)
+				drawWave(args, playedSample, RED_BIDOO);
+			if (module->displayEditedFrame == 0)
+				drawWave(args, editedSample, GREEN_BIDOO);
+		}
+		nvgRestore(args.vg);
+	}
+
+	struct Canvas : Widget {
+		LIMONADEBinsDisplay *owner = nullptr;
+		void draw(const DrawArgs &args) override {
+			owner->drawContent(args);
+		}
+	};
+	// shown in the light layer, as the display always was
+	struct Framebuffer : FramebufferWidget {
+		void draw(const DrawArgs &args) override {}
+		void drawLayer(const DrawArgs &args, int layer) override {
+			if (layer == 1)
+				FramebufferWidget::draw(args);
+		}
+	};
+	Framebuffer *fb = nullptr;
+	float drawnScroll = -1.f;
+	int drawnPlayed = -1, drawnEdited = -1;
+
+	// called once the display has its size
+	void setup() {
+		fb = new Framebuffer();
+		fb->box.size = box.size;
+		addChild(fb);
+		Canvas *canvas = new Canvas();
+		canvas->owner = this;
+		canvas->box.size = box.size;
+		fb->addChild(canvas);
+	}
+
+	void step() override {
+		if (module && fb) {
+			bool changed = copyFromTable();
+			if (changed || drawnScroll != zoomLeftAnchor || drawnPlayed != module->displayPlayedFrame || drawnEdited != module->displayEditedFrame) {
+				drawnScroll = zoomLeftAnchor;
+				drawnPlayed = module->displayPlayedFrame;
+				drawnEdited = module->displayEditedFrame;
+				fb->setDirty();
 			}
 		}
-		Widget::drawLayer(args, layer);
+		OpaqueWidget::step();
 	}
 
 };
@@ -1033,7 +1132,22 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 		OpaqueWidget::onDragEnd(e);
 	}
 
+	uint32_t copiedVersion = 0;
+	size_t copiedEdited = (size_t)-1, copiedPlayed = (size_t)-1;
+	bool copiedOnce = false;
+
+	// copied again only when the table, or the frames shown, change
 	void copyFromTable() {
+		uint32_t version = module->tableVersion.load();
+		size_t n = module->tableFrames.load();
+		size_t e = LIMONADEBinsDisplay::frameAt(module->params[LIMONADE::INDEX_PARAM].getValue(), n);
+		size_t p = LIMONADEBinsDisplay::frameAt(module->playedPos, n);
+		if (copiedOnce && version == copiedVersion && e == copiedEdited && p == copiedPlayed)
+			return;
+		copiedOnce = true;
+		copiedVersion = version;
+		copiedEdited = e;
+		copiedPlayed = p;
 		std::lock_guard<std::mutex> lock(module->tableMutex);
 		const wtTable &table = module->table;
 		nFrames = table.nFrames;
@@ -1275,6 +1389,7 @@ struct LIMONADEWidget : BidooWidget {
   		display->module = module;
   		display->box.pos = Vec(15, 33);
   		display->box.size = Vec(500, 164);
+  		display->setup();
   		addChild(display);
   	}
 

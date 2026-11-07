@@ -4,8 +4,6 @@
 #include "Svf.hpp"
 #include "dep/filters/pitchshifter.h"
 
-#define BUFF_SIZE 2048
-
 using namespace std;
 
 struct HCTIP : BidooModule {
@@ -27,25 +25,33 @@ struct HCTIP : BidooModule {
 	};
 
 	PitchShifter *pShifter = nullptr;
+	// paused (nothing patched): the buffers are cleared before it plays again
+	bool paused = true;
 
 	HCTIP() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(PITCH_PARAM, -12.f, 12.f, 0.f, "Pitch", " semitones");
-		configInput(INPUT, "Audio");
+		configInput(INPUT, "Audio (polyphonic inputs are summed)");
 		configInput(PITCH_INPUT, "Pitch CV (1V/oct)");
-		configOutput(OUTPUT, "Audio");
+		configOutput(OUTPUT, "Audio (37 ms late: the analysis window)");
 		configBypass(INPUT, OUTPUT);
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent &e) override {
 		delete pShifter;
 		pShifter = new PitchShifter();
-		pShifter->init(BUFF_SIZE, 8, e.sampleRate);
+		// the same frequency resolution and hop time at any rate: 2048 at 44.1 /
+		// 48 kHz, 4096 at 88.2 / 96 kHz, 8192 at 176.4 / 192 kHz
+		int size = e.sampleRate >= 160000.f ? 8192 : (e.sampleRate >= 80000.f ? 4096 : 2048);
+		pShifter->init(size, 8, e.sampleRate);
 		pShifter->phaseLock = true;
+		paused = true;
 	}
 
 	// the phase-locked shifter's gain per semitone from -12 to +24, measured
-	// on sines from 110 Hz to 1760 Hz (within 3% across them): divided out
+	// on sines from 110 Hz to 1760 Hz (within 3% across them): divided out.
+	// Measured before the shifter divided out its windows' overlap (3 at 8x):
+	// that part is gone, the rest of the table is the phase locking's own.
 	static float levelFix(float semis) {
 		static const float gain[37] = {
 			1.791f, 1.919f, 2.018f, 2.101f, 2.191f, 2.250f, 2.359f, 2.381f, 2.562f, 2.658f, 2.739f, 2.763f,
@@ -55,17 +61,26 @@ struct HCTIP : BidooModule {
 		};
 		float x = clamp(semis, -12.f, 24.f) + 12.f;
 		int i = std::min((int)x, 35);
-		return 1.0f / (gain[i] + (gain[i + 1] - gain[i]) * (x - i));
+		return 3.0f / (gain[i] + (gain[i + 1] - gain[i]) * (x - i));
 	}
 
 	void process(const ProcessArgs &args) override {
 		if (!pShifter)
 			return;
+		if (!outputs[OUTPUT].isConnected() || !inputs[INPUT].isConnected()) {
+			outputs[OUTPUT].setVoltage(0.f);
+			paused = true;
+			return;
+		}
+		if (paused) {
+			pShifter->clear();
+			paused = false;
+		}
 		float semis = params[PITCH_PARAM].getValue() + inputs[PITCH_INPUT].getVoltage() * 12.f;
 		semis = clamp(semis, -12.f, 24.f);
 		float ratio = dsp::exp2_taylor5(semis / 12.f);
 		// one 256-sample hop of FFT work at a time instead of eight at once
-		float y = pShifter->step(ratio, inputs[INPUT].getVoltage() * 0.2f);
+		float y = pShifter->step(ratio, inputs[INPUT].getVoltageSum() * 0.2f);
 		outputs[OUTPUT].setVoltage(bidooSoftLimit(y * 5.0f * levelFix(semis)));
 	}
 

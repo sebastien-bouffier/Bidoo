@@ -1,8 +1,7 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/digital.hpp"
-#include <sstream>
-#include <iomanip>
+#include <cstdio>
 
 using namespace std;
 
@@ -37,6 +36,20 @@ struct RiotCell {
 	double offset() const {
 		int cs = div > 0 ? std::min(clockShift, div - 1) : 0;
 		return cs + timeShift / 360.0 * (div - cs);
+	}
+};
+
+// Per cell lower bound of the next tick that can fire, so the exact test in
+// fire() only runs near an event. It is keyed on the cell settings it was
+// computed from and on the cycle epoch (the counter only moves backwards in
+// beginCycle), so any edit or jump falls back to the exact test.
+struct RiotNext {
+	double tick = -1.0;
+	unsigned epoch = 0;
+	int div = -1, step = -1, speed = -1, clockShift = -1;
+	float timeShift = -1.f;
+	bool matches(const RiotCell &c, unsigned e) const {
+		return epoch == e && div == c.div && step == c.step && speed == c.speed && clockShift == c.clockShift && timeShift == c.timeShift;
 	}
 };
 
@@ -119,6 +132,9 @@ struct RATEAU : BidooModule {
 	dsp::SchmittTrigger muteTriggers[8];
 	dsp::PulseGenerator gatePulses[RIOT_CELLS][RIOT_SETS];
 	bool gates[RIOT_CELLS][RIOT_SETS] = {{false}};
+	RiotNext nextHits[RIOT_SETS][RIOT_CELLS];
+	unsigned cycleEpoch = 1;
+	dsp::ClockDivider controlDivider;
 
 	RATEAU() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -145,6 +161,7 @@ struct RATEAU : BidooModule {
 		configInput(RESET_INPUT, "Reset to the cycle start");
 		configInput(BANK_INPUT, "Pattern (0.625 V per pattern)");
 		configInput(MODE_INPUT, "Matrix / independent toggle");
+		controlDivider.setDivision(16);
 		updateControls();
 	}
 
@@ -316,10 +333,18 @@ struct RATEAU : BidooModule {
 };
 
 // Fires the divisions and steps whose time falls in (from, to], in ticks.
+// Only the sets that are heard are fired: the matrix set, or the row and column
+// sets in independent mode.
 void RATEAU::fire(double from, double to, float tickSeconds) {
-	for (int s = 0; s < RIOT_SETS; s++) {
+	int setA = pMode == matrix ? (int)matrix : (int)indepEditA;
+	int setB = pMode == matrix ? (int)matrix : (int)indepEditB;
+	for (int s = setA; s <= setB; s++) {
 		for (int i = 0; i < RIOT_CELLS; i++) {
 			const RiotCell &c = cell(i, s);
+			RiotNext &nx = nextHits[s][i];
+			// Nothing can fire before the bound (the margin is far above rounding).
+			if (nx.matches(c, cycleEpoch) && to < nx.tick - 1e-3)
+				continue;
 			bool hit = false;
 			double base = c.div;
 			if (c.div > 0) {
@@ -339,6 +364,28 @@ void RATEAU::fire(double from, double to, float tickSeconds) {
 				hit = from < t && t <= to;
 				if (hit && c.div == 0)
 					base = 1.0;
+			}
+			// Next possible event after 'to': the next division count, or the step.
+			{
+				double next = INFINITY;
+				if (c.div > 0) {
+					double off = c.offset();
+					double x1 = to / c.speed - off;
+					double k = std::max(std::floor(x1 / c.div), 0.0) + 1.0;
+					next = (k * c.div + off) * c.speed;
+				}
+				if (c.step > 0) {
+					double t = (double)c.step * c.speed;
+					if (t > to)
+						next = std::min(next, t);
+				}
+				nx.tick = next;
+				nx.epoch = cycleEpoch;
+				nx.div = c.div;
+				nx.step = c.step;
+				nx.speed = c.speed;
+				nx.clockShift = c.clockShift;
+				nx.timeShift = c.timeShift;
 			}
 			if (!hit || random::uniform() >= c.prob)
 				continue;
@@ -364,6 +411,7 @@ void RATEAU::beginCycle(double startPosition) {
 	}
 	position = startPosition;
 	lastEdgePosition = position;
+	cycleEpoch++;  // the counter may move backwards: drop the next-event bounds
 	for (int s = 0; s < RIOT_SETS; s++)
 		for (int i = 0; i < RIOT_CELLS; i++)
 			gatePulses[i][s].reset();
@@ -406,14 +454,17 @@ void RATEAU::process(const ProcessArgs &args) {
 
 	// Modes
 	auto setMode = [&](int m) {
-		if (pMode != m)
+		if (pMode != m) {
 			previousMode = pMode;
+			// the sets heard change: drop the pulses of the sets left behind
+			for (int s = 0; s < RIOT_SETS; s++)
+				for (int i = 0; i < RIOT_CELLS; i++)
+					gatePulses[i][s].reset();
+		}
 		pMode = m;
 		updateControls();
 	};
-	if (indepEditATrigger.process(params[INDEPEDITA_PARAM].getValue())) setMode(indepEditA);
-	if (indepEditBTrigger.process(params[INDEPEDITB_PARAM].getValue())) setMode(indepEditB);
-	if (matrixTrigger.process(params[MATRIX_PARAM].getValue())) setMode(matrix);
+	// Trigger inputs stay per sample; buttons, knobs, pages, mutes and lights at control rate.
 	if (modeInputTrigger.process(inputs[MODE_INPUT].getVoltage())) {
 		if (pMode != matrix)
 			setMode(matrix);
@@ -422,29 +473,35 @@ void RATEAU::process(const ProcessArgs &args) {
 	}
 	if (startStopTrigger.process(params[STARTSTOP_PARAM].getValue() + inputs[STARTSTOP_INPUT].getVoltage()))
 		running = !running;
-	lights[STARTSTOP_LIGHT].setBrightness(running ? 1 : 0);
-	lights[INDEPEDITA_LIGHT].setBrightness(pMode == indepEditA ? 1 : 0);
-	lights[INDEPEDITB_LIGHT].setBrightness(pMode == indepEditB ? 1 : 0);
-	lights[MATRIX_LIGHT].setBrightness(pMode == matrix ? 1 : 0);
 
-	// Pages: the 7 buttons work as a radio group.
-	for (int p = 0; p < 7; p++) {
-		if (pageTriggers[p].process(params[DIV_PARAM + p].getValue()) && p != page)
-			setPage(p);
-	}
-	if (params[DIV_PARAM + page].getValue() < 0.5f)
-		params[DIV_PARAM + page].setValue(1.f);
+	if (controlDivider.process()) {
+		if (indepEditATrigger.process(params[INDEPEDITA_PARAM].getValue())) setMode(indepEditA);
+		if (indepEditBTrigger.process(params[INDEPEDITB_PARAM].getValue())) setMode(indepEditB);
+		if (matrixTrigger.process(params[MATRIX_PARAM].getValue())) setMode(matrix);
+		lights[STARTSTOP_LIGHT].setBrightness(running ? 1 : 0);
+		lights[INDEPEDITA_LIGHT].setBrightness(pMode == indepEditA ? 1 : 0);
+		lights[INDEPEDITB_LIGHT].setBrightness(pMode == indepEditB ? 1 : 0);
+		lights[MATRIX_LIGHT].setBrightness(pMode == matrix ? 1 : 0);
 
-	// Knobs edit the current page of the current set.
-	for (int i = 0; i < RIOT_CELLS; i++)
-		fromKnob(page, cell(i, pMode), params[CONTROLS_PARAMS + i].getValue());
+		// Pages: the 7 buttons work as a radio group.
+		for (int p = 0; p < 7; p++) {
+			if (pageTriggers[p].process(params[DIV_PARAM + p].getValue()) && p != page)
+				setPage(p);
+		}
+		if (params[DIV_PARAM + page].getValue() < 0.5f)
+			params[DIV_PARAM + page].setValue(1.f);
 
-	for (int i = 0; i < 8; i++) {
-		if (muteTriggers[i].process(params[MUTE_PARAMS + i].getValue()))
-			mutes[i] = !mutes[i];
-		lights[MUTE_LIGHTS + i*3].setBrightness(mutes[i] ? 1 : 0);
-		lights[MUTE_LIGHTS + i*3 + 1].setBrightness(mutes[i] ? 0 : 1);
-		lights[MUTE_LIGHTS + i*3 + 2].setBrightness(0);
+		// Knobs edit the current page of the current set.
+		for (int i = 0; i < RIOT_CELLS; i++)
+			fromKnob(page, cell(i, pMode), params[CONTROLS_PARAMS + i].getValue());
+
+		for (int i = 0; i < 8; i++) {
+			if (muteTriggers[i].process(params[MUTE_PARAMS + i].getValue()))
+				mutes[i] = !mutes[i];
+			lights[MUTE_LIGHTS + i*3].setBrightness(mutes[i] ? 1 : 0);
+			lights[MUTE_LIGHTS + i*3 + 1].setBrightness(mutes[i] ? 0 : 1);
+			lights[MUTE_LIGHTS + i*3 + 2].setBrightness(0);
+		}
 	}
 
 	// Clock: external edges lock the counter; in between it moves at the
@@ -492,13 +549,12 @@ void RATEAU::process(const ProcessArgs &args) {
 		lastEdgePosition = position;
 	}
 
-	for (int s = 0; s < RIOT_SETS; s++)
-		for (int i = 0; i < RIOT_CELLS; i++)
-			gates[i][s] = gatePulses[i][s].process(args.sampleTime);
-
 	// Rows 1-4 and columns A-D; independent mode reads the row and column sets.
 	int rowSet = pMode == matrix ? matrix : indepEditA;
 	int colSet = pMode == matrix ? matrix : indepEditB;
+	for (int s = rowSet; s <= colSet; s++)
+		for (int i = 0; i < RIOT_CELLS; i++)
+			gates[i][s] = gatePulses[i][s].process(args.sampleTime);
 	for (int r = 0; r < 4; r++) {
 		bool on = gates[r*4][rowSet] || gates[r*4+1][rowSet] || gates[r*4+2][rowSet] || gates[r*4+3][rowSet];
 		outputs[GATE_OUTPUTS + r].setVoltage(!mutes[r] && on ? 10.f : 0.f);
@@ -546,7 +602,7 @@ struct RATEAUDisplay : TransparentWidget {
 
 	}
 
-	static std::string speedName(int s) {
+	static const char *speedName(int s) {
 		switch (s) {
 			case 4: return " DIN";
 			case 6: return " 64th";
@@ -571,22 +627,22 @@ struct RATEAUDisplay : TransparentWidget {
 	      nvgFontSize(args.vg, 16);
 	  		nvgTextLetterSpacing(args.vg, 0);
 	  		nvgFillColor(args.vg, YELLOW_BIDOO);
-				stringstream sBank, sFControl, sValue;
-				sBank << "PTRN " + to_string(m->bank + 1);
-				sFControl << "# " + to_string(m->fCntrl + 1);
+				char sBank[16], sFControl[16], sValue[32];
+				snprintf(sBank, sizeof(sBank), "PTRN %d", m->bank + 1);
+				snprintf(sFControl, sizeof(sFControl), "# %d", m->fCntrl + 1);
 				const RiotCell &c = m->cell(m->fCntrl, m->pMode);
 				switch(m->page) {
-				  case pDiv: sValue << " => " << c.div; break;
-					case pStep: sValue << " => " << c.step; break;
-					case pProb: sValue << " => " << fixed << setprecision(0) << c.prob * 100.0f << " %"; break;
-					case pSpeed: sValue << " => " << c.speed << speedName(c.speed); break;
-					case pClockShift: sValue << " => " << (c.div > 0 ? std::min(c.clockShift, c.div - 1) : 0); break;
-					case pTimeShift: sValue << " => " << fixed << setprecision(0) << c.timeShift << " deg"; break;
-					default: sValue << " => " << fixed << setprecision(0) << c.pulseWidth * 100.0f << " %"; break;
+					case pDiv: snprintf(sValue, sizeof(sValue), " => %d", c.div); break;
+					case pStep: snprintf(sValue, sizeof(sValue), " => %d", c.step); break;
+					case pProb: snprintf(sValue, sizeof(sValue), " => %.0f %%", c.prob * 100.0f); break;
+					case pSpeed: snprintf(sValue, sizeof(sValue), " => %d%s", c.speed, speedName(c.speed)); break;
+					case pClockShift: snprintf(sValue, sizeof(sValue), " => %d", c.div > 0 ? std::min(c.clockShift, c.div - 1) : 0); break;
+					case pTimeShift: snprintf(sValue, sizeof(sValue), " => %.0f deg", c.timeShift); break;
+					default: snprintf(sValue, sizeof(sValue), " => %.0f %%", c.pulseWidth * 100.0f); break;
 				}
-				nvgText(args.vg, 135, 0, sBank.str().c_str(), NULL);
-				nvgText(args.vg, 0, 0, sFControl.str().c_str(), NULL);
-				nvgText(args.vg, 35, 0, sValue.str().c_str(), NULL);
+				nvgText(args.vg, 135, 0, sBank, NULL);
+				nvgText(args.vg, 0, 0, sFControl, NULL);
+				nvgText(args.vg, 35, 0, sValue, NULL);
 	    }
 		}
 		Widget::drawLayer(args, layer);

@@ -3,6 +3,7 @@
 #include "Svf.hpp"
 #include "dsp/digital.hpp"
 #include "dsp/window.hpp"
+#include "SampleRead.hpp"
 #include <vector>
 #include <algorithm>
 
@@ -71,6 +72,9 @@ struct SPORE : BidooModule {
 	};
 
 	GRAINE graines[NbGraines];
+	// The grains in use (not FREE), so idle slots cost nothing.
+	int actives[NbGraines];
+	int nbActives = 0;
 	int indexRecolte = 0, indexSeme = 0;
 	int pasRecolte = 0, pasSeme = 0;
 
@@ -78,10 +82,13 @@ struct SPORE : BidooModule {
 	std::vector<float> history;
 	long long mask = 0;
 	long long now = 0;
+	// band-limited copies of the history, for grains pitched up
+	sampleread::LiveMip mip;
+	// the overlap-add level: the sum of the playing grains' windows, smoothed
+	float windowSum = 1.f;
 
 	// the window shape, shared by every grain, read by grain position
 	float table[TableSize + 1];
-	float tableMean = 0.5f;
 	int tableType = -1;
 	float tableAlpha = -1.f;
 	int tableCount = 0;
@@ -109,9 +116,12 @@ struct SPORE : BidooModule {
 			n <<= 1;
 		history.assign(n, 0.f);
 		mask = n - 1;
+		mip.resize(n);
 		now = 0;
 		for (GRAINE &g : graines)
 			g = GRAINE();
+		nbActives = 0;
+		windowSum = 1.f;
 		indexRecolte = indexSeme = pasRecolte = pasSeme = 0;
 	}
 
@@ -133,10 +143,6 @@ struct SPORE : BidooModule {
 			rack::dsp::blackmanNuttallWindow(table, TableSize + 1);
 		else
 			rack::dsp::blackmanHarrisWindow(table, TableSize + 1);
-		double sum = 0;
-		for (int i = 0; i <= TableSize; i++)
-			sum += table[i];
-		tableMean = std::max((float)(sum / (TableSize + 1)), 0.01f);
 		tableType = type;
 		tableAlpha = alpha;
 	}
@@ -147,17 +153,16 @@ struct SPORE : BidooModule {
 		return table[i] + (table[i + 1] - table[i]) * (p - i);
 	}
 
-	float hermite(double pos) const {
-		long long xi = (long long)std::floor(pos);
-		float xf = (float)(pos - (double)xi);
-		float p0 = history[(xi - 1) & mask], p1 = history[xi & mask], p2 = history[(xi + 1) & mask], p3 = history[(xi + 2) & mask];
-		float c1 = 0.5f * (p2 - p0);
-		float c2 = p0 - 2.5f * p1 + 2.f * p2 - 0.5f * p3;
-		float c3 = 0.5f * (p3 - p0) + 1.5f * (p1 - p2);
-		return ((c3 * xf + c2) * xf + c1) * xf + p1;
-	}
-
 	void process(const ProcessArgs &args) override {
+		history[now & mask] = inputs[INPUT].getVoltage();
+		mip.push(history.data(), mask, now);
+		now++;
+		// Nobody listening: the history goes on, the grains wait.
+		if (!outputs[OUTPUT].isConnected()) {
+			outputs[OUTPUT].setVoltage(0.f);
+			return;
+		}
+
 		float ms = args.sampleRate * 0.001f;
 		int len = std::max(4, (int)(clamp(params[GRAINSIZE_PARAM].getValue() + inputs[GRAINSIZE_INPUT].getVoltage() * 10.f, 1.f, 100.f) * ms));
 		int hopA = std::max(1, (int)(clamp(params[HOPSIZEANALYSIS_PARAM].getValue() + inputs[HOPSIZEANALYSIS_INPUT].getVoltage() * 20.f, 1.f, 200.f) * ms));
@@ -173,8 +178,6 @@ struct SPORE : BidooModule {
 			tableCount = 0;
 		}
 
-		history[now & mask] = inputs[INPUT].getVoltage();
-		now++;
 		long long keep = (long long)history.size() - 4;
 
 		// a new grain every analysis hop, if a slot is free
@@ -183,6 +186,7 @@ struct SPORE : BidooModule {
 			g.status = GRAINE::WRITING;
 			g.start = now - 1;
 			g.longueur = len;
+			actives[nbActives++] = indexRecolte;
 			indexRecolte = (indexRecolte + 1) % NbGraines;
 			pasRecolte = hopA;
 		}
@@ -196,34 +200,41 @@ struct SPORE : BidooModule {
 			pasSeme = hopS;
 		}
 
-		float result = 0.f;
-		for (GRAINE &g : graines) {
-			if (g.status == GRAINE::WRITING && now - g.start >= g.longueur)
+		float result = 0.f, wsum = 0.f;
+		for (int a = nbActives - 1; a >= 0; a--) {
+			int gi = actives[a];
+			GRAINE &g = graines[gi];
+			// ready once recorded, and once the band-limited copies have it
+			if (g.status == GRAINE::WRITING && now - g.start >= g.longueur + sampleread::LiveMip::LATENCY)
 				g.status = GRAINE::READY;
 			// a grain left waiting longer than the history is dropped
 			if ((g.status == GRAINE::READY || g.status == GRAINE::PLAYING) && now - g.start > keep - g.longueur) {
-				if (g.status == GRAINE::READY && &g == &graines[indexSeme])
+				if (g.status == GRAINE::READY && gi == indexSeme)
 					indexSeme = (indexSeme + 1) % NbGraines;
 				g.status = GRAINE::FREE;
-				continue;
 			}
-			if (g.status != GRAINE::PLAYING)
-				continue;
-			result += hermite((double)g.start + g.teteLecture) * window(g.teteLecture / (g.longueur - 1));
-			g.teteLecture += vitesse;
-			g.elapsed++;
-			if (g.teteLecture >= g.longueur - 1) {
-				// repeated only to fill a synthesis hop longer than the grain
-				if (g.elapsed + 0.5f * (g.longueur / vitesse) < hopS)
-					g.teteLecture = 0.f;
-				else
-					g.status = GRAINE::FREE;
+			else if (g.status == GRAINE::PLAYING) {
+				float w = window(g.teteLecture / (g.longueur - 1));
+				result += mip.read(history.data(), mask, (double)g.start + g.teteLecture, vitesse) * w;
+				wsum += w;
+				g.teteLecture += vitesse;
+				g.elapsed++;
+				if (g.teteLecture >= g.longueur - 1) {
+					// repeated only to fill a synthesis hop longer than the grain
+					if (g.elapsed + 0.5f * (g.longueur / vitesse) < hopS)
+						g.teteLecture = 0.f;
+					else
+						g.status = GRAINE::FREE;
+				}
 			}
+			if (g.status == GRAINE::FREE)
+				actives[a] = actives[--nbActives];
 		}
 
-		// overlap-add level: how many windows overlap on average
-		float overlap = std::max(1.f, (len / vitesse) * tableMean / hopS);
-		outputs[OUTPUT].setVoltage(bidooSoftLimit(result / overlap));
+		// overlap-add level: the windows actually summed, smoothed over about
+		// 20 ms, never below 1 (sparse grains are not boosted)
+		windowSum += (wsum - windowSum) * std::min(1.f, 50.f * args.sampleTime);
+		outputs[OUTPUT].setVoltage(bidooSoftLimit(result / std::max(1.f, windowSum)));
 	}
 
 };

@@ -27,6 +27,54 @@ inline float noteHz(float note) {
 	return 440.f * std::pow(2.f, (note - 69.f) / 12.f);
 }
 
+// ---------------------------------------------------------------- band-limited reading
+
+// A Kaiser-windowed sinc over Z zero crossings, tabulated RES points per crossing.
+inline double besselI0(double x) {
+	double s = 1, term = 1;
+	for (int k = 1; k < 40; k++) {
+		term *= (x / (2 * k)) * (x / (2 * k));
+		s += term;
+	}
+	return s;
+}
+
+template <int Z, int RES>
+struct SincTable {
+	static constexpr int ZEROS = Z;
+	static constexpr int RES_ = RES;
+	static constexpr int LAST = Z * RES;
+	float t[Z * RES + 4];
+	explicit SincTable(double beta) {
+		double norm = besselI0(beta);
+		for (int i = 0; i <= Z * RES + 3; i++) {
+			double u = (double)i / RES, r = u / Z;
+			double w = r < 1 ? besselI0(beta * std::sqrt(1 - r * r)) / norm : 0;
+			t[i] = (float)(w * (u == 0 ? 1.0 : std::sin(M_PI * u) / (M_PI * u)));
+		}
+	}
+	// u: distance in zero crossings, >= 0
+	float operator()(float u) const {
+		float x = u * RES;
+		int i = (int)x;
+		if (i >= Z * RES)
+			return 0.f;
+		float f = x - (float)i;
+		return t[i] + f * (t[i + 1] - t[i]);
+	}
+};
+
+// playback: short (4 zero crossings), cheap enough for 16 voices
+inline const SincTable<4, 512> &playKernel() {
+	static const SincTable<4, 512> k(6.0);
+	return k;
+}
+// load-time resampling and the octave copies: long, clean (worker thread)
+inline const SincTable<24, 256> &longKernel() {
+	static const SincTable<24, 256> k(9.0);
+	return k;
+}
+
 // ---------------------------------------------------------------- sample
 
 struct Sample {
@@ -39,6 +87,17 @@ struct Sample {
 	std::string name;
 	static constexpr int OVERVIEW = 2048;
 	std::vector<float> ovMin, ovMax;
+	// a copy made for playback (resampled to the engine's rate) points at the
+	// sample it was made from; slices and markers are in that one's frames
+	const Sample *origin = this;
+	int64_t originFrames = 0;
+	// octave copies for reading pitched up without aliasing: level k (1..)
+	// at 1/2^k of the rate, low-passed before each halving
+	static constexpr int MIPS = 4;
+	std::vector<float> mip[MIPS][2];
+	int64_t mipFrames[MIPS] = {};
+	int mipLevels = 0;
+	bool mipsBuilt = false;   // set before the audio thread ever sees the sample
 
 	float at(int c, int64_t i) const {
 		if (i < 0 || i >= frames)
@@ -58,7 +117,109 @@ struct Sample {
 		float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
 		return ((c3 * f + c2) * f + c1) * f + y1;
 	}
+	// both channels at `pos` (frames of level 0) from octave copy `level`
+	// (0: the sample), low-passed at `cut` of that copy's Nyquist
+	void readBandLimited(int level, float cut, double pos, float &l, float &r) const {
+		const float *a = level ? mip[level - 1][0].data() : ch[0].data();
+		const float *b = channels > 1 ? (level ? mip[level - 1][1].data() : ch[1].data()) : a;
+		int64_t n = level ? mipFrames[level - 1] : frames;
+		double p = pos * (1.0 / (double)(1 << level));
+		const auto &K = playKernel();
+		double half = K.ZEROS / cut;
+		int64_t i0 = (int64_t)std::ceil(p - half), i1 = (int64_t)std::floor(p + half);
+		// the table position of tap k: (p - i0 - k) cut, from the far left side down through 0
+		const float stepX = cut * K.RES_;
+		const float x0 = (float)(p - (double)i0) * stepX;
+		const int taps = (int)(i1 - i0) + 1;
+		float sl = 0.f, sr = 0.f, sw = 0.f;
+		const float *t = K.t;
+		if (i0 >= 0 && i1 < n) {
+			const float *pa = a + i0, *pb = b + i0;
+			float sl2 = 0.f, sr2 = 0.f, sw2 = 0.f;
+			int k = 0;
+			// two taps a turn, two sums: the adds do not wait on each other
+			for (; k + 1 < taps; k += 2) {
+				float ax = std::fabs(x0 - (float)k * stepX), bx = std::fabs(x0 - (float)(k + 1) * stepX);
+				int ja = (int)ax, jb = (int)bx;
+				float wa = t[ja] + (ax - (float)ja) * (t[ja + 1] - t[ja]);
+				float wb = t[jb] + (bx - (float)jb) * (t[jb + 1] - t[jb]);
+				sw += wa;
+				sw2 += wb;
+				sl += wa * pa[k];
+				sl2 += wb * pa[k + 1];
+				sr += wa * pb[k];
+				sr2 += wb * pb[k + 1];
+			}
+			for (; k < taps; k++) {
+				float ax = std::fabs(x0 - (float)k * stepX);
+				int ja = (int)ax;
+				float wa = t[ja] + (ax - (float)ja) * (t[ja + 1] - t[ja]);
+				sw += wa;
+				sl += wa * pa[k];
+				sr += wa * pb[k];
+			}
+			sw += sw2;
+			sl += sl2;
+			sr += sr2;
+		}
+		else {
+			float x = x0;
+			for (int64_t i = i0; i <= i1; i++, x -= stepX) {
+				float ax = std::fabs(x);
+				int j = std::min((int)ax, K.LAST);
+				float w = t[j] + (ax - (float)j) * (t[j + 1] - t[j]);
+				sw += w;
+				if (i >= 0 && i < n) {
+					sl += w * a[i];
+					sr += w * b[i];
+				}
+			}
+		}
+		float k = sw > 0.f ? 1.f / sw : 0.f;
+		l = sl * k;
+		r = sr * k;
+	}
+	// the octave copies (worker thread, before the audio thread sees the sample)
+	void buildMips() {
+		mipLevels = 0;
+		// half-band low-pass: cut at 0.45 of the old Nyquist (the new one is 0.5)
+		const double cut = 0.45, beta = 8.0;
+		const int M = 26;
+		std::vector<float> h(2 * M + 1);
+		double sum = 0;
+		for (int k = -M; k <= M; k++) {
+			double u = k * cut, r = (double)k / (M + 1);
+			double w = besselI0(beta * std::sqrt(1 - r * r)) / besselI0(beta);
+			h[(size_t)(k + M)] = (float)((k == 0 ? 1.0 : std::sin(M_PI * u) / (M_PI * u)) * w);
+			sum += h[(size_t)(k + M)];
+		}
+		for (float &x : h)
+			x = (float)(x / sum);
+		for (int L = 0; L < MIPS; L++) {
+			const int64_t srcN = L ? mipFrames[L - 1] : frames;
+			const int64_t n = (srcN + 1) / 2;
+			if (n < 64)
+				break;
+			for (int c = 0; c < channels; c++) {
+				const float *src = L ? mip[L - 1][c].data() : ch[c].data();
+				std::vector<float> &dst = mip[L][c];
+				dst.assign((size_t)n, 0.f);
+				for (int64_t j = 0; j < n; j++) {
+					int64_t centre = 2 * j;
+					float acc = 0.f;
+					int k0 = (int)std::max<int64_t>(-M, centre - (srcN - 1)), k1 = (int)std::min<int64_t>(M, centre);
+					for (int k = k0; k <= k1; k++)
+						acc += h[(size_t)(k + M)] * src[centre - k];
+					dst[(size_t)j] = acc;
+				}
+			}
+			mipFrames[L] = n;
+			mipLevels = L + 1;
+		}
+		mipsBuilt = true;
+	}
 	void analyse() {
+		originFrames = frames;
 		peak = 0.f;
 		for (int c = 0; c < channels; c++)
 			for (float v : ch[c])
@@ -96,6 +257,55 @@ struct Sample {
 		return i;
 	}
 };
+
+// The sample as the engine plays it, at `rate` (worker thread): the same
+// object when the rates match, else a copy through a long windowed sinc (low-
+// passed under the lower Nyquist); with its octave copies either way.
+inline std::shared_ptr<Sample> playableAt(const std::shared_ptr<Sample> &s, float rate) {
+	if (s->rate == rate || s->frames < 2 || rate <= 0.f) {
+		if (!s->mipsBuilt)
+			s->buildMips();
+		return s;
+	}
+	auto p = std::make_shared<Sample>();
+	const double R = (double)rate / s->rate;   // output frames per input frame
+	const auto &K = longKernel();
+	const float cut = (float)(std::min(1.0, R) * 0.95);   // of the input's Nyquist
+	const double half = K.ZEROS / cut;
+	const int64_t n = std::max<int64_t>(1, (int64_t)std::ceil(s->frames * R));
+	p->channels = s->channels;
+	p->frames = n;
+	p->rate = rate;
+	p->bits = s->bits;
+	p->name = s->name;
+	p->peak = s->peak;   // the normalization the display shows
+	p->origin = s.get();
+	p->originFrames = s->frames;
+	for (int c = 0; c < s->channels; c++)
+		p->ch[c].assign((size_t)n, 0.f);
+	std::vector<float> w;
+	for (int64_t j = 0; j < n; j++) {
+		double pos = j / R;
+		int64_t i0 = (int64_t)std::ceil(pos - half), i1 = (int64_t)std::floor(pos + half);
+		w.resize((size_t)(i1 - i0 + 1));
+		float sw = 0.f;
+		for (int64_t i = i0; i <= i1; i++) {
+			float x = K((float)std::fabs(pos - (double)i) * cut);
+			w[(size_t)(i - i0)] = x;
+			sw += x;
+		}
+		int64_t a = std::max<int64_t>(0, i0), b = std::min(s->frames - 1, i1);
+		for (int c = 0; c < s->channels; c++) {
+			const float *src = s->ch[c].data();
+			float acc = 0.f;
+			for (int64_t i = a; i <= b; i++)
+				acc += w[(size_t)(i - i0)] * src[i];
+			p->ch[c][(size_t)j] = sw > 0.f ? acc / sw : 0.f;
+		}
+	}
+	p->buildMips();
+	return p;
+}
 
 // YIN (de Cheveigne & Kawahara 2002) over a region: the median pitch of the
 // voiced frames, as a MIDI note (fractional). Returns -1 when nothing is pitched.
@@ -372,48 +582,113 @@ struct FilterSettings {
 };
 
 // a cascade of 1-4 state-variable stages; Butterworth damping on all but the
-// last, whose damping the resonance lowers
+// last, whose damping the resonance lowers. New coefficients are reached in a
+// straight line over the frames until the next ones (no zipper under audio-
+// rate cutoff CV); a stage that joins (SLOPE up, or the filter switched on)
+// starts from rest.
 struct VoiceFilter {
 	Svf st[2][4];
-	float g = 0.f, gk[4] = {}, h[4] = {};
+	float g = 0.f, k[4] = {}, h[4] = {};   // now (h follows g and k)
+	float dg = 0.f, dk[4] = {};    // per frame, towards the target
+	float tg = 0.f, tk[4] = {};    // the target
+	int ramp = 0;
+	int stages = 0;                // stages running, 0: off (they restart from rest)
 	void reset() {
 		for (auto &c : st)
 			for (Svf &s : c)
 				s.reset();
+		stages = 0;
+		ramp = 0;
 	}
-	void set(const FilterSettings &f, float note, float sampleRate) {
-		float hz = std::min(noteHz(note), 0.45f * sampleRate);
-		g = std::tan((float)M_PI * hz / sampleRate);
+	static int count(const FilterSettings &f) {
+		return std::max(1, std::min(4, f.stages));
+	}
+	void set(const FilterSettings &f, float note, float sampleRate, int frames) {
+		if (!std::isfinite(note))
+			return;   // keeps the last good coefficients
+		float hz = std::min(noteHz(std::max(-60.f, note)), 0.45f * sampleRate);
+		float tgNew = std::tan((float)M_PI * hz / sampleRate);
 		static const float bw[4][4] = {
 			{1.4142f, 0, 0, 0},
 			{0.7654f, 1.8478f, 0, 0},
 			{0.5176f, 1.4142f, 1.9319f, 0},
 			{0.3902f, 1.1111f, 1.6629f, 1.9616f},
 		};
-		int n = std::max(1, std::min(4, f.stages));
+		int n = count(f);
+		tg = tgNew;
 		for (int i = 0; i < n; i++) {
-			float k = bw[n - 1][i];
+			tk[i] = bw[n - 1][i];
 			if (i == n - 1)
-				k = std::max(0.05f, k * (1.f - 0.97f * f.resonance));
-			gk[i] = k;
-			h[i] = 1.f / (1.f + k * g + g * g);
+				tk[i] = std::max(0.05f, tk[i] * (1.f - 0.97f * f.resonance));
 		}
+		bool same = stages == n && tg == g;
+		for (int i = 0; i < n && same; i++)
+			same = tk[i] == k[i];
+		if (same) {
+			ramp = 0;   // nothing moves: no glide, no division per frame
+		}
+		else if (stages == 0) {
+			for (auto &c : st)
+				for (Svf &s : c)
+					s.reset();
+			g = tg;
+			for (int i = 0; i < n; i++) {
+				k[i] = tk[i];
+				h[i] = 1.f / (1.f + k[i] * g + g * g);
+			}
+			ramp = 0;
+		}
+		else {
+			float inv = 1.f / (float)std::max(1, frames);
+			dg = (tg - g) * inv;
+			for (int i = 0; i < n; i++) {
+				if (i < stages) {
+					dk[i] = (tk[i] - k[i]) * inv;
+				}
+				else {
+					st[0][i].reset();
+					st[1][i].reset();
+					k[i] = tk[i];
+					dk[i] = 0.f;
+					h[i] = 1.f / (1.f + k[i] * g + g * g);
+				}
+			}
+			ramp = std::max(1, frames);
+		}
+		stages = n;
 	}
-	float process(int c, float x, const FilterSettings &f) {
-		if (f.mode == FILTER_OFF)
-			return x;
-		int n = std::max(1, std::min(4, f.stages));
-		for (int i = 0; i < n; i++) {
+	void process(float &l, float &r, int mode) {
+		if (ramp > 0) {
+			if (--ramp == 0) {
+				g = tg;   // land exactly on the target
+				for (int i = 0; i < stages; i++)
+					k[i] = tk[i];
+			}
+			else {
+				g += dg;
+				for (int i = 0; i < stages; i++)
+					k[i] += dk[i];
+			}
+			for (int i = 0; i < stages; i++)
+				h[i] = 1.f / (1.f + k[i] * g + g * g);
+		}
+		for (int i = 0; i < stages; i++) {
 			float lp, bp, hp;
-			st[c][i].tick(x, g, gk[i], h[i], lp, bp, hp);
-			switch (f.mode) {
-				case FILTER_LP: x = lp; break;
-				case FILTER_HP: x = hp; break;
-				case FILTER_BP: x = bp * gk[i]; break;   // unity gain at the centre
-				default: x = lp + hp; break;             // notch
+			st[0][i].tick(l, g, k[i], h[i], lp, bp, hp);
+			switch (mode) {
+				case FILTER_LP: l = lp; break;
+				case FILTER_HP: l = hp; break;
+				case FILTER_BP: l = bp * k[i]; break;   // unity gain at the centre
+				default: l = lp + hp; break;            // notch
+			}
+			st[1][i].tick(r, g, k[i], h[i], lp, bp, hp);
+			switch (mode) {
+				case FILTER_LP: r = lp; break;
+				case FILTER_HP: r = hp; break;
+				case FILTER_BP: r = bp * k[i]; break;
+				default: r = lp + hp; break;
 			}
 		}
-		return x;
 	}
 };
 
@@ -424,6 +699,7 @@ struct PlaySettings {
 	double start = 0, end = 1, loopStart = 0, loopEnd = 1;  // 0..1 of the sample
 	int loopMode = LOOP_OFF;
 	float xfadeMs = 10.f;
+	bool equalPower = true;    // loop crossfade: equal power (uncorrelated material), else linear
 	bool reverse = false;
 	int timeMode = TIME_REPITCH;
 	float speed = 1.f;         // stretch modes: playback speed; repitch: rate factor too
@@ -441,12 +717,19 @@ struct PlayHead {
 	bool inLoop = false;
 	bool wrapped = false;   // the loop went round at least once
 	bool done = false;
+	// how it reads: Hermite at or under the sample's own rate (level -1),
+	// else a windowed sinc low-passed under the output's Nyquist, from the
+	// octave copy that keeps the step under 2
+	int level = -1;
+	float cut = 1.f;
+	double lastStep = -1.0;
 
 	struct Region {
 		double start, end, ls, le, x;
 		int mode;
 		bool reverse;
 		bool tail = false;   // the crossfade uses the sample after the seam (see region())
+		bool equalPower = true;
 	};
 
 	static Region region(const Sample &s, const PlaySettings &p, float engineRate) {
@@ -455,6 +738,7 @@ struct PlayHead {
 		double la = std::min(p.loopStart, p.loopEnd) * F, lb = std::max(p.loopStart, p.loopEnd) * F;
 		Region r;
 		r.reverse = p.reverse;
+		r.equalPower = p.equalPower;
 		if (p.reverse) {
 			r.start = F - b; r.end = F - a; r.ls = F - lb; r.le = F - la;
 		}
@@ -486,8 +770,62 @@ struct PlayHead {
 		return r;
 	}
 
-	float get(int c, double pos, bool reverse) const {
-		return reverse ? s->read(c, (double)s->frames - 1.0 - pos) : s->read(c, pos);
+	// how to read for a step (frames of the sample per output frame)
+	void setStep(double step) {
+		step = std::fabs(step);
+		if (step == lastStep)
+			return;
+		lastStep = step;
+		if (!(step > 1.0) || !s) {
+			level = -1;
+			return;
+		}
+		double local = step;   // under 2 unless out of octave copies
+		level = 0;
+		while (local >= 2.0 && level < s->mipLevels) {
+			local *= 0.5;
+			level++;
+		}
+		cut = 0.85f / (float)std::min(local, 4.0);
+	}
+
+	void read(double pos, bool reverse, float &l, float &r) const {
+		double p = reverse ? (double)s->frames - 1.0 - pos : pos;
+		if (level < 0) {
+			l = s->read(0, p);
+			r = s->channels > 1 ? s->read(1, p) : l;
+		}
+		else {
+			s->readBandLimited(level, cut, p, l, r);
+		}
+	}
+
+	// the crossfade: `t` (0..1) of the way from (l, r) to (bl, br). Constant
+	// power: the gains of a linear fade, scaled so the level goes from one
+	// side's to the other's whatever their correlation, measured since the
+	// fade began (a plain linear fade dips 3 dB on noise; an equal-power one
+	// bumps 3 dB on a tone)
+	double xaa = 0, xbb = 0, xab = 0;
+	bool fading = false;
+	void blend(const Region &rg, float t, float bl, float br, float &l, float &r) {
+		t = std::max(0.f, std::min(1.f, t));
+		fading = true;
+		float ga = 1.f - t, gb = t;
+		if (rg.equalPower) {
+			float ma = l + r, mb = bl + br;
+			xaa += (double)ma * ma;
+			xbb += (double)mb * mb;
+			xab += (double)ma * mb;
+			double want = ga * xaa + gb * xbb;
+			double got = (double)ga * ga * xaa + (double)gb * gb * xbb + 2.0 * ga * gb * std::max(0.0, xab);
+			if (got > 1e-9 * (xaa + xbb) && got > 1e-20) {
+				float k = (float)std::min(1.5, std::sqrt(want / got));
+				ga *= k;
+				gb *= k;
+			}
+		}
+		l = ga * l + gb * bl;
+		r = ga * r + gb * br;
 	}
 
 	// one output frame, then the head moves by `step` play-space frames
@@ -496,35 +834,35 @@ struct PlayHead {
 			l = rr = 0.f;
 			return;
 		}
-		int c1 = s->channels > 1 ? 1 : 0;
+		setStep(step);
 		double L = r.le - r.ls;
-		l = get(0, v, r.reverse);
-		rr = get(c1, v, r.reverse);
+		read(v, r.reverse, l, rr);
+		float bl, br;
+		bool wasFading = fading;
+		fading = false;
 		if (inLoop && r.x > 0 && r.tail) {
 			// after each wrap: what followed the seam fades into the loop's start
 			if (wrapped && r.mode == LOOP_FORWARD && v < r.ls + r.x) {
-				float t = 1.f - (float)((v - r.ls) / r.x);
-				l += t * (get(0, v + L, r.reverse) - l);
-				rr += t * (get(c1, v + L, r.reverse) - rr);
+				read(v + L, r.reverse, bl, br);
+				blend(r, 1.f - (float)((v - r.ls) / r.x), bl, br, l, rr);
 			}
 			else if (wrapped && r.mode == LOOP_REVERSE && v > r.le - r.x) {
-				float t = 1.f - (float)((r.le - v) / r.x);
-				l += t * (get(0, v - L, r.reverse) - l);
-				rr += t * (get(c1, v - L, r.reverse) - rr);
+				read(v - L, r.reverse, bl, br);
+				blend(r, 1.f - (float)((r.le - v) / r.x), bl, br, l, rr);
 			}
 		}
 		else if (inLoop && r.x > 0) {
 			if (r.mode == LOOP_FORWARD && v > r.le - r.x) {
-				float t = (float)((v - (r.le - r.x)) / r.x);
-				l += t * (get(0, v - L, r.reverse) - l);
-				rr += t * (get(c1, v - L, r.reverse) - rr);
+				read(v - L, r.reverse, bl, br);
+				blend(r, (float)((v - (r.le - r.x)) / r.x), bl, br, l, rr);
 			}
 			else if (r.mode == LOOP_REVERSE && v < r.ls + r.x) {
-				float t = (float)(((r.ls + r.x) - v) / r.x);
-				l += t * (get(0, v + L, r.reverse) - l);
-				rr += t * (get(c1, v + L, r.reverse) - rr);
+				read(v + L, r.reverse, bl, br);
+				blend(r, (float)(((r.ls + r.x) - v) / r.x), bl, br, l, rr);
 			}
 		}
+		if (wasFading && !fading)
+			xaa = xbb = xab = 0;   // the next fade measures afresh
 		v += step * dir;
 		if (r.mode != LOOP_OFF && !inLoop && v >= r.ls && v < r.le)
 			inLoop = true;
@@ -574,10 +912,13 @@ struct Stretcher {
 			return;
 		rate = sampleRate;
 		mode = m;
+		// split computation: each block's FFT work spread over the interval, so
+		// no block costs a whole analysis (one interval more of latency, which
+		// outputSeek and the tail account for)
 		if (m == TIME_STRETCH_CHEAP)
-			st.presetCheaper(2, sampleRate);
+			st.presetCheaper(2, sampleRate, true);
 		else
-			st.presetDefault(2, sampleRate);
+			st.presetDefault(2, sampleRate, true);
 		int need = 1;
 		while (need < (int)(sampleRate * 2.f))
 			need <<= 1;
@@ -610,9 +951,11 @@ struct Stretcher {
 struct Voice {
 	bool active = false;
 	bool gate = false;
-	bool fadingOut = false;   // retriggered or stolen: a 3 ms fade, then off
+	bool fadingOut = false;   // retriggered, stolen, its sample or pool replaced: a 3 ms fade, then off
 	int outChannel = 0;
 	const Sample *sample = nullptr;
+	const Sample *origin = nullptr;   // the sample the display shows for it (never read through)
+	double frames = 0;                // frames of `sample`, for the display
 	PlayHead head;
 	VoiceFilter filter;
 	float env = 0.f;
@@ -622,12 +965,13 @@ struct Voice {
 	float cutoffNote = 120.f;
 	float speed = 1.f;        // the knob plus this channel's CV
 	float resonance = 0.f;    // the knob plus this channel's CV
-	int stretch = -1;         // index in the stretch pool, -1: repitch
+	Stretcher *st = nullptr;  // its stretcher, nullptr: repitch
 	int tail = 0;             // stretch: output frames left once the tape has ended
 	int filterCount = 0;
 	int64_t age = 0;
 	float ratioSemis = 1e9f;   // the pitch the cached ratio was worked out for
 	double ratio = 1.0;
+	float goodSemis = 0.f;     // the last finite pitch (a NaN CV keeps it)
 	// SLICES mode: the voice plays its own slice region; a one shot plays to
 	// the end of it whatever the gate does
 	bool ownRegion = false;
@@ -650,6 +994,7 @@ struct Engine {
 	static constexpr int PREVIEW = SLOTS - 1;
 	Voice voices[SLOTS];
 	Stretcher *pool = nullptr;   // STRETCH_POOL stretchers, built by the worker
+	Stretcher *oldPool = nullptr;   // the one replaced, until its voices have faded
 	float rate = 48000.f;
 	int poolMode = -1;           // the preset the pool runs, -1: none yet
 	float poolRate = 0.f;
@@ -658,12 +1003,12 @@ struct Engine {
 	// samples replaced while voices still played them (hot-swap)
 	const Sample *old[8] = {};
 
+	// a new rate: what plays fades out (its stretchers keep their old rate meanwhile)
 	void prepare(float sampleRate) {
 		rate = sampleRate;
-		for (Voice &v : voices) {
-			v.active = false;
-			v.stretch = -1;
-		}
+		for (Voice &v : voices)
+			if (v.active)
+				v.fadingOut = true;
 	}
 
 	static int presetFor(int timeMode) {
@@ -690,26 +1035,58 @@ struct Engine {
 		return p;
 	}
 
-	// takes a pool from the worker; returns the one it replaces, for the worker to free
-	Stretcher *setPool(Stretcher *p, int preset, float sampleRate) {
-		for (Voice &v : voices) {
-			if (v.stretch >= 0) {
-				v.active = false;   // a stretched voice cannot move to another pool
-				v.stretch = -1;
-			}
-		}
-		Stretcher *old = pool;
+	// the previous pool is still fading out: a new one waits
+	bool canTakePool() const {
+		return !oldPool;
+	}
+
+	// takes a pool from the worker; the stretched voices fade out on the old
+	// one, which takeOldPool() hands back once they are done
+	void setPool(Stretcher *p, int preset, float sampleRate) {
+		for (Voice &v : voices)
+			if (v.active && v.st)
+				v.fadingOut = true;   // a stretched voice cannot move to another pool
+		oldPool = pool;
 		pool = p;
 		poolMode = preset;
 		poolRate = sampleRate;
-		return old;
+	}
+
+	// the replaced pool once no voice uses it, for the worker to free
+	Stretcher *takeOldPool() {
+		if (!oldPool)
+			return nullptr;
+		for (int i = 0; i < STRETCH_POOL; i++)
+			if (oldPool[i].inUse)
+				return nullptr;
+		Stretcher *o = oldPool;
+		oldPool = nullptr;
+		return o;
 	}
 
 	bool poolReady(int timeMode) const {
 		return pool && poolMode == presetFor(timeMode) && poolRate == rate;
 	}
 
-	// hot-swap: new notes take the new sample, playing ones keep theirs
+	// room to keep the playing sample while a new one comes in
+	bool canTake() const {
+		if (!current)
+			return true;
+		for (const Sample *o : old)
+			if (!o)
+				return true;
+		return false;
+	}
+	// no room: the voices of the oldest replaced sample fade out, then
+	// takeUnused() hands it back and the new one can come in
+	void makeRoom() {
+		for (Voice &v : voices)
+			if (v.active && v.sample == old[0])
+				v.fadingOut = true;
+	}
+
+	// hot-swap: new notes take the new sample, playing ones keep theirs (call
+	// when canTake())
 	void setSample(const Sample *s) {
 		if (s == current)
 			return;
@@ -717,17 +1094,9 @@ struct Engine {
 			for (const Sample *&o : old) {
 				if (!o) {
 					o = current;
-					current = s;
-					return;
+					break;
 				}
 			}
-			// no room left: stop whatever still plays the oldest one
-			for (Voice &v : voices)
-				if (v.sample == old[0])
-					v.active = false;
-			for (int i = 0; i < 7; i++)
-				old[i] = old[i + 1];
-			old[7] = current;
 		}
 		current = s;
 	}
@@ -742,26 +1111,29 @@ struct Engine {
 				used |= v.active && v.sample == o;
 			if (!used) {
 				const Sample *r = o;
-				o = nullptr;
+				// keep the oldest first: makeRoom() fades old[0]
+				for (const Sample **q = &o; q + 1 < old + 8; q++)
+					*q = *(q + 1);
+				old[7] = nullptr;
 				return r;
 			}
 		}
 		return nullptr;
 	}
 
-	int freeStretcher() {
+	Stretcher *freeStretcher() {
 		if (!pool)
-			return -1;
+			return nullptr;
 		for (int i = 0; i < STRETCH_POOL; i++)
 			if (!pool[i].inUse)
-				return i;
-		return -1;
+				return &pool[i];
+		return nullptr;
 	}
 
 	void release(Voice &v) {
-		if (v.stretch >= 0 && pool)
-			pool[v.stretch].inUse = false;
-		v.stretch = -1;
+		if (v.st)
+			v.st->inUse = false;
+		v.st = nullptr;
 		v.active = false;
 	}
 
@@ -788,7 +1160,7 @@ struct Engine {
 		voices[spare] = v;
 		voices[spare].fadingOut = true;
 		v.active = false;
-		v.stretch = -1;   // the stretcher went with the fading copy
+		v.st = nullptr;   // the stretcher went with the fading copy
 	}
 
 	// `own`: a slice's start, end, loop and direction instead of the module's
@@ -804,9 +1176,11 @@ struct Engine {
 		v.gate = true;
 		v.outChannel = outChannel;
 		v.sample = current;
+		v.origin = current->origin;
+		v.frames = (double)current->frames;
 		v.head.s = current;
 		v.head.v = std::max(r.start, std::min(r.end - 1, r.start + startOffset * (r.end - r.start)));
-		v.pitchSemis = semis;
+		v.pitchSemis = std::isfinite(semis) ? semis : 0.f;
 		v.velocity = velocity;
 		v.cutoffNote = cutoffNote;
 		v.speed = p.speed;
@@ -817,10 +1191,10 @@ struct Engine {
 		v.filter.reset();
 		// stretched when a warmed-up pool is there and has a free stretcher, else repitched
 		if (p.timeMode != TIME_REPITCH && poolReady(p.timeMode)) {
-			v.stretch = freeStretcher();
-			if (v.stretch >= 0) {
-				pool[v.stretch].inUse = true;
-				pool[v.stretch].begin();
+			v.st = freeStretcher();
+			if (v.st) {
+				v.st->inUse = true;
+				v.st->begin();
 			}
 		}
 	}
@@ -835,10 +1209,13 @@ struct Engine {
 		if (!current)
 			return;
 		Voice &v = voices[PREVIEW];
+		release(v);
 		v = Voice();
 		v.active = true;
 		v.gate = true;
 		v.sample = current;
+		v.origin = current->origin;
+		v.frames = (double)current->frames;
 		v.head.s = current;
 		v.head.v = std::max(0.0, std::min(1.0, pos)) * current->frames;
 		(void)p;
@@ -879,6 +1256,7 @@ struct Engine {
 		PlayHead::Region mainRegion {};
 		if (current)
 			mainRegion = PlayHead::region(*current, p, rate);
+		const float speedKnob = std::isfinite(p.speed) ? p.speed : 1.f;
 		for (int i = 0; i < SLOTS; i++) {
 			Voice &v = voices[i];
 			if (!v.active || !v.sample)
@@ -889,7 +1267,7 @@ struct Engine {
 			const PlaySettings &pr = p;
 			if (!preview) {
 				ps = pr;
-				ps.speed = v.speed;
+				ps.speed = std::isfinite(v.speed) ? v.speed : speedKnob;
 				ps.filter.resonance = v.resonance;
 			}
 			else {
@@ -900,12 +1278,18 @@ struct Engine {
 				ps.end = 1;
 				ps.filter.mode = FILTER_OFF;
 			}
+			// a NaN pitch CV keeps the last good pitch
+			float semis = v.pitchSemis + v.pitchOffset;
+			if (std::isfinite(semis))
+				v.goodSemis = semis;
+			else
+				semis = v.goodSemis;
 			PlayHead::Region r = v.ownRegion ? v.region : ((!preview && v.sample == current) ? mainRegion : PlayHead::region(s, ps, rate));
 			const double srcRatio = s.rate / rate;
 			float l = 0.f, rr = 0.f;
 			double step = srcRatio;
-			if (v.stretch >= 0 && !preview) {
-				Stretcher &st = pool[v.stretch];
+			if (v.st && !preview) {
+				Stretcher &st = *v.st;
 				if (!st.started && !seekFree) {
 					v.age++;
 					continue;   // starts on a later frame
@@ -922,13 +1306,13 @@ struct Engine {
 							st.written++;
 						}
 						st.st.setFormantFactor(1.f, ps.timeMode == TIME_STRETCH_FORMANT);
-						st.st.setTransposeSemitones(v.pitchSemis + v.pitchOffset);
+						st.st.setTransposeSemitones(semis);
 						st.st.outputSeek(Stretcher::Input{&st, 0}, seekLen);
 						st.consumed = seekLen;
 						st.started = true;
 					}
 					st.st.setFormantFactor(1.f, ps.timeMode == TIME_STRETCH_FORMANT);
-					st.st.setTransposeSemitones(v.pitchSemis + v.pitchOffset);
+					st.st.setTransposeSemitones(semis);
 					int count = (int)std::floor(st.acc + ps.speed * STRETCH_BLOCK);
 					st.acc += ps.speed * STRETCH_BLOCK - count;
 					while (st.written < st.consumed + count) {
@@ -952,11 +1336,17 @@ struct Engine {
 					v.gate = false, v.env = 0.f;
 			}
 			else {
-				if (v.pitchSemis + v.pitchOffset != v.ratioSemis) {
-					v.ratioSemis = v.pitchSemis + v.pitchOffset;
-					v.ratio = std::exp2((double)v.ratioSemis / 12.0);
+				if (semis != v.ratioSemis) {
+					v.ratioSemis = semis;
+					v.ratio = std::exp2((double)semis / 12.0);
 				}
 				step = srcRatio * v.ratio * (preview ? 1.0 : (double)ps.speed);
+				if (!std::isfinite(step) || !std::isfinite(v.head.v)) {
+					// nothing sane to play: the voice stops, its filter from rest
+					v.filter.reset();
+					release(v);
+					continue;
+				}
 				float fade = endFade(v, r, step);
 				v.head.next(r, step, l, rr);
 				l *= fade;
@@ -967,14 +1357,21 @@ struct Engine {
 			envelope(v, ps);
 			if (!v.active)
 				continue;
-			// filter coefficients every 16 frames
+			// filter coefficients every 16 frames, glided to in between; at once
+			// when the slope changes or the filter comes on
 			if (ps.filter.mode != FILTER_OFF) {
-				if (v.filterCount-- <= 0) {
-					v.filter.set(ps.filter, v.cutoffNote, rate);
+				if (v.filterCount-- <= 0 || v.filter.stages != VoiceFilter::count(ps.filter)) {
+					v.filter.set(ps.filter, v.cutoffNote, rate, 16);
 					v.filterCount = 15;
 				}
-				l = v.filter.process(0, l, ps.filter);
-				rr = v.filter.process(1, rr, ps.filter);
+				v.filter.process(l, rr, ps.filter.mode);
+			}
+			else {
+				v.filter.stages = 0;
+			}
+			if (!std::isfinite(l) || !std::isfinite(rr)) {
+				v.filter.reset();
+				l = rr = 0.f;
 			}
 			float g = v.env * v.fadeGain * v.velocity * p.gain;
 			outL[v.outChannel] += l * g * v.gainL;

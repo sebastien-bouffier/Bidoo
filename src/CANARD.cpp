@@ -14,6 +14,7 @@
 #include <mutex>
 #include <thread>
 #include "dep/waves.hpp"
+#include "SampleRead.hpp"
 
 using namespace std;
 
@@ -27,10 +28,14 @@ inline float canardSoftLimit(float x) {
 
 // A sample and its slice markers (the first is always 0), with an overview
 // for the display. Never changed once handed to the audio thread: an edit
-// builds a new one on the worker.
+// builds a new one on the worker. The display and the patch storage share it
+// (shared_ptr), so saving needs no copy and no wait.
 struct CanardSample {
 	static constexpr int OVERVIEW = 1024;
 	std::vector<dsp::Frame<2>> frames;
+	// Band-limited copies for playing faster than 1x; shared by the versions
+	// that keep the same audio (a marker edit), built again when it changes.
+	std::shared_ptr<const sampleread::Mip<2>> mip;
 	std::vector<int> slices{0};
 	float sampleRate = 0.f;
 	float overviewMin[2][OVERVIEW] = {};
@@ -38,7 +43,17 @@ struct CanardSample {
 
 	int size() const { return (int)frames.size(); }
 
+	// The audio changed: the mip copies are built again in finish().
+	void audioChanged() {
+		mip.reset();
+	}
+
 	void finish() {
+		if (!mip && size() > 0) {
+			auto m = std::make_shared<sampleread::Mip<2>>();
+			m->build((const float *)frames.data(), size());
+			mip = m;
+		}
 		std::sort(slices.begin(), slices.end());
 		slices.erase(std::unique(slices.begin(), slices.end()), slices.end());
 		slices.erase(std::remove_if(slices.begin(), slices.end(), [&](int s) { return s < 0 || (s > 0 && s >= size()); }), slices.end());
@@ -111,12 +126,16 @@ struct CANARD : BidooModule {
 	CanardSample *smp = nullptr;
 	bool play = false;
 	bool record = false;
-	float samplePos = 0.0f, sampleStart = 0.0f, loopLength = 0.0f, fadeLenght = 0.0f;
+	double samplePos = 0.0;  // double: a float loses the pitch far into long samples
+	float sampleStart = 0.0f, loopLength = 0.0f, fadeLenght = 0.0f;
 	float direction = 1.0f;      // ping-pong flips it
 	int playedSlice = 0;
 	int totalSampleCount = 0;
 	float speed = 1.0f;
 	bool reverse = false;        // plays the slices backward
+	sampleread::Declick<2> dc;
+	float lastStep = 0.f, lastGain = 0.f;  // of the last sample played
+	double lastPos = 0.0;
 	dsp::SchmittTrigger trigTrigger;
 	dsp::SchmittTrigger gateTrigger;
 	dsp::SchmittTrigger recordTrigger;
@@ -144,13 +163,12 @@ struct CANARD : BidooModule {
 	// added or a slice deleted) is stored in the patch, as sample.wav.
 	std::atomic<bool> inPatch{false};
 	std::atomic<bool> storeDirty{false};   // sample.wav is out of date
-	std::atomic<int> storesDone{0};
 	bool loadStored = false;               // set by dataFromJson, used by onAdd
 	std::vector<int> storedSlices;
 	int storedRate = 0;
 
 	// Worker: loads, saves, slice edits, recordings.
-	enum JobType { LOAD, SAVE, CLEAR, DELETE_SLICE, ADD_MARKER, DELETE_MARKER, TRANSIENTS, STORE, LOAD_STORED, RESAMPLE };
+	enum JobType { LOAD, SAVE, CLEAR, DELETE_SLICE, ADD_MARKER, DELETE_MARKER, TRANSIENTS, LOAD_STORED, RESAMPLE };
 	struct Job { JobType type; std::string path; int value; std::vector<int> slices; float rate; };
 	std::thread worker;
 	std::mutex jobMutex;
@@ -161,6 +179,9 @@ struct CANARD : BidooModule {
 	std::atomic<int> busy{0};
 	std::string lastPath;      // under jobMutex
 	std::string waveFileName;  // under jobMutex
+	// Worker: owns every sample it published (the audio thread only borrows
+	// them); one is let go once the audio thread retired it.
+	std::vector<std::shared_ptr<CanardSample>> owned;
 
 	// UI thread: what the display shows.
 	std::mutex uiMutex;
@@ -209,9 +230,7 @@ struct CANARD : BidooModule {
 		jobCv.notify_all();
 		if (worker.joinable())
 			worker.join();
-		delete pending.load();
-		delete retired.load();
-		delete smp;
+		// pending, retired and smp are all in `owned`.
 		for (int i = 0; i < SPARES; i++)
 			delete spare[i].load();
 		for (int i = 0; i < recCount; i++)
@@ -258,55 +277,74 @@ struct CANARD : BidooModule {
 		return waveFileName;
 	}
 
-	// Worker: hands a new sample (or none) to the audio thread.
+	// Worker: lets go of a sample the audio thread no longer uses.
+	void disown(CanardSample *p) {
+		if (p)
+			owned.erase(std::remove_if(owned.begin(), owned.end(), [p](const std::shared_ptr<CanardSample> &o) { return o.get() == p; }), owned.end());
+	}
+
+	void releaseRetired() {
+		disown(retired.exchange(nullptr, std::memory_order_acq_rel));
+	}
+
+	// Worker: hands a new sample (or none) to the audio thread. The audio
+	// thread takes it even while the module is bypassed (processBypass).
 	void publish(CanardSample *s) {
-		if (s)
+		std::shared_ptr<CanardSample> sp;
+		if (s) {
 			s->finish();
-		auto shown = s ? std::make_shared<CanardSample>(*s) : nullptr;
-		if (shown)
-			shown->frames.clear();  // the display needs the overview and the slices only
+			sp.reset(s);
+			owned.push_back(sp);
+		}
 		{
 			std::lock_guard<std::mutex> ui(uiMutex);
-			uiSample = shown;
+			uiSample = sp;
 		}
 		while (pendingSet.load() && !quit) {
 			// The audio thread takes the new one only once the old one is freed.
-			delete retired.exchange(nullptr, std::memory_order_acq_rel);
+			releaseRetired();
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
-		delete pending.exchange(s, std::memory_order_acq_rel);
+		disown(pending.exchange(s, std::memory_order_acq_rel));
 		pendingSet = true;
 	}
 
 	CanardSample *copyLive() {
 		// An edit starts from the newest sample: wait until the audio thread took it.
 		while (pendingSet.load() && !quit) {
-			delete retired.exchange(nullptr, std::memory_order_acq_rel);
+			releaseRetired();
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 		CanardSample *l = live.load(std::memory_order_acquire);
 		return l ? new CanardSample(*l) : nullptr;
 	}
 
+	// A slice where the energy of both channels jumps, cut at the zero
+	// crossing (a sign change of the mid signal) just before its block, so
+	// the onset stays whole.
 	void detectTransients(CanardSample *s, float threshold) {
 		s->slices.clear();
 		s->slices.push_back(0);
 		const int size = 256;
+		auto mid = [&](int i) { return s->frames[i].samples[0] + s->frames[i].samples[1]; };
 		float prevNrgy = 0.0f;
 		for (int i = 0; i + size < s->size(); i += size) {
 			float nrgy = 0.0f;
-			int zcIdx = 0;
-			bool firstZero = true;
 			for (int k = 0; k < size; k++) {
-				float v = s->frames[i + k].samples[0];
-				nrgy += 100 * v * v / size;
-				if (v == 0.0f && firstZero) {
-					zcIdx = k;
-					firstZero = false;
-				}
+				float l = s->frames[i + k].samples[0], r = s->frames[i + k].samples[1];
+				nrgy += 50 * (l * l + r * r) / size;
 			}
-			if ((nrgy > threshold) && (nrgy > 10 * prevNrgy))
-				s->slices.push_back(i + zcIdx);
+			if ((nrgy > threshold) && (nrgy > 10 * prevNrgy)) {
+				int at = i;
+				for (int k = i; k > std::max(i - size, 0); k--) {
+					float a = mid(k - 1), b = mid(k);
+					if (b == 0.f || (a < 0.f) != (b < 0.f)) {
+						at = (std::fabs(a) < std::fabs(b)) ? k - 1 : k;
+						break;
+					}
+				}
+				s->slices.push_back(at);
+			}
 			prevNrgy = nrgy;
 		}
 	}
@@ -341,19 +379,13 @@ struct CANARD : BidooModule {
 					inPatch = false;  // the file now holds this sample
 				break;
 			}
-			case STORE: {
-				CanardSample *l = live.load(std::memory_order_acquire);
-				if (l && l->size() > 0 && waves::saveWave(l->frames, l->sampleRate, job.path))
-					storeDirty = false;
-				storesDone++;
-				break;
-			}
 			case RESAMPLE: {
 				CanardSample *s = copyLive();
 				if (!s)
 					break;
 				double ratio = job.rate / s->sampleRate;
 				s->frames = waves::resampleStereo(s->frames, s->sampleRate, job.rate);
+				s->audioChanged();
 				for (int &x : s->slices)
 					x = (int)std::round(x * ratio);
 				s->sampleRate = job.rate;
@@ -373,6 +405,7 @@ struct CANARD : BidooModule {
 					int from = s->slices[sel];
 					int to = (sel + 1 < (int)s->slices.size()) ? s->slices[sel + 1] : s->size();
 					s->frames.erase(s->frames.begin() + from, s->frames.begin() + to);
+					s->audioChanged();
 					s->slices.erase(s->slices.begin() + sel);
 					for (size_t i = sel; i < s->slices.size(); i++)
 						s->slices[i] -= (to - from);
@@ -424,7 +457,7 @@ struct CANARD : BidooModule {
 			if (quit)
 				break;
 			lock.unlock();
-			delete retired.exchange(nullptr, std::memory_order_acq_rel);
+			releaseRetired();
 			// Keep spare recording chunks ready.
 			for (int i = 0; i < SPARES; i++)
 				if (!spare[i].load()) {
@@ -451,6 +484,7 @@ struct CANARD : BidooModule {
 					s->sampleRate = recRate;
 				}
 				int at = s->size();
+				s->audioChanged();
 				for (int c = 0; c < done; c++) {
 					s->frames.insert(s->frames.end(), recChunks[c]->f, recChunks[c]->f + recChunks[c]->used);
 					delete recChunks[c];
@@ -503,6 +537,27 @@ struct CANARD : BidooModule {
 
 	void process(const ProcessArgs &args) override;
 
+	// Takes a new sample from the worker, once it has freed the previous one.
+	void takePending() {
+		if (pendingSet.load(std::memory_order_acquire) && !retired.load(std::memory_order_acquire)) {
+			CanardSample *s = pending.exchange(nullptr, std::memory_order_acq_rel);
+			retired.store(smp, std::memory_order_release);
+			smp = s;
+			live.store(s, std::memory_order_release);
+			pendingSet = false;
+			totalSampleCount = smp ? smp->size() : 0;
+			if (samplePos >= totalSampleCount)
+				play = false;
+			dc.reset();  // a tail would read the old sample
+		}
+	}
+
+	// Bypassed: still takes the worker's samples, so it never waits.
+	void processBypass(const ProcessArgs &args) override {
+		takePending();
+		Module::processBypass(args);
+	}
+
 	// the folder is made on demand: Rack does not create it, and writing the
 	// sample into a folder that does not exist fails (the sample is then lost
 	// between sessions)
@@ -519,12 +574,15 @@ struct CANARD : BidooModule {
 		}
 		if (!storeDirty && rack::system::isFile(path))
 			return;
-		// Written by the worker, which owns the sample; wait for it (it only
-		// runs short jobs, but give up rather than hang the save).
-		int before = storesDone.load();
-		post({STORE, path, 0, {}, 0.f});
-		for (int i = 0; i < 10000 && storesDone.load() == before; i++)
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		// The newest sample, shared with the display: written from here, with
+		// no wait on the worker (busy or not, bypassed or not).
+		std::shared_ptr<CanardSample> s;
+		{
+			std::lock_guard<std::mutex> lock(uiMutex);
+			s = uiSample;
+		}
+		if (s && s->size() > 0 && waves::saveWave(s->frames, s->sampleRate, path))
+			storeDirty = false;
 	}
 
 	void onAdd(const AddEvent &e) override {
@@ -619,24 +677,29 @@ struct CANARD : BidooModule {
 };
 
 void CANARD::process(const ProcessArgs &args) {
-	// Take a new sample from the worker, once it has freed the previous one.
-	if (pendingSet.load(std::memory_order_acquire) && !retired.load(std::memory_order_acquire)) {
-		CanardSample *s = pending.exchange(nullptr, std::memory_order_acq_rel);
-		retired.store(smp, std::memory_order_release);
-		smp = s;
-		live.store(s, std::memory_order_release);
-		pendingSet = false;
-		totalSampleCount = smp ? smp->size() : 0;
-		if (samplePos >= totalSampleCount)
-			play = false;
-	}
+	takePending();
+	const int fadeLen = sampleread::declickLength(args.sampleRate);
+	// Declicked restarts and stops: the old head fades out over 2 ms while
+	// the new one fades in.
+	// (samplePos is where the last sample played: the old head goes on from
+	// one step further.)
+	auto restart = [&]() {
+		if (play)
+			dc.tail(samplePos + lastStep, lastStep, lastGain, fadeLen);
+		dc.fadeIn(fadeLen);
+	};
+	auto stop = [&]() {
+		if (play)
+			dc.tail(samplePos + lastStep, lastStep, lastGain, fadeLen);
+		play = false;
+	};
 	if (smp && smp->sampleRate != args.sampleRate && busy.load() == 0 && recDone.load() < 0 && reloadRate.load() == 0.f)
 		reloadRate = args.sampleRate;
 
 	if (clearTrigger.process(inputs[CLEAR_INPUT].getVoltage() + params[CLEAR_PARAM].getValue(), 0.1f, 1.f)) {
 		// Through the worker, like any change of the sample.
 		clearRequested = true;
-		play = false;
+		stop();
 	}
 
 	// Recording, into chunks the worker keeps ready.
@@ -692,8 +755,10 @@ void CANARD::process(const ProcessArgs &args) {
 	float end = sampleStart + loopLength;
 	bool advance = false;
 
+	bool scrub = false;
 	if (trigMode == 1) {
 		if (trig) {
+			restart();
 			initPos();
 			if (smp && smp->slices.size() == 1 && inputs[SLICE_INPUT].isConnected())
 				samplePos = sampleStart + loopLength * clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f, 10.0f) * 0.1f;
@@ -706,10 +771,14 @@ void CANARD::process(const ProcessArgs &args) {
 		if (gateHigh) {
 			if (inputs[SLICE_INPUT].isConnected()) {
 				// Scrubbing: the slice CV sets the position.
+				scrub = true;
+				if (!play)
+					dc.fadeIn(fadeLen);
 				play = totalSampleCount > 0;
 				samplePos = sampleStart + clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f, 10.0f) * 0.1f * loopLength;
 			}
 			else if (gateRise) {
+				restart();
 				initPos();
 				play = totalSampleCount > 0;
 			}
@@ -717,48 +786,69 @@ void CANARD::process(const ProcessArgs &args) {
 				advance = play;
 		}
 		else
-			play = false;
+			stop();
 	}
 	else
-		play = false;
+		stop();
 
+	float step = 0.f;
 	if (advance) {
 		// Forward, or backward with reverse; ping-pong flips the direction.
 		float dir = (reverse ? -1.f : 1.f) * direction;
-		samplePos += dir * speed;
+		step = dir * speed;
+		samplePos += step;
 		bool pastEnd = dir > 0 ? samplePos >= end : samplePos <= sampleStart;
 		if (pastEnd) {
 			if (readMode == 0) {
 				play = false;
 				eocPulse.trigger(1e-3f);
 			}
-			else if (readMode == 1)
+			else if (readMode == 1) {
+				// The loop jump: the old head goes on, fading out.
+				dc.tail(samplePos, step, lastGain, fadeLen);
 				initPos();
+				dc.fadeIn(fadeLen);
+			}
 			else {
 				direction = -direction;
-				samplePos = clamp(samplePos, sampleStart, end);
+				samplePos = std::min(std::max(samplePos, (double)sampleStart), (double)end);
 			}
 		}
-		samplePos = clamp(samplePos, sampleStart, end);
+		samplePos = std::min(std::max(samplePos, (double)sampleStart), (double)end);
 	}
+	else if (scrub)
+		step = (float)(samplePos - lastPos);
 
-	float outL = 0.f, outR = 0.f;
+	float acc[2] = {0.f, 0.f};
 	if (play && smp && totalSampleCount > 1) {
-		float fade = 1.0f;
+		float fade = dc.nextIn();
 		if (fadeLenght >= 1.0f) {
 			if ((samplePos - sampleStart) < fadeLenght)
-				fade = (samplePos - sampleStart) / fadeLenght;
+				fade *= (float)(samplePos - sampleStart) / fadeLenght;
 			else if ((end - samplePos) < fadeLenght)
-				fade = (end - samplePos) / fadeLenght;
+				fade *= (float)(end - samplePos) / fadeLenght;
 		}
-		float p = clamp(samplePos, 0.f, totalSampleCount - 1.001f);
-		int xi = (int)p;
-		float xf = p - xi;
-		const dsp::Frame<2> &a = smp->frames[xi];
-		const dsp::Frame<2> &b = smp->frames[std::min(xi + 1, totalSampleCount - 1)];
-		outL = crossfade(a.samples[0], b.samples[0], xf) * fade * 5.0f;
-		outR = crossfade(a.samples[1], b.samples[1], xf) * fade * 5.0f;
+		if (readMode == 0 && !scrub) {
+			// Played once: at least 2 ms of fade before the end it stops at.
+			float dir = (reverse ? -1.f : 1.f) * direction;
+			float left = (float)(dir > 0 ? end - samplePos : samplePos - sampleStart) / speed;
+			if (left < fadeLen)
+				fade *= std::max(left, 0.f) / fadeLen;
+		}
+		double p = std::min(std::max(samplePos, 0.0), totalSampleCount - 1.001);
+		const sampleread::View<2> view{(const float *)smp->frames.data(), totalSampleCount, smp->mip.get()};
+		view.read(p, std::fabs(step == 0.f ? speed : step), acc);
+		acc[0] *= fade;
+		acc[1] *= fade;
+		lastGain = fade;
+		lastStep = step;
 	}
+	lastPos = samplePos;
+	if (smp && totalSampleCount > 1) {
+		const sampleread::View<2> view{(const float *)smp->frames.data(), totalSampleCount, smp->mip.get()};
+		dc.addTail(view, acc);
+	}
+	float outL = acc[0] * 5.0f, outR = acc[1] * 5.0f;
 	outputs[OUTL_OUTPUT].setVoltage(canardSoftLimit(outL));
 	outputs[OUTR_OUTPUT].setVoltage(canardSoftLimit(outR));
 	outputs[EOC_OUTPUT].setVoltage(eocPulse.process(args.sampleTime) ? 10.0f : 0.0f);

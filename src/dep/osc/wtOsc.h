@@ -11,8 +11,10 @@
 // can pick a level per voice that does not alias at its pitch.
 //
 // wtOscillator: 4 voices per SIMD vector. Reads two neighbouring frames and
-// crossfades them, so scanning the table is smooth. minBLEP is only used for
-// the real discontinuity of hard sync.
+// crossfades them, so scanning the table is smooth; near the top of a mipmap
+// level's range it also crossfades into the next level, so harmonics fade out
+// as the pitch rises instead of dropping at octave boundaries. minBLEP is only
+// used for the real discontinuity of hard sync.
 
 #include "dsp/minblep.hpp"
 #include "../pffft/pffft.h"
@@ -448,7 +450,21 @@ struct wtOscillator {
     return va + ft * (vb - va);
   }
 
-  T process(const wtPlayTable *t, float deltaTime, T freq, T pos, T level, T syncValue, int lanes) {
+  // level (whole numbers) and, with weight w, the next level up
+  static T readMip(const wtPlayTable *t, T phase, T pos, T level, T w, int lanes) {
+    T a = read(t, phase, pos, level, lanes);
+    if (!simd::movemask(w > 0.f))
+      return a;
+    T b = read(t, phase, pos, simd::fmin(level + 1.f, (float)(WT_LEVELS - 1)), lanes);
+    return a + w * (b - a);
+  }
+
+  // the wave at the current phase in another table (the crossfade of a new table)
+  T readNow(const wtPlayTable *t, T pos, T level, T w, int lanes) {
+    return readMip(t, phase, pos, level, w, lanes);
+  }
+
+  T process(const wtPlayTable *t, float deltaTime, T freq, T pos, T level, T w, T syncValue, int lanes) {
     T deltaPhase = simd::clamp(freq * deltaTime, 1e-6f, 0.35f);
     if (soft)
       deltaPhase *= syncDirection;
@@ -469,7 +485,7 @@ struct wtOscillator {
         }
         else {
           T newPhase = simd::ifelse(sync, (1.f - syncCrossing) * deltaPhase, phase);
-          T jump = read(t, newPhase, pos, level, lanes) - read(t, phase, pos, level, lanes);
+          T jump = readMip(t, newPhase, pos, level, w, lanes) - readMip(t, phase, pos, level, w, lanes);
           for (int i = 0; i < lanes; i++) {
             if (syncMask & (1 << i)) {
               T mask = simd::movemaskInverse<T>(1 << i);
@@ -481,6 +497,6 @@ struct wtOscillator {
       }
     }
 
-    return read(t, phase, pos, level, lanes) + minBLEP.process();
+    return readMip(t, phase, pos, level, w, lanes) + minBLEP.process();
   }
 };

@@ -68,14 +68,17 @@ struct DILEMO : BidooModule {
 	void gate(int in1, int in2, int out, int outInv, int op, float threshold) {
 		int channels = std::max(1, std::max(inputs[in1].getChannels(), in2 >= 0 ? inputs[in2].getChannels() : 0));
 		for (int c = 0; c < channels; c++) {
+			// both inputs read every sample: a short-circuit would skip the
+			// second one's hysteresis update and leave it in a stale state
 			bool a = read(in1, c, threshold);
+			bool b = in2 >= 0 ? read(in2, c, threshold) : false;
 			bool r;
 			if (op == 0)
-				r = a && read(in2, c, threshold);
+				r = a && b;
 			else if (op == 1)
-				r = a || read(in2, c, threshold);
+				r = a || b;
 			else if (op == 2)
-				r = a != read(in2, c, threshold);
+				r = a != b;
 			else
 				r = a;
 			if (out >= 0)

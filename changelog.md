@@ -1,3 +1,24 @@
+### v2.3.0 (07/11/2026)
+New in antN
+- AAC (AAC-LC, HE-AAC v1/v2) and Ogg Vorbis streams besides MP3, format told from the stream itself; a status line shows the station, format, bitrate and rate, or why a stream does not play (HLS, Opus...); right-click > Stations: about 120 checked stations by continent, news & talk or music (list in res/stations.json)
+Audio quality
+- Sample players (OUAIve, cANARd, póUPrè, maGma, oAï, eDsaroS, SpORE, fREIN, antN): no more clicks on start, retrigger, stop, loop, choke and state changes; pitching up is anti-aliased; play positions in double precision (no detuning far into long samples); loaded files no longer delayed or cut at the end
+- sOUNAiRe: files resampled to the patch rate, anti-aliased pitching up, constant-level loop crossfade (menu: linear or equal-power), smoother filter under audio-rate CV
+- dFUZE: full-length diffusers (smoother, stereo tail); REI: no click on algorithm or pre-delay change, shimmer right at 96/192 kHz
+- bAFIS: flat Linkwitz-Riley bands, oversampled distortion, near-linear at drive 1; lIMbO: boost no longer raises the resonance, Saturated mode oversampled; pErCO opens up to 21.6 kHz
+- baR / mINIBar: continuous level detector (short releases work), smoothed make-up and mix, bypass keeps the look-ahead delay
+- ziNC: 16 bands from 100 Hz to 14 kHz, even level across Q, faster envelopes; liMonADe: no harmonic drop at octave boundaries, no click on table changes
+- HCTIP: bigger FFT at high sample rates; ForK: cleaner carriers; TiARE: better decimator; EMILE: same pitch at every sample rate
+CPU
+- Control-rate work (knobs, buttons, lights) every 16 samples in the sequencers, mixers and utilities, with timing unchanged; ratEaU, dTrOY, bordL, ACnE, DIKTAT, µ several times cheaper
+- REI, dFUZE, HCTIP, SpORE, liMonADe, EMILE skip work on silence or with no output patched; lIMbO, HCTIP, ForK, TiARE, maGma, sOUNAiRe lighter
+- Cached displays (fLAME, liMonADe, PILOT, sOUNAiRe); the module browser no longer re-reads settings every frame
+Fixes
+- eDsaroS: no NaN at note-off with release 0; enCORE: tracks at speeds 3, 5, 6 or 7 no longer drift; DilEMO hysteresis; PILOT blink and curve display; antN fades
+- sOUNAiRe: no lost stretch voices after many sample swaps, no crash on load during autosave, NaN-safe inputs
+- Samples load while a module is bypassed; cANARd saving no longer freezes the UI
+- Themes: Blue and Green removed (Light, Dark, Black); sOUNAiRe has a single look and no Theme menu
+
 ### v2.2.0 (05/11/2026)
 New module
 - sOUNAiRe: a 16-voice sampler (32 HP). KEYS mode plays one sample over a key range with loops and crossfades, reverse, legato, a multimode filter and Signalsmith time-stretch; SLICES mode cuts a loop at its transients (drums or tonal detector) and plays one slice per key or per trigger (TRIG, SLICE, RESET), each slice with its own play type, choke group, level, tune, pan and envelope. Clock sync, recording from its inputs, zoomable display with undo for the cuts, WAV export, sample kept in the patch as FLAC

@@ -12,7 +12,8 @@ using simd::float_4;
 // two-segment line through (X, Y); every jump of the saw and square (and of all
 // waves on hard sync) gets a minBLEP at its exact time, found on the
 // undistorted phase. Oversampling takes care of the corners phase distortion
-// puts in the waves.
+// puts in the waves. In LFO mode (100 times slower) none of that is needed:
+// the waves are read at the sample rate as they are.
 
 // Accurate only on [0, 1]
 template <typename T>
@@ -82,37 +83,34 @@ inline float_4 tiareUndistort(float_4 d, float_4 x, float_4 y) {
 	return simd::ifelse(d <= y, d * x / y, x + (d - y) * (1.f - x) / (1.f - y));
 }
 
-// 2x decimator: windowed-sinc FIR on a doubled ring buffer, no modulo per tap.
+// 2x decimator: a polyphase IIR halfband (two chains of first-order allpasses
+// in z^-2, Laurent de Soras' hiir design, 6 coefficients): flat to 20 kHz at
+// 48 kHz and -95 dB from 28 kHz, for 6 multiplies. The 32-tap FIR it replaces
+// was 3.4 dB down at 20 kHz and only 32 dB down at 28 kHz (what folds to 20 kHz).
 template <typename T>
 struct TiareDecimator {
-	static const int TAPS = 32;
-	float kernel[TAPS];
-	T buffer[2 * TAPS];
-	int pos = 0;
+	T x[6], y[6];
 
 	TiareDecimator() {
-		dsp::boxcarLowpassIR(kernel, TAPS, 0.9f * 0.5f / 2.f);
-		dsp::blackmanHarrisWindow(kernel, TAPS);
-		float sum = 0.f;
-		for (float k : kernel) sum += k;
-		for (float &k : kernel) k /= sum;
-		for (T &b : buffer) b = 0.f;
+		for (int i = 0; i < 6; i++)
+			x[i] = y[i] = 0.f;
 	}
 
-	void push(T x) {
-		buffer[pos] = x;
-		buffer[pos + TAPS] = x;
-		pos = (pos + 1) % TAPS;
+	T chain(T in, int first, const float *k) {
+		for (int i = 0; i < 3; i++) {
+			T out = k[i] * (in - y[first + i]) + x[first + i];
+			x[first + i] = in;
+			y[first + i] = out;
+			in = out;
+		}
+		return in;
 	}
 
+	// two samples in (in time order), one out
 	T process(T a, T b) {
-		push(a);
-		push(b);
-		const T *newest = &buffer[pos + TAPS - 1];
-		T out = 0.f;
-		for (int i = 0; i < TAPS; i++)
-			out += kernel[i] * newest[-i];
-		return out;
+		static const float kA[3] = {0.045362164f, 0.337149688f, 0.708064136f};
+		static const float kB[3] = {0.168087481f, 0.522377854f, 0.897445591f};
+		return 0.5f * (chain(b, 0, kA) + chain(a, 3, kB));
 	}
 };
 
@@ -205,8 +203,40 @@ struct TiareOscillator {
 		}
 	}
 
+	// LFO mode: one step at the sample rate, the waves as they are (no minBLEP,
+	// no oversampling); a sync restarts (hard) or turns back (soft) the phase
+	void processLfo(float sampleTime, T syncValue, int waves) {
+		T deltaPhase = simd::clamp(freq * sampleTime, 1e-9f, 0.35f);
+		if (syncEnabled) {
+			T sync = (lastSync <= 0.f) & (syncValue > 0.f);
+			int syncMask = simd::movemask(sync) & ((1 << channels) - 1);
+			if (syncMask) {
+				if (soft)
+					syncDirection = simd::ifelse(sync, -syncDirection, syncDirection);
+				else
+					phase = simd::ifelse(sync, T(0.f), phase);
+			}
+		}
+		lastSync = syncValue;
+		if (soft)
+			deltaPhase *= syncDirection;
+		else
+			syncDirection = 1.f;
+		phase += deltaPhase;
+		phase -= simd::floor(phase);
+		T distorted = tiareDistort(phase, distX, distY);
+		for (int w = 0; w < TIARE_WAVES; w++) {
+			if (waves & (1 << w))
+				out[w] = tiareWave<T>(w, distorted, analog, pulseWidth);
+		}
+	}
+
 	// waves: bit mask of the outputs in use.
 	void process(float sampleTime, T syncValue, int waves) {
+		if (lfo) {
+			processLfo(sampleTime, syncValue, waves);
+			return;
+		}
 		float dt = sampleTime * 0.5f;
 		T sub[TIARE_WAVES][2];
 		T syncStart = lastSync;

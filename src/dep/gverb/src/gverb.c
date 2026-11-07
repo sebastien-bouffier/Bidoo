@@ -79,6 +79,7 @@ ty_gverb *gverb_new(int srate, float maxroomsize, float roomsize,
   ga = powf(10.0f,-ga/20.0f);
   n = p->rate*gt;
   p->alpha = pow((double)ga, 1.0/(double)n);
+  p->log2alpha = (float)log2(p->alpha);
 
   gb = 0.0;
   for(i = 0; i < FDNORDER; i++) {

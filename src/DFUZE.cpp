@@ -52,6 +52,14 @@ struct DFUZE : BidooModule {
 	bool freeze = false;
 	float inGain = 1.f;
 
+	// the coefficients follow the knobs and CVs every 16 samples
+	dsp::ClockDivider control;
+	static constexpr int CONTROL = 16;
+	// idle: nothing in and nothing left of the tail for longer than the
+	// longest delay, then gverb is skipped until the input moves again
+	int silent = 0;
+	bool idle = false;
+
 	DFUZE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(SIZE_PARAM, 1.0f, 300.0f, 30.0f, "Size", " m");
@@ -86,11 +94,18 @@ struct DFUZE : BidooModule {
 		for (int i = 0; i < 2; i++) {
 			if (verb[i])
 				gverb_free(verb[i]);
-			verb[i] = gverb_new((int)sampleRate, 300, 1, 1, 1, 1, 1, 1, 1);
+			// built as the original LADSPA design (a 50 m room, spread 15): the
+			// diffusers are sized from the room given here, a 1 m room made them
+			// about 50 times too short (a grainy, metallic tail)
+			verb[i] = gverb_new((int)sampleRate, 300, 50, 1, 0.5f, 15, 0.5f, 0.5f, 0.5f);
 		}
 		size = -1.f;
 		for (float &a : applied)
 			a = -1.f;
+		control.setDivision(CONTROL);
+		control.reset();
+		silent = 0;
+		idle = false;
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent &e) override {
@@ -118,46 +133,74 @@ struct DFUZE : BidooModule {
 void DFUZE::process(const ProcessArgs &args) {
 	if (freezeTrigger.process(params[FREEZE_PARAM].getValue() + inputs[FREEZE_INPUT].getVoltage()))
 		freeze = !freeze;
-	lights[FREEZE_LIGHT].setBrightness(freeze ? 1.f : 0.f);
 	float fade = 1.f / (0.01f * args.sampleRate);
 	inGain = freeze ? std::max(inGain - fade, 0.f) : std::min(inGain + fade, 1.f);
 
-	// the size glides (50 ms) so a moving size bends the tail instead of clicking
-	float sizeTarget = clamp(params[SIZE_PARAM].getValue() + inputs[SIZE_INPUT].getVoltage() * 30.0f, 1.0f, 300.0f);
-	size = size < 0.f ? sizeTarget : size + (sizeTarget - size) * std::min(1.0f, 1.0f / (0.05f * args.sampleRate));
+	// control rate: the size glides (50 ms) so a moving size bends the tail
+	// instead of clicking; coefficients worked out again only when a value moves
+	if (size < 0.f || control.process()) {
+		lights[FREEZE_LIGHT].setBrightness(freeze ? 1.f : 0.f);
+		float sizeTarget = clamp(params[SIZE_PARAM].getValue() + inputs[SIZE_INPUT].getVoltage() * 30.0f, 1.0f, 300.0f);
+		size = size < 0.f ? sizeTarget : size + (sizeTarget - size) * std::min(1.0f, (float)CONTROL / (0.05f * args.sampleRate));
 
-	float values[6] = {
-		size,
-		freeze ? 1e6f : clamp(params[REVTIME_PARAM].getValue() + inputs[REVTIME_INPUT].getVoltage() * 5.0f, 0.0f, 50.0f),
-		freeze ? 0.0f : clamp(params[DAMP_PARAM].getValue() + inputs[DAMP_INPUT].getVoltage() * 0.09f, 0.0f, 0.9f),
-		clamp(params[BANDWIDTH_PARAM].getValue() + inputs[BANDWIDTH_INPUT].getVoltage() * 0.1f, 0.0f, 1.0f),
-		clamp((params[EARLYLEVEL_PARAM].getValue() + inputs[EARLYLEVEL_INPUT].getVoltage()) * 0.1f, 0.0f, 1.0f),
-		clamp((params[TAIL_PARAM].getValue() + inputs[TAIL_INPUT].getVoltage()) * 0.1f, 0.0f, 1.0f)
-	};
-	// coefficients worked out again only when a value moves
-	for (int k = 0; k < 6; k++) {
-		if (values[k] == applied[k] || (k == 0 && std::fabs(values[k] - applied[k]) < 1e-4f))
-			continue;
-		applied[k] = values[k];
-		for (ty_gverb *v : verb) {
-			switch (k) {
-				case 0: gverb_set_roomsize(v, values[k]); break;
-				case 1: gverb_set_revtime(v, values[k]); break;
-				case 2: gverb_set_damping(v, values[k]); break;
-				case 3: gverb_set_inputbandwidth(v, values[k]); break;
-				case 4: gverb_set_earlylevel(v, values[k]); break;
-				case 5: gverb_set_taillevel(v, values[k]); break;
+		float values[6] = {
+			size,
+			freeze ? 1e6f : clamp(params[REVTIME_PARAM].getValue() + inputs[REVTIME_INPUT].getVoltage() * 5.0f, 0.0f, 50.0f),
+			freeze ? 0.0f : clamp(params[DAMP_PARAM].getValue() + inputs[DAMP_INPUT].getVoltage() * 0.09f, 0.0f, 0.9f),
+			clamp(params[BANDWIDTH_PARAM].getValue() + inputs[BANDWIDTH_INPUT].getVoltage() * 0.1f, 0.0f, 1.0f),
+			clamp((params[EARLYLEVEL_PARAM].getValue() + inputs[EARLYLEVEL_INPUT].getVoltage()) * 0.1f, 0.0f, 1.0f),
+			clamp((params[TAIL_PARAM].getValue() + inputs[TAIL_INPUT].getVoltage()) * 0.1f, 0.0f, 1.0f)
+		};
+		for (int k = 0; k < 6; k++) {
+			if (values[k] == applied[k] || (k == 0 && std::fabs(values[k] - applied[k]) < 1e-4f))
+				continue;
+			applied[k] = values[k];
+			for (ty_gverb *v : verb) {
+				switch (k) {
+					case 0: gverb_set_roomsize(v, values[k]); break;
+					case 1: gverb_set_revtime(v, values[k]); break;
+					case 2: gverb_set_damping(v, values[k]); break;
+					case 3: gverb_set_inputbandwidth(v, values[k]); break;
+					case 4: gverb_set_earlylevel(v, values[k]); break;
+					case 5: gverb_set_taillevel(v, values[k]); break;
+				}
 			}
 		}
 	}
 
+	bool outL = outputs[OUT_L_OUTPUT].isConnected(), outR = outputs[OUT_R_OUTPUT].isConnected();
 	float inL = inputs[IN_INPUT].getVoltageSum();
 	float inR = inputs[IN_R_INPUT].isConnected() ? inputs[IN_R_INPUT].getVoltageSum() : inL;
-	float ll, lr, rl, rr;
-	gverb_do(verb[0], inL * 0.1f * inGain, &ll, &lr);
-	gverb_do(verb[1], inR * 0.1f * inGain, &rl, &rr);
-	outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(ll * 10.0f));
-	outputs[OUT_R_OUTPUT].setVoltage(bidooSoftLimit(rr * 10.0f));
+	float xL = inL * 0.1f * inGain, xR = inR * 0.1f * inGain;
+
+	// nothing to hear, or nothing left of the tail: skip the reverb
+	bool quiet = std::fabs(xL) < 1e-7f && std::fabs(xR) < 1e-7f;
+	if (!quiet) {
+		silent = 0;
+		idle = false;
+	}
+	if (idle || (!outL && !outR)) {
+		outputs[OUT_L_OUTPUT].setVoltage(0.f);
+		outputs[OUT_R_OUTPUT].setVoltage(0.f);
+		return;
+	}
+
+	// dual mono: the left reverb feeds the left output, the right one the right
+	// (true stereo, ll + rl and lr + rr, doubled the cost for a narrower image);
+	// a side nobody listens to is not worked out
+	float yL = outL ? gverb_do_side(verb[0], xL, 0) : 0.f;
+	float yR = outR ? gverb_do_side(verb[1], xR, 1) : 0.f;
+	outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(yL * 10.0f));
+	outputs[OUT_R_OUTPUT].setVoltage(bidooSoftLimit(yR * 10.0f));
+
+	// the tail is gone once the output stays under -140 dB (re 10 V) for longer
+	// than the longest delay line
+	if (quiet && std::fabs(yL) < 1e-6f && std::fabs(yR) < 1e-6f) {
+		if (++silent > (int)(verb[0]->largestdelay + 0.25f * args.sampleRate))
+			idle = true;
+	}
+	else
+		silent = 0;
 }
 
 template <typename BASE>

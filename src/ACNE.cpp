@@ -94,6 +94,15 @@ struct ACNE : BidooModule {
 	float smoothRate = 0.f;
 	float saveLight = 0.f;
 
+	// Control rate: buttons, lights, the linked fader mirror, the autosave and
+	// the fader reads run every CONTROL_DIV samples; the morph and the 5 ms
+	// gain smoother stay per sample, towards the gains read at control rate.
+	static constexpr int CONTROL_DIV = 16;
+	int controlCounter = 0;
+	float_4 targets[ACNE_NB_OUTS][ACNE_NB_TRACKS/4] = {{0.0f}};
+	// Scene CV: a scene is left only 50 mV past the edges of its 0.625 V band.
+	static constexpr float SCENE_CV_HYSTERESIS = 0.05f;
+
 	ACNE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(MAIN_OUT_GAIN_PARAM, 0.f, 1.f, 0.7f, "Out 1-2 gain", "%", 0.f, 100.f);
@@ -291,128 +300,159 @@ void ACNE::process(const ProcessArgs &args) {
 		smoothRate = args.sampleRate;
 	}
 
-	bool save = saveTrigger.process(params[SAVE_PARAM].getValue());
-	if (save)
-		saveLight = 1.f;
-	saveLight = std::max(0.f, saveLight - args.sampleTime * 2.f);
-	lights[SAVE_LIGHT].setBrightness(saveLight);
-
-	if (autoSaveTrigger.process(params[AUTOSAVE_PARAM].getValue())) {
-		autosave = !autosave;
-	}
-	lights[AUTOSAVE_LIGHT].setBrightness(autosave ? 1 : 0);
-
-	if (copyPasteTrigger.process(params[COPY_PARAM].getValue())) {
-		if (!copyState) {
-			if (autosave)
-				storeScene();
-			copySnapshot = currentSnapshot;
-			copyState = true;
-		} else if (copySnapshot != currentSnapshot) {
-			for (int i = 0; i < ACNE_NB_OUTS; i++)
-				for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
-					snapshots[currentSnapshot][i][j] = snapshots[copySnapshot][i][j];
-			sceneInMutes[currentSnapshot] = sceneInMutes[copySnapshot];
-			sceneInSolos[currentSnapshot] = sceneInSolos[copySnapshot];
-			sceneOutMutes[currentSnapshot] = sceneOutMutes[copySnapshot];
-			copyState = false;
-			loadScene();
-		} else {
-			// pressed again on the copied scene: cancel
-			copyState = false;
-		}
-	}
-	lights[COPY_LIGHT].setBrightness(copyState ? 1 : 0);
-
+	// Scene CV, per sample so sequenced scene changes stay on time.
+	bool sceneSwitched = false;
 	if (inputs[SNAPSHOT_INPUT].isConnected()) {
-		int newSnapshot = clamp((int)(inputs[SNAPSHOT_INPUT].getVoltage() * 16 * 0.1f),0,ACNE_NB_SNAPSHOTS-1);
-		switchSnapshot(newSnapshot);
-	}
-	else {
-		for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
-			if (snapshotTriggers[i].process(params[SNAPSHOT_PARAMS + i].getValue())) {
-				switchSnapshot(i);
+		float v = inputs[SNAPSHOT_INPUT].getVoltage();
+		int newSnapshot = clamp((int)(v * 16 * 0.1f),0,ACNE_NB_SNAPSHOTS-1);
+		if (newSnapshot != currentSnapshot) {
+			float lo = currentSnapshot * 0.625f - SCENE_CV_HYSTERESIS;
+			float hi = (currentSnapshot + 1) * 0.625f + SCENE_CV_HYSTERESIS;
+			if (v < lo || v > hi) {
+				switchSnapshot(newSnapshot);
+				sceneSwitched = true;
 			}
 		}
 	}
-	for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++)
-		lights[SNAPSHOT_LIGHTS + i].setBrightness(i == currentSnapshot ? 1 : 0);
 
-	if ((eFader>-1) && shifted) {
-		int index = eFader%ACNE_NB_TRACKS;
-		int outOffset = (eFader/ACNE_NB_TRACKS)%2==0?1:-1;
-		int inOffset = links[index/2]?(index%2==0?1:-1):0;
-		int relative=eFader+ACNE_NB_TRACKS*outOffset+inOffset;
-		params[FADERS_PARAMS+relative].setValue(params[FADERS_PARAMS+eFader].getValue());
-	}
+	bool control = --controlCounter < 0;
+	if (control) {
+		controlCounter = CONTROL_DIV - 1;
+		const float controlTime = args.sampleTime * CONTROL_DIV;
 
-	if (clearMutesTrigger.process(params[MUTE_PARAM].getValue())) {
-		for (int i = 0; i < ACNE_NB_TRACKS; i++)
-			inMutes[i] = false;
+		bool save = saveTrigger.process(params[SAVE_PARAM].getValue());
+		if (save)
+			saveLight = 1.f;
+		saveLight = std::max(0.f, saveLight - controlTime * 2.f);
+		lights[SAVE_LIGHT].setBrightness(saveLight);
+
+		if (autoSaveTrigger.process(params[AUTOSAVE_PARAM].getValue())) {
+			autosave = !autosave;
+		}
+		lights[AUTOSAVE_LIGHT].setBrightness(autosave ? 1 : 0);
+
+		if (copyPasteTrigger.process(params[COPY_PARAM].getValue())) {
+			if (!copyState) {
+				if (autosave)
+					storeScene();
+				copySnapshot = currentSnapshot;
+				copyState = true;
+			} else if (copySnapshot != currentSnapshot) {
+				for (int i = 0; i < ACNE_NB_OUTS; i++)
+					for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
+						snapshots[currentSnapshot][i][j] = snapshots[copySnapshot][i][j];
+				sceneInMutes[currentSnapshot] = sceneInMutes[copySnapshot];
+				sceneInSolos[currentSnapshot] = sceneInSolos[copySnapshot];
+				sceneOutMutes[currentSnapshot] = sceneOutMutes[copySnapshot];
+				copyState = false;
+				loadScene();
+			} else {
+				// pressed again on the copied scene: cancel
+				copyState = false;
+			}
+		}
+		lights[COPY_LIGHT].setBrightness(copyState ? 1 : 0);
+
+		if (!inputs[SNAPSHOT_INPUT].isConnected()) {
+			for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++) {
+				if (snapshotTriggers[i].process(params[SNAPSHOT_PARAMS + i].getValue())) {
+					switchSnapshot(i);
+				}
+			}
+		}
+		for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++)
+			lights[SNAPSHOT_LIGHTS + i].setBrightness(i == currentSnapshot ? 1 : 0);
+
+		if ((eFader>-1) && shifted) {
+			int index = eFader%ACNE_NB_TRACKS;
+			int outOffset = (eFader/ACNE_NB_TRACKS)%2==0?1:-1;
+			int inOffset = links[index/2]?(index%2==0?1:-1):0;
+			int relative=eFader+ACNE_NB_TRACKS*outOffset+inOffset;
+			params[FADERS_PARAMS+relative].setValue(params[FADERS_PARAMS+eFader].getValue());
+		}
+
+		if (clearMutesTrigger.process(params[MUTE_PARAM].getValue())) {
+			for (int i = 0; i < ACNE_NB_TRACKS; i++)
+				inMutes[i] = false;
+		}
+		if (clearSendMutesTrigger.process(params[SEND_MUTE_PARAM].getValue())) {
+			for (int i = 0; i < ACNE_NB_OUTS; i++)
+				outMutes[i] = false;
+		}
+		if (clearSolosTrigger.process(params[SOLO_PARAM].getValue())) {
+			for (int i = 0; i < ACNE_NB_TRACKS; i++)
+				inSolo[i] = false;
+		}
+
+		solo = false;
+		for (int i = 0; i < ACNE_NB_TRACKS; i++) {
+			int linkIndex = i/2;
+			int linkSwitch = i%2;
+
+			if (linksTriggers[linkIndex].process(params[TRACKLINK_PARAMS + linkIndex].getValue()))	links[linkIndex] = !links[linkIndex];
+			lights[TRACKLINK_LIGHTS + linkIndex].setBrightness(links[linkIndex] ? 1 : 0);
+
+			if (inMutesTriggers[i].process(params[IN_MUTE_PARAMS + i].getValue())) {
+				inMutes[i] = !inMutes[i];
+				if (links[linkIndex])
+					inMutes[linkSwitch == 0 ? i+1 : i-1] = inMutes[i];
+			}
+
+			if (inSoloTriggers[i].process(params[IN_SOLO_PARAMS + i].getValue())) {
+				inSolo[i] = !inSolo[i];
+				if (links[linkIndex])
+					inSolo[linkSwitch == 0 ? i+1 : i-1] = inSolo[i];
+			}
+			lights[IN_MUTE_LIGHTS + i].setBrightness(inMutes[i] ? 1 : 0);
+			lights[IN_SOLO_LIGHTS + i].setBrightness(inSolo[i] ? 1 : 0);
+			solo = solo || inSolo[i];
+		}
+
+		for (int i = 0; i < ACNE_NB_OUTS; i++) {
+			if (outMutesTriggers[i].process(params[OUT_MUTE_PARAMS + i].getValue())) {
+				outMutes[i] = !outMutes[i];
+			}
+			lights[OUT_MUTE_LIGHTS + i].setBrightness(outMutes[i] ? 1 : 0);
+		}
+
+		// The live faders and mutes go into the scene at control rate (and
+		// before any scene switch or copy, see switchSnapshot).
+		if (autosave || save)
+			storeScene();
 	}
-	if (clearSendMutesTrigger.process(params[SEND_MUTE_PARAM].getValue())) {
+	if (control || sceneSwitched) {
 		for (int i = 0; i < ACNE_NB_OUTS; i++)
-			outMutes[i] = false;
+			for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
+				targets[i][j] = targetGain(i, j);
 	}
-	if (clearSolosTrigger.process(params[SOLO_PARAM].getValue())) {
-		for (int i = 0; i < ACNE_NB_TRACKS; i++)
-			inSolo[i] = false;
-	}
-
-	solo = false;
-	for (int i = 0; i < ACNE_NB_TRACKS; i++) {
-		int linkIndex = i/2;
-		int linkSwitch = i%2;
-
-		if (linksTriggers[linkIndex].process(params[TRACKLINK_PARAMS + linkIndex].getValue()))	links[linkIndex] = !links[linkIndex];
-		lights[TRACKLINK_LIGHTS + linkIndex].setBrightness(links[linkIndex] ? 1 : 0);
-
-		if (inMutesTriggers[i].process(params[IN_MUTE_PARAMS + i].getValue())) {
-			inMutes[i] = !inMutes[i];
-			if (links[linkIndex])
-				inMutes[linkSwitch == 0 ? i+1 : i-1] = inMutes[i];
-		}
-
-		if (inSoloTriggers[i].process(params[IN_SOLO_PARAMS + i].getValue())) {
-			inSolo[i] = !inSolo[i];
-			if (links[linkIndex])
-				inSolo[linkSwitch == 0 ? i+1 : i-1] = inSolo[i];
-		}
-		lights[IN_MUTE_LIGHTS + i].setBrightness(inMutes[i] ? 1 : 0);
-		lights[IN_SOLO_LIGHTS + i].setBrightness(inSolo[i] ? 1 : 0);
-		solo = solo || inSolo[i];
-	}
-
-	for (int i = 0; i < ACNE_NB_OUTS; i++) {
-		if (outMutesTriggers[i].process(params[OUT_MUTE_PARAMS + i].getValue())) {
-			outMutes[i] = !outMutes[i];
-		}
-		lights[OUT_MUTE_LIGHTS + i].setBrightness(outMutes[i] ? 1 : 0);
-	}
-
-	if (autosave || save)
-		storeScene();
 
 	// Morph progress, then the 5 ms smoother towards it.
 	float morphTime = params[RAMP_PARAM].getValue();
 	if (morphPhase < 1.f)
 		morphPhase = morphTime > 0.f ? std::min(1.f, morphPhase + args.sampleTime / morphTime) : 1.f;
 
-	float_4 in[ACNE_NB_TRACKS/4];
-	for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
-		for (int l = 0; l < 4; l++)
-			in[j][l] = inputs[TRACKS_INPUTS + j*4 + l].getVoltageSum();
+	bool anyOut = false;
+	for (int i = 0; i < ACNE_NB_OUTS; i++)
+		anyOut = anyOut || outputs[TRACKS_OUTPUTS + i].isConnected();
+
+	float_4 in[ACNE_NB_TRACKS/4] = {};
+	if (anyOut) {
+		for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
+			for (int l = 0; l < 4; l++)
+				in[j][l] = inputs[TRACKS_INPUTS + j*4 + l].getVoltageSum();
+	}
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
+		// The gains keep gliding without a cable, so a cable plugged later starts from the right level.
 		float_4 sum = 0.f;
 		for (int j = 0; j < ACNE_NB_TRACKS/4; j++) {
-			float_4 target = targetGain(i, j);
+			float_4 target = targets[i][j];
 			if (morphPhase < 1.f)
 				target = morphFrom[i][j] + (target - morphFrom[i][j]) * morphPhase;
 			gains[i][j] += (target - gains[i][j]) * smoothCoef;
 			sum += gains[i][j] * in[j];
 		}
-		outputs[TRACKS_OUTPUTS + i].setVoltage(sum[0] + sum[1] + sum[2] + sum[3]);
+		outputs[TRACKS_OUTPUTS + i].setVoltage(anyOut ? sum[0] + sum[1] + sum[2] + sum[3] : 0.f);
 	}
 
 	mainGain += (params[MAIN_OUT_GAIN_PARAM].getValue() - mainGain) * smoothCoef;

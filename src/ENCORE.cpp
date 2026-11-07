@@ -445,6 +445,30 @@ struct ENCORE : BidooModule {
 	int pendingRotLeft[8] = {0};
 	int pendingRotRight[8] = {0};
 
+	// Control rate: the knob <-> trig sync and the lights run every CONTROL_DIV
+	// samples (clocks, gates, CVs and slides stay per sample).
+	static constexpr int CONTROL_DIV = 16;
+	int controlCounter = 0;
+
+	// Quantized VO and CV1 per track, searched again only when the value, the
+	// root or the scale changes (audio thread only).
+	struct QuantCache {
+		float in = NAN;
+		int root = -1, scale = -1;
+		float out = 0.f;
+	};
+	QuantCache voQuant[8], cv1Quant[8];
+
+	float quantizeCached(QuantCache &c, float v, int root, int sc) {
+		if (v != c.in || root != c.root || sc != c.scale) {
+			c.in = v;
+			c.root = root;
+			c.scale = sc;
+			c.out = std::get<0>(quant.closestVoltageInScale(v, root, sc));
+		}
+		return c.out;
+	}
+
 	bool solo = false;
 
 	// Pattern asked for by the knob and CV. While running it takes over at the
@@ -1315,12 +1339,12 @@ struct ENCORE : BidooModule {
 	float trackGetVO(const int track, const int tPT, const bool quantize = false) {
 		float vo = nTrigsAttibutes[currentPattern][track][tPT].getVO() + trsp[track];
 		if (trigSlide[currentPattern][track][tPT] == 0) {
-			return quantize ? std::get<0>(quant.closestVoltageInScale(vo, rootNote[currentPattern][track], scale[currentPattern][track])) : vo;
+			return quantize ? quantizeCached(voQuant[track], vo, rootNote[currentPattern][track], scale[currentPattern][track]) : vo;
 		}
 		else
 		{
 			float fullLength = trigGetFullLength(track,tPT);
-			float voQ = quantize ? std::get<0>(quant.closestVoltageInScale(vo, rootNote[currentPattern][track], scale[currentPattern][track])) : vo;
+			float voQ = quantize ? quantizeCached(voQuant[track], vo, rootNote[currentPattern][track], scale[currentPattern][track]) : vo;
 			if (fullLength > 0.0f) {
 				if (slideMode[currentPattern][track]) {
           if (trigSlideType[currentPattern][track][tPT]) {
@@ -1450,8 +1474,18 @@ struct ENCORE : BidooModule {
 
     if (clock) {trackHead[currentPattern][track] += nTracksAttibutes[currentPattern][track].getTrackSpeed();}
 
-		if (trackHead[currentPattern][track] >= nTracksAttibutes[currentPattern][track].getTrackLength()*32) {
+		// At the end the track starts again from the top, keeping the ticks it
+		// went past the end (as ZOUMAI does): with a speed that does not divide
+		// 32 (3, 5, 6, 7) dropping them made each loop a little longer, so tracks
+		// of different lengths at the same speed drifted apart.
+		int end = nTracksAttibutes[currentPattern][track].getTrackLength()*32;
+		if (trackHead[currentPattern][track] >= end) {
+			int over = (trackHead[currentPattern][track] - end) % end;
 			trackReset(track, fill, pNei, forceTrig, killTrig, dice);
+			if (over > 0) {
+				trackHead[currentPattern][track] = over;
+				trackSetCurrentTrig(track, fill, pNei, false, forceTrig, killTrig, dice);
+			}
 			return;
 		}
 
@@ -1463,8 +1497,15 @@ struct ENCORE : BidooModule {
 
     if (clock) {trackHead[currentPattern][track] -= nTracksAttibutes[currentPattern][track].getTrackSpeed();}
 
+		// Past the top: from the end again, keeping the overshoot (see forward).
 		if (trackHead[currentPattern][track] < 0) {
+			int end = nTracksAttibutes[currentPattern][track].getTrackLength()*32;
+			int under = (-1 - trackHead[currentPattern][track]) % end;
 			trackReset(track, fill, pNei, forceTrig, killTrig, dice);
+			if (under > 0) {
+				trackHead[currentPattern][track] -= under;
+				trackSetCurrentTrig(track, fill, pNei, false, forceTrig, killTrig, dice);
+			}
 			return;
 		}
 
@@ -1489,8 +1530,11 @@ struct ENCORE : BidooModule {
 	void trackMoveNextRandom(const int track, const bool clock, const bool fill, const bool pNei, const bool forceTrig = false, const bool killTrig = false, const float dice = 0.0f) {
 		if (clock) {trackHead[currentPattern][track] += nTracksAttibutes[currentPattern][track].getTrackSpeed();}
 
-		if (trackHead[currentPattern][track] >= (nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()+1)*32) {
-			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackNextTrig()*32;
+		int stepEnd = (nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()+1)*32;
+		if (trackHead[currentPattern][track] >= stepEnd) {
+			// The next trig drawn, keeping the ticks played past the step (see forward).
+			int over = std::min(trackHead[currentPattern][track] - stepEnd, 31);
+			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackNextTrig()*32 + over;
 			trackSetCurrentTrig(track, fill, pNei, true, forceTrig, killTrig, dice);
 			return;
 		}
@@ -1502,8 +1546,11 @@ struct ENCORE : BidooModule {
 		nTracksAttibutes[currentPattern][track].setTrackForward(true);
 		if (clock) {trackHead[currentPattern][track] += nTracksAttibutes[currentPattern][track].getTrackSpeed();}
 
-		if (trackHead[currentPattern][track] >= (nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()+1)*32) {
-			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackNextTrig()*32;
+		int stepEnd = (nTracksAttibutes[currentPattern][track].getTrackCurrentTrig()+1)*32;
+		if (trackHead[currentPattern][track] >= stepEnd) {
+			// The next trig drawn, keeping the ticks played past the step (see forward).
+			int over = std::min(trackHead[currentPattern][track] - stepEnd, 31);
+			trackHead[currentPattern][track] = nTracksAttibutes[currentPattern][track].getTrackNextTrig()*32 + over;
 			trackSetCurrentTrig(track, fill, pNei, true, forceTrig, killTrig, dice);
 			return;
 		}
@@ -1566,120 +1613,43 @@ void ENCORE::process(const ProcessArgs &args) {
 	else if (fillPressed) {
 		fill = !fill;
 	}
-	lights[FILL_LIGHT].setBrightness(fill ? 1.0f : 0.0f);
-
 	solo = patternIsSoloed();
 
-	{
-		// Skipped while the UI is changing the selection or the data.
-		std::unique_lock<std::recursive_mutex> lock(editMutex, std::try_to_lock);
-		if (lock.owns_lock()) {
-			if (currentPattern != previousPattern) {
-				previousPattern = currentPattern;
-				updateTrackToParams();
-				updateTrigToParams();
-			}
-			else {
-				updateTrigVO();
-				updateParamsToTrack();
-				updateParamsToTrig();
-			}
+	bool control = --controlCounter < 0;
+	if (control)
+		controlCounter = CONTROL_DIV - 1;
+
+	// Track on/off trigger inputs stay per sample.
+	for (int i = 0; i < 8; i++) {
+		if (trackActiveTriggers[i].process(inputs[TRACKACTIVE_INPUTS+i].getVoltage())) {
+			nTracksAttibutes[currentPattern][i].toggleTrackActive();
 		}
 	}
 
-	int pageOffset = trigPage*16;
-	int tCT = nTracksAttibutes[currentPattern][currentTrack].getTrackCurrentTrig();
-	for (int i = 0; i<16; i++) {
-		int shiftedIndex = i + pageOffset;
-		if (tCT == shiftedIndex) {
-			lights[STEPS_LIGHTS+3*i].setBrightness(1.0f);
-			lights[STEPS_LIGHTS+3*i+1].setBrightness(0.0f);
-			lights[STEPS_LIGHTS+3*i+2].setBrightness(0.0f);
-		}
-		else if (nTrigsAttibutes[currentPattern][currentTrack][shiftedIndex].getTrigActive()) {
-			if (shiftedIndex == currentTrig) {
-				lights[STEPS_LIGHTS+3*i].setBrightness(0.0f);
-				lights[STEPS_LIGHTS+3*i+1].setBrightness(0.0f);
-				lights[STEPS_LIGHTS+3*i+2].setBrightness(1.0f);
-			}
-			else {
-				lights[STEPS_LIGHTS+3*i].setBrightness(0.0f);
-				lights[STEPS_LIGHTS+3*i+1].setBrightness(1.0f);
-				lights[STEPS_LIGHTS+3*i+2].setBrightness(0.0f);
-			}
-		}
-		else if (currentTrig == shiftedIndex) {
-			lights[STEPS_LIGHTS+3*i].setBrightness(0.0f);
-			lights[STEPS_LIGHTS+3*i+1].setBrightness(0.0f);
-			lights[STEPS_LIGHTS+3*i+2].setBrightness(0.5f);
-		}
-		else {
-			lights[STEPS_LIGHTS+3*i].setBrightness(0.1f);
-			lights[STEPS_LIGHTS+3*i+1].setBrightness(0.1f);
-			lights[STEPS_LIGHTS+3*i+2].setBrightness(0.1f);
-		}
-
-		if (i<4) {
-			if (i == trigPage) {
-				lights[TRIGPAGE_LIGHTS+3*i].setBrightness(0.0f);
-				lights[TRIGPAGE_LIGHTS+3*i+2].setBrightness(1.0f);
-			}
-			else if ((tCT >= (i*16)) && (tCT<(16*(i+1)))) {
-				lights[TRIGPAGE_LIGHTS+3*i].setBrightness(1.0f);
-				lights[TRIGPAGE_LIGHTS+3*i+2].setBrightness(0.0f);
-			}
-			else {
-				lights[TRIGPAGE_LIGHTS+3*i].setBrightness(0.0f);
-				lights[TRIGPAGE_LIGHTS+3*i+2].setBrightness(0.0f);
-			}
-		}
-
-		if (i<7) {
-				if (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigOctave()==i) {
-					lights[OCTAVE_LIGHTS+3*i+2].setBrightness(1.0f);
+	// Rotations from the expander, also while stopped: applied on the sample
+	// they come in, the knob sync at control rate; one try-lock for both,
+	// skipped while the UI is changing the selection or the data.
+	bool rotPending = false;
+	for (int i=0; i<8; i++) {
+		pendingRotLeft[i] += rotLeft[i];
+		pendingRotRight[i] += rotRight[i];
+		rotPending = rotPending || pendingRotLeft[i] || pendingRotRight[i];
+	}
+	if (control || rotPending) {
+		std::unique_lock<std::recursive_mutex> lock(editMutex, std::try_to_lock);
+		if (lock.owns_lock()) {
+			if (control) {
+				if (currentPattern != previousPattern) {
+					previousPattern = currentPattern;
+					updateTrackToParams();
+					updateTrigToParams();
 				}
 				else {
-					lights[OCTAVE_LIGHTS+3*i+2].setBrightness(0.0f);
+					updateTrigVO();
+					updateParamsToTrack();
+					updateParamsToTrig();
 				}
-		}
-
-		if (i<8) {
-			if (trackActiveTriggers[i].process(inputs[TRACKACTIVE_INPUTS+i].getVoltage())) {
-				nTracksAttibutes[currentPattern][i].toggleTrackActive();
 			}
-
-			if (currentTrack==i) {
-				lights[TRACKSELECT_LIGHTS+i*3+1].setBrightness(0.0f);
-				lights[TRACKSELECT_LIGHTS+i*3+2].setBrightness(1.0f);
-			}
-			else {
-				lights[TRACKSELECT_LIGHTS+i*3+1].setBrightness(0.0f);
-				lights[TRACKSELECT_LIGHTS+i*3+2].setBrightness(0.0f);
-			}
-
-			if (!solo && nTracksAttibutes[currentPattern][i].getTrackActive()) {
-				lights[TRACKSONOFF_LIGHTS+i*3+1].setBrightness(1.0f);
-				lights[TRACKSONOFF_LIGHTS+i*3+2].setBrightness(0.0f);
-			}
-			else if (solo && nTracksAttibutes[currentPattern][i].getTrackSolo()) {
-				lights[TRACKSONOFF_LIGHTS+i*3+1].setBrightness(0.0f);
-				lights[TRACKSONOFF_LIGHTS+i*3+2].setBrightness(1.0f);
-			}
-			else {
-				lights[TRACKSONOFF_LIGHTS+i*3+1].setBrightness(0.0f);
-				lights[TRACKSONOFF_LIGHTS+i*3+2].setBrightness(0.0f);
-			}
-		}
-	}
-
-	// Rotations from the expander, also while stopped.
-	{
-		for (int i=0; i<8; i++) {
-			pendingRotLeft[i] += rotLeft[i];
-			pendingRotRight[i] += rotRight[i];
-		}
-		std::unique_lock<std::recursive_mutex> lock(editMutex, std::try_to_lock);
-		if (lock.owns_lock()) {
 			for (int i=0; i<8; i++) {
 				if (pendingRotLeft[i] || pendingRotRight[i]) {
 					int shift = pendingRotLeft[i] - pendingRotRight[i];
@@ -1690,6 +1660,91 @@ void ENCORE::process(const ProcessArgs &args) {
 					pendingRotLeft[i] = pendingRotRight[i] = 0;
 					if (i == currentTrack)
 						updateTrigToParams();
+				}
+			}
+		}
+	}
+
+	if (control) {
+		lights[FILL_LIGHT].setBrightness(fill ? 1.0f : 0.0f);
+
+		int pageOffset = trigPage*16;
+		int tCT = nTracksAttibutes[currentPattern][currentTrack].getTrackCurrentTrig();
+		for (int i = 0; i<16; i++) {
+			int shiftedIndex = i + pageOffset;
+			if (tCT == shiftedIndex) {
+				lights[STEPS_LIGHTS+3*i].setBrightness(1.0f);
+				lights[STEPS_LIGHTS+3*i+1].setBrightness(0.0f);
+				lights[STEPS_LIGHTS+3*i+2].setBrightness(0.0f);
+			}
+			else if (nTrigsAttibutes[currentPattern][currentTrack][shiftedIndex].getTrigActive()) {
+				if (shiftedIndex == currentTrig) {
+					lights[STEPS_LIGHTS+3*i].setBrightness(0.0f);
+					lights[STEPS_LIGHTS+3*i+1].setBrightness(0.0f);
+					lights[STEPS_LIGHTS+3*i+2].setBrightness(1.0f);
+				}
+				else {
+					lights[STEPS_LIGHTS+3*i].setBrightness(0.0f);
+					lights[STEPS_LIGHTS+3*i+1].setBrightness(1.0f);
+					lights[STEPS_LIGHTS+3*i+2].setBrightness(0.0f);
+				}
+			}
+			else if (currentTrig == shiftedIndex) {
+				lights[STEPS_LIGHTS+3*i].setBrightness(0.0f);
+				lights[STEPS_LIGHTS+3*i+1].setBrightness(0.0f);
+				lights[STEPS_LIGHTS+3*i+2].setBrightness(0.5f);
+			}
+			else {
+				lights[STEPS_LIGHTS+3*i].setBrightness(0.1f);
+				lights[STEPS_LIGHTS+3*i+1].setBrightness(0.1f);
+				lights[STEPS_LIGHTS+3*i+2].setBrightness(0.1f);
+			}
+
+			if (i<4) {
+				if (i == trigPage) {
+					lights[TRIGPAGE_LIGHTS+3*i].setBrightness(0.0f);
+					lights[TRIGPAGE_LIGHTS+3*i+2].setBrightness(1.0f);
+				}
+				else if ((tCT >= (i*16)) && (tCT<(16*(i+1)))) {
+					lights[TRIGPAGE_LIGHTS+3*i].setBrightness(1.0f);
+					lights[TRIGPAGE_LIGHTS+3*i+2].setBrightness(0.0f);
+				}
+				else {
+					lights[TRIGPAGE_LIGHTS+3*i].setBrightness(0.0f);
+					lights[TRIGPAGE_LIGHTS+3*i+2].setBrightness(0.0f);
+				}
+			}
+
+			if (i<7) {
+					if (nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigOctave()==i) {
+						lights[OCTAVE_LIGHTS+3*i+2].setBrightness(1.0f);
+					}
+					else {
+						lights[OCTAVE_LIGHTS+3*i+2].setBrightness(0.0f);
+					}
+			}
+
+			if (i<8) {
+				if (currentTrack==i) {
+					lights[TRACKSELECT_LIGHTS+i*3+1].setBrightness(0.0f);
+					lights[TRACKSELECT_LIGHTS+i*3+2].setBrightness(1.0f);
+				}
+				else {
+					lights[TRACKSELECT_LIGHTS+i*3+1].setBrightness(0.0f);
+					lights[TRACKSELECT_LIGHTS+i*3+2].setBrightness(0.0f);
+				}
+
+				if (!solo && nTracksAttibutes[currentPattern][i].getTrackActive()) {
+					lights[TRACKSONOFF_LIGHTS+i*3+1].setBrightness(1.0f);
+					lights[TRACKSONOFF_LIGHTS+i*3+2].setBrightness(0.0f);
+				}
+				else if (solo && nTracksAttibutes[currentPattern][i].getTrackSolo()) {
+					lights[TRACKSONOFF_LIGHTS+i*3+1].setBrightness(0.0f);
+					lights[TRACKSONOFF_LIGHTS+i*3+2].setBrightness(1.0f);
+				}
+				else {
+					lights[TRACKSONOFF_LIGHTS+i*3+1].setBrightness(0.0f);
+					lights[TRACKSONOFF_LIGHTS+i*3+2].setBrightness(0.0f);
 				}
 			}
 		}
@@ -1767,7 +1822,7 @@ void ENCORE::process(const ProcessArgs &args) {
 
 			bool q = scale[currentPattern][i]>0;
 			outputs[VO_OUTPUTS + i].setVoltage(trackGetVO(i, tPT, q));
-			outputs[CV1_OUTPUTS + i].setVoltage(outputs[GATE_OUTPUTS + i].getVoltage() == 0.0f ? 0.0f : ((quantizeCV1[currentPattern][i]>0 && q) ? std::get<0>(quant.closestVoltageInScale(trigCV1[currentPattern][i][tPT]-4.0f, rootNote[currentPattern][i], scale[currentPattern][i])) : trigCV1[currentPattern][i][tPT]));
+			outputs[CV1_OUTPUTS + i].setVoltage(outputs[GATE_OUTPUTS + i].getVoltage() == 0.0f ? 0.0f : ((quantizeCV1[currentPattern][i]>0 && q) ? quantizeCached(cv1Quant[i], trigCV1[currentPattern][i][tPT]-4.0f, rootNote[currentPattern][i], scale[currentPattern][i]) : trigCV1[currentPattern][i][tPT]));
 			outputs[CV2_OUTPUTS + i].setVoltage(outputs[GATE_OUTPUTS + i].getVoltage() == 0.0f ? 0.0f : trigCV2[currentPattern][i][tPT]);
 		}
 	}
@@ -3090,6 +3145,7 @@ struct ENCOREWidget : BidooWidget {
     }
 
     void onChange(const event::Change& e) override {
+      std::lock_guard<std::recursive_mutex> lock(module->editMutex);
       module->labels[module->currentTrack] = text;
     };
 

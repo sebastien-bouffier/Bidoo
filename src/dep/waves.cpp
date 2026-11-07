@@ -3,6 +3,7 @@
 #define DR_WAV_IMPLEMENTATION
 #include "dr_wav/dr_wav.h"
 #include <dsp/resampler.hpp>
+#include <cstring>
 
 namespace waves {
 
@@ -10,24 +11,41 @@ namespace waves {
   // the first two channels; stereo: the first two, a mono file doubled), then
   // resamples it to currentSampleRate. On failure the result is empty and
   // sampleCount is 0.
+  // Off the audio thread, so a high quality is affordable. The filter delay is
+  // removed: the output starts with the first input sample (skip_zeros) and
+  // the tail is flushed with the filter's latency in zeros, so the result
+  // lines up with the file and keeps its whole length (slice points stay put).
   template <int N>
   static std::vector<rack::dsp::Frame<N>> resample(const std::vector<rack::dsp::Frame<N>> &in, float fromRate, float toRate) {
     rack::dsp::SampleRateConverter<N> conv;
-    conv.setRates(fromRate, toRate);
-    conv.setQuality(SPEEX_RESAMPLER_QUALITY_DESKTOP);
+    conv.setRates((int)fromRate, (int)toRate);
+    conv.setQuality(8);
     int count = in.size();
-    std::vector<rack::dsp::Frame<N>> out((size_t)std::ceil((double)count * toRate / fromRate) + 256);
-    int inDone = 0, outDone = 0;
-    while (inDone < count && outDone < (int)out.size()) {
-      int inCount = count - inDone;
-      int outCount = out.size() - outDone;
-      conv.process(&in[inDone], &inCount, &out[outDone], &outCount);
-      if (inCount == 0 && outCount == 0)
-        break;
-      inDone += inCount;
-      outDone += outCount;
+    size_t expected = (size_t)std::llround((double)count * toRate / fromRate);
+    int latency = 0;
+    if (conv.st) {
+      speex_resampler_skip_zeros(conv.st);
+      latency = speex_resampler_get_input_latency(conv.st);
     }
-    out.resize(outDone);
+    std::vector<rack::dsp::Frame<N>> out(expected + 16);
+    std::vector<rack::dsp::Frame<N>> zeros(latency + 16);
+    std::memset(zeros.data(), 0, zeros.size() * sizeof(rack::dsp::Frame<N>));
+    int outDone = 0;
+    auto feed = [&](const rack::dsp::Frame<N> *src, int n) {
+      int inDone = 0;
+      while (inDone < n && outDone < (int)out.size()) {
+        int inCount = n - inDone;
+        int outCount = out.size() - outDone;
+        conv.process(&src[inDone], &inCount, &out[outDone], &outCount);
+        if (inCount == 0 && outCount == 0)
+          break;
+        inDone += inCount;
+        outDone += outCount;
+      }
+    };
+    feed(in.data(), count);
+    feed(zeros.data(), (int)zeros.size());
+    out.resize(std::min((size_t)outDone, expected));
     return out;
   }
 

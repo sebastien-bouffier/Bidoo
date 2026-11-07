@@ -11,6 +11,7 @@
 #include <condition_variable>
 #include <thread>
 #include "dep/waves.hpp"
+#include "SampleRead.hpp"
 
 using namespace std;
 
@@ -19,6 +20,7 @@ using namespace std;
 struct OuaiveSample {
 	static constexpr int OVERVIEW = 1024;
 	std::vector<dsp::Frame<2>> frames;
+	sampleread::Mip<2> mip;  // band-limited copies, for playing faster than 1x
 	int channels = 0;
 	int count = 0;
 	float sampleRate = 0.f;
@@ -71,7 +73,7 @@ struct OUAIVE : BidooModule {
 	};
 
 	bool play = false;
-	float samplePos = 0.0f;
+	double samplePos = 0.0;  // double: a float loses the pitch far into long samples
 	std::string lastPath;
 	int trigMode = 0; // 0 trig, 1 gate, 2 sliced
 	int sliceIndex = -1;
@@ -86,6 +88,11 @@ struct OUAIVE : BidooModule {
 	dsp::SchmittTrigger posResetTrigger;
 	int eoc = 0;
 	dsp::PulseGenerator eocPulse;
+	float speedExp = 0.f;     // the speed in octaves, exp2 only when it moves
+	float scrubPos = 0.f;     // gate mode with a position CV: the CV, smoothed
+	sampleread::Declick<2> dc;
+	float lastStep = 0.f, lastGain = 0.f;  // of the last sample played
+	double lastPos = 0.0;
 
 	// Audio thread: the sample it plays. The worker loads new ones into
 	// `pending`; the audio thread takes it and moves its old one to `retired`,
@@ -185,6 +192,7 @@ struct OUAIVE : BidooModule {
 			s->frames = waves::getStereoWav(path, rate, name, ext, s->channels, sr, s->count);
 			s->count = s->frames.size();
 			s->sampleRate = rate;
+			s->mip.build((const float *)s->frames.data(), s->count);
 			s->buildOverview();
 			{
 				std::lock_guard<std::mutex> ui(uiMutex);
@@ -206,6 +214,26 @@ struct OUAIVE : BidooModule {
 	}
 
 	void process(const ProcessArgs &args) override;
+
+	// Takes a newly loaded sample, once the worker has freed the previous one.
+	void takePending() {
+		if (pending.load(std::memory_order_relaxed) && !retired.load(std::memory_order_acquire)) {
+			OuaiveSample *s = pending.exchange(nullptr, std::memory_order_acq_rel);
+			if (s) {
+				retired.store(sample, std::memory_order_release);
+				sample = s;
+				samplePos = 0.f;
+				play = false;
+				dc.reset();
+			}
+		}
+	}
+
+	// Bypassed: still takes the loaded sample, so the loader never waits.
+	void processBypass(const ProcessArgs &args) override {
+		takePending();
+		Module::processBypass(args);
+	}
 
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
@@ -239,21 +267,16 @@ struct OUAIVE : BidooModule {
 };
 
 void OUAIVE::process(const ProcessArgs &args) {
-	// Take a newly loaded sample, once the worker has freed the previous one.
-	if (pending.load(std::memory_order_relaxed) && !retired.load(std::memory_order_acquire)) {
-		OuaiveSample *s = pending.exchange(nullptr, std::memory_order_acq_rel);
-		if (s) {
-			retired.store(sample, std::memory_order_release);
-			sample = s;
-			samplePos = 0.f;
-			play = false;
-		}
-	}
+	takePending();
 	// The engine rate changed: load the file again at the new rate.
 	if (sample && sample->count > 0 && sample->sampleRate != args.sampleRate && !loading)
 		reloadRate = args.sampleRate;
 
 	const int total = sample ? sample->count : 0;
+	const int fadeLen = sampleread::declickLength(args.sampleRate);
+	sampleread::View<2> view;
+	if (sample)
+		view = {(const float *)sample->frames.data(), total, &sample->mip};
 
 	if (trigModeTrigger.process(params[TRIG_MODE_PARAM].getValue()))
 		trigMode = (trigMode + 1) % 3;
@@ -262,13 +285,32 @@ void OUAIVE::process(const ProcessArgs &args) {
 	else if (readModeTrigger.process(params[READ_MODE_PARAM].getValue()))
 		readMode = (readMode + 1) % 3;
 	nbSlices = clamp((int)std::round(params[NB_SLICES_PARAM].getValue() + params[CVSLICES_PARAM].getValue() * inputs[NB_SLICES_INPUT].getVoltage()), 1, 128);
-	speed = clamp(std::exp2(params[SPEED_PARAM].getValue() + params[CVSPEED_PARAM].getValue() * inputs[SPEED_INPUT].getVoltage()), 1.f / 16.f, 16.f);
+	float e = params[SPEED_PARAM].getValue() + params[CVSPEED_PARAM].getValue() * inputs[SPEED_INPUT].getVoltage();
+	if (e != speedExp) {
+		speedExp = e;
+		speed = clamp(std::exp2(e), 1.f / 16.f, 16.f);
+	}
 	sliceLength = std::max(total / nbSlices, 1);
+
+	// Declicked restarts and stops: the old head fades out over 2 ms while
+	// the new one fades in.
+	auto restart = [&](double pos) {
+		if (play)
+			dc.tail(samplePos, lastStep, lastGain, fadeLen);
+		samplePos = pos;
+		play = true;
+		dc.fadeIn(fadeLen);
+	};
+	auto stop = [&]() {
+		if (play)
+			dc.tail(samplePos, lastStep, lastGain, fadeLen);
+		play = false;
+	};
 
 	// Reset stops playback (the only way to stop a repeating sound) and rewinds
 	// the slices so the next trigger, even on this same sample, plays slice 1.
 	if (posResetTrigger.process(inputs[POS_RESET_INPUT].getVoltage(), 0.1f, 1.f)) {
-		play = false;
+		stop();
 		sliceIndex = -1;
 		samplePos = 0.0f;
 	}
@@ -276,76 +318,105 @@ void OUAIVE::process(const ProcessArgs &args) {
 	float posCv = clamp(inputs[POS_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
 	bool trig = playTrigger.process(inputs[GATE_INPUT].getVoltage(), 0.1f, 1.f);
 	bool gate = playTrigger.isHigh();
+	bool scrub = (trigMode == 1) && inputs[POS_INPUT].isConnected();
 	if (trigMode == 0 && trig) {
-		play = true;
 		if (inputs[POS_INPUT].isConnected())
-			samplePos = posCv * (total - 1.0f);
+			restart(posCv * (total - 1.0f));
 		else
-			samplePos = (readMode != 1) ? 0.0f : total - 1.0f;
+			restart((readMode != 1) ? 0.0f : total - 1.0f);
 	}
 	else if (trigMode == 1) {
 		// Gate: plays while the gate is high. With a position CV it follows the
-		// CV (scrubbing); without one it plays from the start.
-		if (inputs[POS_INPUT].isConnected()) {
-			samplePos = posCv * (total - 1.0f);
-			play = gate;
+		// CV (scrubbing, smoothed over about 5 ms); without one it plays from
+		// the start.
+		if (scrub) {
+			float target = posCv * (total - 1.0f);
+			if (gate && !play) {
+				scrubPos = target;
+				restart(target);
+			}
+			else if (!gate)
+				stop();
+			scrubPos += (target - scrubPos) * std::min(1.f, 200.f * args.sampleTime);
+			if (play)
+				samplePos = scrubPos;
 		}
-		else if (gate && !gateWasHigh) {
-			samplePos = (readMode != 1) ? 0.0f : total - 1.0f;
-			play = true;
-		}
+		else if (gate && !gateWasHigh)
+			restart((readMode != 1) ? 0.0f : total - 1.0f);
 		else if (!gate)
-			play = false;
+			stop();
 	}
 	else if (trigMode == 2 && trig) {
-		play = true;
 		if (inputs[POS_INPUT].isConnected())
 			sliceIndex = clamp((int)(posCv * nbSlices), 0, nbSlices - 1);
 		else
 			sliceIndex = (sliceIndex + 1) % nbSlices;
-		samplePos = clamp((float)((readMode != 1) ? sliceIndex * sliceLength : (sliceIndex + 1) * sliceLength - 1), 0.0f, total - 1.0f);
+		restart(clamp((float)((readMode != 1) ? sliceIndex * sliceLength : (sliceIndex + 1) * sliceLength - 1), 0.0f, total - 1.0f));
 	}
 	gateWasHigh = gate;
 
-	float outL = 0.f, outR = 0.f;
+	float acc[2] = {0.f, 0.f};
+	bool tailDone = false;
 	if (play && total > 0 && samplePos >= 0 && samplePos < total) {
-		const std::vector<dsp::Frame<2>> &buf = sample->frames;
-		int xi = (int)samplePos;
-		float xf = samplePos - xi;
-		int xn = std::min(xi + 1, total - 1);
-		float l = crossfade(buf[xi].samples[0], buf[xn].samples[0], xf);
-		float r = crossfade(buf[xi].samples[1], buf[xn].samples[1], xf);
-		if (sample->channels >= 2 && !(outputs[OUTL_OUTPUT].isConnected() && outputs[OUTR_OUTPUT].isConnected()))
-			l = r = 0.5f * (l + r);
-		outL = 5.0f * l;
-		outR = 5.0f * r;
+		float step = scrub ? (float)(samplePos - lastPos) : ((readMode != 1) ? speed : -speed);
+		float g = dc.nextIn();
+		float sliceStart = 0.f, sliceEnd = (float)total;
+		if (trigMode == 2) {
+			sliceStart = sliceIndex * sliceLength;
+			sliceEnd = std::min((float)((sliceIndex + 1) * sliceLength), (float)total);
+		}
+		if (!scrub && readMode != 2) {
+			// Fades out just before the end it stops at.
+			float left = (float)((readMode == 0) ? (sliceEnd - samplePos) : (samplePos - sliceStart)) / speed;
+			if (left < fadeLen)
+				g *= std::max(left, 0.f) / fadeLen;
+		}
+		view.read(samplePos, std::fabs(step), acc);
+		acc[0] *= g;
+		acc[1] *= g;
+		lastGain = g;
+		lastStep = step;
+		// The tail before the jumps below: one started there plays from the
+		// next sample.
+		dc.addTail(view, acc);
+		tailDone = true;
 
-		bool scrub = (trigMode == 1) && inputs[POS_INPUT].isConnected();
 		if (!scrub) {
-			samplePos += (readMode != 1) ? speed : -speed;
+			samplePos += step;
 			if (trigMode == 2) {
-				float start = sliceIndex * sliceLength, end = std::min((float)((sliceIndex + 1) * sliceLength), (float)total);
-				if (readMode == 0 && samplePos >= end)
+				if (readMode == 0 && samplePos >= sliceEnd)
 					play = false;
-				else if (readMode == 1 && samplePos < start)
+				else if (readMode == 1 && samplePos < sliceStart)
 					play = false;
-				else if (readMode == 2 && samplePos >= end)
-					samplePos = start;
+				else if (readMode == 2 && samplePos >= sliceEnd) {
+					dc.tail(samplePos, step, g, fadeLen);
+					samplePos = sliceStart;
+					dc.fadeIn(fadeLen);
+				}
 			}
 			else {
 				if (readMode == 0 && samplePos >= total)
 					play = false;
 				else if (readMode == 1 && samplePos < 0)
 					play = false;
-				else if (readMode == 2 && samplePos >= total)
+				else if (readMode == 2 && samplePos >= total) {
+					dc.tail(samplePos, step, g, fadeLen);
 					samplePos = inputs[POS_INPUT].isConnected() ? posCv * (total - 1.0f) : 0.0f;
+					dc.fadeIn(fadeLen);
+				}
 			}
 		}
 	}
 	else if (!(trigMode == 1 && inputs[POS_INPUT].isConnected() && total > 0))
 		play = false;
-	outputs[OUTL_OUTPUT].setVoltage(outL);
-	outputs[OUTR_OUTPUT].setVoltage(outR);
+	lastPos = samplePos;
+	if (sample && !tailDone)
+		dc.addTail(view, acc);
+	float l = acc[0], r = acc[1];
+	if (sample && sample->channels >= 2 && !(outputs[OUTL_OUTPUT].isConnected() && outputs[OUTR_OUTPUT].isConnected()))
+		l = r = 0.5f * (l + r);
+	outputs[OUTL_OUTPUT].setVoltage(5.0f * l);
+	outputs[OUTR_OUTPUT].setVoltage(5.0f * r);
 
 	if (eoc == 0 && play)
 		eoc = 1;

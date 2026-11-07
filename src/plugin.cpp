@@ -3,6 +3,9 @@
 
 Plugin *pluginInstance;
 
+// antN's station list (res/stations.json)
+void antnLoadStations();
+
 void init(rack::Plugin *p) {
 	pluginInstance = p;
 
@@ -38,6 +41,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelFORK);
 	p->addModel(modelTIARE);
 	p->addModel(modelANTN);
+	antnLoadStations();
 	p->addModel(modelLIMONADE);
 	p->addModel(modelLIMBO);
 	p->addModel(modelPERCO);
@@ -86,13 +90,13 @@ void BidooModule::dataFromJson(json_t *rootJ) {
 
 void BidooWidget::appendContextMenu(Menu *menu) {
 	ModuleWidget::appendContextMenu(menu);
+	if (!themable)
+		return;
 	menu->addChild(new MenuSeparator());
 	menu->addChild(createSubmenuItem("Theme", "", [=](ui::Menu* menu) {
 		menu->addChild(construct<LightItem>(&MenuItem::text, dynamic_cast<BidooModule*>(module)->themeId == 0 ? "Light ✓" : "Light", &LightItem::module, dynamic_cast<BidooModule*>(module), &LightItem::pWidget, dynamic_cast<BidooWidget*>(this)));
 		menu->addChild(construct<DarkItem>(&MenuItem::text, dynamic_cast<BidooModule*>(module)->themeId == 1 ? "Dark ✓" : "Dark", &DarkItem::module, dynamic_cast<BidooModule*>(module), &DarkItem::pWidget, dynamic_cast<BidooWidget*>(this)));
 		menu->addChild(construct<BlackItem>(&MenuItem::text, dynamic_cast<BidooModule*>(module)->themeId == 2 ? "Black ✓" : "Black", &BlackItem::module, dynamic_cast<BidooModule*>(module), &BlackItem::pWidget, dynamic_cast<BidooWidget*>(this)));
-		menu->addChild(construct<BlueItem>(&MenuItem::text, dynamic_cast<BidooModule*>(module)->themeId == 3 ? "Blue ✓" : "Blue", &BlueItem::module, dynamic_cast<BidooModule*>(module), &BlueItem::pWidget, dynamic_cast<BidooWidget*>(this)));
-		menu->addChild(construct<GreenItem>(&MenuItem::text, dynamic_cast<BidooModule*>(module)->themeId == 4 ? "Green ✓" : "Green", &GreenItem::module, dynamic_cast<BidooModule*>(module), &GreenItem::pWidget, dynamic_cast<BidooWidget*>(this)));
 	}));
 }
 
@@ -100,12 +104,15 @@ unsigned int packedColor(int r, int g, int b, int a) {
 	return r + (g << 8) + (b << 16) + (a << 24);
 }
 
-void BidooWidget::writeThemeAndContrastAsDefault() {
+// The default theme lives in <user>/Bidoo.json. It is read from disk once and kept in this
+// cache, shared by every Bidoo widget (module browser previews included), and refreshed
+// whenever a theme is chosen from a context menu, so no widget touches the file per frame.
+static bool defaultThemeCached = false;
+static int defaultThemeCache = 0;
+
+static void writeDefaultThemeFile(int theme) {
 	json_t *settingsJ = json_object();
-
-	// defaultPanelTheme
-	json_object_set_new(settingsJ, "themeDefault", json_integer(defaultPanelTheme));
-
+	json_object_set_new(settingsJ, "themeDefault", json_integer(theme));
 	std::string settingsFilename = asset::user("Bidoo.json");
 	FILE *file = fopen(settingsFilename.c_str(), "w");
 	if (file) {
@@ -115,35 +122,39 @@ void BidooWidget::writeThemeAndContrastAsDefault() {
 	json_decref(settingsJ);
 }
 
-void BidooWidget::readThemeAndContrastFromDefault() {
+static int loadDefaultTheme() {
+	if (defaultThemeCached)
+		return defaultThemeCache;
+	defaultThemeCached = true;
+	defaultThemeCache = 0;
 	std::string settingsFilename = asset::user("Bidoo.json");
 	FILE *file = fopen(settingsFilename.c_str(), "r");
 	if (!file) {
-		defaultPanelTheme = 0;
-		writeThemeAndContrastAsDefault();
-		return;
+		writeDefaultThemeFile(0);
+		return defaultThemeCache;
 	}
 	json_error_t error;
 	json_t *settingsJ = json_loadf(file, 0, &error);
-	if (!settingsJ) {
-		fclose(file);
-		defaultPanelTheme = 0;
-		writeThemeAndContrastAsDefault();
-		return;
-	}
-
-	// defaultPanelTheme
-	json_t *themeDefaultJ = json_object_get(settingsJ, "themeDefault");
-	if (themeDefaultJ) {
-		defaultPanelTheme = json_integer_value(themeDefaultJ);
-	}
-	else {
-		defaultPanelTheme = 0;
-	}
-
 	fclose(file);
+	if (!settingsJ) {
+		writeDefaultThemeFile(0);
+		return defaultThemeCache;
+	}
+	json_t *themeDefaultJ = json_object_get(settingsJ, "themeDefault");
+	if (themeDefaultJ)
+		defaultThemeCache = json_integer_value(themeDefaultJ);
 	json_decref(settingsJ);
-	return;
+	return defaultThemeCache;
+}
+
+void BidooWidget::writeThemeAndContrastAsDefault() {
+	defaultThemeCached = true;
+	defaultThemeCache = defaultPanelTheme;
+	writeDefaultThemeFile(defaultPanelTheme);
+}
+
+void BidooWidget::readThemeAndContrastFromDefault() {
+	defaultPanelTheme = loadDefaultTheme();
 }
 
 void BidooWidget::prepareThemes(const std::string& filename) {
@@ -235,210 +246,47 @@ void BidooWidget::prepareThemes(const std::string& filename) {
 	}
 	blackPanel->setVisible(false);
 	addChild(blackPanel);
+}
 
-	std::shared_ptr<Svg> buSvg;
-	try {
-		buSvg = std::make_shared<Svg>();
-		buSvg->loadFile(filename);
-	}
-	catch (Exception& e) {
-		WARN("%s", e.what());
-		buSvg = NULL;
-	}
-
-	bluePanel = new SvgPanel;
-	bluePanel->setBackground(buSvg);
-	for (NSVGshape *shape = bluePanel->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
-		std::string sId (shape->id);
-		std::string sScreen ("screen");
-		bool isScreen = sId.find(sScreen)!=std::string::npos;
-
-		if ((shape->fill.color == packedColor(205, 31, 0, 255)) || (shape->stroke.color == packedColor(205, 31, 0, 255))) {
-			shape->fill.color = packedColor(150, 0, 0, 255);
-			shape->stroke.color = packedColor(150, 0, 0, 255);
-		}
-		if (((shape->fill.color == packedColor(0, 0, 0, 255)) || (shape->stroke.color == packedColor(0, 0, 0, 255))) && (!isScreen)) {
-			shape->fill.color = packedColor(180, 180, 180, 255);
-			shape->stroke.color = packedColor(180, 180, 180, 255);
-		}
-		if ((shape->fill.color == packedColor(230, 230, 230, 255)) || (shape->stroke.color == packedColor(230, 230, 230, 255))) {
-			shape->fill.color = packedColor(19, 63, 84, 255);
-			shape->stroke.color = packedColor(19, 63, 84, 255);
-		}
-		if ((shape->fill.color == packedColor(255, 255, 255, 255)) || (shape->stroke.color == packedColor(255, 255, 255, 255))) {
-			shape->fill.color = packedColor(40, 40, 40, 255);
-			shape->stroke.color = packedColor(40, 40, 40, 255);
-		}
-		if (shape->opacity<1) {
-			shape->fill.color = packedColor(60, 60, 60, 255);
-			shape->stroke.color = packedColor(60, 60, 60, 255);
-			shape->opacity = 0.6f;
-		}
-	}
-	bluePanel->setVisible(false);
-	addChild(bluePanel);
-
-	std::shared_ptr<Svg> gSvg;
-	try {
-		gSvg = std::make_shared<Svg>();
-		gSvg->loadFile(filename);
-	}
-	catch (Exception& e) {
-		WARN("%s", e.what());
-		gSvg = NULL;
-	}
-
-	greenPanel = new SvgPanel;
-	greenPanel->setBackground(gSvg);
-	for (NSVGshape *shape = greenPanel->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
-		std::string sId (shape->id);
-		std::string sScreen ("screen");
-		bool isScreen = sId.find(sScreen)!=std::string::npos;
-
-		if ((shape->fill.color == packedColor(205, 31, 0, 255)) || (shape->stroke.color == packedColor(205, 31, 0, 255))) {
-			shape->fill.color = packedColor(150, 0, 0, 255);
-			shape->stroke.color = packedColor(150, 0, 0, 255);
-		}
-		if (((shape->fill.color == packedColor(0, 0, 0, 255)) || (shape->stroke.color == packedColor(0, 0, 0, 255))) && (!isScreen)) {
-			shape->fill.color = packedColor(180, 180, 180, 255);
-			shape->stroke.color = packedColor(180, 180, 180, 255);
-		}
-		if ((shape->fill.color == packedColor(230, 230, 230, 255)) || (shape->stroke.color == packedColor(230, 230, 230, 255))) {
-			shape->fill.color = packedColor(19, 107, 80, 255);
-			shape->stroke.color = packedColor(19, 107, 80, 255);
-		}
-		if ((shape->fill.color == packedColor(255, 255, 255, 255)) || (shape->stroke.color == packedColor(255, 255, 255, 255))) {
-			shape->fill.color = packedColor(40, 40, 40, 255);
-			shape->stroke.color = packedColor(40, 40, 40, 255);
-		}
-		if (shape->opacity<1) {
-			shape->fill.color = packedColor(60, 60, 60, 255);
-			shape->stroke.color = packedColor(60, 60, 60, 255);
-			shape->opacity = 0.6f;
-		}
-	}
-	greenPanel->setVisible(false);
-	addChild(greenPanel);
+void BidooWidget::showTheme(int theme) {
+	// 0 light, 1 dark, 2 black; anything else (the removed blue and green) is light
+	if (theme < 0 || theme > 2)
+		theme = 0;
+	shownTheme = theme;
+	lightPanel->setVisible(theme == 0);
+	darkPanel->setVisible(theme == 1);
+	blackPanel->setVisible(theme == 2);
 }
 
 void BidooWidget::step() {
 	if (module) {
-		if ((dynamic_cast<BidooModule*>(module)->loadDefault) && (dynamic_cast<BidooModule*>(module)->themeId == -1)) {
-			dynamic_cast<BidooModule*>(module)->loadDefault = false;
-			readThemeAndContrastFromDefault();
-			dynamic_cast<BidooModule*>(module)->themeId = defaultPanelTheme;
-			if (defaultPanelTheme == 0) {
-				lightPanel->setVisible(true);
-				darkPanel->setVisible(false);
-				blackPanel->setVisible(false);
-				bluePanel->setVisible(false);
-				greenPanel->setVisible(false);
-			}
-			else if (defaultPanelTheme == 1) {
-				lightPanel->setVisible(false);
-				darkPanel->setVisible(true);
-				blackPanel->setVisible(false);
-				bluePanel->setVisible(false);
-				greenPanel->setVisible(false);
-			}
-			else if (defaultPanelTheme == 2){
-				lightPanel->setVisible(false);
-				darkPanel->setVisible(false);
-				blackPanel->setVisible(true);
-				bluePanel->setVisible(false);
-				greenPanel->setVisible(false);
-			}
-			else if (defaultPanelTheme == 3){
-				lightPanel->setVisible(false);
-				darkPanel->setVisible(false);
-				blackPanel->setVisible(false);
-				bluePanel->setVisible(true);
-				greenPanel->setVisible(false);
-			}
-			else {
-				lightPanel->setVisible(false);
-				darkPanel->setVisible(false);
-				blackPanel->setVisible(false);
-				bluePanel->setVisible(false);
-				greenPanel->setVisible(true);
+		BidooModule *m = dynamic_cast<BidooModule*>(module);
+		if (!themable) {
+			// one look only (the Riso panels): always the panel as drawn
+			if (m->themeChanged || m->loadDefault) {
+				m->loadDefault = false;
+				m->themeChanged = false;
+				m->themeId = 0;
+				showTheme(0);
 			}
 		}
-		else if (dynamic_cast<BidooModule*>(module)->themeChanged) {
-			dynamic_cast<BidooModule*>(module)->themeChanged = false;
-			if (dynamic_cast<BidooModule*>(module)->themeId == 0) {
-				lightPanel->setVisible(true);
-				darkPanel->setVisible(false);
-				blackPanel->setVisible(false);
-				bluePanel->setVisible(false);
-				greenPanel->setVisible(false);
-			}
-			else if (dynamic_cast<BidooModule*>(module)->themeId == 1) {
-				lightPanel->setVisible(false);
-				darkPanel->setVisible(true);
-				blackPanel->setVisible(false);
-				bluePanel->setVisible(false);
-				greenPanel->setVisible(false);
-			}
-			else if (dynamic_cast<BidooModule*>(module)->themeId == 2){
-				lightPanel->setVisible(false);
-				darkPanel->setVisible(false);
-				blackPanel->setVisible(true);
-				bluePanel->setVisible(false);
-				greenPanel->setVisible(false);
-			}
-			else if (dynamic_cast<BidooModule*>(module)->themeId == 3){
-				lightPanel->setVisible(false);
-				darkPanel->setVisible(false);
-				blackPanel->setVisible(false);
-				bluePanel->setVisible(true);
-				greenPanel->setVisible(false);
-			}
-			else {
-				lightPanel->setVisible(false);
-				darkPanel->setVisible(false);
-				blackPanel->setVisible(false);
-				bluePanel->setVisible(false);
-				greenPanel->setVisible(true);
-			}
+		else if (m->loadDefault && m->themeId == -1) {
+			m->loadDefault = false;
+			readThemeAndContrastFromDefault();
+			m->themeId = defaultPanelTheme;
+			showTheme(defaultPanelTheme);
+		}
+		else if (m->themeChanged) {
+			m->themeChanged = false;
+			showTheme(m->themeId);
 		}
 	}
 	else {
+		// module browser preview: follow the cached default, no file access per frame
 		readThemeAndContrastFromDefault();
-		if (defaultPanelTheme == 0) {
-			lightPanel->setVisible(true);
-			darkPanel->setVisible(false);
-			blackPanel->setVisible(false);
-			bluePanel->setVisible(false);
-			greenPanel->setVisible(false);
-		}
-		else if (defaultPanelTheme == 1) {
-			lightPanel->setVisible(false);
-			darkPanel->setVisible(true);
-			blackPanel->setVisible(false);
-			bluePanel->setVisible(false);
-			greenPanel->setVisible(false);
-		}
-		else if (defaultPanelTheme == 2){
-			lightPanel->setVisible(false);
-			darkPanel->setVisible(false);
-			blackPanel->setVisible(true);
-			bluePanel->setVisible(false);
-			greenPanel->setVisible(false);
-		}
-		else if (defaultPanelTheme == 3){
-			lightPanel->setVisible(false);
-			darkPanel->setVisible(false);
-			blackPanel->setVisible(false);
-			bluePanel->setVisible(true);
-			greenPanel->setVisible(false);
-		}
-		else {
-			lightPanel->setVisible(false);
-			darkPanel->setVisible(false);
-			blackPanel->setVisible(false);
-			bluePanel->setVisible(false);
-			greenPanel->setVisible(true);
-		}
+		int theme = themable ? defaultPanelTheme : 0;
+		if (theme != shownTheme)
+			showTheme(theme);
 	}
 	ModuleWidget::step();
 }

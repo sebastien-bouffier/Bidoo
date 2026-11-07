@@ -48,12 +48,22 @@ struct OAI : BidooModule {
 	SliceSettings settings[16];
 	SliceVoice voices[16];
 	int currentChannel = 0;
+	SliceRun run;
+	dsp::ClockDivider slow;  // the sample handoff and the light
+
 	OAI() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		slow.setDivision(32);
 		sliceConfig(*this);
 	}
 
 	void process(const ProcessArgs &args) override;
+
+	// Bypassed: still takes the loaded samples, so the loader never waits.
+	void processBypass(const ProcessArgs &args) override {
+		bank.poll(args.sampleRate);
+		Module::processBypass(args);
+	}
 
 	void onRandomize() override {
 		for (int i = 0; i < 16; i++)
@@ -98,38 +108,15 @@ struct OAI : BidooModule {
 };
 
 void OAI::process(const ProcessArgs &args) {
-	bank.poll(args.sampleRate);
-	bool loaded = bank.current[currentChannel] && bank.current[currentChannel]->size() > 0;
-	lights[SAMPLE_LIGHT].setBrightness(loaded ? 0.0f : 1.0f);
-	lights[SAMPLE_LIGHT+1].setBrightness(loaded ? 1.0f : 0.0f);
-	lights[SAMPLE_LIGHT+2].setBrightness(0.0f);
-
-
-	// The panel shows the selected channel.
-	int sel = clamp((int)params[CHANNEL_PARAM].getValue(), 0, 15);
-	if (sel != currentChannel) {
-		currentChannel = sel;
-		sliceLoadPanel(*this, settings[currentChannel]);
+	if (slow.process()) {
+		bank.poll(args.sampleRate);
+		bool loaded = bank.current[currentChannel] && bank.current[currentChannel]->size() > 0;
+		lights[SAMPLE_LIGHT].setBrightness(loaded ? 0.0f : 1.0f);
+		lights[SAMPLE_LIGHT+1].setBrightness(loaded ? 1.0f : 0.0f);
+		lights[SAMPLE_LIGHT+2].setBrightness(0.0f);
 	}
-	sliceSavePanel(*this, settings[currentChannel]);
 
-	int c = std::max(inputs[TRIG_INPUT].getChannels(), 1);
-	for (int i = 0; i < c; i++) {
-		bool rise = voices[i].trigger.process(inputs[TRIG_INPUT].getVoltage(i), 0.1f, 1.f);
-		bool high = voices[i].trigger.isHigh();
-		SliceControls ctl = sliceControls(*this, settings[i], i);
-			bool killed = false;
-			for (int j = 0; j < c; j++) {
-				if (j != i && voices[j].active && sliceKill(*this, settings[j], j) == i) {
-					killed = true;
-					break;
-				}
-			}
-		outputs[POLY_OUTPUT].setVoltage(slicePlay(voices[i], bank.current[i], ctl, rise, high, killed, HAS_FILTER, args.sampleTime), i);
-	}
-	for (int i = c; i < 16; i++)
-		voices[i].active = false;
-	outputs[POLY_OUTPUT].setChannels(c);
+	sliceProcess(*this, run, args, [this](int i) { return (const SliceSample *)bank.current[i]; });
 }
 
 struct OAIWidget : BidooWidget {

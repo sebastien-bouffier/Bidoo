@@ -1,0 +1,990 @@
+{
+ "comment": "antN station menu. Curated public broadcasters and independent stations, each checked to answer and decode (MP3, AAC or Ogg Vorbis) on 2026-11-07. Streams move: edit this file to fix or add one (continent: Europe, North America, Latin America, Africa, Asia, Oceania; category: News & talk or Music).",
+ "verified": "2026-11-07",
+ "stations": [
+  {
+   "name": "France Inter",
+   "country": "France",
+   "continent": "Europe",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://icecast.radiofrance.fr/franceinter-hifi.aac"
+  },
+  {
+   "name": "franceinfo",
+   "country": "France",
+   "continent": "Europe",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://icecast.radiofrance.fr/franceinfo-hifi.aac"
+  },
+  {
+   "name": "Deutschlandfunk",
+   "country": "Germany",
+   "continent": "Europe",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://st01.sslstream.dlf.de/dlf/01/high/aac/stream.aac"
+  },
+  {
+   "name": "BBC World Service",
+   "country": "UK",
+   "continent": "Europe",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://stream.live.vc.bbcmedia.co.uk/bbc_world_service"
+  },
+  {
+   "name": "RTÉ Radio 1",
+   "country": "Ireland",
+   "continent": "Europe",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://icecast.rte.ie/radio1"
+  },
+  {
+   "name": "SRF 4 News",
+   "country": "Switzerland",
+   "continent": "Europe",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://stream.srg-ssr.ch/m/drs4news/mp3_128"
+  },
+  {
+   "name": "Sveriges Radio P1",
+   "country": "Sweden",
+   "continent": "Europe",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://live1.sr.se/p1-aac-320"
+  },
+  {
+   "name": "NPO Radio 1",
+   "country": "Netherlands",
+   "continent": "Europe",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://icecast.omroep.nl/radio1-bb-mp3"
+  },
+  {
+   "name": "Ö1",
+   "country": "Austria",
+   "continent": "Europe",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://orf-live.ors-shoutcast.at/oe1-q2a"
+  },
+  {
+   "name": "RNE Radio Nacional",
+   "country": "Spain",
+   "continent": "Europe",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://dispatcher.rndfnk.com/crtve/rne1/mad/mp3/high"
+  },
+  {
+   "name": "Rai Radio 1",
+   "country": "Italy",
+   "continent": "Europe",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://icestreaming.rai.it/1.mp3"
+  },
+  {
+   "name": "FIP",
+   "country": "France",
+   "continent": "Europe",
+   "category": "Music",
+   "format": "AAC",
+   "url": "https://icecast.radiofrance.fr/fip-hifi.aac"
+  },
+  {
+   "name": "France Musique",
+   "country": "France",
+   "continent": "Europe",
+   "category": "Music",
+   "format": "AAC",
+   "url": "https://icecast.radiofrance.fr/francemusique-hifi.aac"
+  },
+  {
+   "name": "TSF Jazz",
+   "country": "France",
+   "continent": "Europe",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://tsfjazz.ice.infomaniak.ch/tsfjazz-high.mp3"
+  },
+  {
+   "name": "NTS Radio 1",
+   "country": "UK",
+   "continent": "Europe",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://stream-relay-geo.ntslive.net/stream"
+  },
+  {
+   "name": "FM4",
+   "country": "Austria",
+   "continent": "Europe",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://orf-live.ors-shoutcast.at/fm4-q2a"
+  },
+  {
+   "name": "Radio Swiss Jazz",
+   "country": "Switzerland",
+   "continent": "Europe",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://stream.srg-ssr.ch/m/rsj/mp3_128"
+  },
+  {
+   "name": "Klara",
+   "country": "Belgium",
+   "continent": "Europe",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://icecast.vrtcdn.be/klara-high.mp3"
+  },
+  {
+   "name": "NPO Klassiek",
+   "country": "Netherlands",
+   "continent": "Europe",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://icecast.omroep.nl/radio4-bb-mp3"
+  },
+  {
+   "name": "Sveriges Radio P2",
+   "country": "Sweden",
+   "continent": "Europe",
+   "category": "Music",
+   "format": "AAC",
+   "url": "https://live1.sr.se/p2-aac-320"
+  },
+  {
+   "name": "Radio Panik",
+   "country": "Belgium",
+   "continent": "Europe",
+   "category": "Music",
+   "format": "Vorbis",
+   "url": "https://streaming.domainepublic.net/radiopanik.ogg"
+  },
+  {
+   "name": "Radio Città Fujiko",
+   "country": "Italy",
+   "continent": "Europe",
+   "category": "Music",
+   "format": "Vorbis",
+   "url": "http://comodino.org:8001/rcf.ogg"
+  },
+  {
+   "name": "WNYC 93.9 FM",
+   "country": "USA",
+   "continent": "North America",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://fm939.wnyc.org/wnycfm"
+  },
+  {
+   "name": "KQED",
+   "country": "USA",
+   "continent": "North America",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://streams.kqed.org/kqedradio"
+  },
+  {
+   "name": "WBUR",
+   "country": "USA",
+   "continent": "North America",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://icecast-stream.wbur.org/wbur"
+  },
+  {
+   "name": "WBEZ",
+   "country": "USA",
+   "continent": "North America",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://stream.wbez.org/wbez128.mp3"
+  },
+  {
+   "name": "MPR News",
+   "country": "USA",
+   "continent": "North America",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://nis.stream.publicradio.org/nis.mp3"
+  },
+  {
+   "name": "GBH 89.7",
+   "country": "USA",
+   "continent": "North America",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://streams.audio.wgbh.org/wgbh"
+  },
+  {
+   "name": "LAist 89.3 (KPCC)",
+   "country": "USA",
+   "continent": "North America",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://laist.streamguys1.com/kpcc-mp3"
+  },
+  {
+   "name": "CBC Radio One (Ottawa)",
+   "country": "Canada",
+   "continent": "North America",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/CBOFM_CBC_SC"
+  },
+  {
+   "name": "ICI Première (Montréal)",
+   "country": "Canada",
+   "continent": "North America",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/CBFFM_SRC.mp3"
+  },
+  {
+   "name": "C-SPAN Radio",
+   "country": "USA",
+   "continent": "North America",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/CSPANRADIO.mp3"
+  },
+  {
+   "name": "KEXP",
+   "country": "USA",
+   "continent": "North America",
+   "category": "Music",
+   "format": "AAC",
+   "url": "https://kexp.streamguys1.com/kexp160.aac"
+  },
+  {
+   "name": "WFMU",
+   "country": "USA",
+   "continent": "North America",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://stream0.wfmu.org/freeform-128k"
+  },
+  {
+   "name": "SomaFM Groove Salad",
+   "country": "USA",
+   "continent": "North America",
+   "category": "Music",
+   "format": "AAC",
+   "url": "https://ice1.somafm.com/groovesalad-128-aac"
+  },
+  {
+   "name": "SomaFM Drone Zone",
+   "country": "USA",
+   "continent": "North America",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://ice1.somafm.com/dronezone-128-mp3"
+  },
+  {
+   "name": "Radio Paradise",
+   "country": "USA",
+   "continent": "North America",
+   "category": "Music",
+   "format": "AAC",
+   "url": "https://stream.radioparadise.com/aac-128"
+  },
+  {
+   "name": "WQXR",
+   "country": "USA",
+   "continent": "North America",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://stream.wqxr.org/wqxr"
+  },
+  {
+   "name": "WWOZ",
+   "country": "USA",
+   "continent": "North America",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://wwoz-sc.streamguys1.com/wwoz-hi.mp3"
+  },
+  {
+   "name": "The Current",
+   "country": "USA",
+   "continent": "North America",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://current.stream.publicradio.org/current.mp3"
+  },
+  {
+   "name": "WXPN",
+   "country": "USA",
+   "continent": "North America",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://wxpnhi.xpn.org/xpnhi"
+  },
+  {
+   "name": "WUVT",
+   "country": "USA",
+   "continent": "North America",
+   "category": "Music",
+   "format": "Vorbis",
+   "url": "http://engine.wuvt.vt.edu:8000/wuvt.ogg"
+  },
+  {
+   "name": "Radio Nacional",
+   "country": "Argentina",
+   "continent": "Latin America",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "http://sa.mp3.icecast.magma.edge-access.net:7200/sc_rad1"
+  },
+  {
+   "name": "Radio Mitre",
+   "country": "Argentina",
+   "continent": "Latin America",
+   "category": "News & talk",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/AM790_56AAC.aac"
+  },
+  {
+   "name": "CBN São Paulo",
+   "country": "Brazil",
+   "continent": "Latin America",
+   "category": "News & talk",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/CBN_SPAAC.aac"
+  },
+  {
+   "name": "BandNews FM",
+   "country": "Brazil",
+   "continent": "Latin America",
+   "category": "News & talk",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/BANDNEWSFM_SPAAC.aac"
+  },
+  {
+   "name": "Caracol Radio",
+   "country": "Colombia",
+   "continent": "Latin America",
+   "category": "News & talk",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/CARACOL_RADIOAAC.aac"
+  },
+  {
+   "name": "Radio Nacional de Colombia",
+   "country": "Colombia",
+   "continent": "Latin America",
+   "category": "News & talk",
+   "format": "AAC+",
+   "url": "http://shoutcast.rtvc.gov.co:8000/;"
+  },
+  {
+   "name": "W Radio",
+   "country": "Mexico",
+   "continent": "Latin America",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/W_RADIOAAC.aac"
+  },
+  {
+   "name": "RPP Noticias",
+   "country": "Peru",
+   "continent": "Latin America",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://mdstrm.com/audio/5fab3416b5f9ef165cfab6e9/icecast.audio"
+  },
+  {
+   "name": "Radio Bío-Bío",
+   "country": "Chile",
+   "continent": "Latin America",
+   "category": "News & talk",
+   "format": "AAC+",
+   "url": "https://unlimited3-cl.dps.live/biobiosantiago/aac/icecast.audio"
+  },
+  {
+   "name": "Radio Uruguay",
+   "country": "Uruguay",
+   "continent": "Latin America",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://radios.iwstreaming.uy/8036/stream"
+  },
+  {
+   "name": "Nacional Folklórica",
+   "country": "Argentina",
+   "continent": "Latin America",
+   "category": "Music",
+   "format": "MP3",
+   "url": "http://sa.mp3.icecast.magma.edge-access.net:7200/sc_rad38"
+  },
+  {
+   "name": "Nacional Rock",
+   "country": "Argentina",
+   "continent": "Latin America",
+   "category": "Music",
+   "format": "MP3",
+   "url": "http://sa.mp3.icecast.magma.edge-access.net:7200/sc_rad39"
+  },
+  {
+   "name": "Radiónica",
+   "country": "Colombia",
+   "continent": "Latin America",
+   "category": "Music",
+   "format": "AAC+",
+   "url": "http://shoutcast.rtvc.gov.co:8010/;"
+  },
+  {
+   "name": "Antena 1",
+   "country": "Brazil",
+   "continent": "Latin America",
+   "category": "Music",
+   "format": "AAC",
+   "url": "http://antena1.newradio.it/stream"
+  },
+  {
+   "name": "JB FM",
+   "country": "Brazil",
+   "continent": "Latin America",
+   "category": "Music",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/JBFMAAC.aac"
+  },
+  {
+   "name": "Radio Concierto",
+   "country": "Chile",
+   "continent": "Latin America",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/CONCIERTO_SC"
+  },
+  {
+   "name": "Babel",
+   "country": "Uruguay",
+   "continent": "Latin America",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://radios.iwstreaming.uy/8030/stream"
+  },
+  {
+   "name": "Opus 94 (IMER)",
+   "country": "Mexico",
+   "continent": "Latin America",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://s2.mexside.net/8016/stream"
+  },
+  {
+   "name": "Radio UNAM 96.1",
+   "country": "Mexico",
+   "continent": "Latin America",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://tv.radiohosting.online:9484/stream"
+  },
+  {
+   "name": "Radio Educación Cultura 96.5",
+   "country": "Mexico",
+   "continent": "Latin America",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://s2.mexside.net/8174/stream"
+  },
+  {
+   "name": "702",
+   "country": "South Africa",
+   "continent": "Africa",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/FM702_SC"
+  },
+  {
+   "name": "SAfm (SABC)",
+   "country": "South Africa",
+   "continent": "Africa",
+   "category": "News & talk",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/SAFMAAC.aac"
+  },
+  {
+   "name": "RTS Radio Sénégal Internationale",
+   "country": "Senegal",
+   "continent": "Africa",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://10gb1.acangroup.org:8000/rsi"
+  },
+  {
+   "name": "Radio Tunisienne Nationale",
+   "country": "Tunisia",
+   "continent": "Africa",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "http://rtstream.tanitweb.com/nationale"
+  },
+  {
+   "name": "RTCI",
+   "country": "Tunisia",
+   "continent": "Africa",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "http://rtstream.tanitweb.com/rtci"
+  },
+  {
+   "name": "Mosaïque FM",
+   "country": "Tunisia",
+   "continent": "Africa",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://radio.mosaiquefm.net/mosalive"
+  },
+  {
+   "name": "Radio Aswat",
+   "country": "Morocco",
+   "continent": "Africa",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://broadcast.ice.infomaniak.ch/aswat-high.mp3"
+  },
+  {
+   "name": "RFI Afrique",
+   "country": "Africa",
+   "continent": "Africa",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://rfiafrique64k.ice.infomaniak.ch/rfiafrique-64.mp3"
+  },
+  {
+   "name": "BBC World Service Africa",
+   "country": "Africa",
+   "continent": "Africa",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://stream.live.vc.bbcmedia.co.uk/bbc_world_service_west_africa"
+  },
+  {
+   "name": "CRTV Poste National",
+   "country": "Cameroon",
+   "continent": "Africa",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://10gb1.acangroup.org:8000/postenational"
+  },
+  {
+   "name": "Citi FM",
+   "country": "Ghana",
+   "continent": "Africa",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://citi973fm.radioca.st/stream"
+  },
+  {
+   "name": "Jacaranda FM",
+   "country": "South Africa",
+   "continent": "Africa",
+   "category": "Music",
+   "format": "AAC+",
+   "url": "https://edge.iono.fm/xice/jacarandafm_live_medium.aac"
+  },
+  {
+   "name": "Kaya 959",
+   "country": "South Africa",
+   "continent": "Africa",
+   "category": "Music",
+   "format": "AAC",
+   "url": "https://edge.iono.fm/xice/82_medium.aac"
+  },
+  {
+   "name": "East Coast Radio",
+   "country": "South Africa",
+   "continent": "Africa",
+   "category": "Music",
+   "format": "AAC+",
+   "url": "https://edge.iono.fm/xice/ecr_live_medium.aac"
+  },
+  {
+   "name": "Classic 1027",
+   "country": "South Africa",
+   "continent": "Africa",
+   "category": "Music",
+   "format": "AAC",
+   "url": "https://edge.iono.fm/xice/49_medium.aac"
+  },
+  {
+   "name": "Ukhozi FM (SABC)",
+   "country": "South Africa",
+   "continent": "Africa",
+   "category": "Music",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/UKHOZIFMAAC.aac"
+  },
+  {
+   "name": "Metro FM (SABC)",
+   "country": "South Africa",
+   "continent": "Africa",
+   "category": "Music",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/METROFMAAC.aac"
+  },
+  {
+   "name": "5FM (SABC)",
+   "country": "South Africa",
+   "continent": "Africa",
+   "category": "Music",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/5FMAAC.aac"
+  },
+  {
+   "name": "Trace FM",
+   "country": "Côte d'Ivoire",
+   "continent": "Africa",
+   "category": "Music",
+   "format": "AAC",
+   "url": "http://stream.trace.tv/trace_fm_ci-midfi.aac"
+  },
+  {
+   "name": "Dakar Musique",
+   "country": "Senegal",
+   "continent": "Africa",
+   "category": "Music",
+   "format": "MP3",
+   "url": "http://listen.senemultimedia.net:8090/stream"
+  },
+  {
+   "name": "Diwan FM",
+   "country": "Tunisia",
+   "continent": "Africa",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://streaming.diwanfm.net/stream"
+  },
+  {
+   "name": "RTHK Radio 1",
+   "country": "Hong Kong",
+   "continent": "Asia",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://stm1.rthk.hk/radio1"
+  },
+  {
+   "name": "RTHK Radio 3",
+   "country": "Hong Kong",
+   "continent": "Asia",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://stm3.rthk.hk/radio3"
+  },
+  {
+   "name": "CNA 938",
+   "country": "Singapore",
+   "continent": "Asia",
+   "category": "News & talk",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/938NOW_PREM_SC"
+  },
+  {
+   "name": "RRI Pro 3",
+   "country": "Indonesia",
+   "continent": "Asia",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://stream-node0.rri.co.id/streaming/14/9014/kbrn.mp3"
+  },
+  {
+   "name": "Elshinta",
+   "country": "Indonesia",
+   "continent": "Asia",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://stream-ssl.arenastreaming.com:8000/jakarta"
+  },
+  {
+   "name": "Nasional FM (RTM)",
+   "country": "Malaysia",
+   "continent": "Asia",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/NASIONAL_FM.mp3"
+  },
+  {
+   "name": "Kan Bet",
+   "country": "Israel",
+   "continent": "Asia",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/KAN_BET.mp3"
+  },
+  {
+   "name": "BCC News Network",
+   "country": "Taiwan",
+   "continent": "Asia",
+   "category": "News & talk",
+   "format": "AAC+",
+   "url": "https://n03.rcs.revma.com/78fm9wyy2tzuv"
+  },
+  {
+   "name": "Voice of Lebanon",
+   "country": "Lebanon",
+   "continent": "Asia",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://l3.itworkscdn.net/itwaudio/9054/stream"
+  },
+  {
+   "name": "DWIZ 882",
+   "country": "Philippines",
+   "continent": "Asia",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "http://dwizmanila.radioca.st:9079/stream"
+  },
+  {
+   "name": "RTHK Radio 4",
+   "country": "Hong Kong",
+   "continent": "Asia",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://stm.rthk.hk/radio4"
+  },
+  {
+   "name": "Symphony 92.4",
+   "country": "Singapore",
+   "continent": "Asia",
+   "category": "Music",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/SYMPHONY924AAC.aac"
+  },
+  {
+   "name": "Class 95",
+   "country": "Singapore",
+   "continent": "Asia",
+   "category": "Music",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/CLASS95AAC.aac"
+  },
+  {
+   "name": "Klasik FM (RTM)",
+   "country": "Malaysia",
+   "continent": "Asia",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO_KLASIK.mp3"
+  },
+  {
+   "name": "Shonan Beach FM",
+   "country": "Japan",
+   "continent": "Asia",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://shonanbeachfm.out.airtime.pro/shonanbeachfm_a"
+  },
+  {
+   "name": "Ottava",
+   "country": "Japan",
+   "continent": "Asia",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://ottava2.out.airtime.pro/ottava2_a"
+  },
+  {
+   "name": "Cool Fahrenheit",
+   "country": "Thailand",
+   "continent": "Asia",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://coolism-web.cdn.byteark.com/;stream/1"
+  },
+  {
+   "name": "Galgalatz",
+   "country": "Israel",
+   "continent": "Asia",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://glzicylv01.bynetcdn.com/glglz_mp3"
+  },
+  {
+   "name": "Metro FM",
+   "country": "Turkey",
+   "continent": "Asia",
+   "category": "Music",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/METRO_FMAAC.aac"
+  },
+  {
+   "name": "Mirchi Top 20",
+   "country": "India",
+   "continent": "Asia",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://drive.uber.radio/uber/bollywoodnow/icecast.audio"
+  },
+  {
+   "name": "ABC NewsRadio",
+   "country": "Australia",
+   "continent": "Oceania",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://abc.streamguys1.com/live/newsradio/icecast.audio"
+  },
+  {
+   "name": "ABC Radio National",
+   "country": "Australia",
+   "continent": "Oceania",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://abc.streamguys1.com/live/rnnsw/icecast.audio"
+  },
+  {
+   "name": "ABC Radio Sydney",
+   "country": "Australia",
+   "continent": "Oceania",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://abc.streamguys1.com/live/localsydney/icecast.audio"
+  },
+  {
+   "name": "ABC Radio Melbourne",
+   "country": "Australia",
+   "continent": "Oceania",
+   "category": "News & talk",
+   "format": "AAC",
+   "url": "https://abc.streamguys1.com/live/localmelbourne/icecast.audio"
+  },
+  {
+   "name": "RNZ National",
+   "country": "New Zealand",
+   "continent": "Oceania",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "http://radionz-ice.streamguys.com/national.mp3"
+  },
+  {
+   "name": "RNZ Pacific",
+   "country": "New Zealand",
+   "continent": "Oceania",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "http://radionz-ice.streamguys.com/international.mp3"
+  },
+  {
+   "name": "Newstalk ZB",
+   "country": "New Zealand",
+   "continent": "Oceania",
+   "category": "News & talk",
+   "format": "AAC+",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/NZME_41AAC.aac"
+  },
+  {
+   "name": "2GB Sydney",
+   "country": "Australia",
+   "continent": "Oceania",
+   "category": "News & talk",
+   "format": "MP3",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/2GB.mp3"
+  },
+  {
+   "name": "SBS Radio 1",
+   "country": "Australia",
+   "continent": "Oceania",
+   "category": "News & talk",
+   "format": "AAC+",
+   "url": "http://sbs-ice.streamguys1.com/sbs1"
+  },
+  {
+   "name": "Radio Fiji One",
+   "country": "Fiji",
+   "continent": "Oceania",
+   "category": "News & talk",
+   "format": "AAC+",
+   "url": "https://icecast1.sere.plus/RFOne"
+  },
+  {
+   "name": "triple j",
+   "country": "Australia",
+   "continent": "Oceania",
+   "category": "Music",
+   "format": "AAC",
+   "url": "https://abc.streamguys1.com/live/triplejnsw/icecast.audio"
+  },
+  {
+   "name": "ABC Jazz",
+   "country": "Australia",
+   "continent": "Oceania",
+   "category": "Music",
+   "format": "AAC",
+   "url": "https://abc.streamguys1.com/live/abcjazz/icecast.audio"
+  },
+  {
+   "name": "RNZ Concert",
+   "country": "New Zealand",
+   "continent": "Oceania",
+   "category": "Music",
+   "format": "MP3",
+   "url": "http://radionz-ice.streamguys.com/concert.mp3"
+  },
+  {
+   "name": "3RRR",
+   "country": "Australia",
+   "continent": "Oceania",
+   "category": "Music",
+   "format": "AAC",
+   "url": "http://realtime.rrr.org.au/p1h"
+  },
+  {
+   "name": "PBS 106.7FM",
+   "country": "Australia",
+   "continent": "Oceania",
+   "category": "Music",
+   "format": "AAC",
+   "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/3PBS_FMAAC.aac"
+  },
+  {
+   "name": "SBS Chill",
+   "country": "Australia",
+   "continent": "Oceania",
+   "category": "Music",
+   "format": "AAC+",
+   "url": "http://sbs-ice.streamguys1.com/sbschill"
+  },
+  {
+   "name": "95bFM",
+   "country": "New Zealand",
+   "continent": "Oceania",
+   "category": "Music",
+   "format": "MP3",
+   "url": "https://streams.95bfm.com/stream95"
+  },
+  {
+   "name": "Fresh 92.7",
+   "country": "Australia",
+   "continent": "Oceania",
+   "category": "Music",
+   "format": "AAC",
+   "url": "https://live.fresh927.com.au/freshaac"
+  },
+  {
+   "name": "Radio Fiji Two",
+   "country": "Fiji",
+   "continent": "Oceania",
+   "category": "Music",
+   "format": "AAC+",
+   "url": "https://icecast1.sere.plus/RFTwo"
+  },
+  {
+   "name": "The Rock",
+   "country": "New Zealand",
+   "continent": "Oceania",
+   "category": "Music",
+   "format": "AAC",
+   "url": "https://digitalstreams.mediaworks.nz/rock_net_icy"
+  }
+ ]
+}

@@ -111,6 +111,8 @@ struct TOCANTE : BidooModule {
 		position = 0.0;
 	}
 
+	int lightCounter = 0;  // lights every 16 samples
+
 	void process(const ProcessArgs &args) override;
 };
 
@@ -180,8 +182,11 @@ void TOCANTE::process(const ProcessArgs &args) {
 
 	count = beats - std::min((int)(position / beatLength), beats - 1);
 	resetLight = std::max(0.f, resetLight - args.sampleTime * 4.f);
-	lights[RESET_LIGHT].setBrightness(resetLight);
-	lights[RUNNING_LIGHT].setBrightness(running ? 1.f : 0.f);
+	if (--lightCounter < 0) {
+		lightCounter = 15;
+		lights[RESET_LIGHT].setBrightness(resetLight);
+		lights[RUNNING_LIGHT].setBrightness(running ? 1.f : 0.f);
+	}
 }
 
 struct TOCANTEDisplay : TransparentWidget {

@@ -150,8 +150,11 @@ struct SOUNAIRE : BidooModule {
 	sounaire::Engine engine;
 
 	// ---- the sample, shared by the threads
-	// the worker owns every loaded sample; the audio thread plays raw pointers to
-	// them and hands back the ones no voice uses any more; the display reads `shown`
+	// `shown` is the sample as loaded (display, patch storage, slices, export);
+	// the engine plays a copy at its own rate (the same object when the rates
+	// match). The worker keeps a reference for each copy it hands over in
+	// `owned`; the audio thread plays raw pointers and hands back each one no
+	// voice uses any more, and the worker drops that reference.
 	std::mutex sampleMutex;
 	std::vector<std::shared_ptr<Sample>> owned;
 	std::shared_ptr<Sample> shown;
@@ -161,6 +164,11 @@ struct SOUNAIRE : BidooModule {
 	std::atomic<float> pendingRoot {-1000.f};
 	std::atomic<bool> clearCents {false};   // a new sample came without a detected root
 	std::atomic<bool> loading {false};
+	std::atomic<float> engineRate {48000.f};   // the rate the worker makes playing copies for
+	float playRate = 0.f;                     // worker: the rate of the copy it handed over last
+	const Sample *handed = nullptr;           // worker: that copy
+	// texts the worker, the UI and the autosave share: under infoMutex
+	std::mutex infoMutex;
 	std::string lastError;
 
 	// ---- worker
@@ -189,7 +197,8 @@ struct SOUNAIRE : BidooModule {
 	int bendRange = 2;
 	float rootCents = 0.f;         // the detected root's offset from the note
 	float rootSeen = 60.f;         // ROOT as last seen: a change by hand clears rootCents
-	std::string sampleName;
+	bool xfadeEqualPower = true;   // loop crossfade law (off: linear)
+	std::string sampleName;        // under infoMutex
 
 	// ---- slices (SLICES mode)
 	// the UI and the worker edit `uiSlices` under sliceMutex and publish a copy;
@@ -199,6 +208,7 @@ struct SOUNAIRE : BidooModule {
 	std::atomic<int> selectedSlice {0};
 	std::atomic<Slices *> pendingSlices {nullptr};
 	std::atomic<Slices *> retiredSlices {nullptr};
+	std::atomic<uint32_t> sliceVersion {0};   // counts the edits: the display copies the slices only when it moves
 	Slices *slices = nullptr;      // audio thread
 	bool detectOnLoad = true;      // saved
 	float sensitivity = 0.64f;     // 0..1 (about 8 dB of rise); saved
@@ -212,6 +222,11 @@ struct SOUNAIRE : BidooModule {
 	double clockInterval = 0;      // samples between pulses, 0: no clock yet
 	std::atomic<float> syncBpm {0.f};      // for the display, 0: not synced
 	std::atomic<int> syncBeats {0};
+	// worked out at each pulse, or when the sample or the beats change
+	bool syncOn = false;
+	double syncSeconds = -1.0;
+	int syncLoopBeats = -1, syncBeatsNow = 4;
+	float syncBpmNow = 0.f;
 
 	// ---- recording (IN L, IN R, REC): into chunks the worker keeps ready
 	struct RecChunk {
@@ -227,6 +242,7 @@ struct SOUNAIRE : BidooModule {
 	int64_t recFrames = 0, recLimit = 0;
 	bool recording = false;
 	bool recStereo = false;
+	float recStartRate = 48000.f;           // the rate the recording runs at
 	std::atomic<int> recDone {-1};          // chunks of a finished recording, for the worker
 	std::atomic<float> recRate {48000.f};
 	std::atomic<bool> recStereoDone {false};
@@ -259,6 +275,11 @@ struct SOUNAIRE : BidooModule {
 	std::atomic<float> previewPos {-1.f};
 	std::atomic<bool> previewHeld {false};
 	bool previewing = false;
+	// what the UI reads (keys held, recording time, tempo, lights), and the
+	// hand-backs to the worker: every 64 frames
+	dsp::ClockDivider uiDivider;
+	// settings(): the exponentials again only when their knob moves
+	float speedKnob = NAN, speedPow = 1.f, attackKnob = NAN, attackMsNow = 0.f, releaseKnob = NAN, releaseMsNow = 0.f;
 
 	SOUNAIRE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -312,6 +333,10 @@ struct SOUNAIRE : BidooModule {
 		configOutput(L_OUTPUT, "Left");
 		configOutput(R_OUTPUT, "Right");
 		engine.prepare(48000.f);
+		uiDivider.setDivision(64);
+		// the sinc tables, built here rather than on the first pitched-up note
+		sounaire::playKernel();
+		sounaire::longKernel();
 		std::fill(speedX, speedX + MAX_VOICES, 1e9f);
 		std::fill(speedOut, speedOut + MAX_VOICES, 1.f);
 		slices = new Slices;
@@ -334,6 +359,7 @@ struct SOUNAIRE : BidooModule {
 		delete[] pendingPool.exchange(nullptr);
 		delete[] retiredPool.exchange(nullptr);
 		delete[] engine.pool;
+		delete[] engine.oldPool;
 		delete slices;
 		delete pendingSlices.exchange(nullptr);
 		delete retiredSlices.exchange(nullptr);
@@ -354,11 +380,31 @@ struct SOUNAIRE : BidooModule {
 		}
 		delete retiredSlices.exchange(nullptr);
 		delete pendingSlices.exchange(n);
+		sliceVersion.fetch_add(1);
 	}
 
 	Slices getSlices() {
 		std::lock_guard<std::mutex> lock(sliceMutex);
 		return uiSlices;
+	}
+
+	// ---------------------------------------------------------------- texts
+
+	std::string getSampleName() {
+		std::lock_guard<std::mutex> lock(infoMutex);
+		return sampleName;
+	}
+	void setSampleName(const std::string &n) {
+		std::lock_guard<std::mutex> lock(infoMutex);
+		sampleName = n;
+	}
+	std::string getLastError() {
+		std::lock_guard<std::mutex> lock(infoMutex);
+		return lastError;
+	}
+	void setLastError(const std::string &e) {
+		std::lock_guard<std::mutex> lock(infoMutex);
+		lastError = e;
 	}
 
 	// new cut points; every slice gets `type`
@@ -583,7 +629,7 @@ struct SOUNAIRE : BidooModule {
 			std::string exportDir, exportFile;
 			{
 				std::unique_lock<std::mutex> lock(jobMutex);
-				jobCv.wait_for(lock, std::chrono::milliseconds(20), [&] { return quit || !jobPath.empty() || jobAnalyse || jobPoolPreset >= 0 || jobDetect >= 0 || !jobExportDir.empty() || !jobExportFile.empty(); });
+				jobCv.wait_for(lock, std::chrono::milliseconds(20), [&] { return quit || !jobPath.empty() || jobAnalyse || jobPoolPreset >= 0 || jobDetect >= 0 || !jobExportDir.empty() || !jobExportFile.empty() || (shown && playRate != engineRate.load()); });
 				if (quit)
 					return;
 				std::swap(path, jobPath);
@@ -607,11 +653,9 @@ struct SOUNAIRE : BidooModule {
 				pendingPoolRate = poolRate;
 				pendingPool = pool;
 			}
-			// free what the audio thread gave back
-			if (const Sample *u = unused.exchange(nullptr)) {
-				std::lock_guard<std::mutex> lock(sampleMutex);
-				owned.erase(std::remove_if(owned.begin(), owned.end(), [&](const std::shared_ptr<Sample> &p) { return p.get() == u; }), owned.end());
-			}
+			// drop the reference of what the audio thread gave back
+			if (const Sample *u = unused.exchange(nullptr))
+				dropOwned(u);
 			// recording: spare chunks ready, touched here so the audio thread never
 			// takes a page fault on them
 			for (auto &c : recSpare) {
@@ -652,12 +696,22 @@ struct SOUNAIRE : BidooModule {
 				std::shared_ptr<Sample> s = loadSampleFile(path, error);
 				if (s) {
 					installSample(s, keep);
-					lastError.clear();
+					setLastError("");
 				}
 				else {
-					lastError = error;
+					setLastError(error);
 				}
 				loading = false;
+			}
+			// the engine's rate changed: a copy of the sample at the new one
+			float rate = engineRate.load();
+			if (playRate != rate) {
+				std::shared_ptr<Sample> s = displaySample();
+				if (s) {
+					std::shared_ptr<Sample> play = sounaire::playableAt(s, rate);
+					playRate = rate;
+					handOver(play);
+				}
 			}
 			if (!exportDir.empty() || !exportFile.empty())
 				exportNow(exportDir, exportFile);
@@ -695,16 +749,16 @@ struct SOUNAIRE : BidooModule {
 			else
 				clearCents = true;   // the old sample's offset means nothing here
 		}
+		// the copy the engine plays, at its rate, with its octave copies
+		float rate = engineRate.load();
+		std::shared_ptr<Sample> play = sounaire::playableAt(s, rate);
+		playRate = rate;
 		{
 			std::lock_guard<std::mutex> lock(sampleMutex);
-			owned.push_back(s);
 			shown = s;
-			sampleName = s->name;
 		}
-		// wait until the audio thread took the previous one
-		while (pending.load() && !quit)
-			std::this_thread::sleep_for(std::chrono::milliseconds(5));
-		pending = s.get();
+		setSampleName(s->name);
+		handOver(play);
 		if (!keep) {
 			dirty = true;
 			resetMarkers = true;
@@ -721,6 +775,31 @@ struct SOUNAIRE : BidooModule {
 			}
 			if (!dir.empty() && flacWriteFile(rack::system::join(dir, "sample.flac"), s->ch, s->channels, s->frames, (int)s->rate, s->bits))
 				dirty = false;
+		}
+	}
+
+	// a playing copy for the audio thread, never waiting for it (it does not run
+	// while the module is bypassed): one it has not taken yet is replaced
+	void handOver(const std::shared_ptr<Sample> &play) {
+		if (play.get() == handed)
+			return;   // already there (a rate change back before anything else)
+		{
+			std::lock_guard<std::mutex> lock(sampleMutex);
+			owned.push_back(play);
+		}
+		handed = play.get();
+		if (Sample *prev = pending.exchange(play.get()))
+			dropOwned(prev);
+	}
+
+	// one reference fewer to a copy the audio thread no longer has
+	void dropOwned(const Sample *u) {
+		std::shared_ptr<Sample> last;   // freed outside the lock
+		std::lock_guard<std::mutex> lock(sampleMutex);
+		auto it = std::find_if(owned.begin(), owned.end(), [&](const std::shared_ptr<Sample> &p) { return p.get() == u; });
+		if (it != owned.end()) {
+			last = *it;
+			owned.erase(it);
 		}
 	}
 
@@ -794,8 +873,15 @@ struct SOUNAIRE : BidooModule {
 			requestLoad(path, true);
 	}
 
+	// (the engine is stopped meanwhile) what plays fades out; a recording ends
+	// at the rate it was made at; the worker makes a copy of the sample at the
+	// new rate, and a pool of stretchers when one is needed
 	void onSampleRateChange(const SampleRateChangeEvent &e) override {
+		if (recording)
+			finishRecording();
 		engine.prepare(e.sampleRate);
+		engineRate = e.sampleRate;
+		jobCv.notify_all();
 	}
 
 	json_t *dataToJson() override {
@@ -805,7 +891,8 @@ struct SOUNAIRE : BidooModule {
 		json_object_set_new(rootJ, "polyOut", json_boolean(polyOut));
 		json_object_set_new(rootJ, "bendRange", json_integer(bendRange));
 		json_object_set_new(rootJ, "rootCents", json_real(rootCents));
-		json_object_set_new(rootJ, "sampleName", json_string(sampleName.c_str()));
+		json_object_set_new(rootJ, "sampleName", json_string(getSampleName().c_str()));
+		json_object_set_new(rootJ, "xfadeEqualPower", json_boolean(xfadeEqualPower));
 		json_object_set_new(rootJ, "detectOnLoad", json_boolean(detectOnLoad));
 		json_object_set_new(rootJ, "sensitivity", json_real(sensitivity));
 		json_object_set_new(rootJ, "detector", json_integer(detector));
@@ -838,7 +925,8 @@ struct SOUNAIRE : BidooModule {
 		if (json_t *j = json_object_get(rootJ, "bendRange")) bendRange = clamp((int)json_integer_value(j), 1, 48);
 		if (json_t *j = json_object_get(rootJ, "rootCents")) rootCents = json_number_value(j);
 		rootSeen = params[ROOT_PARAM].getValue();   // params come in before data: not a change by hand
-		if (json_t *j = json_object_get(rootJ, "sampleName")) sampleName = json_string_value(j);
+		if (json_t *j = json_object_get(rootJ, "sampleName")) setSampleName(json_string_value(j) ? json_string_value(j) : "");
+		if (json_t *j = json_object_get(rootJ, "xfadeEqualPower")) xfadeEqualPower = json_boolean_value(j);
 		if (json_t *j = json_object_get(rootJ, "detectOnLoad")) detectOnLoad = json_boolean_value(j);
 		if (json_t *j = json_object_get(rootJ, "sensitivity")) sensitivity = clamp((float)json_number_value(j), 0.f, 1.f);
 		if (json_t *j = json_object_get(rootJ, "detector")) detector = clamp((int)json_integer_value(j), 0, 1);
@@ -881,13 +969,29 @@ struct SOUNAIRE : BidooModule {
 		p.loopEnd = params[LOOP_END_PARAM].getValue();
 		p.loopMode = (int)params[LOOP_MODE_PARAM].getValue();
 		p.xfadeMs = params[XFADE_PARAM].getValue();
+		p.equalPower = xfadeEqualPower;
 		p.reverse = params[REVERSE_PARAM].getValue() > 0.5f;
 		p.timeMode = (int)params[TIME_MODE_PARAM].getValue();
 		// speed and resonance: the knobs here, each voice adds its own CV (voiceSpeed, voiceResonance)
-		p.speed = clamp(std::pow(2.f, params[SPEED_PARAM].getValue()) * syncFactor, 0.0625f, 8.f);
+		float k = params[SPEED_PARAM].getValue();
+		if (k != speedKnob) {
+			speedKnob = k;
+			speedPow = std::pow(2.f, k);
+		}
+		p.speed = clamp(speedPow * syncFactor, 0.0625f, 8.f);
 		// as the knobs show them: 0-2 s and 2 ms-5 s, exponential
-		p.attackMs = std::pow(2000.f, params[ATTACK_PARAM].getValue()) - 1.f;
-		p.releaseMs = 2.f * std::pow(2500.f, params[RELEASE_PARAM].getValue());
+		k = params[ATTACK_PARAM].getValue();
+		if (k != attackKnob) {
+			attackKnob = k;
+			attackMsNow = std::pow(2000.f, k) - 1.f;
+		}
+		p.attackMs = attackMsNow;
+		k = params[RELEASE_PARAM].getValue();
+		if (k != releaseKnob) {
+			releaseKnob = k;
+			releaseMsNow = 2.f * std::pow(2500.f, k);
+		}
+		p.releaseMs = releaseMsNow;
 		p.filter.mode = (int)params[FILTER_MODE_PARAM].getValue();
 		p.filter.stages = (int)params[SLOPE_PARAM].getValue() + 1;
 		p.filter.resonance = params[RESONANCE_PARAM].getValue();
@@ -944,7 +1048,7 @@ struct SOUNAIRE : BidooModule {
 					engine.fadeOut(s);
 			}
 		}
-		int64_t F = smp->frames;
+		int64_t F = smp->originFrames > 0 ? smp->originFrames : smp->frames;   // the slices' frames
 		int64_t a = clamp(slices->start[i], (int64_t)0, F - 2);
 		int64_t b = clamp(slices->end(i, F), a + 2, F);
 		double t0 = params[START_PARAM].getValue(), t1 = params[END_PARAM].getValue();
@@ -982,7 +1086,8 @@ struct SOUNAIRE : BidooModule {
 	}
 
 	float cutoffNote(int c) {
-		return params[CUTOFF_PARAM].getValue() + inputs[CUTOFF_INPUT].getPolyVoltage(c) * 12.f;
+		float n = params[CUTOFF_PARAM].getValue() + inputs[CUTOFF_INPUT].getPolyVoltage(c) * 12.f;
+		return std::isfinite(n) ? n : params[CUTOFF_PARAM].getValue();
 	}
 
 	float voiceSpeed(int c) {
@@ -1028,14 +1133,15 @@ struct SOUNAIRE : BidooModule {
 	}
 
 	void syncClock(const ProcessArgs &args) {
-		syncFactor = 1.f;
-		syncBpm = 0.f;
 		if (!inputs[CLOCK_INPUT].isConnected()) {
 			clockInterval = 0;
+			syncOn = false;
+			syncFactor = 1.f;
 			return;
 		}
 		clockCount++;
-		if (clockIn.process(inputs[CLOCK_INPUT].getVoltage(), 0.1f, 1.f)) {
+		bool pulse = clockIn.process(inputs[CLOCK_INPUT].getVoltage(), 0.1f, 1.f);
+		if (pulse) {
 			// a change of tempo is followed within a beat; a steady one smoothly
 			if (clockInterval <= 0 || std::fabs(clockCount - clockInterval) > 0.1 * clockInterval)
 				clockInterval = (double)clockCount;
@@ -1044,40 +1150,42 @@ struct SOUNAIRE : BidooModule {
 			clockCount = 0;
 		}
 		const Sample *s = engine.current;
-		if (clockInterval <= 0 || clockCount > 2.0 * args.sampleRate + clockInterval || !s || s->frames < 16)
+		if (clockInterval <= 0 || clockCount > 2.0 * args.sampleRate + clockInterval || !s || s->frames < 16) {
+			syncOn = false;
+			syncFactor = 1.f;
 			return;
-		double bpm = 60.0 * args.sampleRate / (clockInterval * clockPpqn);
+		}
+		// the tempo moves only on a pulse; the beats only with the sample or the menu
 		double seconds = s->frames / (double)s->rate;
-		int beats = loopBeats > 0 ? loopBeats : guessBeats(seconds);
-		syncFactor = (float)(seconds * bpm / (60.0 * beats));
-		syncBpm = (float)bpm;
-		syncBeats = beats;
+		if (pulse || !syncOn || seconds != syncSeconds || loopBeats != syncLoopBeats) {
+			if (seconds != syncSeconds || loopBeats != syncLoopBeats) {
+				syncSeconds = seconds;
+				syncLoopBeats = loopBeats;
+				syncBeatsNow = loopBeats > 0 ? loopBeats : guessBeats(seconds);
+			}
+			double bpm = 60.0 * args.sampleRate / (clockInterval * clockPpqn);
+			syncFactor = (float)(seconds * bpm / (60.0 * syncBeatsNow));
+			syncBpmNow = (float)bpm;
+			syncOn = true;
+		}
 	}
 
 	// REC (button, or the gate while high) records IN L / IN R; the recording
 	// replaces the sample when it stops (up to 5 minutes)
 	void recordInput(const ProcessArgs &args) {
 		bool want = params[REC_PARAM].getValue() > 0.5f || inputs[REC_INPUT].getVoltage() >= 1.f;
-		if (want && !recording && recDone.load() < 0 && inputs[INL_INPUT].isConnected()) {
+		if (want && !recording && recDone.load(std::memory_order_relaxed) < 0 && inputs[INL_INPUT].isConnected()) {
 			recording = true;
 			recCount = 0;
 			recFrames = 0;
+			recStartRate = args.sampleRate;
 			recLimit = (int64_t)(300.f * args.sampleRate);
 			recStereo = inputs[INR_INPUT].isConnected();
 		}
-		auto finish = [&]() {
-			recording = false;
-			recRate = args.sampleRate;
-			recStereoDone = recStereo;
-			recDone = recCount;
-			params[REC_PARAM].setValue(0.f);
-		};
-		if (!recording) {
-			recSeconds = 0.f;
+		if (!recording)
 			return;
-		}
 		if (!want) {
-			finish();
+			finishRecording();
 			return;
 		}
 		RecChunk *ch = recCount > 0 ? recChunks[recCount - 1] : nullptr;
@@ -1085,7 +1193,8 @@ struct SOUNAIRE : BidooModule {
 			ch = nullptr;
 			if (recCount < REC_MAX_CHUNKS)
 				for (int i = 0; i < REC_SPARES && !ch; i++)
-					ch = recSpare[i].exchange(nullptr, std::memory_order_acq_rel);
+					if (recSpare[i].load(std::memory_order_relaxed))
+						ch = recSpare[i].exchange(nullptr, std::memory_order_acq_rel);
 			if (ch) {
 				ch->used = 0;
 				recChunks[recCount++] = ch;
@@ -1093,7 +1202,7 @@ struct SOUNAIRE : BidooModule {
 		}
 		if (!ch || recFrames >= recLimit) {
 			// out of chunks (the worker fell behind) or 5 minutes reached
-			finish();
+			finishRecording();
 			return;
 		}
 		float l = inputs[INL_INPUT].getVoltage() * 0.2f;
@@ -1101,29 +1210,53 @@ struct SOUNAIRE : BidooModule {
 		ch->f[1][ch->used] = recStereo ? inputs[INR_INPUT].getVoltage() * 0.2f : l;
 		ch->used++;
 		recFrames++;
-		recSeconds = (float)(recFrames / args.sampleRate);
+	}
+
+	// the recording goes to the worker, stamped with the rate it was made at
+	void finishRecording() {
+		recording = false;
+		recRate = recStartRate;
+		recStereoDone = recStereo;
+		recDone = recCount;
+		params[REC_PARAM].setValue(0.f);
 	}
 
 	void process(const ProcessArgs &args) override {
-		// a new sample (hot-swap: playing notes keep the old one)
-		if (Sample *s = pending.exchange(nullptr))
-			engine.setSample(s);
-		if (!unused.load()) {
-			if (const Sample *u = engine.takeUnused())
-				unused = u;
+		const bool ui = uiDivider.process();
+		// a new sample (hot-swap: playing notes keep the old one); with no room
+		// left for the old ones, the oldest fades out first
+		if (pending.load(std::memory_order_relaxed)) {
+			if (engine.canTake()) {
+				if (Sample *s = pending.exchange(nullptr, std::memory_order_acquire))
+					engine.setSample(s);
+			}
+			else {
+				engine.makeRoom();
+			}
 		}
-		if (resetMarkers.exchange(false)) {
+		if (ui) {
+			// hand back what nothing plays any more
+			if (!unused.load(std::memory_order_relaxed)) {
+				if (const Sample *u = engine.takeUnused())
+					unused.store(u, std::memory_order_release);
+			}
+			if (!retiredPool.load(std::memory_order_relaxed)) {
+				if (Stretcher *o = engine.takeOldPool())
+					retiredPool.store(o, std::memory_order_release);
+			}
+		}
+		if (resetMarkers.load(std::memory_order_relaxed) && resetMarkers.exchange(false)) {
 			params[START_PARAM].setValue(0.f);
 			params[END_PARAM].setValue(1.f);
 			params[LOOP_START_PARAM].setValue(0.f);
 			params[LOOP_END_PARAM].setValue(1.f);
 		}
 		// ROOT turned by hand, or a new sample without a detected root: no offset
-		if (clearCents.exchange(false) || params[ROOT_PARAM].getValue() != rootSeen) {
+		if ((clearCents.load(std::memory_order_relaxed) && clearCents.exchange(false)) || params[ROOT_PARAM].getValue() != rootSeen) {
 			rootSeen = params[ROOT_PARAM].getValue();
 			rootCents = 0.f;
 		}
-		float root = pendingRoot.exchange(-1000.f);
+		float root = pendingRoot.load(std::memory_order_relaxed) > -999.f ? pendingRoot.exchange(-1000.f) : -1000.f;
 		if (root > -999.f) {
 			float n = std::round(root);
 			params[ROOT_PARAM].setValue(clamp(n, 0.f, 127.f));
@@ -1132,9 +1265,9 @@ struct SOUNAIRE : BidooModule {
 		}
 
 		// slices edited in the display or found by the worker
-		if (!retiredSlices.load()) {
-			if (Slices *n = pendingSlices.exchange(nullptr)) {
-				retiredSlices = slices;
+		if (pendingSlices.load(std::memory_order_relaxed) && !retiredSlices.load(std::memory_order_relaxed)) {
+			if (Slices *n = pendingSlices.exchange(nullptr, std::memory_order_acq_rel)) {
+				retiredSlices.store(slices, std::memory_order_release);
 				slices = n;
 			}
 		}
@@ -1143,14 +1276,13 @@ struct SOUNAIRE : BidooModule {
 		recordInput(args);
 
 		PlaySettings p = settings();
-		// stretchers for the time mode, built off the audio thread
-		if (Stretcher *pool = pendingPool.exchange(nullptr)) {
-			Stretcher *old = engine.setPool(pool, pendingPoolPreset, pendingPoolRate);
-			if (old && !retiredPool.load())
-				retiredPool = old;
-			else
-				delete[] old;  // never happens: the worker frees each one before building the next
-			poolRequested = false;
+		// stretchers for the time mode, built off the audio thread; the stretched
+		// voices fade out on the old pool, handed back once they are done
+		if (pendingPool.load(std::memory_order_relaxed) && engine.canTakePool()) {
+			if (Stretcher *pool = pendingPool.exchange(nullptr, std::memory_order_acquire)) {
+				engine.setPool(pool, pendingPoolPreset.load(std::memory_order_relaxed), pendingPoolRate.load(std::memory_order_relaxed));
+				poolRequested = false;
+			}
 		}
 		if (p.timeMode != TIME_REPITCH && !engine.poolReady(p.timeMode) && !poolRequested) {
 			requestPool(sounaire::Engine::presetFor(p.timeMode), args.sampleRate);
@@ -1158,8 +1290,10 @@ struct SOUNAIRE : BidooModule {
 		}
 		bool slicing = sliceMode();
 		bool legato = !slicing && params[LEGATO_PARAM].getValue() > 0.5f;
-		lights[REVERSE_LIGHT].setBrightness(p.reverse ? 1.f : 0.f);
-		lights[LEGATO_LIGHT].setBrightness(legato ? 1.f : 0.f);
+		if (ui) {
+			lights[REVERSE_LIGHT].setBrightness(p.reverse ? 1.f : 0.f);
+			lights[LEGATO_LIGHT].setBrightness(legato ? 1.f : 0.f);
+		}
 		int channels = std::max(1, std::max(inputs[GATE_INPUT].getChannels(), inputs[VOCT_INPUT].getChannels()));
 		auto startOffset = [&](int c) { return (double)clamp(inputs[START_INPUT].getPolyVoltage(c) * 0.1f, 0.f, 1.f); };
 
@@ -1232,7 +1366,7 @@ struct SOUNAIRE : BidooModule {
 		}
 
 		// a key clicked on the keyboard strip, at full velocity
-		int mk = mouseKey.exchange(-1);
+		int mk = mouseKey.load(std::memory_order_relaxed) >= 0 ? mouseKey.exchange(-1) : -1;
 		if (mk >= 0) {
 			if (slicing)
 				sliceNoteOn(sounaire::Engine::MOUSE, 0, mk, p, 0.0, 1.f);
@@ -1241,26 +1375,33 @@ struct SOUNAIRE : BidooModule {
 			mouseOn = true;
 			mouseShown = mk;
 		}
-		if (mouseOn && !mouseHeld) {
+		if (mouseOn && !mouseHeld.load(std::memory_order_relaxed)) {
 			engine.noteOff(sounaire::Engine::MOUSE);
 			mouseOn = false;
 			mouseShown = -1;
 		}
 
 		// preview from the display
-		float pp = previewPos.exchange(-1.f);
+		float pp = previewPos.load(std::memory_order_relaxed) >= 0.f ? previewPos.exchange(-1.f) : -1.f;
 		if (pp >= 0.f) {
 			engine.previewOn(pp, p);
 			previewing = true;
 		}
-		if (previewing && !previewHeld) {
+		if (previewing && !previewHeld.load(std::memory_order_relaxed)) {
 			engine.previewOff();
 			previewing = false;
 		}
 
-		// the keys held now, for the keyboard strip
-		for (int c = 0; c < MAX_VOICES; c++)
-			keyHeld[c] = held[c] ? (int)std::round(inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f + 60.f) : -1;
+		// for the display: the keys held now, the recording time, the tempo
+		if (ui) {
+			for (int c = 0; c < MAX_VOICES; c++) {
+				float n = held[c] ? inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f + 60.f : -1.f;
+				keyHeld[c].store(std::isfinite(n) ? (int)std::round(n) : -1, std::memory_order_relaxed);
+			}
+			recSeconds.store(recording ? (float)(recFrames / recStartRate) : 0.f, std::memory_order_relaxed);
+			syncBpm.store(syncOn ? syncBpmNow : 0.f, std::memory_order_relaxed);
+			syncBeats.store(syncBeatsNow, std::memory_order_relaxed);
+		}
 
 		std::fill(outL, outL + MAX_VOICES, 0.f);
 		std::fill(outR, outR + MAX_VOICES, 0.f);

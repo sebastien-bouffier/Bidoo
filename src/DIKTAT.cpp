@@ -49,6 +49,19 @@ struct DIKTAT : BidooModule {
 	quantizer::Quantizer quant;
 	quantizer::Chord chord;
 
+	// Per channel: the chord is searched again only when the root or the scale
+	// changes, or when the input moves 1/48 V (a quarter semitone) away from the
+	// voltage it was last searched for. That skips the search on a steady note
+	// and is a hysteresis: noise on a note sitting between two scale notes no
+	// longer flips the output between them.
+	static constexpr float HYSTERESIS = 1.f / 48.f;
+	struct ChordCache {
+		float in = NAN;
+		int root = -100, scale = -1;
+		quantizer::Chord chord;
+	};
+	ChordCache chordCache[16];
+
 	DIKTAT() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f, "Channel","",0,1,1);
@@ -186,7 +199,20 @@ void DIKTAT::process(const ProcessArgs &args) {
 	for (int i=0;i<c;i++) {
 		inputNote[i] = inputs[NOTE_INPUT].getVoltage(i);
 
-		chord = quant.closestChordInScale(inputNote[i], lRootNote[i], lScale[i]);
+		if (lScale[i] == 0) {
+			// not quantized: the chord is the input itself, every sample
+			chord = quant.closestChordInScale(inputNote[i], lRootNote[i], lScale[i]);
+		}
+		else {
+			ChordCache &cc = chordCache[i];
+			if (lRootNote[i] != cc.root || lScale[i] != cc.scale || !(std::fabs(inputNote[i] - cc.in) < HYSTERESIS)) {
+				cc.in = inputNote[i];
+				cc.root = lRootNote[i];
+				cc.scale = lScale[i];
+				cc.chord = quant.closestChordInScale(inputNote[i], lRootNote[i], lScale[i]);
+			}
+			chord = cc.chord;
+		}
 
 		outputs[NOTE_TONIC_OUTPUT].setVoltage(chord.tonic,i);
 		outputs[NOTE_THIRD_OUTPUT].setVoltage(chord.third,i);

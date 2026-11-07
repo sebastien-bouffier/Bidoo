@@ -144,6 +144,31 @@ struct PILOT : BidooModule {
 
 	quantizer::Quantizer quant;
 
+	// Quantized voltages per control (the knob, the bottom and the top scene),
+	// searched again only when the value, the root or the scale changes.
+	struct QuantCache {
+		float in = NAN;
+		int root = -100, scale = -1;
+		float out = 0.f;
+	};
+	QuantCache qCur[16], qBot[16], qTop[16];
+
+	float quantizeCached(QuantCache &c, float v, int root, int sc) {
+		if (v != c.in || root != c.root || sc != c.scale) {
+			c.in = v;
+			c.root = root;
+			c.scale = sc;
+			c.out = std::get<0>(quant.closestVoltageInScale(v, root, sc));
+		}
+		return c.out;
+	}
+
+	// Lights at control rate; the move time only when its knob or CV moves.
+	static constexpr int CONTROL_DIV = 16;
+	int controlCounter = 0;
+	float moveTimeIn = NAN;
+	float moveTime = 1.f;
+
 	std::string labels[16] = {"","","","","","","","","","","","","","","",""};
 
 	PILOT() {
@@ -241,7 +266,9 @@ struct PILOT : BidooModule {
 			controlRootNotes[i] = 0;
 			controlScales[i] = 0;
 			labels[i] = "";
+			controlFocused[i] = false;
 		}
+		currentFocus = -1;
 		moveType = 5;
 	}
 
@@ -408,6 +435,9 @@ struct PILOT : BidooModule {
 };
 
 void PILOT::process(const ProcessArgs &args) {
+	bool control = --controlCounter < 0;
+	if (control)
+		controlCounter = CONTROL_DIV - 1;
 	changeDir =false;
 	oldTopScene = topScene;
 	oldBottomScene = bottomScene;
@@ -436,16 +466,20 @@ void PILOT::process(const ProcessArgs &args) {
 	if (weomTrigger.process(params[WEOM_PARAM].getValue())) {
 		waitEOM = (waitEOM+1)%3;
 	}
-	lights[WEOM_LIGHT].setBrightness(waitEOM!=waitExt?1:0);
-	lights[WEOM_LIGHT+1].setBrightness(waitEOM==hesitate?1:0);
-	lights[WEOM_LIGHT+2].setBrightness(waitEOM==waitExt?1:0);
+	if (control) {
+		lights[WEOM_LIGHT].setBrightness(waitEOM!=waitExt?1:0);
+		lights[WEOM_LIGHT+1].setBrightness(waitEOM==hesitate?1:0);
+		lights[WEOM_LIGHT+2].setBrightness(waitEOM==waitExt?1:0);
+	}
 
 	if (curveTrigger.process(params[CURVE_PARAM].getValue())) {
 		curve = !curve;
 	}
-	lights[CURVE_LIGHT].setBrightness(curve?0:1);
-	lights[CURVE_LIGHT+1].setBrightness(curve?0:1);
-	lights[CURVE_LIGHT+2].setBrightness(curve?1:0);
+	if (control) {
+		lights[CURVE_LIGHT].setBrightness(curve?0:1);
+		lights[CURVE_LIGHT+1].setBrightness(curve?0:1);
+		lights[CURVE_LIGHT+2].setBrightness(curve?1:0);
+	}
 
 	if (recordingTrigger.process(params[RECORD_PARAM].getValue())) {
 		if ((recordingStatus==0) && (moveType==0) && (waitEOM==waitExt)) {
@@ -453,7 +487,11 @@ void PILOT::process(const ProcessArgs &args) {
 		}
 	}
 
-	float moveTime = 60.f * std::pow(1.f / 60000.f, clamp(params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage() / 10.0f, 0.0f, 1.0f));
+	float mt = clamp(params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage() / 10.0f, 0.0f, 1.0f);
+	if (mt != moveTimeIn) {
+		moveTimeIn = mt;
+		moveTime = 60.f * std::pow(1.f / 60000.f, mt);
+	}
 	speed = args.sampleTime / moveTime;
 
 	length = params[LENGTH_PARAM].getValue();
@@ -664,25 +702,28 @@ void PILOT::process(const ProcessArgs &args) {
 		currentFocus = -1;
 	}
 
-	if (recordingStatus == 1) {
-		lights[RECORD_LIGHT].setBrightness(0);
-		lights[RECORD_LIGHT+1].setBrightness(0);
-		lights[RECORD_LIGHT+2].setBrightness(lights[RECORD_LIGHT+2].getBrightness()<0.1f ? 1 : lights[RECORD_LIGHT+2].getBrightness()-lights[RECORD_LIGHT+2].getBrightness()*2.0f*args.sampleTime);
-	}
-	else if (recordingStatus == 2) {
-		lights[RECORD_LIGHT].setBrightness(lights[RECORD_LIGHT].getBrightness()<0.1f ? 1 : lights[RECORD_LIGHT].getBrightness()-lights[RECORD_LIGHT].getBrightness()*4.0f*args.sampleTime);
-		lights[RECORD_LIGHT+1].setBrightness(lights[RECORD_LIGHT+1].getBrightness()<0.1f ? 1 : lights[RECORD_LIGHT+1].getBrightness()-lights[RECORD_LIGHT+1].getBrightness()*4.0f*args.sampleTime);
-		lights[RECORD_LIGHT+2].setBrightness(0);
-	}
-	else if (recordingStatus == 3) {
-		lights[RECORD_LIGHT].setBrightness(1);
-		lights[RECORD_LIGHT+1].setBrightness(0);
-		lights[RECORD_LIGHT+2].setBrightness(0);
-	}
-	else {
-		lights[RECORD_LIGHT].setBrightness(0);
-		lights[RECORD_LIGHT+1].setBrightness(0);
-		lights[RECORD_LIGHT+2].setBrightness(0);
+	if (control) {
+		const float lightTime = args.sampleTime * CONTROL_DIV;
+		if (recordingStatus == 1) {
+			lights[RECORD_LIGHT].setBrightness(0);
+			lights[RECORD_LIGHT+1].setBrightness(0);
+			lights[RECORD_LIGHT+2].setBrightness(lights[RECORD_LIGHT+2].getBrightness()<0.1f ? 1 : lights[RECORD_LIGHT+2].getBrightness()-lights[RECORD_LIGHT+2].getBrightness()*2.0f*lightTime);
+		}
+		else if (recordingStatus == 2) {
+			lights[RECORD_LIGHT].setBrightness(lights[RECORD_LIGHT].getBrightness()<0.1f ? 1 : lights[RECORD_LIGHT].getBrightness()-lights[RECORD_LIGHT].getBrightness()*4.0f*lightTime);
+			lights[RECORD_LIGHT+1].setBrightness(lights[RECORD_LIGHT+1].getBrightness()<0.1f ? 1 : lights[RECORD_LIGHT+1].getBrightness()-lights[RECORD_LIGHT+1].getBrightness()*4.0f*lightTime);
+			lights[RECORD_LIGHT+2].setBrightness(0);
+		}
+		else if (recordingStatus == 3) {
+			lights[RECORD_LIGHT].setBrightness(1);
+			lights[RECORD_LIGHT+1].setBrightness(0);
+			lights[RECORD_LIGHT+2].setBrightness(0);
+		}
+		else {
+			lights[RECORD_LIGHT].setBrightness(0);
+			lights[RECORD_LIGHT+1].setBrightness(0);
+			lights[RECORD_LIGHT+2].setBrightness(0);
+		}
 	}
 
 	if (inputs[MORPH_INPUT].isConnected()) {
@@ -741,12 +782,14 @@ void PILOT::process(const ProcessArgs &args) {
 			voltageTypes[i] = voltageTypes[i] == 0 ? 1 : 0;
 		}
 
-		lights[TYPE_LIGHTS+ i*3].setBrightness((controlTypes[i] == cvJump) || (controlTypes[i] == voJump) || (controlTypes[i] == voSlide) ? 1 : 0);
-		lights[TYPE_LIGHTS+ i*3 + 1].setBrightness((controlTypes[i] == cvJump) || (controlTypes[i] == gate) ? 1 : ((controlTypes[i] == voSlide) ? 0.5f : 0));
-		lights[TYPE_LIGHTS+ i*3 + 2].setBrightness(controlTypes[i] == cv ? 1 : 0);
-		lights[VOLTAGE_LIGHTS+ i*3].setBrightness(voltageTypes[i] == 1 ? 1 : 0);
-		lights[VOLTAGE_LIGHTS+ i*3 + 1].setBrightness(voltageTypes[i] == 1 ? 1 : 0);
-		lights[VOLTAGE_LIGHTS+ i*3 + 2].setBrightness(voltageTypes[i] == 0 ? 1 : 0);
+		if (control) {
+			lights[TYPE_LIGHTS+ i*3].setBrightness((controlTypes[i] == cvJump) || (controlTypes[i] == voJump) || (controlTypes[i] == voSlide) ? 1 : 0);
+			lights[TYPE_LIGHTS+ i*3 + 1].setBrightness((controlTypes[i] == cvJump) || (controlTypes[i] == gate) ? 1 : ((controlTypes[i] == voSlide) ? 0.5f : 0));
+			lights[TYPE_LIGHTS+ i*3 + 2].setBrightness(controlTypes[i] == cv ? 1 : 0);
+			lights[VOLTAGE_LIGHTS+ i*3].setBrightness(voltageTypes[i] == 1 ? 1 : 0);
+			lights[VOLTAGE_LIGHTS+ i*3 + 1].setBrightness(voltageTypes[i] == 1 ? 1 : 0);
+			lights[VOLTAGE_LIGHTS+ i*3 + 2].setBrightness(voltageTypes[i] == 0 ? 1 : 0);
+		}
 
 		if (!controlFocused[i]) {
 			if ((controlTypes[i] == cv) || (controlTypes[i] == voSlide)) {
@@ -791,15 +834,15 @@ void PILOT::process(const ProcessArgs &args) {
 
 		if (controlTypes[i] >= voJump) {
 			if (controlFocused[i] || (controlTypes[i] == voSlide)) {
-				outputs[CV_OUTPUTS + i].setVoltage(std::get<0>(quant.closestVoltageInScale(params[CONTROLS_PARAMS+i].getValue()*10.0f-4.0f, controlRootNotes[i], controlScales[i])));
+				outputs[CV_OUTPUTS + i].setVoltage(quantizeCached(qCur[i], params[CONTROLS_PARAMS+i].getValue()*10.0f-4.0f, controlRootNotes[i], controlScales[i]));
 			}
 			else {
 				if ((scenes[bank][bottomScene][i]==scenes[bank][topScene][i]) || (bottomScene==topScene)) {
-					outputs[CV_OUTPUTS + i].setVoltage(std::get<0>(quant.closestVoltageInScale(scenes[bank][bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i])));
+					outputs[CV_OUTPUTS + i].setVoltage(quantizeCached(qBot[i], scenes[bank][bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i]));
 				}
 				else {
 					outputs[CV_OUTPUTS + i].setVoltage(rescale(params[CONTROLS_PARAMS+i].getValue(),scenes[bank][bottomScene][i],scenes[bank][topScene][i],
-					std::get<0>(quant.closestVoltageInScale(scenes[bank][bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i])),std::get<0>(quant.closestVoltageInScale(scenes[bank][topScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i]))));
+					quantizeCached(qBot[i], scenes[bank][bottomScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i]),quantizeCached(qTop[i], scenes[bank][topScene][i]*10.0f-4.0f, controlRootNotes[i], controlScales[i])));
 				}
 			}
 		}
@@ -851,7 +894,7 @@ struct PILOTMoveTypeDisplay : TransparentWidget {
 
 	}
 
-	std::string displayPlayMode() {
+	const char *displayPlayMode() {
 		switch(*value){
 			case 0: return "►";
 			case 1: return "◄";
@@ -870,10 +913,10 @@ struct PILOTMoveTypeDisplay : TransparentWidget {
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 			if (value) {
 				if (*value>2) {
-					nvgText(args.vg, 0.0f, 14, displayPlayMode().c_str(), NULL);
+					nvgText(args.vg, 0.0f, 14, displayPlayMode(), NULL);
 				}
 				else {
-					nvgText(args.vg, 0.0f, 12, displayPlayMode().c_str(), NULL);
+					nvgText(args.vg, 0.0f, 12, displayPlayMode(), NULL);
 				}
 			}
 		}
@@ -896,10 +939,9 @@ struct PILOTDisplay : TransparentWidget {
 	      nvgFontSize(args.vg, 18);
 	  		nvgTextLetterSpacing(args.vg, -2);
 	  		nvgFillColor(args.vg, YELLOW_BIDOO);
-	  		std::stringstream ss;
-	  		ss << std::setw(2) << std::setfill('0') << *value + 1;
-	  		std::string s = ss.str();
-	  		nvgText(args.vg, 0, 14, s.c_str(), NULL);
+	  		char s[16];
+	  		snprintf(s, sizeof(s), "%02d", *value + 1);
+	  		nvgText(args.vg, 0, 14, s, NULL);
 	    }
 		}
 		Widget::drawLayer(args, layer);
@@ -952,15 +994,15 @@ struct PILOTCurveDisplay : TransparentWidget {
 							nvgMoveTo(args.vg, module->getXBez(i)*box.size.x,box.size.y - module->getYBez(i)*box.size.y);
 						}
 						else {
-							nvgMoveTo(args.vg, i*box.size.x,box.size.x - i*box.size.x);
+							nvgMoveTo(args.vg, i*box.size.x,box.size.y - i*box.size.y);
 						}
 					}
 					else {
 						if (module->curve) {
-							nvgLineTo(args.vg, module->getXBez(i)*box.size.y,box.size.y - module->getYBez(i)*box.size.y);
+							nvgLineTo(args.vg, module->getXBez(i)*box.size.x,box.size.y - module->getYBez(i)*box.size.y);
 						}
 						else {
-							nvgLineTo(args.vg, i*box.size.x,box.size.x - i*box.size.x);
+							nvgLineTo(args.vg, i*box.size.x,box.size.y - i*box.size.y);
 						}
 					}
 				}
@@ -1017,41 +1059,57 @@ struct PILOTMorphKnob : BidooHugeRedKnob {
 		}
 };
 
+// The knob colour follows its value; a focused knob (blink) fades its alpha
+// 255 -> 165 over 0.5 s, then stays at 255 for 0.25 s. The framebuffer is only
+// redrawn when the colour changes.
 struct BidooLargeColoredKnob : RoundKnob {
 	bool *blink=NULL;
-	int frame=0;
-	unsigned int tFade=255;
+	unsigned int color = 0;
+	bool colorValid = false;
+	std::vector<NSVGshape*> colorShapes;
 
 	BidooLargeColoredKnob() {
 		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/ColoredLargeKnobBidoo.svg")));
 		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/ColoredLargeKnobBidoo-bg.svg")));
 		shadow->opacity = 0.0f;
+		if (bg->svg && bg->svg->handle) {
+			for (NSVGshape *shape = bg->svg->handle->shapes; shape != NULL; shape = shape->next) {
+				if (!strcmp(shape->id, "bidooKnob") || !strcmp(shape->id, "bidooInterior"))
+					colorShapes.push_back(shape);
+			}
+		}
+	}
+
+	unsigned int currentColor() {
+		float v = getParamQuantity()->getValue();
+		unsigned int c = (((unsigned int)42+(unsigned int)(v*210)) | (((unsigned int)87-(unsigned int)(v*80)) << 8) | (((unsigned int)117-(unsigned int)(v*10)) << 16));
+		unsigned int tFade = 255;
+		if (blink && *blink) {
+			double phase = std::fmod(system::getTime(), 0.75);
+			if (phase < 0.5)
+				tFade = 255 - (unsigned int)(phase / 0.5 * 90.0);
+		}
+		return (c & 0xFFFFFF) | (tFade << 24);
+	}
+
+	void step() override {
+		if (getParamQuantity()) {
+			unsigned int c = currentColor();
+			if (!colorValid || c != color) {
+				color = c;
+				colorValid = true;
+				fb->setDirty();
+			}
+		}
+		RoundKnob::step();
 	}
 
 	void draw(const DrawArgs& args) override {
-		if (getParamQuantity()) {
-			for (NSVGshape *shape = bg->svg->handle->shapes; shape != NULL; shape = shape->next) {
-				std::string str(shape->id);
-				if ((str == "bidooKnob") || (str == "bidooInterior")) {
-					shape->fill.color = (((unsigned int)42+(unsigned int)(getParamQuantity()->getValue()*210)) | (((unsigned int)87-(unsigned int)(getParamQuantity()->getValue()*80)) << 8) | (((unsigned int)117-(unsigned int)(getParamQuantity()->getValue()*10)) << 16));
-					if (!*blink) {
-						tFade = 255;
-					}
-					else {
-						if (++frame <= 30) {
-							tFade -= frame*3;
-						}
-						else if (++frame<60) {
-							tFade = 255;
-						}
-						else {
-							tFade = 255;
-							frame = 0;
-						}
-					}
-					shape->fill.color |= (unsigned int)(tFade) << 24;
-				}
-			}
+		// The background SVG is shared by the 16 knobs: set this knob's colour
+		// before its framebuffer (re)renders.
+		if (getParamQuantity() && colorValid) {
+			for (NSVGshape *shape : colorShapes)
+				shape->fill.color = color;
 		}
 		RoundKnob::draw(args);
 	}
@@ -1647,9 +1705,6 @@ void PILOTWidget::appendContextMenu(ui::Menu *menu) {
 }
 
 void PILOTWidget::step() {
-	for (int i = 0; i < 16; i++) {
-		dynamic_cast<PILOTColoredKnob*>(controls[i])->fb->setDirty();
-	}
 	BidooWidget::step();
 }
 

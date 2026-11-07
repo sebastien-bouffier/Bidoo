@@ -29,6 +29,7 @@ Based on Laurent de Soras resampler for pitch shifting
 #include	"dep/resampler/InterpPack.h"
 #include	"dep/resampler/MipMapFlt.h"
 #include	"dep/resampler/ResamplerFlt.h"
+#include "SampleRead.hpp"
 
 using namespace std;
 
@@ -116,9 +117,9 @@ struct EDSAROS : BidooModule {
 		SAMPLEEND_PARAM,
 		LOOPSTART_PARAM,
 		LOOPEND_PARAM,
-		LOOPCROSSFADE_PARAM,
+		LOOPCROSSFADE_PARAM, // unused (no crossfade control): kept so saved patches keep the ids after it
 		RELEASESTART_PARAM,
-		RELEASECROSSFADE_PARAM,
+		RELEASECROSSFADE_PARAM, // unused, kept for the ids
 		LOOPMODE_PARAM,
 		RELEASEMODE_PARAM,
 		ATTACK_PARAM,
@@ -142,9 +143,9 @@ struct EDSAROS : BidooModule {
 		SAMPLEEND_INPUT,
 		LOOPSTART_INPUT,
 		LOOPEND_INPUT,
-		LOOPCROSSFADE_INPUT,
+		LOOPCROSSFADE_INPUT, // unused (no jack): kept so saved cables keep their ports
 		RELEASESTART_INPUT,
-		RELEASECROSSFADE_INPUT,
+		RELEASECROSSFADE_INPUT, // unused, kept for the ids
 		ATTACK_INPUT,
 		DECAY_INPUT,
 		RELEASE_INPUT,
@@ -228,6 +229,14 @@ struct EDSAROS : BidooModule {
 	// The voice reached S END with no loop: silent until the gate falls or a
 	// new trigger, rather than starting again.
 	bool ended[16] = {false};
+	// Declicking: each jump of a play head (loop, ping-pong turn, release
+	// loop, restart, Cut) and each sudden stop lets the old head go on for
+	// 2 ms, fading out, while the new one fades in.
+	sampleread::Declick<1> dc[16];
+	float lastLevel[16] = {0.f};    // the gain of the head in the last output sample
+	float voiceRatio[16] = {1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f};
+	float attackFrom[16] = {0.f};   // where the attack starts: init, or the level a retrigger caught
+	int fadeLen = 96;
 	dsp::SchmittTrigger zeroCrossingTrigger;
 	dsp::SchmittTrigger trigTriggers[16];
 	int lastChannels = 0;
@@ -356,6 +365,78 @@ struct EDSAROS : BidooModule {
 
 	void process(const ProcessArgs &args) override;
 
+	// Takes a newly loaded sample, once the worker has freed the previous one.
+	void takePending() {
+		if (pending.load(std::memory_order_relaxed) && !retired.load(std::memory_order_acquire)) {
+			EdsarosSample *s = pending.exchange(nullptr, std::memory_order_acq_rel);
+			if (s) {
+				retired.store(smp, std::memory_order_release);
+				smp = s;
+				totalSampleCount = s->count;
+				for (int i=0; i<16; i++) {
+					voices[i].set_sample (smp->mip);
+					voices[i].set_interp (interp_pack);
+					voices[i].clear_buffers ();
+					rev_voices[i].set_sample (smp->revMip);
+					rev_voices[i].set_interp (interp_pack);
+					rev_voices[i].clear_buffers ();
+					play[i] = rel[i] = ended[i] = false;
+					gain[i] = 0.f;
+					audio[i].clear();
+					direction[i] = 1;
+					dc[i].reset();
+					lastLevel[i] = 0.f;
+				}
+			}
+		}
+	}
+
+	// Bypassed: still takes the loaded sample, so the loader never waits.
+	void processBypass(const ProcessArgs &args) override {
+		takePending();
+		Module::processBypass(args);
+	}
+
+	// Where the next output sample of voice i reads (in frames of the sample)
+	// and how far it moves per sample: the resampler's head, less what is
+	// still queued.
+	void headNow(int i, double &pos, float &step) {
+		const double scale = 1.0 / 4294967296.0;
+		// The resampler's output lags its head by about 1.1 output samples
+		// (measured at -1, 0, +0.5 and +1 octave).
+		const double lag = 1.1;
+		double queued = ((double)audio[i].size() + lag) * voiceRatio[i];
+		if (direction[i] == 1) {
+			pos = (double)voices[i].get_playback_pos() * scale - queued;
+			step = voiceRatio[i];
+		}
+		else {
+			pos = (double)(totalSampleCount - 1) - ((double)rev_voices[i].get_playback_pos() * scale - queued);
+			step = -voiceRatio[i];
+		}
+		// The tables hold the sample twice: past the end is the start again.
+		if (totalSampleCount > 0) {
+			pos = std::fmod(pos, (double)totalSampleCount);
+			if (pos < 0.0)
+				pos += totalSampleCount;
+		}
+	}
+
+	// The head of voice i jumps or stops now: its old place goes on as a
+	// fading tail.
+	void tailFrom(int i) {
+		double pos;
+		float step;
+		headNow(i, pos, step);
+		dc[i].tail(pos, step, lastLevel[i], fadeLen);
+	}
+
+	// A jump: the old place fades out, the new one fades in.
+	void jump(int i) {
+		tailFrom(i);
+		dc[i].fadeIn(fadeLen);
+	}
+
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
@@ -400,25 +481,28 @@ struct EDSAROS : BidooModule {
 		return t3*y3 + (A+B)*y2 + C*y1;
 	}
 
-	// The release goes from `from`, the level when the gate fell, to 0.
-	float getEnv(const float t, const bool r, const float from) {
+	// The release goes from `from`, the level when the gate fell, to 0. The
+	// attack goes from `start` (init, or the level a retrigger caught) to peak.
+	float getEnv(const float t, const bool r, const float from, const float start) {
 		if (attack>0 && t>=0.0f && t<=attack && !r) {
-			return getYBez(t/attack,init,attackSlope*(peak-init)+init,peak);
+			return getYBez(t/attack,start,attackSlope*(peak-start)+start,peak);
 		}
 		else if (decay>0 && t>attack && t<=(attack+decay) && !r) {
 			return getYBez((t-attack)/decay,peak,decaySlope*(sustain-peak)+peak,sustain);
 		}
-		else if (r && t<=release) {
+		else if (r && release>0 && t<=release) {
 			return getYBez(t/release,from,releaseSlope*from,0.0f);
 		}
-		else if (r && t>release) {
+		else if (r) {
+			// Past the release, or no release (0 s): silent (the declicker
+			// fades the last 2 ms).
 			return 0.0f;
 		}
 		return sustain;
 	}
 
 	float getEnv(const float t, const bool r) {
-		return getEnv(t, r, sustain);
+		return getEnv(t, r, sustain, init);
 	}
 
 	int getSnappedIndex(float p, bool forward) {
@@ -467,27 +551,8 @@ struct EDSAROS : BidooModule {
 };
 
 void EDSAROS::process(const ProcessArgs &args) {
-	// Take a newly loaded sample, once the worker has freed the previous one.
-	if (pending.load(std::memory_order_relaxed) && !retired.load(std::memory_order_acquire)) {
-		EdsarosSample *s = pending.exchange(nullptr, std::memory_order_acq_rel);
-		if (s) {
-			retired.store(smp, std::memory_order_release);
-			smp = s;
-			totalSampleCount = s->count;
-			for (int i=0; i<16; i++) {
-				voices[i].set_sample (smp->mip);
-				voices[i].set_interp (interp_pack);
-				voices[i].clear_buffers ();
-				rev_voices[i].set_sample (smp->revMip);
-				rev_voices[i].set_interp (interp_pack);
-				rev_voices[i].clear_buffers ();
-				play[i] = rel[i] = ended[i] = false;
-				gain[i] = 0.f;
-				audio[i].clear();
-				direction[i] = 1;
-			}
-		}
-	}
+	takePending();
+	fadeLen = sampleread::declickLength(args.sampleRate);
 	// The engine rate changed: load the file again at the new rate.
 	if (smp && smp->sampleRate != args.sampleRate && !loading)
 		reloadRate = args.sampleRate;
@@ -514,6 +579,8 @@ void EDSAROS::process(const ProcessArgs &args) {
 		play[i] = rel[i] = ended[i] = false;
 		gain[i] = 0.f;
 		audio[i].clear();
+		dc[i].reset();
+		lastLevel[i] = 0.f;
 	}
 	lastChannels = channels;
 	const int loopMode = (int)params[LOOPMODE_PARAM].getValue();
@@ -541,6 +608,13 @@ void EDSAROS::process(const ProcessArgs &args) {
 		if (gateHigh) {
 			if (!ended[i]) {
 				if (!play[i]) {
+					// A retrigger of a sounding voice (in its release, or in
+					// trigger mode) starts the attack from
+					// where its level is, and crossfades from the old place.
+					attackFrom[i] = (lastLevel[i] > 0.f) ? gain[i] : init;
+					if (lastLevel[i] > 0.f)
+						tailFrom(i);
+					dc[i].fadeIn(fadeLen);
 					voiceTime[i]=0.0f;
 					rel[i]=false;
 					setPos(i, sampleStart, revIndex(sampleStart));
@@ -566,7 +640,8 @@ void EDSAROS::process(const ProcessArgs &args) {
 			}
 		}
 
-		gain[i] = (play[i] || rel[i]) ? getEnv(voiceTime[i], rel[i], releaseFrom[i]) : 0.0f;
+		gain[i] = (play[i] || rel[i]) ? getEnv(voiceTime[i], rel[i], releaseFrom[i], attackFrom[i]) : 0.0f;
+		bool tailed = false;  // a tail started this sample
 
 		if (audio[i].size()==0) { feed[i] = true;}
 
@@ -577,6 +652,10 @@ void EDSAROS::process(const ProcessArgs &args) {
 		// (the loop or release mode was changed) turns forward where it is.
 		if (direction[i] == -1 && !((play[i] && loopMode == 2) || (rel[i] && releaseMode == 3))) {
 			int at = clamp(revIndex(internalIntegerRevPosition[i]), 0, totalSampleCount - 1);
+			if (feed[i]) {
+				jump(i);
+				tailed = true;
+			}
 			voices[i].set_playback_pos(static_cast <rspl::Int64> (at) << 32);
 			internalIntegerPosition[i] = at;
 			direction[i] = 1;
@@ -584,39 +663,62 @@ void EDSAROS::process(const ProcessArgs &args) {
 
 		if ((play[i] || rel[i]) && feed[i]) {
 			// The loop mode drives the held phase, the release mode the release.
+			// Every jump below is crossfaded over 2 ms (jump / tailFrom); a
+			// stop (end, Cut) fades its last 2 ms.
 			if (loopMode==0 && internalIntegerPosition[i]>=sampleEnd && play[i]) {
+				tailFrom(i);
+				tailed = true;
 				play[i]=false;
 				ended[i]=true;
 				setPos(i, sampleStart, revIndex(sampleStart));
 			}
 			else if (loopMode==1 && internalIntegerPosition[i]>=loopEnd && play[i]) {
+				jump(i);
+				tailed = true;
 				voices[i].set_playback_pos(static_cast <rspl::Int64> (loopStart) << 32);
 			}
 			else if (loopMode==2 && direction[i]==1 && internalIntegerPosition[i]>=loopEnd && play[i]) {
+				jump(i);
+				tailed = true;
 				setPos(i, loopStart, revIndex(loopEnd));
 				direction[i]=-1;
 			}
 			else if (loopMode==2 && direction[i]==-1 && internalIntegerRevPosition[i]>=revIndex(loopStart) && play[i]) {
+				jump(i);
+				tailed = true;
 				setPos(i, loopStart, revIndex(loopEnd));
 				direction[i]=1;
 			}
 
 			if (releaseMode==0 && !play[i]) {
+				// Cut: the head stops, its last 2 ms fade.
+				if (rel[i] && !tailed) {
+					tailFrom(i);
+					tailed = true;
+				}
 				voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleStart) << 32);
 				rel[i]=false;
 			}
 			else if (releaseMode==1 && internalIntegerPosition[i]>=sampleEnd && rel[i]) {
+				tailFrom(i);
+				tailed = true;
 				voices[i].set_playback_pos(static_cast <rspl::Int64> (sampleStart) << 32);
 				rel[i]=false;
 			}
 			else if (releaseMode==2 && internalIntegerPosition[i]>=sampleEnd && rel[i]) {
+				jump(i);
+				tailed = true;
 				voices[i].set_playback_pos(static_cast <rspl::Int64> (releaseStart) << 32);
 			}
 			else if (releaseMode==3 && direction[i]==1 && internalIntegerPosition[i]>=sampleEnd && rel[i]) {
+				jump(i);
+				tailed = true;
 				setPos(i, releaseStart, revIndex(sampleEnd));
 				direction[i]=-1;
 			}
 			else if (releaseMode==3 && direction[i]==-1 && internalIntegerRevPosition[i]>=revIndex(releaseStart) && rel[i]) {
+				jump(i);
+				tailed = true;
 				setPos(i, releaseStart, revIndex(sampleEnd));
 				direction[i]=1;
 			}
@@ -630,6 +732,7 @@ void EDSAROS::process(const ProcessArgs &args) {
 				// Output samples until the voice reaches `dist` input samples
 				// further, at this pitch.
 				const double ratio = std::exp2((double)pitchV);
+				voiceRatio[i] = (float)ratio;
 				auto outLen = [&](long dist) -> long {
 					if (dist <= 0)
 						return 0;
@@ -690,13 +793,30 @@ void EDSAROS::process(const ProcessArgs &args) {
 		voiceTime[i]+= play[i] || rel[i] ? args.sampleTime : 0.0f;
 
 		float out = 0.f;
-		if (audio[i].size()>=1) {
-			// An empty loop or release loop mutes only while it is in use.
-			bool silent = (play[i] && loopMode>0 && (loopStart==loopEnd) && (internalIntegerPosition[i]>=loopStart))
-				|| (rel[i] && releaseMode>=2 && (releaseStart==sampleEnd) && (internalIntegerPosition[i]>=releaseStart));
-			if (!silent)
-				out = *audio[i].startData()*5.0f*gain[i]*sampleGain;
+		float level = 0.f;
+		bool queued = audio[i].size()>=1;
+		// An empty loop or release loop mutes only while it is in use.
+		bool silent = (play[i] && loopMode>0 && (loopStart==loopEnd) && (internalIntegerPosition[i]>=loopStart))
+			|| (rel[i] && releaseMode>=2 && (releaseStart==sampleEnd) && (internalIntegerPosition[i]>=releaseStart));
+		if (queued && !silent && (play[i] || rel[i]))
+			level = gain[i] * sampleGain;
+		// A sudden drop to silence (no release, the end of the data, an empty
+		// loop): the head goes on for 2 ms, fading.
+		if (!tailed && level == 0.f && lastLevel[i] > 0.f)
+			tailFrom(i);
+		if (queued) {
+			if (level > 0.f) {
+				level *= dc[i].nextIn();
+				out = *audio[i].startData()*5.0f*level;
+			}
 			audio[i].startIncr(1);
+		}
+		lastLevel[i] = level;
+		if (dc[i].tailActive()) {
+			const sampleread::View<1> view{smp->data.data(), totalSampleCount, nullptr};
+			float t = 0.f;
+			dc[i].addTail(view, &t);
+			out += 5.0f * t;
 		}
 		outputs[OUT].setVoltage(edsSoftLimit(out), i);
 	}

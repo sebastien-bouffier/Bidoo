@@ -57,14 +57,21 @@ struct FLAME : BidooModule {
 	float input[MAXN] = {};
 	int inPos = 0, hop = 0;
 	float rows[H][MAXN / 2 + 2] = {};   // magnitudes, a ring: newest at head
+	// running sums of the squared magnitudes of each row (cum[r][k]: bins
+	// below k), so a band's energy is one subtraction (double: a quiet band
+	// next to a loud one keeps its precision)
+	double cum[H][MAXN / 2 + 3] = {};
 	float rowAmp[H] = {};               // amplitude (V) of the band in each row
 	int head = 0, filled = 0;
+	// a size asked for by a loaded patch, applied by the audio thread
+	std::atomic<int> pendingSize {0};
 
 	// the box, in display px (set by the display)
 	float xBox = 0.f, yBox = 0.f, wBox = 0.f, hBox = 0.f;
 	std::atomic<bool> boxChanged {true};
 	int binLo = 0, binHi = -1;
 	float out = 0.f;
+	float outSmooth = 0.f;  // out through a 5 ms one-pole: no staircase at the row rate
 
 	dsp::SchmittTrigger sizeTriggers[3];
 	dsp::SchmittTrigger yellowTrigger, blueTrigger, greenTrigger;
@@ -101,6 +108,7 @@ struct FLAME : BidooModule {
 			hann[k] = 0.5f - 0.5f * std::cos(2.0f * M_PI * k / N);
 		std::memset(input, 0, sizeof(input));
 		std::memset(rows, 0, sizeof(rows));
+		std::memset(cum, 0, sizeof(cum));
 		std::memset(rowAmp, 0, sizeof(rowAmp));
 		inPos = hop = head = filled = 0;
 		boxChanged = true;
@@ -122,11 +130,11 @@ struct FLAME : BidooModule {
 	// For a Hann window the energy of a sine of amplitude A, summed over its
 	// bins, is (3/8) N^2 A^2 / 2 in squared magnitudes 2|X|: A = sqrt(8 E / 3) / N.
 	// The input is read at 1/10 (for the display), hence the 10.
-	float bandAmp(const float *r) const {
-		float e = 0.f;
-		for (int k = binLo; k <= binHi; k++)
-			e += r[k] * r[k];
-		return 10.0f * std::sqrt(8.0f * e / 3.0f) / N;
+	float bandAmp(int row) const {
+		if (binHi < binLo)
+			return 0.f;
+		double e = cum[row][binHi + 1] - cum[row][binLo];
+		return 10.0f * std::sqrt(8.0f * (float)std::max(e, 0.0) / 3.0f) / N;
 	}
 
 	void analyse() {
@@ -140,7 +148,11 @@ struct FLAME : BidooModule {
 		for (int k = 1; k < N2; k++)
 			r[k] = 2.0f * std::sqrt(workOut[2 * k] * workOut[2 * k] + workOut[2 * k + 1] * workOut[2 * k + 1]);
 		r[N2] = 2.0f * std::fabs(workOut[1]);  // Nyquist, packed in [1]
-		rowAmp[head] = bandAmp(r);
+		double *c = cum[head];
+		c[0] = 0.0;
+		for (int k = 0; k <= N2; k++)
+			c[k + 1] = c[k] + (double)r[k] * r[k];
+		rowAmp[head] = bandAmp(head);
 		filled = std::min(filled + 1, H);
 	}
 
@@ -152,7 +164,7 @@ struct FLAME : BidooModule {
 		if (std::fabs(wBox) < 1.f)
 			binHi = binLo - 1;
 		for (int i = 0; i < H; i++)
-			rowAmp[i] = bandAmp(rows[i]);
+			rowAmp[i] = bandAmp(i);
 	}
 
 	// the box's time span: rows are H px tall, the newest at the bottom
@@ -195,10 +207,17 @@ struct FLAME : BidooModule {
 		if (json_t *j = json_object_get(rootJ, "colorScheme")) colorScheme = json_number_value(j);
 		int n = 1024;
 		if (json_t *j = json_object_get(rootJ, "frameSize")) n = json_number_value(j);
-		setSize(n == 512 || n == 2048 ? n : 1024);
+		// the audio thread may be running: it makes the change itself
+		pendingSize = n == 512 || n == 2048 ? n : 1024;
+		boxChanged = true;
 	}
 
 	void process(const ProcessArgs &args) override {
+		if (pendingSize.load(std::memory_order_relaxed)) {
+			int n = pendingSize.exchange(0);
+			if (n && n != N)
+				setSize(n);
+		}
 		for (int i = 0; i < 3; i++) {
 			if (sizeTriggers[i].process(params[MIN_PARAM + i].getValue()) && N != (512 << i))
 				setSize(512 << i);
@@ -219,7 +238,7 @@ struct FLAME : BidooModule {
 
 		input[inPos] = inputs[INPUT].getVoltageSum() * 0.1f;
 		inPos = (inPos + 1) % N;
-		bool changed = boxChanged.exchange(false);
+		bool changed = boxChanged.load(std::memory_order_relaxed) && boxChanged.exchange(false);
 		if (changed)
 			updateBand();
 		// a new row every half frame
@@ -230,16 +249,106 @@ struct FLAME : BidooModule {
 		}
 		else if (changed)
 			updateOutput();
-		outputs[OUTPUT].setVoltage(out);
+		outSmooth += (out - outSmooth) * std::min(1.f, 1.f / (0.005f * args.sampleRate));
+		outputs[OUTPUT].setVoltage(outSmooth);
+	}
+};
+
+// The spectrogram itself, drawn into a framebuffer that is redrawn only when a
+// new row has come in (or the size, colours or input change).
+struct FLAMESpectrum : Widget {
+	FLAME *module = nullptr;
+	float colBin[130];  // display column -> bin, for the current size
+	int colN2 = -1;
+
+	void draw(const DrawArgs &args) override {
+		if (!module || !module->inputs[FLAME::INPUT].isConnected())
+			return;
+		const float width = FLAME::WIDTH;
+		if (colN2 != module->N2) {
+			colN2 = module->N2;
+			for (int i = 0; i < (int)width; i++)
+				colBin[i] = (1.0f - std::pow(1.0f - i / width, 0.1f)) * colN2;
+		}
+		nvgSave(args.vg);
+		nvgShapeAntiAlias(args.vg, false);
+		nvgStrokeWidth(args.vg, 1);
+		for (size_t j = FLAME::H - 1; j > 0; j--) {
+			const float *row = module->row(j);
+			nvgBeginPath(args.vg);
+			float y = box.size.y * (1.0f - (float)j / (float)FLAME::H);
+			nvgMoveTo(args.vg, 0, y);
+			for (int i = 0; i < (int)width; i++) {
+				float magn = interpolateLinear(row, colBin[i]) * 5e-4f;
+				nvgLineTo(args.vg, i, y - (magn * box.size.y));
+			}
+			nvgLineTo(args.vg, width, y);
+			nvgLineTo(args.vg, 0, y);
+			nvgClosePath(args.vg);
+
+			if (module->colorScheme == 0) {
+				nvgStrokeColor(args.vg, nvgRGBA(min(255+j,size_t(255)), min(233+j,size_t(255)), min(0+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
+				nvgFillColor(args.vg, nvgRGBA(min(228+j,size_t(255)), min(87+j,size_t(255)), min(46+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
+			}
+			if (module->colorScheme == 1) {
+				nvgStrokeColor(args.vg, nvgRGBA(min(0+j,size_t(255)), min(233+j,size_t(255)), min(255+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
+				nvgFillColor(args.vg, nvgRGBA(min(46+j,size_t(255)), min(87+j,size_t(255)), min(228+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
+			}
+			if (module->colorScheme == 2) {
+				nvgStrokeColor(args.vg, nvgRGBA(min(150+j,size_t(255)), min(255+j,size_t(255)), min(150+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
+				nvgFillColor(args.vg, nvgRGBA(min(46+j,size_t(255)), min(228+j,size_t(255)), min(46+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
+			}
+			nvgStroke(args.vg);
+			nvgFill(args.vg);
+		}
+		nvgRestore(args.vg);
+	}
+};
+
+// Shown in the light layer (it glows in a dark room, as it always did).
+struct FLAMEFramebuffer : FramebufferWidget {
+	void draw(const DrawArgs &args) override {}
+	void drawLayer(const DrawArgs &args, int layer) override {
+		if (layer == 1)
+			FramebufferWidget::draw(args);
 	}
 };
 
 struct FLAMEDisplay : OpaqueWidget {
 	FLAME *module;
 	const float width = 130.0f;
+	FLAMEFramebuffer *fb = nullptr;
+	FLAMESpectrum *spectrum = nullptr;
+	int lastHead = -1, lastN = -1, lastScheme = -1;
+	bool lastConnected = false;
 
 	FLAMEDisplay() {
 
+	}
+
+	// called once the display has its size and module
+	void setup() {
+		fb = new FLAMEFramebuffer();
+		fb->box.size = box.size;
+		addChild(fb);
+		spectrum = new FLAMESpectrum();
+		spectrum->module = module;
+		spectrum->box.size = box.size;
+		fb->addChild(spectrum);
+	}
+
+	void step() override {
+		if (module && fb) {
+			bool connected = module->inputs[FLAME::INPUT].isConnected();
+			if (module->head != lastHead || module->N != lastN || module->colorScheme != lastScheme || connected != lastConnected) {
+				lastHead = module->head;
+				lastN = module->N;
+				lastScheme = module->colorScheme;
+				lastConnected = connected;
+				fb->setDirty();
+			}
+		}
+		OpaqueWidget::step();
 	}
 
 	void onButton(const event::Button &e) override {
@@ -280,67 +389,36 @@ struct FLAMEDisplay : OpaqueWidget {
 	}
 
 	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer == 1) {
-			if (module) {
-				float iWidth =  1.0f/width;
-				nvgSave(args.vg);
-				nvgScissor(args.vg,0.2f,00.2f,width-0.4f,box.size.y-0.4f);
-				nvgShapeAntiAlias(args.vg,false);
-				nvgStrokeWidth(args.vg, 1);
-
-				if (module->inputs[FLAME::INPUT].isConnected()) {
-					for (size_t j=FLAME::H-1; j>0; j--) {
-						nvgBeginPath(args.vg);
-						float y = box.size.y*(1.0f - (float)j/(float)module->H);
-						nvgMoveTo(args.vg, 0, y);
-						for (size_t i = 0; i < width; i++) {
-							float magn = interpolateLinear(module->row(j), (1.0f-pow(1.0f-i*iWidth,0.1f))*module->N2)*5e-4f;
-							nvgLineTo(args.vg, i, y-(magn*box.size.y));
-						}
-						nvgLineTo(args.vg, width, y);
-						nvgLineTo(args.vg, 0, y);
-						nvgClosePath(args.vg);
-
-						if (module->colorScheme == 0) {
-							nvgStrokeColor(args.vg, nvgRGBA(min(255+j,size_t(255)), min(233+j,size_t(255)), min(0+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
-							nvgFillColor(args.vg, nvgRGBA(min(228+j,size_t(255)), min(87+j,size_t(255)), min(46+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
-						}
-						if (module->colorScheme == 1) {
-							nvgStrokeColor(args.vg, nvgRGBA(min(0+j,size_t(255)), min(233+j,size_t(255)), min(255+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
-							nvgFillColor(args.vg, nvgRGBA(min(46+j,size_t(255)), min(87+j,size_t(255)), min(228+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
-						}
-						if (module->colorScheme == 2) {
-							nvgStrokeColor(args.vg, nvgRGBA(min(150+j,size_t(255)), min(255+j,size_t(255)), min(150+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
-							nvgFillColor(args.vg, nvgRGBA(min(46+j,size_t(255)), min(228+j,size_t(255)), min(46+j,size_t(255)), max(255.f-(j*1.2f),0.0f)));
-						}
-						nvgStroke(args.vg);
-						nvgFill(args.vg);
-					}
-
-					nvgBeginPath(args.vg);
-					nvgMoveTo(args.vg, width, 0);
-					// the band's amplitude per row: 3 px per volt
-					for (size_t j=FLAME::H-1; j>0; j--) {
-						float y = box.size.y*(1.0f - (float)j/(float)module->H);
-						nvgLineTo(args.vg, width - std::min(module->amp(j)*3.0f, width), y);
-					}
-					nvgLineTo(args.vg, width, box.size.y);
-					nvgLineTo(args.vg, width, 0);
-					nvgClosePath(args.vg);
-					nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 120));
-					nvgFill(args.vg);
-				}
-
-				nvgBeginPath(args.vg);
-				nvgRect(args.vg, module->xBox, module->yBox, module->wBox, module->hBox);
-				nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 80));
-				nvgFill(args.vg);
-
-				nvgResetScissor(args.vg);
-				nvgRestore(args.vg);
-			}
-		}
+		// the spectrogram (framebuffer) first
 		Widget::drawLayer(args, layer);
+		if (layer == 1 && module) {
+			nvgSave(args.vg);
+			nvgScissor(args.vg,0.2f,00.2f,width-0.4f,box.size.y-0.4f);
+			nvgShapeAntiAlias(args.vg,false);
+
+			if (module->inputs[FLAME::INPUT].isConnected()) {
+				nvgBeginPath(args.vg);
+				nvgMoveTo(args.vg, width, 0);
+				// the band's amplitude per row: 3 px per volt
+				for (size_t j=FLAME::H-1; j>0; j--) {
+					float y = box.size.y*(1.0f - (float)j/(float)module->H);
+					nvgLineTo(args.vg, width - std::min(module->amp(j)*3.0f, width), y);
+				}
+				nvgLineTo(args.vg, width, box.size.y);
+				nvgLineTo(args.vg, width, 0);
+				nvgClosePath(args.vg);
+				nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 120));
+				nvgFill(args.vg);
+			}
+
+			nvgBeginPath(args.vg);
+			nvgRect(args.vg, module->xBox, module->yBox, module->wBox, module->hBox);
+			nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 80));
+			nvgFill(args.vg);
+
+			nvgResetScissor(args.vg);
+			nvgRestore(args.vg);
+		}
 	}
 
 };
@@ -361,6 +439,7 @@ struct FLAMEWidget : BidooWidget {
   		display->module = module;
   		display->box.pos = Vec(10, 28);
   		display->box.size = Vec(130, 256);
+  		display->setup();
   		addChild(display);
   	}
 

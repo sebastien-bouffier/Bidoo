@@ -17,14 +17,17 @@ struct BancauSlope {
 
 	static constexpr float TOP = 10.f;
 	static constexpr float K = 4.f;  // exponential curve: a capacitor charging
+	static constexpr float EXP_MINUS_K = 0.0183156389f;          // exp(-K)
+	static constexpr float CURVE_SPAN = 1.f - EXP_MINUS_K;       // 1 - exp(-K)
+	static constexpr float INV_CURVE_SPAN = 1.f / CURVE_SPAN;
 
 	// segment shape: x (0..1 of the way) against u (0..1 of the time)
 	static float shape(float u, bool curved) {
-		return curved ? (1.f - std::exp(-K * u)) / (1.f - std::exp(-K)) : u;
+		return curved ? (1.f - std::exp(-K * u)) * INV_CURVE_SPAN : u;
 	}
 	static float inverse(float x, bool curved) {
 		x = clamp(x, 0.f, 1.f);
-		return curved ? -std::log(1.f - x * (1.f - std::exp(-K))) / K : x;
+		return curved ? -std::log(1.f - x * CURVE_SPAN) * (1.f / K) : x;
 	}
 
 	void startRise(bool riseCurve) {
@@ -167,6 +170,17 @@ struct BANCAU : BidooModule {
 		return 0.0002f * std::pow(10.f, 5.f * k);
 	}
 
+	// knobTime of the 4 time knobs, computed again only when a knob moves
+	float knobIn[4] = {NAN, NAN, NAN, NAN};
+	float knobOut[4] = {};
+	float cachedKnobTime(int n, float k) {
+		if (k != knobIn[n]) {
+			knobIn[n] = k;
+			knobOut[n] = knobTime(k);
+		}
+		return knobOut[n];
+	}
+
 	BANCAU() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		for (int s = 0; s < 2; s++) {
@@ -201,8 +215,8 @@ struct BANCAU : BidooModule {
 			int channels = 1;
 			for (Input *x : {&in, &trig, &voct, &riseCv, &fallCv, &bothCv})
 				channels = std::max(channels, x->getChannels());
-			float riseBase = knobTime(params[RISE1_PARAM + p].getValue());
-			float fallBase = knobTime(params[FALL1_PARAM + p].getValue());
+			float riseBase = cachedKnobTime(2 * s, params[RISE1_PARAM + p].getValue());
+			float fallBase = cachedKnobTime(2 * s + 1, params[FALL1_PARAM + p].getValue());
 			float riseAmt = params[RISECV1_PARAM + p].getValue(), fallAmt = params[FALLCV1_PARAM + p].getValue();
 			bool riseCurve = params[RISEEXP1_PARAM + 2 * s].getValue() > 0.5f;
 			bool fallCurve = params[FALLEXP1_PARAM + 2 * s].getValue() > 0.5f;

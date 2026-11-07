@@ -54,6 +54,8 @@ typedef struct {
   float *u;
   float *f;
   double alpha;
+  /* log2(alpha): the gains alpha^len are worked out as exp2(len * log2alpha) */
+  float log2alpha;
 } ty_gverb;
 
 
@@ -61,6 +63,7 @@ ty_gverb *gverb_new(int, float, float, float, float, float, float, float, float)
 void gverb_free(ty_gverb *);
 void gverb_flush(ty_gverb *);
 static void gverb_do(ty_gverb *, float, float *, float *);
+static float gverb_do_side(ty_gverb *, float, int);
 static void gverb_set_roomsize(ty_gverb *, float);
 static void gverb_set_revtime(ty_gverb *, float);
 static void gverb_set_damping(ty_gverb *, float);
@@ -153,6 +156,53 @@ static inline void gverb_do(ty_gverb *p, float x, float *yl, float *yr)
   *yr = rsum;
 }
 
+/* gverb_do for one output side only (0 left, 1 right): the other side's three
+   diffusers are skipped when nothing listens to them */
+static inline float gverb_do_side(ty_gverb *p, float x, int right)
+{
+  float z;
+  unsigned int i;
+  float sum,sign;
+
+  if ((x != x) || fabsf(x) > 100000.0f) {
+    x = 0.0f;
+  }
+
+  z = damper_do(p->inputdamper, x);
+  z = diffuser_do(p->ldifs[0],z);
+
+  for(i = 0; i < FDNORDER; i++) {
+    p->u[i] = p->tapgains[i]*fixeddelay_read_frac(p->tapdelay,p->taps[i]);
+  }
+  fixeddelay_write(p->tapdelay,z);
+
+  for(i = 0; i < FDNORDER; i++) {
+    p->d[i] = damper_do(p->fdndamps[i],
+			p->fdngains[i]*fixeddelay_read_frac(p->fdndels[i],
+						       p->fdnlens[i]));
+  }
+
+  sum = 0.0f;
+  sign = 1.0f;
+  for(i = 0; i < FDNORDER; i++) {
+    sum += sign*(p->taillevel*p->d[i] + p->earlylevel*p->u[i]);
+    sign = -sign;
+  }
+  sum += x*p->earlylevel;
+
+  gverb_fdnmatrix(p->d,p->f);
+
+  for(i = 0; i < FDNORDER; i++) {
+    fixeddelay_write(p->fdndels[i],p->u[i]+p->f[i]);
+  }
+
+  ty_diffuser **difs = right ? p->rdifs : p->ldifs;
+  sum = diffuser_do(difs[1],sum);
+  sum = diffuser_do(difs[2],sum);
+  sum = diffuser_do(difs[3],sum);
+  return sum;
+}
+
 static inline void gverb_set_roomsize(ty_gverb *p, const float a)
 {
   unsigned int i;
@@ -170,14 +220,14 @@ static inline void gverb_set_roomsize(ty_gverb *p, const float a)
   p->fdnlens[2] = 0.707100f*p->largestdelay;
   p->fdnlens[3] = 0.632450f*p->largestdelay;
   for(i = 0; i < FDNORDER; i++) {
-    p->fdngains[i] = -powf((float)p->alpha, p->fdnlens[i]);
+    p->fdngains[i] = -exp2f(p->fdnlens[i] * p->log2alpha);
   }
   p->taps[0] = 5+0.410f*p->largestdelay;
   p->taps[1] = 5+0.300f*p->largestdelay;
   p->taps[2] = 5+0.155f*p->largestdelay;
   p->taps[3] = 5+0.000f*p->largestdelay;
   for(i = 0; i < FDNORDER; i++) {
-    p->tapgains[i] = powf((float)p->alpha, p->taps[i]);
+    p->tapgains[i] = exp2f(p->taps[i] * p->log2alpha);
   }
 
 }
@@ -194,10 +244,16 @@ static inline void gverb_set_revtime(ty_gverb *p,float a)
   gt = p->revtime;
   ga = powf(10.0f,-ga/20.0f);
   n = p->rate*gt;
-  p->alpha = (double)powf(ga,1.0f/n);
+  /* -60 dB over n samples: log2(alpha) = log2(10^-3) / n (n at least 1) */
+  p->log2alpha = -9.9657842847f / (float)(n > 1.0 ? n : 1.0);
+  p->alpha = (double)exp2f(p->log2alpha);
 
   for(i = 0; i < FDNORDER; i++) {
-    p->fdngains[i] = -powf((float)p->alpha, p->fdnlens[i]);
+    p->fdngains[i] = -exp2f(p->fdnlens[i] * p->log2alpha);
+  }
+  /* the taps' gains follow the decay too (gverb_new sets them, a change did not) */
+  for(i = 0; i < FDNORDER; i++) {
+    p->tapgains[i] = exp2f(p->taps[i] * p->log2alpha);
   }
 
 }

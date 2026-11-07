@@ -7,11 +7,34 @@ using namespace std;
 // width set by the formant's bandwidth) multiplied by a carrier crossfaded
 // between the two harmonics around the formant frequency.
 
-//Approximates cos(pi*x) for x in [-1,1].
+//Approximates cos(pi*x) for x in [-1,1]: a rough curve (0.125 at x = 0.5),
+// kept for the Hann window of the formant table so the table stays as it was.
 inline float fast_cos(const float x)
 {
   float x2=x*x;
   return 1.0f+x2*(-4.0f+2.0f*x2);
+}
+
+// cos(pi x) for x in [-1, 1], four at once, within 3e-5 (the carriers): folded
+// to [-1/2, 1/2] (cos(pi x) = -cos(pi (1 - |x|))), then a degree-8 Taylor
+// polynomial. fast_cos's error (0.125) was a third harmonic of every carrier,
+// a ghost formant at three times its frequency.
+inline simd::float_4 cosPi4(simd::float_4 x)
+{
+  using simd::float_4;
+  float_4 a = simd::fabs(x);
+  float_4 far = a > 0.5f;
+  float_4 y = simd::ifelse(far, 1.0f - a, a);
+  float_4 z = y * y * 9.8696044f; // (pi y)^2
+  float_4 c = 1.0f + z * (-0.5f + z * (1.0f / 24.0f + z * (-1.0f / 720.0f + z * (1.0f / 40320.0f))));
+  return simd::ifelse(far, -c, c);
+}
+
+// x wrapped into [-1, 1) (floor-based, no fmodf)
+inline simd::float_4 wrapUnit4(simd::float_4 x)
+{
+  x += 1.0f;
+  return x - 2.0f * simd::floor(x * 0.5f) - 1.0f;
 }
 //Length of the table
 #define L_TABLE (256+1) //The last entry of the table equals the first (to avoid a modulo)
@@ -79,29 +102,26 @@ struct FormantTable {
 	}
 };
 
-// Double carrier.
+// Double carrier, for the four formants at once.
 // h : position (float harmonic number), at least the first harmonic so that a
 //     formant below the pitch gives the fundamental, never a DC offset
 // p : phase
-static float porteuse(float h,const float p)
+static simd::float_4 porteuse4(simd::float_4 h, const float p)
 {
-  h = std::max(h, 1.0f);
-  float h0=floor(h);  //integer and
-  float hf=h-h0;      //decimal part of harmonic number.
-  // modulos pour ramener p*h0 et p*(h0+1) dans [-1,1]
-  float phi0=fmodf(p* h0   +1+1000,2.0f)-1.0f;
-  float phi1=fmodf(p*(h0+1)+1+1000,2.0f)-1.0f;
-  // two carriers.
-  float Porteuse0=fast_cos(phi0);
-  float Porteuse1=fast_cos(phi1);
+  h = simd::fmax(h, 1.0f);
+  simd::float_4 h0 = simd::floor(h);  //integer and
+  simd::float_4 hf = h - h0;          //decimal part of harmonic number.
+  // p*h0 and p*(h0+1) brought back into [-1,1)
+  simd::float_4 porteuse0 = cosPi4(wrapUnit4(p * h0));
+  simd::float_4 porteuse1 = cosPi4(wrapUnit4(p * (h0 + 1.0f)));
   // crossfade between the two carriers.
-  return Porteuse0+hf*(Porteuse1-Porteuse0);
+  return porteuse0 + hf * (porteuse1 - porteuse0);
 }
 
 struct ForkVoice {
 	float p0 = 0.0f;
-	float f[4] = {730.0f, 1090.0f, 2440.0f, 3400.0f};
-	float a[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+	simd::float_4 f = {730.0f, 1090.0f, 2440.0f, 3400.0f};
+	simd::float_4 a = 0.0f;
 	float dcIn = 0.0f, dcOut = 0.0f;
 };
 
@@ -209,24 +229,44 @@ void FORK::process(const ProcessArgs &args) {
 	}
 	const float r = glideCoef;
 
+	// the knobs, read once for every voice
+	simd::float_4 fKnob, aKnob, aMax, mix, bw;
+	bool fCv[4], aCv[4];
+	for (int k = 0; k < 4; k++) {
+		fKnob[k] = params[F_PARAM + k].getValue();
+		aKnob[k] = params[A_PARAM + k].getValue();
+		aMax[k] = A_MAX[k];
+		mix[k] = MIX[k];
+		bw[k] = BW[k];
+		fCv[k] = inputs[F_INPUT + k].isConnected();
+		aCv[k] = inputs[A_INPUT + k].isConnected();
+	}
+	float pitchKnob = params[PITCH_PARAM].getValue();
+
 	for (int c = 0; c < channels; c++) {
 		ForkVoice &v = voices[c];
-		float f0 = 261.626f * dsp::exp2_taylor5(clamp(params[PITCH_PARAM].getValue() + 12.0f * inputs[PITCH_INPUT].getVoltage(c), -54.0f, 54.0f) / 12.0f);
+		float f0 = 261.626f * dsp::exp2_taylor5(clamp(pitchKnob + 12.0f * inputs[PITCH_INPUT].getVoltage(c), -54.0f, 54.0f) / 12.0f);
 		v.p0 += f0 * (2.0f / args.sampleRate);
 		v.p0 -= 2.0f * (v.p0 > 1.0f);
 		float un_f0 = 1.0f / f0;
 
-		float out = 0.0f;
+		// The frequency CV is 1V/oct from the knob; the level CV adds to the knob.
+		simd::float_4 fT = fKnob, aT = aKnob;
 		for (int k = 0; k < 4; k++) {
-			// The frequency CV is 1V/oct from the knob; the level CV adds to the knob.
-			float fT = params[F_PARAM + k].getValue();
-			if (inputs[F_INPUT + k].isConnected())
-				fT = clamp(fT * dsp::exp2_taylor5(clamp(inputs[F_INPUT + k].getPolyVoltage(c), -5.0f, 5.0f)), 50.0f, fTop);
-			float aT = clamp(params[A_PARAM + k].getValue() + inputs[A_INPUT + k].getPolyVoltage(c) * A_MAX[k] * 0.1f, 0.0f, A_MAX[k]);
-			v.f[k] += r * (fT - v.f[k]);
-			v.a[k] += r * (aT - v.a[k]);
-			out += MIX[k] * v.a[k] * table.formant(v.p0, BW[k] * un_f0) * porteuse(v.f[k] * un_f0, v.p0);
+			if (fCv[k])
+				fT[k] = clamp(fKnob[k] * dsp::exp2_taylor5(clamp(inputs[F_INPUT + k].getPolyVoltage(c), -5.0f, 5.0f)), 50.0f, fTop);
+			if (aCv[k])
+				aT[k] = aKnob[k] + inputs[A_INPUT + k].getPolyVoltage(c) * A_MAX[k] * 0.1f;
 		}
+		aT = simd::clamp(aT, 0.0f, aMax);
+		v.f += r * (fT - v.f);
+		v.a += r * (aT - v.a);
+		simd::float_4 width = bw * un_f0;
+		simd::float_4 form;
+		for (int k = 0; k < 4; k++)
+			form[k] = table.formant(v.p0, width[k]);
+		simd::float_4 o = mix * v.a * form * porteuse4(v.f * un_f0, v.p0);
+		float out = o[0] + o[1] + o[2] + o[3];
 
 		float y = out - v.dcIn + dcCoef * v.dcOut;
 		v.dcIn = out;

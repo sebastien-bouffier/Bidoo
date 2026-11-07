@@ -48,3 +48,46 @@ struct SvfGainCache {
 		return g;
 	}
 };
+
+// 2x up / down sampler: a polyphase IIR halfband (two chains of first-order
+// allpasses in z^-2, Laurent de Soras' hiir design), 6 coefficients: flat to
+// 0.21 fs (20 kHz at 48 kHz), -95 dB from 0.29 fs. Six multiplies each way.
+struct Halfband2x {
+	struct Chain {
+		float x[3] = {}, y[3] = {};
+		float process(float in, const float *k) {
+			for (int i = 0; i < 3; i++) {
+				float out = k[i] * (in - y[i]) + x[i];
+				x[i] = in;
+				y[i] = out;
+				in = out;
+			}
+			return in;
+		}
+	};
+	Chain upA, upB, downA, downB;
+
+	static const float *coefA() {
+		static const float k[3] = {0.045362164f, 0.337149688f, 0.708064136f};
+		return k;
+	}
+	static const float *coefB() {
+		static const float k[3] = {0.168087481f, 0.522377854f, 0.897445591f};
+		return k;
+	}
+
+	// one sample in, two out (in time order)
+	void up(float in, float &first, float &second) {
+		first = upA.process(in, coefA());
+		second = upB.process(in, coefB());
+	}
+
+	// two samples in (in time order), one out
+	float down(float first, float second) {
+		return 0.5f * (downA.process(second, coefA()) + downB.process(first, coefB()));
+	}
+
+	void reset() {
+		*this = Halfband2x();
+	}
+};

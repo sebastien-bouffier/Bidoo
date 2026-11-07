@@ -41,8 +41,11 @@ struct HUITRE : BidooModule {
 	bool pulse=false;
 	bool mode = false;
 
+	dsp::ClockDivider lightDivider;
+
 	HUITRE() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		lightDivider.setDivision(16);
 		configButton(MODE_PARAM, "Pattern outputs: trigger or gate");
 		for (int i = 0; i < 8; i++) {
 			std::string n = "Pattern " + std::to_string(i + 1);
@@ -85,9 +88,12 @@ void HUITRE::process(const ProcessArgs &args) {
 		mode=!mode;
 	}
 
-	lights[MODE_LIGHT].setBrightness(0);
-	lights[MODE_LIGHT + 1].setBrightness(mode ? 1 : 0);
-	lights[MODE_LIGHT + 2].setBrightness(mode ? 0 : 1);
+	bool lightsNow = lightDivider.process();
+	if (lightsNow) {
+		lights[MODE_LIGHT].setBrightness(0);
+		lights[MODE_LIGHT + 1].setBrightness(mode ? 1 : 0);
+		lights[MODE_LIGHT + 2].setBrightness(mode ? 0 : 1);
+	}
 
 	bool measure = inputs[MEASURE_INPUT].isConnected() ? syncTrigger.process(inputs[MEASURE_INPUT].getVoltage()) : true;
 	if (measure && (currentPattern != nextPattern)) {
@@ -98,9 +104,11 @@ void HUITRE::process(const ProcessArgs &args) {
 
 	for (int i = 0; i < 8; i++) {
 		if (i==currentPattern) {
-			lights[PATTERN_LIGHT+(i*3)].setBrightness(0.0f);
-			lights[PATTERN_LIGHT+(i*3)+1].setBrightness(1.0f);
-			lights[PATTERN_LIGHT+(i*3)+2].setBrightness(0.0f);
+			if (lightsNow) {
+				lights[PATTERN_LIGHT+(i*3)].setBrightness(0.0f);
+				lights[PATTERN_LIGHT+(i*3)+1].setBrightness(1.0f);
+				lights[PATTERN_LIGHT+(i*3)+2].setBrightness(0.0f);
+			}
 
 			if (mode) {
 				outputs[PATTERNTRIG_OUTPUT+currentPattern].setVoltage(10.0f);
@@ -113,14 +121,18 @@ void HUITRE::process(const ProcessArgs &args) {
 			}
 		}
 		else if (i==nextPattern) {
-			lights[PATTERN_LIGHT+(i*3)].setBrightness(1.0f);
-			lights[PATTERN_LIGHT+(i*3)+1].setBrightness(0.0f);
-			lights[PATTERN_LIGHT+(i*3)+2].setBrightness(0.0f);
+			if (lightsNow) {
+				lights[PATTERN_LIGHT+(i*3)].setBrightness(1.0f);
+				lights[PATTERN_LIGHT+(i*3)+1].setBrightness(0.0f);
+				lights[PATTERN_LIGHT+(i*3)+2].setBrightness(0.0f);
+			}
 		}
 		else {
-			lights[PATTERN_LIGHT+(i*3)].setBrightness(0.0f);
-			lights[PATTERN_LIGHT+(i*3)+1].setBrightness(0.0f);
-			lights[PATTERN_LIGHT+(i*3)+2].setBrightness(0.0f);
+			if (lightsNow) {
+				lights[PATTERN_LIGHT+(i*3)].setBrightness(0.0f);
+				lights[PATTERN_LIGHT+(i*3)+1].setBrightness(0.0f);
+				lights[PATTERN_LIGHT+(i*3)+2].setBrightness(0.0f);
+			}
 			outputs[PATTERNTRIG_OUTPUT+i].setVoltage(0.0f);
 		}
 	}

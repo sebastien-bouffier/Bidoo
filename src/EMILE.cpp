@@ -30,7 +30,19 @@ struct EmileImage {
 	std::vector<unsigned char> rgba;  // 16 bits per channel, big endian, as lodepng gives it
 	unsigned width = 0;
 	unsigned height = 0;
+	// Per pixel column: where it lands on the frequency curve (0 to 1), for
+	// the curve it was computed at. Sized by the worker, filled by the audio
+	// thread when the curve moves.
+	std::vector<float> shape;
+	float shapeCurve = -1.f;
 };
+
+// tanh, close enough for a soft clip (Pade, exact at 0 and at +-3).
+inline float emileSoftClip(float x) {
+	x = clamp(x, -3.f, 3.f);
+	float x2 = x * x;
+	return x * (27.f + x2) / (27.f + 9.f * x2);
+}
 
 struct EMILE : BidooModule {
 	enum ParamIds {
@@ -104,6 +116,8 @@ struct EMILE : BidooModule {
 	bool a = true;
 	dsp::SchmittTrigger rTrigger, gTrigger, bTrigger, aTrigger;
 	float curve = 0.0f;
+	float window[FS];          // Hann, computed once
+	dsp::ClockDivider lightDivider;
 
 	EMILE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -132,6 +146,9 @@ struct EMILE : BidooModule {
 		pffftSetup = pffft_new_setup(FS, PFFFT_REAL);
 		fftIn = (float*)pffft_aligned_malloc(FS*sizeof(float));
 		fftOut =  (float*)pffft_aligned_malloc(FS*sizeof(float));
+		for (int i = 0; i < FS; i++)
+			window[i] = -0.5f * std::cos(2.0f * float(M_PI) * i * IFS) + 0.5f;
+		lightDivider.setDivision(64);
 		// Fixed random starting phases (the same every time).
 		uint32_t seed = 12345;
 		for (int i = 0; i < FS2; i++) {
@@ -193,6 +210,8 @@ struct EMILE : BidooModule {
 				im = nullptr;
 				path.clear();
 			}
+			if (im)
+				im->shape.assign(im->width, 0.f);
 			{
 				std::lock_guard<std::mutex> ui(uiMutex);
 				lastPath = path;
@@ -210,6 +229,22 @@ struct EMILE : BidooModule {
 	}
 
 	void process(const ProcessArgs &args) override;
+
+	// Takes a newly loaded image, once the worker has freed the previous one.
+	void takePending() {
+		if (pendingSet.load(std::memory_order_acquire) && !retired.load(std::memory_order_acquire)) {
+			EmileImage *im = pending.exchange(nullptr, std::memory_order_acq_rel);
+			retired.store(img, std::memory_order_release);
+			img = im;
+			pendingSet = false;
+		}
+	}
+
+	// Bypassed: still takes the loaded image, so the loader never waits.
+	void processBypass(const ProcessArgs &args) override {
+		takePending();
+		Module::processBypass(args);
+	}
 
 	void onReset() override {
 		r = g = b = a = true;
@@ -243,29 +278,27 @@ struct EMILE : BidooModule {
 };
 
 void EMILE::process(const ProcessArgs &args) {
-	if (pendingSet.load(std::memory_order_acquire) && !retired.load(std::memory_order_acquire)) {
-		EmileImage *im = pending.exchange(nullptr, std::memory_order_acq_rel);
-		retired.store(img, std::memory_order_release);
-		img = im;
-		pendingSet = false;
-	}
+	takePending();
 
 	if (rTrigger.process(params[R_PARAM].getValue()+inputs[R_INPUT].getVoltage(), 0.1f, 1.f))
 		r=!r;
-	lights[R_LIGTH].setBrightness(r?1:0);
 	if (gTrigger.process(params[G_PARAM].getValue()+inputs[G_INPUT].getVoltage(), 0.1f, 1.f))
 		g=!g;
-	lights[G_LIGTH].setBrightness(g?1:0);
 	if (bTrigger.process(params[B_PARAM].getValue()+inputs[B_INPUT].getVoltage(), 0.1f, 1.f))
 		b=!b;
-	lights[B_LIGTH].setBrightness(b?1:0);
 	if (aTrigger.process(params[A_PARAM].getValue()+inputs[A_INPUT].getVoltage(), 0.1f, 1.f))
 		a=!a;
-	lights[A_LIGTH].setBrightness(a?1:0);
+	if (lightDivider.process()) {
+		lights[R_LIGTH].setBrightness(r?1:0);
+		lights[G_LIGTH].setBrightness(g?1:0);
+		lights[B_LIGTH].setBrightness(b?1:0);
+		lights[A_LIGTH].setBrightness(a?1:0);
+	}
 
 	curve = clamp(params[CURVE_PARAM].getValue() + clamp(inputs[CURVE_INPUT].getVoltage(), 0.0f, 10.0f) * 0.009f, 0.01f, 0.2f);
 
-	if (!img) {
+	// Nothing to play, or nobody listening: no resynthesis.
+	if (!img || !outputs[OUT].isConnected()) {
 		outputs[OUT].setVoltage(0.f);
 		return;
 	}
@@ -280,17 +313,23 @@ void EMILE::process(const ProcessArgs &args) {
 		memset(binWeight, 0, sizeof(binWeight));
 
 		// 1V/oct: 0 V is the original mapping, each volt doubles the frequencies.
-		float scale = 5.0f * dsp::exp2_taylor5(clamp(params[TUNE_PARAM].getValue() + inputs[TUNE_INPUT].getVoltage(), -10.f, 10.f)) * FS2;
+		// The bins are scaled to 48 kHz, so the pitch is the same at any rate.
+		float scale = 5.0f * dsp::exp2_taylor5(clamp(params[TUNE_PARAM].getValue() + inputs[TUNE_INPUT].getVoltage(), -10.f, 10.f)) * FS2 * (48000.f / args.sampleRate);
 		int channels = r + g + b + a;
 		const unsigned char *row = img->rgba.data() + (size_t)pos * 8 * width;
-		float iWidth = 1.0f/width;
+		if (img->shapeCurve != curve && img->shape.size() == width) {
+			float iWidth = 1.0f/width;
+			for (unsigned x = 0; x < width; x++)
+				img->shape[x] = 1.0f - std::pow(1.0f - x * iWidth, curve);
+			img->shapeCurve = curve;
+		}
 		for (unsigned x = 0; x < width; x++) {
 			const unsigned char *p = row + x * 8;
 			unsigned sum = (r ? 256 * p[0] + p[1] : 0) + (g ? 256 * p[2] + p[3] : 0) + (b ? 256 * p[4] + p[5] : 0) + (a ? 256 * p[6] + p[7] : 0);
 			if (sum == 0)
 				continue;
 			float mix = 1e-7f * sum / std::max(1, channels);
-			float index = scale * (1.0f - std::pow(1.0f - x * iWidth, curve)) + 3;
+			float index = scale * img->shape[x] + 3;
 			// Bins above the spectrum are dropped.
 			if (index < 1.0f || index >= FS2 - 2)
 				continue;
@@ -318,17 +357,15 @@ void EMILE::process(const ProcessArgs &args) {
 
 		pffft_transform_ordered(pffftSetup, fftIn, fftOut, NULL, PFFFT_BACKWARD);
 
-		for (int i = 0; i < FS; i++) {
-			float window = -0.5f * std::cos(2.0f * float(M_PI) * i * IFS) + 0.5f;
-			acc[i] += 2.0f*fftOut[i]*window;
-		}
+		for (int i = 0; i < FS; i++)
+			acc[i] += 2.0f*fftOut[i]*window[i];
 		for (int i = 0; i < STS; i++)
 			out[i] = acc[i];
 		memmove(acc, acc+STS, FS*sizeof(float));
 		rIdx = 0;
 	}
 
-	outputs[OUT].setVoltage(std::tanh(params[GAIN_PARAM].getValue() * out[rIdx]) * 5.0f);
+	outputs[OUT].setVoltage(emileSoftClip(params[GAIN_PARAM].getValue() * out[rIdx]) * 5.0f);
 	rIdx++;
 }
 

@@ -84,9 +84,9 @@ struct BidooWidget : ModuleWidget {
 	SvgPanel* lightPanel;
 	SvgPanel* darkPanel;
 	SvgPanel* blackPanel;
-	SvgPanel* bluePanel;
-	SvgPanel* greenPanel;
 	int defaultPanelTheme = 0;
+	int shownTheme = -1; // panel currently visible, -1 before the first showTheme
+	bool themable = true; // false: one look only, no Theme menu (the Riso panels)
 
 	BidooWidget() {
 		readThemeAndContrastFromDefault();
@@ -125,31 +125,10 @@ struct BidooWidget : ModuleWidget {
 		}
 	};
 
-	struct BlueItem : MenuItem {
-		BidooModule *module;
-		BidooWidget *pWidget;
-		void onAction(const event::Action &e) override {
-			module->themeId = 3;
-			module->themeChanged = true;
-			pWidget->defaultPanelTheme = 3;
-			pWidget->writeThemeAndContrastAsDefault();
-		}
-	};
-
-	struct GreenItem : MenuItem {
-		BidooModule *module;
-		BidooWidget *pWidget;
-		void onAction(const event::Action &e) override {
-			module->themeId = 4;
-			module->themeChanged = true;
-			pWidget->defaultPanelTheme = 4;
-			pWidget->writeThemeAndContrastAsDefault();
-		}
-	};
-
 	void writeThemeAndContrastAsDefault();
 	void readThemeAndContrastFromDefault();
 	void prepareThemes(const std::string& filename);
 	void appendContextMenu(Menu *menu) override;
+	void showTheme(int theme);
 	void step() override;
 };

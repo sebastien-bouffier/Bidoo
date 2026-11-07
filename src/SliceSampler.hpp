@@ -6,6 +6,7 @@
 #include <mutex>
 #include <thread>
 #include "dep/waves.hpp"
+#include "SampleRead.hpp"
 
 using namespace rack;
 
@@ -23,6 +24,7 @@ inline float sliceSoftLimit(float x) {
 
 struct SliceSample {
 	std::vector<float> data;
+	sampleread::Mip<1> mip;  // band-limited copies, for playing faster than 1x
 	float sampleRate = 0.f;
 	int size() const { return (int)data.size(); }
 };
@@ -92,7 +94,8 @@ struct SliceBank {
 		return (slot >= 0 && slot < slots) ? paths[slot] : std::string();
 	}
 
-	// Audio thread, once per sample.
+	// Audio thread, every few samples (and while bypassed, so the worker
+	// never waits on it).
 	void poll(float sampleRate) {
 		for (int i = 0; i < slots; i++) {
 			if (pending[i].load(std::memory_order_relaxed) && !retired[i].load(std::memory_order_acquire)) {
@@ -139,6 +142,7 @@ struct SliceBank {
 			s->data.resize(frames.size());
 			for (size_t k = 0; k < frames.size(); k++)
 				s->data[k] = frames[k].samples[0];
+			s->mip.build(s->data.data(), s->size());
 			// Wait until the audio thread has taken the slot's previous sample.
 			while (pending[job.slot].load() && !quit)
 				std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -211,11 +215,19 @@ struct SliceSettings {
 // State-variable filter (zero-delay feedback), cutoff kept under Nyquist.
 struct SliceFilter {
 	float hp = 0.f, bp = 0.f, lp = 0.f, mem1 = 0.f, mem2 = 0.f;
+	// The coefficients, computed again only when the cutoff or Q moves.
+	float lastFc = -1.f, lastQ = -1.f, g = 0.f, R = 1.f, norm = 1.f;
 
 	void process(float sample, float freq, float q, float sampleTime) {
-		float g = std::tan(float(M_PI) * clamp(freq * sampleTime, 1e-5f, 0.45f));
-		float R = 1.0f / (2.0f * q);
-		hp = (sample - (2.0f * R + g) * mem1 - mem2) / (1.0f + 2.0f * R * g + g * g);
+		float fc = clamp(freq * sampleTime, 1e-5f, 0.45f);
+		if (fc != lastFc || q != lastQ) {
+			lastFc = fc;
+			lastQ = q;
+			g = std::tan(float(M_PI) * fc);
+			R = 1.0f / (2.0f * q);
+			norm = 1.0f / (1.0f + 2.0f * R * g + g * g);
+		}
+		hp = (sample - (2.0f * R + g) * mem1 - mem2) * norm;
 		bp = g * hp + mem1;
 		lp = g * bp + mem2;
 		mem1 = g * hp + bp;
@@ -227,59 +239,95 @@ struct SliceFilter {
 	}
 };
 
-struct SliceVoice {
-	float head = 0.f;
-	bool active = false;
-	dsp::SchmittTrigger trigger;
-	SliceFilter filter;
-};
-
 // What one voice plays this sample, from its settings and the polyphonic CVs.
 struct SliceControls {
-	float start, len, speed;
-	bool loop;
-	int gate;
-	int filterType;
-	float q, freq;
+	float start = 0.f, len = 1.f, speed = 1.f;
+	bool loop = false;
+	int gate = 1;
+	int filterType = 0;
+	float q = 1.f, freq = 1000.f;
+};
+
+struct SliceVoice {
+	double head = 0.0;     // double: a float loses the pitch far into long samples
+	bool active = false;
+	float speed = 1.f;     // of the last sample played
+	float lastGain = 0.f;  // declick gain of the last sample played
+	dsp::SchmittTrigger trigger;
+	SliceFilter filter;
+	SliceControls ctl;
+	sampleread::Declick<1> dc;
 };
 
 // Plays voice v on sample s for one sample; returns the output voltage.
 // `gateHigh`/`rise` come from the voice's trigger input.
 // `killed`: another voice that chokes this one is playing.
-inline float slicePlay(SliceVoice &v, const SliceSample *s, const SliceControls &c, bool rise, bool gateHigh, bool killed, bool hasFilter, float sampleTime) {
+// Every start, restart, stop, choke and loop jump is declicked over
+// `fadeLen` samples: the old head fades out while the new one fades in, and a
+// slice played to its end fades out just before it.
+inline float slicePlay(SliceVoice &v, const SliceSample *s, const SliceControls &c, bool rise, bool gateHigh, bool killed, bool hasFilter, float sampleTime, int fadeLen) {
 	int size = s ? s->size() : 0;
 	if (size < 2) {
 		v.active = false;
+		v.dc.reset();
 		return 0.f;
 	}
+	const sampleread::View<1> view{s->data.data(), size, &s->mip};
 	float first = clamp(c.start * size, 0.f, size - 2.f);
 	float end = std::min((c.start + c.len) * size, size - 1.f);
 	if ((!v.active || c.gate == 1) && rise) {
+		if (v.active)
+			v.dc.tail(v.head, v.speed, v.lastGain, fadeLen);
+		else if (!v.dc.tailActive())
+			v.filter.reset();
 		v.active = true;
 		v.head = first;
-		v.filter.reset();
+		v.dc.fadeIn(fadeLen);
 	}
-	else if (c.gate == 0 && !gateHigh)
+	else if (c.gate == 0 && !gateHigh && v.active) {
+		v.dc.tail(v.head, v.speed, v.lastGain, fadeLen);
 		v.active = false;
-	if (killed)
+	}
+	if (killed && v.active) {
+		v.dc.tail(v.head, v.speed, v.lastGain, fadeLen);
 		v.active = false;
-	if (!v.active)
+	}
+	if (!v.active && !v.dc.tailActive())
 		return 0.f;
 
-	int xi = clamp((int)v.head, 0, size - 2);
-	float xf = clamp(v.head - xi, 0.f, 1.f);
-	float out = crossfade(s->data[xi], s->data[xi + 1], xf);
+	float out = 0.f;
+	if (v.active) {
+		float g = v.dc.nextIn();
+		bool loops = c.loop && c.gate == 0;
+		if (!loops) {
+			// Fades out just before the end of the slice.
+			float left = (float)(end - v.head) / c.speed;
+			if (left < fadeLen)
+				g *= std::max(left, 0.f) / fadeLen;
+		}
+		float x;
+		view.read(v.head, c.speed, &x);
+		out = x * g;
+		v.lastGain = g;
+		v.speed = c.speed;
+	}
+	v.dc.addTail(view, &out);
+	if (v.active) {
+		v.head += c.speed;
+		if (v.head >= size - 1 || v.head > end) {
+			if (c.loop && c.gate == 0) {
+				// The old head goes on from the next sample, fading out.
+				v.dc.tail(v.head, c.speed, v.lastGain, fadeLen);
+				v.head = first;
+				v.dc.fadeIn(fadeLen);
+			}
+			else
+				v.active = false;
+		}
+	}
 	if (hasFilter && c.filterType > 0) {
 		v.filter.process(out, c.freq, c.q, sampleTime);
 		out = (c.filterType == 1) ? v.filter.lp : (c.filterType == 2) ? v.filter.bp : v.filter.hp;
-	}
-
-	v.head += c.speed;
-	if (v.head >= size - 1 || v.head > end) {
-		if (c.loop && c.gate == 0)
-			v.head = first;
-		else
-			v.active = false;
 	}
 	return sliceSoftLimit(5.0f * out);
 }
@@ -305,6 +353,18 @@ SliceControls sliceControls(M &m, const SliceSettings &st, int i) {
 		c.freq = dsp::exp2_taylor5(clamp(4.5f + 9.5f * st.freq + m.inputs[M::FREQ_INPUT].getPolyVoltage(i), 3.f, 15.f));
 	}
 	return c;
+}
+
+// Between two full updates: only what an audio-rate CV can move (speed and
+// cutoff), and only when its input is patched.
+template <class M>
+void sliceFastControls(M &m, const SliceSettings &st, int i, SliceControls &c) {
+	if (m.inputs[M::SPEED_INPUT].isConnected())
+		c.speed = dsp::exp2_taylor5(clamp(st.speed + m.inputs[M::SPEED_INPUT].getPolyVoltage(i), -4.f, 4.f));
+	if constexpr (M::HAS_FILTER) {
+		if (m.inputs[M::FREQ_INPUT].isConnected())
+			c.freq = dsp::exp2_taylor5(clamp(4.5f + 9.5f * st.freq + m.inputs[M::FREQ_INPUT].getPolyVoltage(i), 3.f, 15.f));
+	}
 }
 
 // The channel voice j chokes, from its setting or the polyphonic kill CV.
@@ -385,4 +445,75 @@ inline void slicePreset(SliceSettings *st, int count, int slices) {
 		st[j].loop = false;
 		st[j].gate = 1;
 	}
+}
+
+// The control-rate state of a slice module.
+struct SliceRun {
+	dsp::ClockDivider control;  // panel and CVs that only move slowly
+	bool first = true;
+	SliceRun() {
+		control.setDivision(16);
+	}
+};
+
+// One sample of the 16 voices. sampleOf(i) is the sample voice i plays.
+// Choking: a voice is choked when another voice that is playing (or starts
+// now) names it; a voice starting now is never choked, so the newest note
+// wins whatever the voice order.
+template <class M, class SampleOf>
+void sliceProcess(M &m, SliceRun &run, const Module::ProcessArgs &args, SampleOf sampleOf) {
+	bool full = run.control.process() || run.first;
+	run.first = false;
+	if (full) {
+		// The panel shows the selected channel.
+		int sel = clamp((int)m.params[M::CHANNEL_PARAM].getValue(), 0, 15);
+		if (sel != m.currentChannel) {
+			m.currentChannel = sel;
+			sliceLoadPanel(m, m.settings[m.currentChannel]);
+		}
+		sliceSavePanel(m, m.settings[m.currentChannel]);
+	}
+
+	int c = std::max(m.inputs[M::TRIG_INPUT].getChannels(), 1);
+	bool rise[16], high[16];
+	for (int i = 0; i < c; i++) {
+		SliceVoice &v = m.voices[i];
+		rise[i] = v.trigger.process(m.inputs[M::TRIG_INPUT].getVoltage(i), 0.1f, 1.f);
+		high[i] = v.trigger.isHigh();
+		if (full || rise[i])
+			v.ctl = sliceControls(m, m.settings[i], i);
+		else
+			sliceFastControls(m, m.settings[i], i, v.ctl);
+	}
+	uint32_t killedMask = 0;
+	if constexpr (M::HAS_FILTER) {
+		for (int j = 0; j < c; j++) {
+			if (m.voices[j].active || rise[j]) {
+				int k = sliceKill(m, m.settings[j], j);
+				if (k >= 0 && k < c && k != j)
+					killedMask |= 1u << k;
+			}
+		}
+		for (int j = 0; j < c; j++)
+			if (rise[j])
+				killedMask &= ~(1u << j);
+	}
+	int fadeLen = sampleread::declickLength(args.sampleRate);
+	for (int i = 0; i < c; i++) {
+		bool killed = (killedMask >> i) & 1u;
+		m.outputs[M::POLY_OUTPUT].setVoltage(slicePlay(m.voices[i], sampleOf(i), m.voices[i].ctl, rise[i], high[i], killed, M::HAS_FILTER, args.sampleTime, fadeLen), i);
+	}
+	for (int i = c; i < 16; i++) {
+		m.voices[i].active = false;
+		m.voices[i].dc.reset();
+	}
+	m.outputs[M::POLY_OUTPUT].setChannels(c);
+}
+
+// A preset light flash fades in about a quarter of a second; dt is the time
+// since its last update.
+inline void slicePresetLight(Light &l, float dt) {
+	float b = l.getBrightness();
+	if (b > 0.f)
+		l.setBrightness(b < 1e-3f ? 0.f : b * std::exp(-4.f * dt));
 }

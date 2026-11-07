@@ -107,6 +107,7 @@ void BAR::process(const ProcessArgs &args) {
 		params[MIX_PARAM].getValue(), params[LOOKAHEAD_PARAM].getValue(), args.sampleRate);
 	threshold = settings.threshold; ratio = settings.ratio; attackTime = settings.attack; releaseTime = settings.release;
 	knee = settings.knee; makeup = settings.makeup; mix = settings.mix; lookAhead = (int)settings.lookAhead;
+	settings.glide();
 
 	bool inConnected = inputs[IN_L_INPUT].isConnected() || inputs[IN_R_INPUT].isConnected();
 	bool sc = inputs[SC_L_INPUT].isConnected() || inputs[SC_R_INPUT].isConnected();
@@ -116,18 +117,19 @@ void BAR::process(const ProcessArgs &args) {
 	float scR = inputs[SC_R_INPUT].isConnected() ? inputs[SC_R_INPUT].getVoltage() : scL;
 
 	// stereo linked: the louder side drives both
-	float level = hold.process(sc ? std::max(std::fabs(scL), std::fabs(scR)) : std::max(std::fabs(inL), std::fabs(inR)), settings.bucket);
+	float level = hold.process(sc ? std::max(std::fabs(scL), std::fabs(scR)) : std::max(std::fabs(inL), std::fabs(inR)), settings.fall);
 	float reduction = comp.process(barToDb(level), settings);
-	gaindB = settings.makeup + reduction;
-	float g = barDbToGain(gaindB) * settings.mix + (1.0f - settings.mix);
+	gaindB = settings.makeupNow + reduction;
+	float g = barDbToGain(gaindB) * settings.mixNow + (1.0f - settings.mixNow);
 
 	float fade = 1.0f / (0.005f * args.sampleRate);
 	bypassAmount = bypass ? std::min(bypassAmount + fade, 1.0f) : std::max(bypassAmount - fade, 0.0f);
 	g += (1.0f - g) * bypassAmount;
 
-	// bypassed: no lookahead delay either (the delay crossfades to 0)
+	// bypassed, the lookahead delay stays: the audio is neither skipped nor
+	// repeated when the bypass goes on or off
 	float fadeDelay = 1.0f / (0.01f * args.sampleRate);
-	int delay = bypass ? 0 : settings.delay;
+	int delay = settings.delay;
 	outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(delayL.process(inL, delay, fadeDelay) * g));
 	outputs[OUT_R_OUTPUT].setVoltage(bidooSoftLimit(delayR.process(inR, delay, fadeDelay) * g));
 

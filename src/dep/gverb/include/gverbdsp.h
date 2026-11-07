@@ -50,7 +50,8 @@ static inline float diffuser_do(ty_diffuser *p, float x)
   w = flush_to_zero(w);
   y = p->buf[p->idx] + w*p->coeff;
   p->buf[p->idx] = w;
-  p->idx = (p->idx + 1) % p->size;
+  /* compare and wrap: no integer division per sample */
+  if (++p->idx >= p->size) p->idx = 0;
   return(y);
 }
 
@@ -58,7 +59,8 @@ static inline float fixeddelay_read(ty_fixeddelay *p, int n)
 {
   int i;
 
-  i = (p->idx - n + p->size) % p->size;
+  i = p->idx - n;
+  if (i < 0) i += p->size;
   return(p->buf[i]);
 }
 
@@ -77,7 +79,7 @@ static inline float fixeddelay_read_frac(ty_fixeddelay *p, float n)
 static inline void fixeddelay_write(ty_fixeddelay *p, float x)
 {
   p->buf[p->idx] = x;
-  p->idx = (p->idx + 1) % p->size;
+  if (++p->idx >= p->size) p->idx = 0;
 }
 
 static inline void damper_set(ty_damper *p, float damping)

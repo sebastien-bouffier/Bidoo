@@ -61,6 +61,13 @@ struct REI : BidooModule {
 	PrismReverb::Settings settings;
 	float inL[BLOCK] = {}, inR[BLOCK] = {}, wetL[BLOCK] = {}, wetR[BLOCK] = {};
 	int pos = 0;
+	// idle: input and wet output under -100 dB for IDLE_SECONDS, then Prism is
+	// skipped (and while no output is patched) until the input moves again
+	static constexpr float IDLE_LEVEL = 1e-5f;  // Prism units, 1 = 5 V
+	static constexpr float IDLE_SECONDS = 1.5f;
+	int quietBlocks = 0;
+	bool idle = false;
+	float blockPeak = 0.f;
 
 	dsp::SchmittTrigger freezeTrigger;
 	bool freeze = false;
@@ -171,9 +178,10 @@ struct REI : BidooModule {
 		prepareLoop(APP && APP->engine ? APP->engine->getSampleRate() : 48000.f);
 	}
 
+	// FREEZE is not saved: a patch opens with an empty reverb, and a held
+	// (empty) tail with the input shut out would only be silence
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
-		json_object_set_new(rootJ, "freeze", json_boolean(freeze));
 		json_object_set_new(rootJ, "algo", json_integer(algo));
 		json_object_set_new(rootJ, "preDelay", json_integer(preDelay));
 		json_object_set_new(rootJ, "mod", json_integer(mod));
@@ -182,7 +190,7 @@ struct REI : BidooModule {
 
 	void dataFromJson(json_t *rootJ) override {
 		BidooModule::dataFromJson(rootJ);
-		freeze = json_boolean_value(json_object_get(rootJ, "freeze"));
+		freeze = false;
 		if (json_t *j = json_object_get(rootJ, "algo"))
 			algo = clamp((int)json_integer_value(j), 0, PrismReverb::NumAlgos - 1);
 		if (json_t *j = json_object_get(rootJ, "preDelay"))
@@ -203,19 +211,34 @@ struct REI : BidooModule {
 		bool shut = freeze && !bidoo::dsp::reverb::prism_detail::isFdn(algo);
 		inL[pos] = shut ? 0.f : l * 0.2f;
 		inR[pos] = shut ? 0.f : r * 0.2f;
+		blockPeak = std::max(blockPeak, std::max(std::max(std::fabs(inL[pos]), std::fabs(inR[pos])), std::max(std::fabs(wetL[pos]), std::fabs(wetR[pos]))));
 		float oL = wetL[pos] * 5.0f, oR = wetR[pos] * 5.0f;
 		loopFreeze(oL, oR);
 		if (++pos >= BLOCK) {
 			pos = 0;
-			settings.algo = algo;
-			settings.preMs = preDelays()[preDelay];
-			settings.mod = mods()[mod];
-			settings.decay = clamp(params[SIZE_PARAM].getValue() + inputs[SIZE_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
-			settings.damp = clamp(params[DAMP_PARAM].getValue() + inputs[DAMP_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
-			settings.shimmer = clamp(params[SHIMM_PARAM].getValue() + inputs[SHIMM_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
-			settings.interval = clamp((int)std::round(params[SHIMMPITCH_PARAM].getValue() + inputs[SHIMMPITCH_INPUT].getVoltage()), 0, NUM_INTERVALS - 1);
-			settings.freeze = freeze;
-			prism.process(inL, inR, wetL, wetR, BLOCK, settings);
+			bool heard = outputs[OUT_L_OUTPUT].isConnected() || outputs[OUT_R_OUTPUT].isConnected();
+			if (blockPeak >= IDLE_LEVEL || looping) {
+				quietBlocks = 0;
+				idle = false;
+			}
+			else if (!idle && ++quietBlocks * BLOCK > (int)(IDLE_SECONDS * args.sampleRate))
+				idle = true;
+			blockPeak = 0.f;
+			if (idle || !heard) {
+				std::fill(wetL, wetL + BLOCK, 0.f);
+				std::fill(wetR, wetR + BLOCK, 0.f);
+			}
+			else {
+				settings.algo = algo;
+				settings.preMs = preDelays()[preDelay];
+				settings.mod = mods()[mod];
+				settings.decay = clamp(params[SIZE_PARAM].getValue() + inputs[SIZE_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
+				settings.damp = clamp(params[DAMP_PARAM].getValue() + inputs[DAMP_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
+				settings.shimmer = clamp(params[SHIMM_PARAM].getValue() + inputs[SHIMM_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
+				settings.interval = clamp((int)std::round(params[SHIMMPITCH_PARAM].getValue() + inputs[SHIMMPITCH_INPUT].getVoltage()), 0, NUM_INTERVALS - 1);
+				settings.freeze = freeze;
+				prism.process(inL, inR, wetL, wetR, BLOCK, settings);
+			}
 		}
 
 		// width on the wet only: 0 mono, 50% as Prism makes it, 100% twice the side

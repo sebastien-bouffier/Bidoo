@@ -227,6 +227,14 @@ struct MU : BidooModule {
 		return beat;
 	}
 
+	// exp2 / log2 only when the tempo CV or the tempo changes; lights at control rate.
+	float bpmVolts = NAN;
+	double bpmFromVolts = 120.0;
+	double bpmOutTempo = NAN;
+	float bpmOutVolts = 0.f;
+	static constexpr int CONTROL_DIV = 16;
+	int controlCounter = 0;
+
 	void process(const ProcessArgs &args) override;
 };
 
@@ -244,7 +252,16 @@ void MU::process(const ProcessArgs &args) {
 		if (sinceClock >= 0)
 			resetClock();
 		// In double: the tempo passed down a chain keeps its precision.
-		tempo = (!clockFollow && inputs[BPM_INPUT].isConnected()) ? clamp(120.0 * std::exp2(clamp((double)inputs[BPM_INPUT].getVoltage(), -7.0, 3.1)), (double)BPM_MIN, (double)BPM_MAX) : knobBpm;
+		if (!clockFollow && inputs[BPM_INPUT].isConnected()) {
+			float v = inputs[BPM_INPUT].getVoltage();
+			if (v != bpmVolts) {
+				bpmVolts = v;
+				bpmFromVolts = clamp(120.0 * std::exp2(clamp((double)v, -7.0, 3.1)), (double)BPM_MIN, (double)BPM_MAX);
+			}
+			tempo = bpmFromVolts;
+		}
+		else
+			tempo = knobBpm;
 	}
 	bpm = tempo;
 	displayLength = std::round(params[STEPLENGTH_PARAM].getValue()) + std::round(params[STEPLENGTHFINE_PARAM].getValue() * 100.f) * 0.01f;
@@ -336,16 +353,24 @@ void MU::process(const ProcessArgs &args) {
 	bool pulse = eosPulse.process(dt);
 	outputs[EOSTEP_OUTPUT].setVoltage((pulse && !alt) ? 10.f : 0.f);
 	outputs[ALTEOSTEP_OUTPUT].setVoltage((pulse && alt) ? 10.f : 0.f);
-	outputs[BPM_OUTPUT].setVoltage((float)std::log2(tempo / 120.0));
+	if (tempo != bpmOutTempo) {
+		bpmOutTempo = tempo;
+		bpmOutVolts = (float)std::log2(tempo / 120.0);
+	}
+	outputs[BPM_OUTPUT].setVoltage(bpmOutVolts);
 
-	// Lights.
-	const float lambda = 13.333333f * dt;
+	// Lights, at control rate (the pulses they show last 1 ms or more).
+	if (--controlCounter >= 0)
+		return;
+	controlCounter = CONTROL_DIV - 1;
+	const float lightDt = dt * CONTROL_DIV;
+	const float lambda = 13.333333f * lightDt;
 	bool gateLit = ownGate && !mute;
 	float l = lights[NORMEOS_LIGHT].getBrightness();
 	lights[NORMEOS_LIGHT].setBrightness((pulse && !alt) ? 1.f : l - l * lambda);
 	l = lights[ALTEOS_LIGHT].getBrightness();
 	lights[ALTEOS_LIGHT].setBrightness((pulse && alt) ? 1.f : l - l * lambda);
-	lights[START_LIGHT].setBrightness((startArmed || startLightPulse.process(dt)) ? 1.f : 0.f);
+	lights[START_LIGHT].setBrightness((startArmed || startLightPulse.process(lightDt)) ? 1.f : 0.f);
 	l = lights[GATE_LIGHT].getBrightness();
 	lights[GATE_LIGHT].setBrightness(gateLit ? 1.f : l - 4.f * l * lambda);
 	lights[GATE_LIGHT + 1].setBrightness(0.f);

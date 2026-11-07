@@ -43,15 +43,24 @@ struct POUPRE : BidooModule {
 	SliceVoice voices[16];
 	int currentChannel = 0;
 	dsp::SchmittTrigger presetTriggers[4];
+	SliceRun run;
+	dsp::ClockDivider slow;  // the sample handoff, lights and preset buttons
 
 	POUPRE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		slow.setDivision(32);
 		sliceConfig(*this);
 		for (int i = 0; i < 4; i++)
 			configButton(PRESET_PARAM + i, string::f("Preset: %d slices", 8 << i));
 	}
 
 	void process(const ProcessArgs &args) override;
+
+	// Bypassed: still takes the loaded samples, so the loader never waits.
+	void processBypass(const ProcessArgs &args) override {
+		bank.poll(args.sampleRate);
+		Module::processBypass(args);
+	}
 
 	void onRandomize() override {
 		for (int i = 0; i < 16; i++)
@@ -94,41 +103,26 @@ struct POUPRE : BidooModule {
 };
 
 void POUPRE::process(const ProcessArgs &args) {
-	bank.poll(args.sampleRate);
-	bool loaded = bank.current[0] && bank.current[0]->size() > 0;
-	lights[SAMPLE_LIGHT].setBrightness(loaded ? 0.0f : 1.0f);
-	lights[SAMPLE_LIGHT+1].setBrightness(loaded ? 1.0f : 0.0f);
-	lights[SAMPLE_LIGHT+2].setBrightness(0.0f);
+	if (slow.process()) {
+		bank.poll(args.sampleRate);
+		bool loaded = bank.current[0] && bank.current[0]->size() > 0;
+		lights[SAMPLE_LIGHT].setBrightness(loaded ? 0.0f : 1.0f);
+		lights[SAMPLE_LIGHT+1].setBrightness(loaded ? 1.0f : 0.0f);
+		lights[SAMPLE_LIGHT+2].setBrightness(0.0f);
 
-	for (int i = 0; i < 4; i++) {
-		float b = lights[PRESET_LIGHT + i].getBrightness();
-		lights[PRESET_LIGHT + i].setBrightness(b - b * 0.0001f);
-		if (presetTriggers[i].process(params[PRESET_PARAM + i].getValue())) {
-			slicePreset(settings, i == 0 ? 8 : 16, 8 << i);
-			lights[PRESET_LIGHT + i].setBrightness(1.0f);
-			sliceLoadPanel(*this, settings[currentChannel]);
+		float dt = args.sampleTime * slow.getDivision();
+		for (int i = 0; i < 4; i++) {
+			slicePresetLight(lights[PRESET_LIGHT + i], dt);
+			if (presetTriggers[i].process(params[PRESET_PARAM + i].getValue())) {
+				slicePreset(settings, i == 0 ? 8 : 16, 8 << i);
+				lights[PRESET_LIGHT + i].setBrightness(1.0f);
+				sliceLoadPanel(*this, settings[currentChannel]);
+			}
 		}
 	}
 
-	// The panel shows the selected channel.
-	int sel = clamp((int)params[CHANNEL_PARAM].getValue(), 0, 15);
-	if (sel != currentChannel) {
-		currentChannel = sel;
-		sliceLoadPanel(*this, settings[currentChannel]);
-	}
-	sliceSavePanel(*this, settings[currentChannel]);
-
-	int c = std::max(inputs[TRIG_INPUT].getChannels(), 1);
-	for (int i = 0; i < c; i++) {
-		bool rise = voices[i].trigger.process(inputs[TRIG_INPUT].getVoltage(i), 0.1f, 1.f);
-		bool high = voices[i].trigger.isHigh();
-		SliceControls ctl = sliceControls(*this, settings[i], i);
-			bool killed = false;
-		outputs[POLY_OUTPUT].setVoltage(slicePlay(voices[i], bank.current[0], ctl, rise, high, killed, HAS_FILTER, args.sampleTime), i);
-	}
-	for (int i = c; i < 16; i++)
-		voices[i].active = false;
-	outputs[POLY_OUTPUT].setChannels(c);
+	const SliceSample *smp = bank.current[0];
+	sliceProcess(*this, run, args, [smp](int) { return smp; });
 }
 
 struct POUPREWidget : BidooWidget {

@@ -99,23 +99,38 @@ void MINIBAR::process(const ProcessArgs &args) {
 	threshold = settings.threshold; ratio = settings.ratio; attackTime = settings.attack; releaseTime = settings.release;
 	knee = settings.knee; makeup = settings.makeup; mix = settings.mix; mixDisplay = mix * 100.0f;
 	lookAhead = std::floor(settings.lookAhead);
+	settings.glide();
 
 	float fade = 1.0f / (0.005f * args.sampleRate);
 	bypassAmount = bypass ? std::min(bypassAmount + fade, 1.0f) : std::max(bypassAmount - fade, 0.0f);
 	float fadeDelay = 1.0f / (0.01f * args.sampleRate);
-	// bypassed: no lookahead delay either (the delay crossfades to 0)
-	int delayLen = bypass ? 0 : settings.delay;
+	// bypassed, the lookahead delay stays: the audio is neither skipped nor
+	// repeated when the bypass goes on or off
+	int delayLen = settings.delay;
 
 	int channels = std::max(1, inputs[IN_L_INPUT].getChannels());
 	bool sc = inputs[SC_L_INPUT].isConnected();
+	// a sidechain with fewer channels than the audio wraps around (mono drives all)
+	int scChannels = std::max(1, inputs[SC_L_INPUT].getChannels());
 	float loudest = 0.0f, scLoudest = 0.0f, deepest = 0.0f;
+	// the gain with no reduction (make-up and mix only): quiet channels skip the dB maths
+	float restGain = barDbToGain(settings.makeupNow) * settings.mixNow + (1.0f - settings.mixNow);
 	for (int c = 0; c < channels; c++) {
 		float in = inputs[IN_L_INPUT].getVoltage(c);
-		float scIn = inputs[SC_L_INPUT].getPolyVoltage(c);
-		float level = hold[c].process(sc ? scIn : in, settings.bucket);
-		float reduction = comp[c].process(barToDb(level), settings);
+		float scIn = inputs[SC_L_INPUT].getVoltage(c % scChannels);
+		float level = hold[c].process(sc ? scIn : in, settings.fall);
+		float reduction, g;
+		if (level < settings.quietBelow && comp[c].reduction > -1e-4f) {
+			// under the threshold and the knee, nothing to release: no reduction
+			comp[c].reduction = 0.0f;
+			reduction = 0.0f;
+			g = restGain;
+		}
+		else {
+			reduction = comp[c].process(barToDbFast(level), settings);
+			g = barDbToGain(settings.makeupNow + reduction) * settings.mixNow + (1.0f - settings.mixNow);
+		}
 		deepest = std::min(deepest, reduction);
-		float g = barDbToGain(settings.makeup + reduction) * settings.mix + (1.0f - settings.mix);
 		g += (1.0f - g) * bypassAmount;
 		outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(delay[c].process(in, delayLen, fadeDelay) * g), c);
 		if (std::fabs(in) > std::fabs(loudest))
@@ -124,7 +139,7 @@ void MINIBAR::process(const ProcessArgs &args) {
 			scLoudest = scIn;
 	}
 	outputs[OUT_L_OUTPUT].setChannels(channels);
-	gaindB = settings.makeup + deepest;
+	gaindB = settings.makeupNow + deepest;
 
 	if (inputs[IN_L_INPUT].isConnected())
 		meter.process(loudest, args.sampleRate);

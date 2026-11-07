@@ -10,21 +10,31 @@ inline float barToDb(float v) {
 	return std::max(20.0f * std::log10(std::fabs(v) * 0.2f + 1e-9f), -96.3f);
 }
 
-// The loudest |x| over the last 25 to 50 ms (two 25 ms buckets): a 20 Hz sine
-// peaks twice per bucket, so the level holds steady between its zero
-// crossings instead of the gain following the waveform.
-struct BarPeakHold {
-	float cur = 0.0f, prev = 0.0f;
-	int count = 0;
+// log2 within 0.0013 (0.008 dB): exponent bits plus a cubic on the mantissa
+inline float barFastLog2(float x) {
+	union { float f; uint32_t i; } v { x };
+	float e = (float)((int)((v.i >> 23) & 255) - 127);
+	v.i = (v.i & 0x007FFFFF) | 0x3F800000;
+	float m = v.f;  // [1, 2)
+	return e + ((0.15824871f * m - 1.05187502f) * m + 3.04788335f) * m - 2.15419564f;
+}
 
-	float process(float x, int bucket) {
-		cur = std::max(cur, std::fabs(x));
-		if (++count >= bucket) {
-			prev = cur;
-			cur = 0.0f;
-			count = 0;
-		}
-		return std::max(prev, cur);
+// barToDb with barFastLog2 (20 log10(x / 5) = 6.0206 log2(x) - 13.979)
+inline float barToDbFast(float v) {
+	return std::max(6.02059991f * barFastLog2(std::fabs(v) + 1e-9f) - 13.97940009f, -96.3f);
+}
+
+// The level the compressor sees: |x| at once on the way up, then a fall with
+// a time constant of the release (at most 25 ms) on the way down. Continuous:
+// the release works from 1 ms, and a slow release still smooths the ripple
+// of low notes between their peaks.
+struct BarPeakHold {
+	float level = 0.0f;
+
+	float process(float x, float fall) {
+		float a = std::fabs(x);
+		level = a > level ? a : level * fall;
+		return level;
 	}
 };
 
@@ -32,20 +42,44 @@ struct BarPeakHold {
 struct BarSettings {
 	float threshold = 0.0f, ratio = 1.0f, attack = 10.0f, release = 10.0f, knee = 6.0f;
 	float makeup = 0.0f, mix = 1.0f, lookAhead = 0.0f, rate = 0.0f;
-	float cAtt = 0.0f, cRel = 0.0f, slope = 0.0f;
-	int bucket = 1200, delay = 0;
+	float cAtt = 0.0f, cRel = 0.0f, slope = 0.0f, fall = 0.0f;
+	int delay = 0;
+	// make-up (dB) and mix, gliding (10 ms) to the knobs
+	float makeupNow = 0.0f, mixNow = 1.0f, cGlide = 0.0f;
+	bool primed = false;
+	// below this linear level (knee included) the compressor does nothing
+	float quietBelow = 0.0f;
+	float lastThreshold = 1.0f, lastKnee = -1.0f;
 
 	void update(float th, float ra, float at, float re, float kn, float mu, float mx, float la, float sampleRate) {
 		threshold = th; ratio = ra; knee = kn; makeup = mu; mix = mx;
 		slope = 1.0f / ratio - 1.0f;
+		if (th != lastThreshold || kn != lastKnee) {
+			lastThreshold = th;
+			lastKnee = kn;
+			// 5 V = 0 dB, 0.5 dB of margin under the knee
+			quietBelow = 5.0f * std::pow(10.0f, (th - 0.5f * kn - 0.5f) / 20.0f);
+		}
 		if (at != attack || re != release || la != lookAhead || sampleRate != rate) {
 			attack = at; release = re; lookAhead = la; rate = sampleRate;
 			cAtt = std::exp(-1.0f / (attack * rate * 0.001f));
 			cRel = std::exp(-1.0f / (release * rate * 0.001f));
-			bucket = std::max(1, (int)(0.025f * rate));
+			fall = std::exp(-1.0f / (std::min(release, 25.0f) * rate * 0.001f));
+			cGlide = 1.0f - std::exp(-1.0f / (0.01f * rate));
 			// lookahead in % of the attack time
 			delay = (int)(lookAhead * 0.01f * attack * 0.001f * rate);
 		}
+		if (!primed) {
+			makeupNow = makeup;
+			mixNow = mix;
+			primed = true;
+		}
+	}
+
+	// once per sample
+	void glide() {
+		makeupNow += (makeup - makeupNow) * cGlide;
+		mixNow += (mix - mixNow) * cGlide;
 	}
 };
 
@@ -122,11 +156,19 @@ struct BarMeter {
 	float msRms = 0.0f, msVu = 0.0f, blockPeak = 0.0f;
 	float rmsDb = -96.3f, vuDb = -96.3f, inDb = -96.3f, peakDb = -96.3f;
 	int n = 0;
+	// coefficients, worked out when the rate changes
+	float rate = 0.0f, cRms = 0.0f, cVu = 0.0f, peakFall = 0.0f;
 
 	void process(float x, float sampleRate) {
+		if (sampleRate != rate) {
+			rate = sampleRate;
+			cRms = 1.0f / (0.0107f * sampleRate);
+			cVu = 1.0f / (0.341f * sampleRate);
+			peakFall = 50.0f * 64.0f / sampleRate;
+		}
 		float x2 = x * x;
-		msRms += (x2 - msRms) * (1.0f / (0.0107f * sampleRate));
-		msVu += (x2 - msVu) * (1.0f / (0.341f * sampleRate));
+		msRms += (x2 - msRms) * cRms;
+		msVu += (x2 - msVu) * cVu;
 		blockPeak = std::max(blockPeak, std::fabs(x));
 		if (++n >= 64) {
 			n = 0;
@@ -134,12 +176,14 @@ struct BarMeter {
 			vuDb = barToDb(std::sqrt(msVu));
 			inDb = barToDb(blockPeak);
 			blockPeak = 0.0f;
-			peakDb = inDb > peakDb ? inDb : std::max(peakDb - 50.0f * 64.0f / sampleRate, -96.3f);
+			peakDb = inDb > peakDb ? inDb : std::max(peakDb - peakFall, -96.3f);
 		}
 	}
 
 	void clear() {
+		float r = rate, a = cRms, b = cVu, c = peakFall;
 		*this = BarMeter();
+		rate = r; cRms = a; cVu = b; peakFall = c;
 	}
 };
 

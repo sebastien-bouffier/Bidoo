@@ -323,6 +323,17 @@ struct MetroEngine {
 	int copyPattern = -1;
 	bool stepOutputsMode = false;
 
+	// Control rate: the panel, the buttons and the lights run every CONTROL_DIV
+	// samples; clock edges, gates and the pitch stay per sample.
+	static constexpr int CONTROL_DIV = 16;
+	int controlCounter = 0;
+	// Caches, recomputed only when what they depend on changes.
+	double rateVolts = NAN;      // clock knob + CV the rate was computed for
+	double rate = 2.0;
+	float quantIn = NAN;         // quantizer input, root and scale of 'quantOut'
+	int quantRoot = -1, quantScale = -1;
+	float quantOut = 0.f;
+
 	MetroPattern patterns[16];
 	quantizer::Quantizer quant;
 
@@ -383,11 +394,29 @@ struct MetroEngine {
 		}
 	}
 
-	// A stage's pitch as it plays, for the displays.
-	float quantize(M &m, const MetroPattern &p, float stagePitch) {
+	// The quantizer input of a stage pitch.
+	float quantizerInput(M &m, const MetroPattern &p, float stagePitch) {
 		float sens = clamp(p.sensitivity + (m.inputs[M::SENSITIVITY_INPUT].isConnected() ? m.inputs[M::SENSITIVITY_INPUT].getVoltage() * 0.1f : 0.f), 0.1f, 1.f);
-		float v = clamp(stagePitch, -4.f, 6.f) * sens + m.inputs[M::TRANSPOSE_INPUT].getVoltage();
-		return std::get<0>(quant.closestVoltageInScale(v, rootNote(m, p), scale(m, p)));
+		return clamp(stagePitch, -4.f, 6.f) * sens + m.inputs[M::TRANSPOSE_INPUT].getVoltage();
+	}
+
+	// A stage's pitch as it plays, for the displays (UI thread: no cache).
+	float quantize(M &m, const MetroPattern &p, float stagePitch) {
+		return std::get<0>(quant.closestVoltageInScale(quantizerInput(m, p, stagePitch), rootNote(m, p), scale(m, p)));
+	}
+
+	// The same for the audio thread: the scale search only runs when its input changes.
+	float quantizeCached(M &m, const MetroPattern &p, float stagePitch) {
+		float v = quantizerInput(m, p, stagePitch);
+		int r = rootNote(m, p);
+		int sc = scale(m, p);
+		if (v != quantIn || r != quantRoot || sc != quantScale) {
+			quantIn = v;
+			quantRoot = r;
+			quantScale = sc;
+			quantOut = std::get<0>(quant.closestVoltageInScale(v, r, sc));
+		}
+		return quantOut;
 	}
 
 	int rootNote(M &m, const MetroPattern &p) {
@@ -407,7 +436,7 @@ struct MetroEngine {
 			a[i] = t[i];
 	}
 
-	void process(M &m, const Module::ProcessArgs &args) {
+	void processControls(M &m) {
 		if (runningTrigger.process(m.params[M::RUN_PARAM].getValue()))
 			running = !running;
 
@@ -464,21 +493,65 @@ struct MetroEngine {
 		}
 		if (reload)
 			loadPanel(m);
+	}
+
+	void buildPlayed(M &m) {
+		MetroPattern &pl = patterns[playedPattern];
+		pl.build(clamp((int)(pl.numberOfStepsParam + m.inputs[M::STEPS_INPUT].getVoltage()), 1, 16));
+	}
+
+	void processLights(M &m, float sampleTime) {
+		const MetroPattern &ed = patterns[selectedPattern];
+		const float lambda = 13.333333f * sampleTime * CONTROL_DIV;
+		for (int i = 0; i < 8; i++) {
+			float b = m.lights[M::STEPS_LIGHTS + i].getBrightness();
+			b -= b * lambda;
+			m.lights[M::STEPS_LIGHTS + i].setBrightness(b);
+			m.lights[M::SLIDES_LIGHTS + i].setBrightness(ed.stageSlide[i] ? 1.f - b : b);
+			m.lights[M::SKIPS_LIGHTS + i].setBrightness(ed.stageSkip[i] ? 1.f - b : b);
+		}
+		float r = m.lights[M::RESET_LIGHT].getBrightness();
+		m.lights[M::RESET_LIGHT].setBrightness(r - r * lambda);
+		m.lights[M::RUNNING_LIGHT].setBrightness(running ? 1.f : 0.f);
+		m.lights[M::COPY_LIGHT].setBrightness(copyPattern >= 0 ? 1.f : 0.f);
+		if constexpr (M::EXTENDED) {
+			m.lights[M::PLAYMODE_LIGHT].setBrightness(ed.playMode > 2 ? 1.f : 0.f);
+			m.lights[M::PLAYMODE_LIGHT + 1].setBrightness(ed.playMode > 0 && ed.playMode < 4 ? 1.f : 0.f);
+			m.lights[M::PLAYMODE_LIGHT + 2].setBrightness(ed.playMode < 2 ? 1.f : 0.f);
+			m.lights[M::COUNTMODE_LIGHT].setBrightness(0.f);
+			m.lights[M::COUNTMODE_LIGHT + 1].setBrightness(ed.countMode == 1 ? 1.f : 0.f);
+			m.lights[M::COUNTMODE_LIGHT + 2].setBrightness(ed.countMode == 0 ? 1.f : 0.f);
+		}
+	}
+
+	void process(M &m, const Module::ProcessArgs &args) {
+		bool control = --controlCounter < 0;
+		if (control) {
+			controlCounter = CONTROL_DIV - 1;
+			processControls(m);
+		}
 
 		// Playing: the pattern CV picks any pattern, the position carries over.
 		int newPattern = m.inputs[M::PATTERN_INPUT].isConnected() ? clamp((int)rescale(m.inputs[M::PATTERN_INPUT].getVoltage(), 0.f, 10.f, 1.f, 16.1f) - 1, 0, 15) : selectedPattern;
-		if (newPattern != playedPattern) {
+		bool patternChanged = newPattern != playedPattern;
+		if (patternChanged) {
 			patterns[newPattern].currentStep = patterns[playedPattern].currentStep;
 			patterns[newPattern].currentPulse = patterns[playedPattern].currentPulse;
 			playedPattern = newPattern;
 		}
 		MetroPattern &pl = patterns[playedPattern];
-		pl.build(clamp((int)(pl.numberOfStepsParam + m.inputs[M::STEPS_INPUT].getVoltage()), 1, 16));
+		// The steps are rebuilt at control rate, on a pattern change and before each step.
+		if (control || patternChanged)
+			buildPlayed(m);
 
 		// Clock: internal at 1V/oct (0 V = 120 BPM), or the external clock with
 		// the phase measured from its last interval.
 		bool tick = false;
-		double rate = 2.0 * std::exp2((double)m.params[M::CLOCK_PARAM].getValue() + m.inputs[M::CLOCK_INPUT].getVoltage());
+		double rv = (double)m.params[M::CLOCK_PARAM].getValue() + m.inputs[M::CLOCK_INPUT].getVoltage();
+		if (rv != rateVolts) {
+			rateVolts = rv;
+			rate = 2.0 * std::exp2(rv);
+		}
 		bool ext = m.inputs[M::EXT_CLOCK_INPUT].isConnected();
 		bool extEdge = clockTrigger.process(ext ? m.inputs[M::EXT_CLOCK_INPUT].getVoltage() : 0.f, 0.1f, 1.f);
 		if (ext) {
@@ -527,6 +600,8 @@ struct MetroEngine {
 
 		if (tick) {
 			slideFrom = pitch;
+			if (!control && !patternChanged)
+				buildPlayed(m);
 			pl.advance(resetArmed);
 			resetArmed = false;
 			started = true;
@@ -571,7 +646,7 @@ struct MetroEngine {
 
 		// Pitch: quantized while the stage plays, held through rests.
 		if (active && s.type != MetroPattern::REST)
-			target = quantize(m, pl, s.pitch + rndPitch);
+			target = quantizeCached(m, pl, s.pitch + rndPitch);
 		if (s.slide && pulse == 0 && started) {
 			float curve = clamp(pl.slideTime + m.inputs[M::SLIDE_TIME_INPUT].getVoltage() * 0.1f, 0.f, 0.99f);
 			pitch = slideFrom + (target - slideFrom) * std::pow((float)std::min(phase, 1.0), curve);
@@ -584,28 +659,11 @@ struct MetroEngine {
 		if constexpr (M::EXTENDED)
 			m.outputs[M::ACC_OUTPUT].setVoltage(accent);
 
-		// Lights & stage outputs.
-		const float lambda = 13.333333f * args.sampleTime;
-		for (int i = 0; i < 8; i++) {
-			float b = m.lights[M::STEPS_LIGHTS + i].getBrightness();
-			b -= b * lambda;
-			m.lights[M::STEPS_LIGHTS + i].setBrightness(b);
-			m.lights[M::SLIDES_LIGHTS + i].setBrightness(ed.stageSlide[i] ? 1.f - b : b);
-			m.lights[M::SKIPS_LIGHTS + i].setBrightness(ed.stageSkip[i] ? 1.f - b : b);
+		// Stage outputs per sample, lights at control rate.
+		for (int i = 0; i < 8; i++)
 			m.outputs[M::STEP_OUTPUT + i].setVoltage(stepPulse[i].process(args.sampleTime) ? 10.f : 0.f);
-		}
-		float r = m.lights[M::RESET_LIGHT].getBrightness();
-		m.lights[M::RESET_LIGHT].setBrightness(r - r * lambda);
-		m.lights[M::RUNNING_LIGHT].setBrightness(running ? 1.f : 0.f);
-		m.lights[M::COPY_LIGHT].setBrightness(copyPattern >= 0 ? 1.f : 0.f);
-		if constexpr (M::EXTENDED) {
-			m.lights[M::PLAYMODE_LIGHT].setBrightness(ed.playMode > 2 ? 1.f : 0.f);
-			m.lights[M::PLAYMODE_LIGHT + 1].setBrightness(ed.playMode > 0 && ed.playMode < 4 ? 1.f : 0.f);
-			m.lights[M::PLAYMODE_LIGHT + 2].setBrightness(ed.playMode < 2 ? 1.f : 0.f);
-			m.lights[M::COUNTMODE_LIGHT].setBrightness(0.f);
-			m.lights[M::COUNTMODE_LIGHT + 1].setBrightness(ed.countMode == 1 ? 1.f : 0.f);
-			m.lights[M::COUNTMODE_LIGHT + 2].setBrightness(ed.countMode == 0 ? 1.f : 0.f);
-		}
+		if (control)
+			processLights(m, args.sampleTime);
 	}
 
 	json_t *toJson(json_t *rootJ) {

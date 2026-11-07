@@ -1,6 +1,7 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/digital.hpp"
+#include "SampleRead.hpp"
 #include <vector>
 
 using namespace std;
@@ -42,6 +43,12 @@ struct FREIN : BidooModule {
 	// longest time (3 s), so 1.5 s of tape is enough
 	std::vector<float> tape[PORT_MAX_CHANNELS];
 	int tapeSize = 1;
+	// Every change of state (a break or a start, even in the middle of one)
+	// crossfades over 5 ms from the last output.
+	State lastState = PLAY;
+	float lastOut[PORT_MAX_CHANNELS] = {};
+	float held[PORT_MAX_CHANNELS] = {};
+	int xfLeft = 0, xfLen = 1;
 
 	FREIN() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -61,24 +68,28 @@ struct FREIN : BidooModule {
 		tapeSize = (int)(1.5f * sampleRate) + 8;
 		for (auto &t : tape)
 			t.assign(tapeSize, 0.0f);
-		state = PLAY;
+		state = lastState = PLAY;
 		speed = 1.0f;
+		xfLeft = 0;
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent &e) override {
 		resize(e.sampleRate);
 	}
 
+	// 4-point Hermite on the tape (varispeed).
 	float read(int c, double pos) const {
 		long long i = (long long)pos;
 		float f = (float)(pos - (double)i);
-		float a = tape[c][i % tapeSize], b = tape[c][(i + 1) % tapeSize];
-		return a + (b - a) * f;
+		const std::vector<float> &t = tape[c];
+		return sampleread::hermite(t[(i + tapeSize - 1) % tapeSize], t[i % tapeSize], t[(i + 1) % tapeSize], t[(i + 2) % tapeSize], f);
 	}
 
 	void process(const ProcessArgs &args) override {
 		float time = clamp(params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage() * 0.25f, 0.5f, 3.0f);
+		bool restarted = false;
 		if (trigTrigger.process(params[TRIG_PARAM].getValue() + inputs[TRIG_INPUT].getVoltage())) {
+			restarted = true;
 			state = BREAK;
 			speed = 1.0f;
 			speedStep = 1.0f / (args.sampleRate * time);
@@ -86,6 +97,7 @@ struct FREIN : BidooModule {
 			written = 0;
 		}
 		if (startTrigger.process(params[START_PARAM].getValue() + inputs[START_INPUT].getVoltage()) && state != PLAY && state != CATCHUP) {
+			restarted = true;
 			state = START;
 			speed = 0.0f;
 			speedStep = 1.0f / (args.sampleRate * time);
@@ -94,6 +106,12 @@ struct FREIN : BidooModule {
 		}
 
 		int channels = std::max(1, inputs[INPUT].getChannels());
+		if (restarted || state != lastState) {
+			for (int c = 0; c < channels; c++)
+				held[c] = lastOut[c];
+			xfLen = std::max(1, (int)(0.005f * args.sampleRate));
+			xfLeft = xfLen;
+		}
 		bool tapeRuns = state == BREAK || state == START || state == CATCHUP;
 		if (tapeRuns) {
 			int w = (int)(written % tapeSize);
@@ -103,16 +121,29 @@ struct FREIN : BidooModule {
 
 		// fades in and out over the slowest tenth of the speed
 		float gain = std::min(1.0f, speed * 10.0f);
+		// back to the live input: an equal-power crossfade (the tape lags it)
+		float tapeGain = 1.f, liveGain = 0.f;
+		if (state == CATCHUP) {
+			tapeGain = std::cos(0.5f * float(M_PI) * catchup);
+			liveGain = std::sin(0.5f * float(M_PI) * catchup);
+		}
+		float xf = xfLeft > 0 ? 1.f - (float)xfLeft / (float)xfLen : 1.f;
 		for (int c = 0; c < channels; c++) {
 			float out;
 			switch (state) {
 				case PLAY: out = inputs[INPUT].getVoltage(c); break;
 				case STOPPED: out = 0.0f; break;
-				case CATCHUP: out = read(c, head) + (inputs[INPUT].getVoltage(c) - read(c, head)) * catchup; break;
+				case CATCHUP: out = read(c, head) * tapeGain + inputs[INPUT].getVoltage(c) * liveGain; break;
 				default: out = read(c, head) * gain; break;
 			}
+			if (xfLeft > 0)
+				out = held[c] + (out - held[c]) * xf;
+			lastOut[c] = out;
 			outputs[OUTPUT].setVoltage(out, c);
 		}
+		if (xfLeft > 0)
+			xfLeft--;
+		lastState = state;
 		outputs[OUTPUT].setChannels(channels);
 
 		if (tapeRuns) {
