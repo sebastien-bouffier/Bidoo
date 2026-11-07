@@ -148,7 +148,7 @@ struct MU : BidooModule {
 	}
 
 	void updateBpmInputName() {
-		inputInfos[BPM_INPUT]->name = clockFollow ? string::f("Clock to follow (%d PPQN)", clockPpqn) : "BPM (1V/oct, 0 V = 120 BPM)";
+		inputInfos[BPM_INPUT]->name = clockFollow ? rack::string::f("Clock to follow (%d PPQN)", clockPpqn) : "BPM (1V/oct, 0 V = 120 BPM)";
 	}
 
 	void resetClock() {
@@ -666,7 +666,7 @@ struct MUWidget : BidooWidget {
 		menu->addChild(createCheckMenuItem("1V/oct CV (0 V = 120 BPM)", "", [=]() { return !m->clockFollow; }, [=]() { m->setClockFollow(false, m->clockPpqn); }));
 		static const int ppqns[] = {1, 2, 4, 8, 12, 24, 48, 96};
 		for (int p : ppqns)
-			menu->addChild(createCheckMenuItem(string::f("Clock to follow, %d PPQN", p), "", [=]() { return m->clockFollow && m->clockPpqn == p; }, [=]() { m->setClockFollow(true, p); }));
+			menu->addChild(createCheckMenuItem(rack::string::f("Clock to follow, %d PPQN", p), "", [=]() { return m->clockFollow && m->clockPpqn == p; }, [=]() { m->setClockFollow(true, p); }));
 	}
 };
 

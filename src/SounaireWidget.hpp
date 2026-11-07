@@ -642,13 +642,13 @@ struct SounaireDisplay : OpaqueWidget {
 			float rec = module->recSeconds;
 			std::string error = module->getLastError();
 			if (rec > 0.f)
-				line = string::f("RECORDING  %.1f s", rec);
+				line = rack::string::f("RECORDING  %.1f s", rec);
 			else if (module->loading)
 				line = "LOADING...";
 			else if (!error.empty())
 				line = error;
 			else if (s)
-				line = string::f("%s  %.1f kHz  %.2f s", s->name.c_str(), s->rate / 1000.f, s->frames / s->rate);
+				line = rack::string::f("%s  %.1f kHz  %.2f s", s->name.c_str(), s->rate / 1000.f, s->frames / s->rate);
 			else
 				line = "DROP A WAV, AIFF OR FLAC HERE";
 			if (rec > 0.f)
@@ -661,23 +661,23 @@ struct SounaireDisplay : OpaqueWidget {
 				static const char *types[] = {"ONE SHOT", "GATE", "LOOP", "PING-PONG", "REVERSE", "REV LOOP"};
 				int base = (int)module->params[SOUNAIRE::ROOT_PARAM].getValue();
 				int play = (int)module->params[SOUNAIRE::PLAY_PARAM].getValue();
-				root = string::f("SLICE %d/%d %s  KEY %s", sel + 1, cuts.count, types[clamp((int)cuts.type[sel], 0, 5)],
+				root = rack::string::f("SLICE %d/%d %s  KEY %s", sel + 1, cuts.count, types[clamp((int)cuts.type[sel], 0, 5)],
 				                 sounaire_ui::noteName(base + sel).c_str());
 				if (cuts.choke[sel] > 0)
-					root += string::f("  CHOKE %d", cuts.choke[sel]);
+					root += rack::string::f("  CHOKE %d", cuts.choke[sel]);
 				if (play > 0)
-					root += string::f("  PLAY: %s", types[clamp(play - 1, 0, 5)]);
+					root += rack::string::f("  PLAY: %s", types[clamp(play - 1, 0, 5)]);
 			}
 			else {
 				root = "ROOT " + sounaire_ui::noteName(module->params[SOUNAIRE::ROOT_PARAM].getValue());
 				if (std::fabs(module->rootCents) >= 0.5f)
-					root += string::f(" %+.0fc", module->rootCents);
+					root += rack::string::f(" %+.0fc", module->rootCents);
 			}
 			nvgText(args.vg, W - 4, H - 2, root.c_str(), nullptr);
 			float bpm = module->syncBpm;
 			if (bpm > 0.f) {
 				nvgTextAlign(args.vg, NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM);
-				nvgText(args.vg, 4, H - 2, string::f("SYNC %.1f BPM  %d BEATS", bpm, (int)module->syncBeats).c_str(), nullptr);
+				nvgText(args.vg, 4, H - 2, rack::string::f("SYNC %.1f BPM  %d BEATS", bpm, (int)module->syncBeats).c_str(), nullptr);
 			}
 		}
 		nvgResetScissor(args.vg);
@@ -960,8 +960,8 @@ struct SliceSettingQuantity : Quantity {
 		if ((which == SOUNAIRE::SET_ATTACK || which == SOUNAIRE::SET_RELEASE) && v < 0.f)
 			return "the knob";
 		if (which == SOUNAIRE::SET_PAN)
-			return std::fabs(v) < 0.005f ? "centre" : string::f("%.0f%% %s", std::fabs(v) * 100.f, v < 0 ? "left" : "right");
-		return string::f(which == SOUNAIRE::SET_TUNE ? "%+.2f" : "%.1f", v);
+			return std::fabs(v) < 0.005f ? "centre" : rack::string::f("%.0f%% %s", std::fabs(v) * 100.f, v < 0 ? "left" : "right");
+		return rack::string::f(which == SOUNAIRE::SET_TUNE ? "%+.2f" : "%.1f", v);
 	}
 };
 
@@ -981,7 +981,7 @@ struct SensitivityQuantity : Quantity {
 		return "Sensitivity";
 	}
 	std::string getDisplayValueString() override {
-		return string::f("%.0f%% (%.1f dB of rise)", m->sensitivity * 100.f, sounaire::riseForSensitivity(m->sensitivity));
+		return rack::string::f("%.0f%% (%.1f dB of rise)", m->sensitivity * 100.f, sounaire::riseForSensitivity(m->sensitivity));
 	}
 };
 
@@ -1134,7 +1134,7 @@ struct SOUNAIREWidget : BidooWidget {
 			[=](size_t i) { int r[] = {1, 2, 4, 12, 24}; m->clockPpqn = r[i]; }));
 		std::shared_ptr<sounaire::Sample> s = m->displaySample();
 		int guess = s ? SOUNAIRE::guessBeats(s->frames / (double)s->rate) : 4;
-		menu->addChild(createIndexSubmenuItem("The sample lasts", {string::f("Guess (%d beats)", guess), "1 beat", "2 beats", "4 beats (1 bar)", "8 beats", "16 beats", "32 beats", "64 beats"},
+		menu->addChild(createIndexSubmenuItem("The sample lasts", {rack::string::f("Guess (%d beats)", guess), "1 beat", "2 beats", "4 beats (1 bar)", "8 beats", "16 beats", "32 beats", "64 beats"},
 			[=]() { if (m->loopBeats <= 0) return 0; int i = 1; for (int b = 1; b < m->loopBeats; b *= 2) i++; return i; },
 			[=](size_t i) { m->loopBeats = i == 0 ? 0 : 1 << (i - 1); }));
 
@@ -1151,14 +1151,14 @@ struct SOUNAIREWidget : BidooWidget {
 		}));
 		menu->addChild(createSubmenuItem("Find about", "", [=](Menu *sub) {
 			for (int n : {4, 8, 12, 16, 24, 32, 48, 64})
-				sub->addChild(createMenuItem(string::f("%d slices", n), "", [=]() {
+				sub->addChild(createMenuItem(rack::string::f("%d slices", n), "", [=]() {
 					sliceEdit(m, "find sOUNAiRe slices", [=]() { m->detectNow(n); });
 				}));
 		}));
 		menu->addChild(createBoolPtrMenuItem("Find the transients when loading", "", &m->detectOnLoad));
 		menu->addChild(createSubmenuItem("Divide equally", "", [=](Menu *sub) {
 			for (int n : {2, 4, 8, 16, 32, 64})
-				sub->addChild(createMenuItem(string::f("%d slices", n), "", [=]() {
+				sub->addChild(createMenuItem(rack::string::f("%d slices", n), "", [=]() {
 					sliceEdit(m, "divide the sOUNAiRe sample", [=]() { m->divideSlices(n); });
 				}));
 		}));
@@ -1182,7 +1182,7 @@ struct SOUNAIREWidget : BidooWidget {
 		// the selected slice
 		int sel = clamp((int)m->selectedSlice, 0, m->getSlices().count - 1);
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuLabel(string::f("Slice %d (click a slice in the display to pick another)", sel + 1)));
+		menu->addChild(createMenuLabel(rack::string::f("Slice %d (click a slice in the display to pick another)", sel + 1)));
 		menu->addChild(createIndexSubmenuItem("Plays", types,
 			[=]() { return (size_t)m->getSlices().type[clamp(sel, 0, m->getSlices().count - 1)]; },
 			[=](size_t i) { sliceEdit(m, "set a sOUNAiRe play type", [=]() { m->setSliceType(sel, (int)i); }); }));

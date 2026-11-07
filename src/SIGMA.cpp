@@ -24,8 +24,8 @@ struct SIGMA : BidooModule {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		for (int i = 0; i < NUM_OUTPUTS; i++) {
 			for (int k = 0; k < 3; k++)
-				configInput(3 * i + k, string::f("Sum %d, input %d", i + 1, k + 1));
-			configOutput(i, string::f("Sum %d", i + 1));
+				configInput(3 * i + k, rack::string::f("Sum %d, input %d", i + 1, k + 1));
+			configOutput(i, rack::string::f("Sum %d", i + 1));
 		}
 	}
 

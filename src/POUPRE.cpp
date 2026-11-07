@@ -51,7 +51,7 @@ struct POUPRE : BidooModule {
 		slow.setDivision(32);
 		sliceConfig(*this);
 		for (int i = 0; i < 4; i++)
-			configButton(PRESET_PARAM + i, string::f("Preset: %d slices", 8 << i));
+			configButton(PRESET_PARAM + i, rack::string::f("Preset: %d slices", 8 << i));
 	}
 
 	void process(const ProcessArgs &args) override;

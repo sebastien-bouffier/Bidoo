@@ -180,10 +180,10 @@ struct FORK : BidooModule {
 		configParam(PITCH_PARAM, -54.0f, 54.0f, 0.0f, "Pitch", " Hz", std::pow(2.0f, 1.0f / 12.0f), 261.626f);
 		configButton(PRESET_PARAM, "Next vowel preset");
 		for (int k = 0; k < 4; k++) {
-			configParam(F_PARAM + k, F_MIN[k], F_MAX[k], PF[k][0], string::f("Formant %d frequency", k + 1), " Hz");
-			configParam(A_PARAM + k, 0.0f, A_MAX[k], PA[k][0], string::f("Formant %d level", k + 1));
-			configInput(F_INPUT + k, string::f("Formant %d frequency (1V/oct)", k + 1));
-			configInput(A_INPUT + k, string::f("Formant %d level (10 V = full range)", k + 1));
+			configParam(F_PARAM + k, F_MIN[k], F_MAX[k], PF[k][0], rack::string::f("Formant %d frequency", k + 1), " Hz");
+			configParam(A_PARAM + k, 0.0f, A_MAX[k], PA[k][0], rack::string::f("Formant %d level", k + 1));
+			configInput(F_INPUT + k, rack::string::f("Formant %d frequency (1V/oct)", k + 1));
+			configInput(A_INPUT + k, rack::string::f("Formant %d level (10 V = full range)", k + 1));
 		}
 		configInput(PITCH_INPUT, "1V/oct pitch (polyphonic)");
 		configOutput(SIGNAL_OUTPUT, "Audio");

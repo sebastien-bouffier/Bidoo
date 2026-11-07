@@ -275,11 +275,11 @@ void configMetro(M &m) {
 	m.configOutput(M::PITCH_OUTPUT, "Pitch (1V/oct)");
 
 	for (int i = 0; i < 8; i++) {
-		m.configParam(M::TRIG_PITCH_PARAM + i, -4.f, 6.f, 0.f, string::f("Stage %d pitch", i + 1), " V");
-		m.configParam(M::TRIG_COUNT_PARAM + i, 1.f, 8.f, 1.f, string::f("Stage %d pulses", i + 1));
+		m.configParam(M::TRIG_PITCH_PARAM + i, -4.f, 6.f, 0.f, rack::string::f("Stage %d pitch", i + 1), " V");
+		m.configParam(M::TRIG_COUNT_PARAM + i, 1.f, 8.f, 1.f, rack::string::f("Stage %d pulses", i + 1));
 		m.paramQuantities[M::TRIG_COUNT_PARAM + i]->snapEnabled = true;
-		m.configSwitch(M::TRIG_TYPE_PARAM + i, 0.f, 5.f, 2.f, string::f("Stage %d gate", i + 1), {"Rest", "Single", "Multiple", "Hold", "External gate 1", "External gate 2"});
-		m.configOutput(M::STEP_OUTPUT + i, string::f("Stage %d", i + 1));
+		m.configSwitch(M::TRIG_TYPE_PARAM + i, 0.f, 5.f, 2.f, rack::string::f("Stage %d gate", i + 1), {"Rest", "Single", "Multiple", "Hold", "External gate 1", "External gate 2"});
+		m.configOutput(M::STEP_OUTPUT + i, rack::string::f("Stage %d", i + 1));
 	}
 }
 

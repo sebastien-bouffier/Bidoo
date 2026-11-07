@@ -74,8 +74,8 @@ struct DTROY : BidooModule {
 		configButton(PLAY_MODE_PARAM, "Play mode (forward, backward, ping-pong, random, brownian)");
 		configButton(COUNT_MODE_PARAM, "Count mode (steps or pulses)");
 		for (int i = 0; i < 8; i++) {
-			configButton(TRIG_SLIDE_PARAM + i, string::f("Stage %d slide", i + 1));
-			configButton(TRIG_SKIP_PARAM + i, string::f("Stage %d skip", i + 1));
+			configButton(TRIG_SLIDE_PARAM + i, rack::string::f("Stage %d slide", i + 1));
+			configButton(TRIG_SKIP_PARAM + i, rack::string::f("Stage %d skip", i + 1));
 		}
 	}
 

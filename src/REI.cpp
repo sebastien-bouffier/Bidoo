@@ -322,12 +322,12 @@ struct REIWidget : BidooWidget {
 			[=]() { return module->algo; }, [=](size_t i) { module->algo = (int)i; }));
 		std::vector<std::string> pre;
 		for (float ms : REI::preDelays())
-			pre.push_back(string::f("%g ms", ms));
+			pre.push_back(rack::string::f("%g ms", ms));
 		menu->addChild(createIndexSubmenuItem("Pre-delay", pre,
 			[=]() { return module->preDelay; }, [=](size_t i) { module->preDelay = (int)i; }));
 		std::vector<std::string> mod;
 		for (float m : REI::mods())
-			mod.push_back(string::f("%d%%", (int)std::round(m * 100.f)));
+			mod.push_back(rack::string::f("%d%%", (int)std::round(m * 100.f)));
 		menu->addChild(createIndexSubmenuItem("Modulation", mod,
 			[=]() { return module->mod; }, [=](size_t i) { module->mod = (int)i; }));
 	}
