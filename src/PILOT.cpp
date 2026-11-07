@@ -104,7 +104,9 @@ struct PILOT : BidooModule {
 	float speed = 1e-3f;
 	int moveType = 5;
 	bool moving = false;
-	bool forward = true;
+	// the direction of the last move: true when MORPH went to the top scene. A new module sits on the bottom
+	// scene (MORPH 0), so the first move goes to the top scene.
+	bool forward = false;
 	bool changeDir =false;
 	bool rev = false;
 	int waitEOM = 0;
@@ -254,6 +256,7 @@ struct PILOT : BidooModule {
   void process(const ProcessArgs &args) override;
 
 	void onReset() override {
+		forward = false;
 		for (int i=0; i<16; i++) {
 			for (int j=0; j<16; j++) {
 				for (int k=0; k<16; k++) {
@@ -364,6 +367,9 @@ struct PILOT : BidooModule {
 
 	void dataFromJson(json_t *rootJ) override {
 		BidooModule::dataFromJson(rootJ);
+		// the params are loaded: the next move leaves the scene MORPH sits on (the first move after a load
+		// skipped a scene when MORPH was at 0)
+		forward = params[MORPH_PARAM].getValue() >= 0.5f;
 		json_t *moveTypeJ = json_object_get(rootJ, "moveType");
 		if (moveTypeJ)
 			moveType = json_integer_value(moveTypeJ);

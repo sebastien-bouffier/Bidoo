@@ -1,3 +1,7 @@
+### Next
+Fixes
+- PILOT: the first move after loading a patch (or adding the module) no longer skips a scene: it goes to the top scene (or back to the bottom one when MORPH sits at the top)
+
 ### v2.3.0 (07/11/2026)
 New in antN
 - AAC (AAC-LC, HE-AAC v1/v2) and Ogg Vorbis streams besides MP3, format told from the stream itself; a status line shows the station, format, bitrate and rate, or why a stream does not play (HLS, Opus...); right-click > Stations: about 120 checked stations by continent, news & talk or music (list in res/stations.json)
