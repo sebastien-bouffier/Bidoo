@@ -19,6 +19,7 @@ Fixes
 - sOUNAiRe: no lost stretch voices after many sample swaps, no crash on load during autosave, NaN-safe inputs
 - Samples load while a module is bypassed; cANARd saving no longer freezes the UI
 - Themes: Blue and Green removed (Light, Dark, Black); sOUNAiRe has a single look and no Theme menu
+- Library tags: duplicate aliases removed (lambda, BanCau); BanCau also tagged Function generator
 
 ### v2.2.0 (05/11/2026)
 New module
