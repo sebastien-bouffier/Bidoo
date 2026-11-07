@@ -1,11 +1,13 @@
 # Bidoo's plugins for [VCVRack](https://vcvrack.com)
 
 <!-- Version and License Badges -->
-![Version](https://img.shields.io/badge/version-2.2.0-green.svg?style=flat-square)
+[![Version](https://img.shields.io/github/v/release/sebastien-bouffier/Bidoo?label=version&color=green&style=flat-square)](https://github.com/sebastien-bouffier/Bidoo/releases/latest)
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
 ## How to
+
+Install the plugin from the [VCV Library](https://library.vcvrack.com/Bidoo), or download the newest version from the [latest release](https://github.com/sebastien-bouffier/Bidoo/releases/latest): put the .vcvplugin for your system in the plugins folder of your Rack user folder (Help > Open user folder in Rack), then restart Rack.
 
 You can find information on that plugins pack in the [wiki](https://github.com/sebastien-bouffier/Bidoo/wiki). When doing tests it happens that I record a video so you may find some ideas on how to use those modules [here](https://www.youtube.com/bidoo).
 
