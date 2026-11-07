@@ -1,6 +1,9 @@
-### Next
+### v2.4.0 (07/11/2026)
+New module
+- cOPIA: a live resampler (34 HP) on the glitch engine of the Bidoo Mangle plugin. CAPTURE records 1 to 8 bars of the input from the next bar of the clock, then replays them through eight glitch slots (Repeat, Reverser, Slicer, Gate, Tape, Grain, Crush, Drive, Filter, Delay, Ring, Flanger, Phaser, Filter Pattern, Reactor) with lanes drawn on the display; eight scenes with pads, SCENE CV and a morph; PUNCH knobs; a new capture takes over on its bar without a gap; mix, remix, BAR, REC and LANES outputs; the loop is kept in the patch as FLAC
 Fixes
 - PILOT: the first move after loading a patch (or adding the module) no longer skips a scene: it goes to the top scene (or back to the bottom one when MORPH sits at the top)
+- Library tags: duplicate aliases removed (lambda, BanCau); BanCau also tagged Function generator
 
 ### v2.3.0 (07/11/2026)
 New in antN
@@ -23,7 +26,6 @@ Fixes
 - sOUNAiRe: no lost stretch voices after many sample swaps, no crash on load during autosave, NaN-safe inputs
 - Samples load while a module is bypassed; cANARd saving no longer freezes the UI
 - Themes: Blue and Green removed (Light, Dark, Black); sOUNAiRe has a single look and no Theme menu
-- Library tags: duplicate aliases removed (lambda, BanCau); BanCau also tagged Function generator
 
 ### v2.2.0 (05/11/2026)
 New module
