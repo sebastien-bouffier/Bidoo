@@ -56,6 +56,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelREI);
 	p->addModel(modelSOUNAIRE);
 	p->addModel(modelCOPIA);
+	p->addModel(modelFILTRE);
 	p->addModel(modelRABBIT);
 	p->addModel(modelBISTROT);
 	p->addModel(modelSIGMA);

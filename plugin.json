@@ -357,6 +357,17 @@
       ]
     },
     {
+      "slug": "FILTRE",
+      "name": "FiLTRe",
+      "description": "The 71 filter types of the Potion synth, with a screen showing the spectrum of the signal and the curve of the filter",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#filtre",
+      "tags": [
+        "Filter",
+        "Polyphonic",
+        "Visual"
+      ]
+    },
+    {
       "slug": "HCTIP",
       "name": "HCTIP",
       "description": "Pitch shifter",

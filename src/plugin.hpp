@@ -59,6 +59,7 @@ extern Model *modelDFUZE;
 extern Model *modelREI;
 extern Model *modelSOUNAIRE;
 extern Model *modelCOPIA;
+extern Model *modelFILTRE;
 extern Model *modelMU;
 extern Model *modelSIGMA;
 extern Model *modelRABBIT;

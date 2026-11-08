@@ -21,3 +21,6 @@ build/src/dep/stb_vorbis/%: CFLAGS += -fno-unsafe-math-optimizations -w
 
 # AudioFile 1.1.x needs C++17
 CXXFLAGS := $(filter-out -std=c++11,$(CXXFLAGS)) -std=c++17
+
+# FiLTRe: Potion's Filter.h, kept unchanged, needs C++20; only this file sees it
+build/src/FiltreEngine.cpp.o: CXXFLAGS += -std=c++20 -Isrc/dep/bidoo-dsp

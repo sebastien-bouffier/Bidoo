@@ -1,3 +1,7 @@
+### Next
+New module
+- FiLTRe: all 71 filter types of the Potion synth (28 HP), the same code as Potion: low, high, band, notch, shelves, morphing, dual, combs, phasers, formants, ring mod, downsample, diffuser, reverb. TYPE, CUTOFF, RES, DRIVE, MORPH and MIX with attenuverters and CV; stereo, up to 16 voices. The screen shows the spectrum of the output, the input behind it, and the measured curve of the selected filter with the current settings
+
 ### v2.4.0 (07/11/2026)
 New module
 - cOPIA: a live resampler (34 HP) on the glitch engine of the Bidoo Mangle plugin. CAPTURE records 1 to 8 bars of the input from the next bar of the clock, then replays them through eight glitch slots (Repeat, Reverser, Slicer, Gate, Tape, Grain, Crush, Drive, Filter, Delay, Ring, Flanger, Phaser, Filter Pattern, Reactor) with lanes drawn on the display; eight scenes with pads, SCENE CV and a morph; PUNCH knobs; a new capture takes over on its bar without a gap; mix, remix, BAR, REC and LANES outputs; the loop is kept in the patch as FLAC
