@@ -14,7 +14,7 @@ static const char *const kRatioNames[] = {"1/8", "1/6", "1/4", "1/3", "3/8", "1/
 // How many pulses a whole number of slices takes: the numerator of the ratio
 static const int kRatioPulses[] = {1, 1, 1, 1, 3, 1, 2, 3, 1, 4, 3, 2, 3, 4, 6, 8, 12, 16};
 static constexpr int kNumRatios = 18;
-static constexpr int kColumns = 128;
+static constexpr int kColumns = 198; // one per pixel of the screen
 
 static inline double secondsOfKnob(float x) {
 	return 0.002 * std::pow(4000.0, (double)x); // 2 ms .. 8 s
@@ -227,10 +227,9 @@ struct RicochetScreen : TransparentWidget {
 
 	void drawScreen(NVGcontext *vg) {
 		const float w = box.size.x, h = box.size.y;
-		const NVGcolor yellow = nvgRGB(255, 233, 0);
 		nvgBeginPath(vg);
 		nvgRoundedRect(vg, 0, 0, w, h, 3.f);
-		nvgFillColor(vg, nvgRGB(0, 0, 0));
+		nvgFillColor(vg, theme::kScreenBlack);
 		nvgFill(vg);
 
 		std::shared_ptr<window::Font> font = APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
@@ -258,11 +257,11 @@ struct RicochetScreen : TransparentWidget {
 			nvgRect(vg, x, mid - clamp(a, 0.f, 1.f) * reach, colW + 0.2f, clamp(a, 0.f, 1.f) * reach);
 			nvgRect(vg, x, mid, colW + 0.2f, clamp(b, 0.f, 1.f) * reach);
 		}
-		nvgFillColor(vg, PINK_BIDOO);
+		nvgFillColor(vg, theme::kWavePink);
 		nvgFill(vg);
 
 		nvgFontSize(vg, 13.f);
-		nvgFillColor(vg, yellow);
+		nvgFillColor(vg, theme::kScreenYellow);
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
 		const int type = module ? module->shownType : 1;
 		nvgText(vg, 5.f, 3.f, ricochet::kTypes[clamp(type, 0, 5)], nullptr);
@@ -285,19 +284,16 @@ struct RICOCHETWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/RICOCHET.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 30, 365)));
+		theme::addScrews(this);
 
 		RicochetScreen *screen = new RicochetScreen;
 		screen->module = module;
 		screen->box.pos = Vec(6.f, 36.f);
-		screen->box.size = Vec(198.f, 74.f);
+		screen->box.size = Vec(198.f, 96.f);
 		addChild(screen);
 
 		static const float kx[4] = {30.f, 80.f, 130.f, 180.f};
-		static const float ky[2] = {146.f, 206.f};
+		static const float ky[2] = {166.f, 228.f};
 		addParam(createParamCentered<BidooBlueSnapKnob>(Vec(kx[0], ky[0]), module, RICOCHET::TYPE_PARAM));
 		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[1], ky[0]), module, RICOCHET::TIME_PARAM));
 		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[2], ky[0]), module, RICOCHET::FEEDBACK_PARAM));
@@ -312,13 +308,13 @@ struct RICOCHETWidget : BidooWidget {
 		static const float jx[6] = {20.9f, 54.54f, 88.18f, 121.82f, 155.46f, 189.1f};
 		static const int top[6] = {RICOCHET::TIME_INPUT, RICOCHET::FEEDBACK_INPUT, RICOCHET::TONE_INPUT, RICOCHET::MIX_INPUT, RICOCHET::CHARACTER_INPUT, RICOCHET::TYPE_INPUT};
 		for (int i = 0; i < 6; i++)
-			addInput(createInputCentered<PJ301MPort>(Vec(jx[i], 264.f), module, top[i]));
-		addInput(createInputCentered<PJ301MPort>(Vec(jx[0], 322.f), module, RICOCHET::CLOCK_INPUT));
-		addInput(createInputCentered<PJ301MPort>(Vec(jx[1], 322.f), module, RICOCHET::FREEZE_INPUT));
-		addInput(createInputCentered<PJ301MPort>(Vec(jx[2], 322.f), module, RICOCHET::L_INPUT));
-		addInput(createInputCentered<PJ301MPort>(Vec(jx[3], 322.f), module, RICOCHET::R_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(Vec(jx[4], 322.f), module, RICOCHET::L_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(Vec(jx[5], 322.f), module, RICOCHET::R_OUTPUT));
+			addInput(createInputCentered<PJ301MPort>(Vec(jx[i], theme::kSecondRowY), module, top[i]));
+		addInput(createInputCentered<PJ301MPort>(Vec(jx[0], theme::kBottomRowY), module, RICOCHET::CLOCK_INPUT));
+		addInput(createInputCentered<PJ301MPort>(Vec(jx[1], theme::kBottomRowY), module, RICOCHET::FREEZE_INPUT));
+		addInput(createInputCentered<PJ301MPort>(Vec(jx[2], theme::kBottomRowY), module, RICOCHET::L_INPUT));
+		addInput(createInputCentered<PJ301MPort>(Vec(jx[3], theme::kBottomRowY), module, RICOCHET::R_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(Vec(jx[4], theme::kBottomRowY), module, RICOCHET::L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(Vec(jx[5], theme::kBottomRowY), module, RICOCHET::R_OUTPUT));
 	}
 };
 

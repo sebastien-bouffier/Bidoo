@@ -6,6 +6,7 @@ New module
 - rICOcHEt: a stereo delay with six characters (14 HP): Digital, Tape, BBD, Lo-fi, Diffuse and Reverse, each with its own way of reacting to TIME (crossfade or pitch swoop). TIME up to 8 s or a ratio of a clock, FEEDBACK up to controlled self-oscillation, TONE, MIX, CHARACTER, SPREAD, ping-pong, freeze (button and gate), CV on TIME, FEEDBACK, TONE, MIX, CHARACTER and TYPE. Digital repeats are sample-exact
 Improvements
 - sOUNAiRe: new polyphonic CV inputs END, LP IN and LP OUT, added to their knobs (10 V = the whole sample) and followed while notes play, so an LFO can sweep a loop without clicks; the display follows them
+- aCiDe, FiLTRe, cOPIA, sOUNAiRe, rICOcHEt: the jacks on the common rows, at the height of the older modules' bottom row, with larger screens and more room for the knobs
 - sOUNAiRe, cOPIA: new panels in the look of the other modules, with the Light, Dark and Black themes; cOPIA draws its loop in pink and its lanes in yellow
 - sOUNAiRe: the waveform is pink, blue is a choice in the menu (Waveform colour); grey keys and pads, the root, the played keys, the selected pad and the loop lines in yellow
 - OUAIve, cANARd: the waveform is filled, no longer only its outline
@@ -23,6 +24,8 @@ Improvements
 - zOù MAï and enCORE (and expanders), dTrOY and bordL: one shared code each
 - zOù MAï, enCORE: exact timing: positions, trims, lengths and pulse distances are integers, so the same musical position falls on the same sample at any speed, clock or platform, with no drift. Existing patches load, and can shift by a sample; zOù MAï's trigs right at a step or trim boundary and enCORE's behaviour fixes below can change how they play
 Fixes
+- sOUNAiRe: closing Rack or removing the module no longer crashes when it holds a sample it has not started to play yet, for instance while bypassed
+- All modules, Dark and Black themes: labels on red output boxes are white, no longer dark grey on dark red; the same for a few labels on black shapes (RATEAU's CLK and RUN, the MU's icons)
 - enCORE now behaves as zOù MAï: PRE is cleared on reset and on each loop and follows every trig, the next trig's condition is drawn ahead, a reset redraws the condition of step 0 even when the track is already on it, the pendulum plays 0..n-1..1 with no repeated last step and keeps what passes the turn; the clock is also read while stopped
 - zOù MAï, enCORE: COUNT starts at 1 (the first cycle played one pass too many); a pulse lasts its length exactly; a trig that does not play no longer holds back the next trig trimmed early, and a trim on an exact sample plays on that sample; pendulum on a 1-step track plays every step
 - zOù MAï: RUN or a reset between two clocks: the next steps stay on the clock's subdivisions (at fast speeds they ran early until the next clock, or were lost)

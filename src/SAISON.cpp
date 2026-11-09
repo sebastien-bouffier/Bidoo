@@ -132,18 +132,15 @@ SAISONWidget::SAISONWidget(SAISON *module) {
 	setModule(module);
 	prepareThemes(asset::plugin(pluginInstance, "res/SAISON.svg"));
 
-	addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+	theme::addScrews(this);
 
 	addParam(createParam<LEDButton>(Vec(13.0f, 36.f), module, SAISON::MODE_PARAM));
 	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(13.0f+6.0f, 36.f+6.0f), module, SAISON::MODE_LIGHT));
 
-	addInput(createInput<PJ301MPort>(Vec(82, 330), module, SAISON::MEASURE_INPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(119.0f, 330), module, SAISON::PATTERN_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(156.5f, 330), module, SAISON::CV1_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(193.5f, 330), module, SAISON::CV2_OUTPUT));
+	addInput(createInput<PJ301MPort>(Vec(82, theme::kBottomRowTop), module, SAISON::MEASURE_INPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(119.0f, theme::kBottomRowTop), module, SAISON::PATTERN_OUTPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(156.5f, theme::kBottomRowTop), module, SAISON::CV1_OUTPUT));
+	addOutput(createOutput<PJ301MPort>(Vec(193.5f, theme::kBottomRowTop), module, SAISON::CV2_OUTPUT));
 
 	// Two columns of eight.
 	for (int i = 0; i < SAISON::NUM_SLOTS; i++) {

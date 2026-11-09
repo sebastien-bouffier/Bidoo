@@ -123,13 +123,10 @@ struct ACIDEWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/ACIDE.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
 		static const float kx[3] = {27.f, 75.f, 123.f};
-		static const float ky[3] = {68.f, 130.f, 192.f};
+		static const float ky[3] = {72.f, 142.f, 212.f};
 		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[0], ky[0]), module, ACIDE::TUNE_PARAM));
 		addParam(createParamCentered<CKSS>(Vec(kx[1], ky[0]), module, ACIDE::WAVE_PARAM));
 		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[2], ky[0]), module, ACIDE::VOLUME_PARAM));
@@ -144,8 +141,8 @@ struct ACIDEWidget : BidooWidget {
 		static const int top[4] = {ACIDE::VOCT_INPUT, ACIDE::GATE_INPUT, ACIDE::ACCENT_INPUT, ACIDE::SLIDE_INPUT};
 		static const int low[4] = {ACIDE::CUTOFF_INPUT, ACIDE::RES_INPUT, ACIDE::ENVMOD_INPUT, ACIDE::DECAY_INPUT};
 		for (int i = 0; i < 4; i++) {
-			addInput(createInputCentered<PJ301MPort>(Vec(jx[i], 256.f), module, top[i]));
-			addInput(createInputCentered<PJ301MPort>(Vec(jx[i], 322.f), module, low[i]));
+			addInput(createInputCentered<PJ301MPort>(Vec(jx[i], theme::kSecondRowY), module, top[i]));
+			addInput(createInputCentered<PJ301MPort>(Vec(jx[i], theme::kBottomRowY), module, low[i]));
 		}
 	}
 };

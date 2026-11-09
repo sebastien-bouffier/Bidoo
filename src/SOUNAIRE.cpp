@@ -364,7 +364,10 @@ struct SOUNAIRE : BidooModule {
 		jobCv.notify_all();
 		if (worker.joinable())
 			worker.join();
-		delete pending.exchange(nullptr);
+		// not ours to delete: `owned` holds it, and make_shared put it inside the block it allocated, so
+		// deleting it here frees a pointer into the middle of that block (0xC0000374 when closing Rack, if
+		// the audio thread had not taken it yet: a bypassed module, or an engine that isn't running)
+		pending.store(nullptr);
 		delete[] pendingPool.exchange(nullptr);
 		delete[] retiredPool.exchange(nullptr);
 		delete[] engine.pool;

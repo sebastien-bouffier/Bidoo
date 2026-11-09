@@ -1,5 +1,6 @@
 #include "plugin.hpp"
 #include <iostream>
+#include <set>
 
 Plugin *pluginInstance;
 
@@ -160,94 +161,112 @@ void BidooWidget::readThemeAndContrastFromDefault() {
 	defaultPanelTheme = loadDefaultTheme();
 }
 
+// Is the point inside the shape? Enough for a box: the corners of its curves, even-odd.
+static bool pointInShape(const NSVGshape *shape, float x, float y) {
+	if (x < shape->bounds[0] || x > shape->bounds[2] || y < shape->bounds[1] || y > shape->bounds[3])
+		return false;
+	bool in = false;
+	for (const NSVGpath *path = shape->paths; path; path = path->next) {
+		for (int i = 0; i < path->npts; i += 3) {
+			const float *a = &path->pts[i * 2];
+			const float *b = i + 3 < path->npts ? &path->pts[(i + 3) * 2] : &path->pts[0];
+			if ((a[1] > y) != (b[1] > y) && x < a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]))
+				in = !in;
+		}
+	}
+	return in;
+}
+
+// A white shape is a label on a box. Black boxes turn light grey in Dark and Black, so a label on one turns dark. What
+// stays dark under a label keeps it white: red output boxes, screens, and the near-black boxes of the older panels.
+static bool labelStaysWhite(const NSVGimage *image, const NSVGshape *label) {
+	const float x = 0.5f * (label->bounds[0] + label->bounds[2]);
+	const float y = 0.5f * (label->bounds[1] + label->bounds[3]);
+	bool stays = false;
+	// the shapes run from the back to the front: the last one under the label's centre is what it sits on
+	for (const NSVGshape *shape = image->shapes; shape != label; shape = shape->next) {
+		if (shape->fill.type != NSVG_PAINT_COLOR || shape->opacity < 1 || !pointInShape(shape, x, y))
+			continue;
+		// the same order as in themedPanel: a black or red stroke repaints the fill too
+		const unsigned int c = shape->fill.color;
+		const unsigned int red = packedColor(205, 31, 0, 255), black = packedColor(0, 0, 0, 255);
+		const int r = c & 255, g = (c >> 8) & 255, b = (c >> 16) & 255, a = (c >> 24) & 255;
+		if (c == red || shape->stroke.color == red)
+			stays = true;
+		else if (std::string(shape->id).find("screen") != std::string::npos)
+			stays = r < 64 && g < 64 && b < 64;
+		else if (c == black || shape->stroke.color == black)
+			stays = false;
+		else
+			stays = r < 64 && g < 64 && b < 64 && a >= 200;
+	}
+	return stays;
+}
+
+// A panel for Dark or Black: the SVG again, with its colours swapped (see docs/THEME.md).
+static SvgPanel *themedPanel(const std::string& filename, unsigned int panelColor, unsigned int pictureColor) {
+	std::shared_ptr<Svg> svg;
+	try {
+		svg = std::make_shared<Svg>();
+		svg->loadFile(filename);
+	}
+	catch (Exception& e) {
+		WARN("%s", e.what());
+		svg = NULL;
+	}
+
+	SvgPanel *panel = new SvgPanel;
+	panel->setBackground(svg);
+	NSVGimage *image = panel->sw->svg->handle;
+
+	// decided first: the loop below repaints what the labels sit on
+	std::set<const NSVGshape*> whiteLabels;
+	for (const NSVGshape *shape = image->shapes; shape != NULL; shape = shape->next) {
+		if (shape->fill.color == packedColor(255, 255, 255, 255) && labelStaysWhite(image, shape))
+			whiteLabels.insert(shape);
+	}
+
+	for (NSVGshape *shape = image->shapes; shape != NULL; shape = shape->next) {
+		std::string sId (shape->id);
+		std::string sScreen ("screen");
+		bool isScreen = sId.find(sScreen)!=std::string::npos;
+
+		if ((shape->fill.color == packedColor(205, 31, 0, 255)) || (shape->stroke.color == packedColor(205, 31, 0, 255))) {
+			shape->fill.color = packedColor(150, 0, 0, 255);
+			shape->stroke.color = packedColor(150, 0, 0, 255);
+		}
+		if (((shape->fill.color == packedColor(0, 0, 0, 255)) || (shape->stroke.color == packedColor(0, 0, 0, 255))) && (!isScreen)) {
+			shape->fill.color = packedColor(180, 180, 180, 255);
+			shape->stroke.color = packedColor(180, 180, 180, 255);
+		}
+		if ((shape->fill.color == packedColor(230, 230, 230, 255)) || (shape->stroke.color == packedColor(230, 230, 230, 255))) {
+			shape->fill.color = panelColor;
+			shape->stroke.color = panelColor;
+		}
+		if (((shape->fill.color == packedColor(255, 255, 255, 255)) || (shape->stroke.color == packedColor(255, 255, 255, 255))) && !whiteLabels.count(shape)) {
+			shape->fill.color = packedColor(40, 40, 40, 255);
+			shape->stroke.color = packedColor(40, 40, 40, 255);
+		}
+		if (shape->opacity<1) {
+			shape->fill.color = pictureColor;
+			shape->stroke.color = pictureColor;
+			shape->opacity = 0.6f;
+		}
+	}
+	panel->setVisible(false);
+	return panel;
+}
+
 void BidooWidget::prepareThemes(const std::string& filename) {
 	readThemeAndContrastFromDefault();
 
 	setPanel(APP->window->loadSvg(filename));
 	lightPanel = dynamic_cast<SvgPanel*>(getPanel());
 
-	std::shared_ptr<Svg> dSvg;
-	try {
-		dSvg = std::make_shared<Svg>();
-		dSvg->loadFile(filename);
-	}
-	catch (Exception& e) {
-		WARN("%s", e.what());
-		dSvg = NULL;
-	}
-
-	darkPanel = new SvgPanel;
-	darkPanel->setBackground(dSvg);
-	for (NSVGshape *shape = darkPanel->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
-		std::string sId (shape->id);
-		std::string sScreen ("screen");
-		bool isScreen = sId.find(sScreen)!=std::string::npos;
-
-		if ((shape->fill.color == packedColor(205, 31, 0, 255)) || (shape->stroke.color == packedColor(205, 31, 0, 255))) {
-			shape->fill.color = packedColor(150, 0, 0, 255);
-			shape->stroke.color = packedColor(150, 0, 0, 255);
-		}
-		if (((shape->fill.color == packedColor(0, 0, 0, 255)) || (shape->stroke.color == packedColor(0, 0, 0, 255))) && (!isScreen)) {
-			shape->fill.color = packedColor(180, 180, 180, 255);
-			shape->stroke.color = packedColor(180, 180, 180, 255);
-		}
-		if ((shape->fill.color == packedColor(230, 230, 230, 255)) || (shape->stroke.color == packedColor(230, 230, 230, 255))) {
-			shape->fill.color = packedColor(50, 50, 50, 255);
-			shape->stroke.color = packedColor(50, 50, 50, 255);
-		}
-		if ((shape->fill.color == packedColor(255, 255, 255, 255)) || (shape->stroke.color == packedColor(255, 255, 255, 255))) {
-			shape->fill.color = packedColor(40, 40, 40, 255);
-			shape->stroke.color = packedColor(40, 40, 40, 255);
-		}
-		if (shape->opacity<1) {
-			shape->fill.color = packedColor(80, 80, 80, 255);
-			shape->stroke.color = packedColor(80, 80, 80, 255);
-			shape->opacity = 0.6f;
-		}
-	}
-	darkPanel->setVisible(false);
+	darkPanel = themedPanel(filename, packedColor(50, 50, 50, 255), packedColor(80, 80, 80, 255));
 	addChild(darkPanel);
 
-	std::shared_ptr<Svg> bSvg;
-	try {
-		bSvg = std::make_shared<Svg>();
-		bSvg->loadFile(filename);
-	}
-	catch (Exception& e) {
-		WARN("%s", e.what());
-		bSvg = NULL;
-	}
-
-	blackPanel = new SvgPanel;
-	blackPanel->setBackground(bSvg);
-	for (NSVGshape *shape = blackPanel->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
-		std::string sId (shape->id);
-		std::string sScreen ("screen");
-		bool isScreen = sId.find(sScreen)!=std::string::npos;
-
-		if ((shape->fill.color == packedColor(205, 31, 0, 255)) || (shape->stroke.color == packedColor(205, 31, 0, 255))) {
-			shape->fill.color = packedColor(150, 0, 0, 255);
-			shape->stroke.color = packedColor(150, 0, 0, 255);
-		}
-		if (((shape->fill.color == packedColor(0, 0, 0, 255)) || (shape->stroke.color == packedColor(0, 0, 0, 255))) && (!isScreen)) {
-			shape->fill.color = packedColor(180, 180, 180, 255);
-			shape->stroke.color = packedColor(180, 180, 180, 255);
-		}
-		if ((shape->fill.color == packedColor(230, 230, 230, 255)) || (shape->stroke.color == packedColor(230, 230, 230, 255))) {
-			shape->fill.color = packedColor(0, 0, 0, 255);
-			shape->stroke.color = packedColor(0, 0, 0, 255);
-		}
-		if ((shape->fill.color == packedColor(255, 255, 255, 255)) || (shape->stroke.color == packedColor(255, 255, 255, 255))) {
-			shape->fill.color = packedColor(40, 40, 40, 255);
-			shape->stroke.color = packedColor(40, 40, 40, 255);
-		}
-		if (shape->opacity<1) {
-			shape->fill.color = packedColor(60, 60, 60, 255);
-			shape->stroke.color = packedColor(60, 60, 60, 255);
-			shape->opacity = 0.6f;
-		}
-	}
-	blackPanel->setVisible(false);
+	blackPanel = themedPanel(filename, packedColor(0, 0, 0, 255), packedColor(60, 60, 60, 255));
 	addChild(blackPanel);
 }
 

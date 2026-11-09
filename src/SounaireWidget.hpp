@@ -4,13 +4,7 @@
 #include "BidooComponents.hpp"
 
 namespace sounaire_ui {
-static const NVGcolor INK = nvgRGB(0, 0, 0);
-static const NVGcolor PAPER = nvgRGB(255, 233, 0); // the screens' yellow
-static const NVGcolor TRACK = nvgRGB(0x4A, 0x4A, 0x4A);
-static const NVGcolor KEY = nvgRGB(0x9A, 0x9A, 0x9A);
-static const NVGcolor KEY_BLACK = nvgRGB(0x62, 0x62, 0x62);
 static const NVGcolor BLUE = nvgRGB(0x2F, 0x55, 0xD4);
-static const NVGcolor ORANGE = nvgRGB(0xF0, 0x62, 0x2F);
 
 inline std::string noteName(float n) {
 	return ::noteName(n);
@@ -367,7 +361,7 @@ struct SounaireDisplay : OpaqueWidget {
 			float sx0 = posToX(cuts.start[sel] / F), sx1 = posToX(cuts.end(sel, s->frames) / F);
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, sx0, 14, sx1 - sx0, B - 14);
-			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? ORANGE : PAPER, 0x38));
+			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? theme::kLitOrange : theme::kScreenYellow, 0x38));
 			nvgFill(args.vg);
 		}
 		// loop region
@@ -377,7 +371,7 @@ struct SounaireDisplay : OpaqueWidget {
 			float x0 = posToX(std::min(ls, le)), x1 = posToX(std::max(ls, le));
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, x0, 14, x1 - x0, B - 14);
-			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? BLUE : PINK_BIDOO, 0x40));
+			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? BLUE : theme::kWavePink, 0x40));
 			nvgFill(args.vg);
 		}
 		// waveform, normalized as it plays: from the overview when a pixel
@@ -419,7 +413,7 @@ struct SounaireDisplay : OpaqueWidget {
 				hi = clamp(hi * norm, -1.f, 1.f);
 				nvgRect(args.vg, i, mid - hi * amp, 1.f, std::max(1.f, (hi - lo) * amp));
 			}
-			NVGcolor waveColor = module->waveBlue ? BLUE : PINK_BIDOO;
+			NVGcolor waveColor = module->waveBlue ? BLUE : theme::kWavePink;
 			nvgFillColor(args.vg, pass == 0 ? waveColor : nvgTransRGBA(waveColor, 0x55));
 			nvgFill(args.vg);
 		}
@@ -434,14 +428,14 @@ struct SounaireDisplay : OpaqueWidget {
 				nvgMoveTo(args.vg, x, 14);
 				nvgLineTo(args.vg, x, B);
 			}
-			nvgStrokeColor(args.vg, PAPER);
+			nvgStrokeColor(args.vg, theme::kScreenYellow);
 			nvgStrokeWidth(args.vg, 1.f);
 			nvgStroke(args.vg);
 			float xs = posToX(cuts.start[sel] / F);
 			nvgBeginPath(args.vg);
 			nvgMoveTo(args.vg, xs, 14);
 			nvgLineTo(args.vg, xs, B);
-			nvgStrokeColor(args.vg, module->waveBlue ? ORANGE : PAPER);
+			nvgStrokeColor(args.vg, module->waveBlue ? theme::kLitOrange : theme::kScreenYellow);
 			nvgStroke(args.vg);
 			if (f && f->handle >= 0) {
 				nvgFontFaceId(args.vg, f->handle);
@@ -452,7 +446,7 @@ struct SounaireDisplay : OpaqueWidget {
 					float next = posToX(cuts.end(i, s->frames) / F);
 					if (next < 0.f || x > W || next - x <= 9.f)
 						continue;
-					nvgFillColor(args.vg, i == sel ? (module->waveBlue ? ORANGE : PAPER) : PAPER);
+					nvgFillColor(args.vg, i == sel ? (module->waveBlue ? theme::kLitOrange : theme::kScreenYellow) : theme::kScreenYellow);
 					nvgText(args.vg, std::max(x, 0.f) + 2, 15, std::to_string(i + 1).c_str(), nullptr);
 				}
 			}
@@ -464,7 +458,7 @@ struct SounaireDisplay : OpaqueWidget {
 		if (v1 - v0 < 0.999) {
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, (float)v0 * W, B - 2, std::max(2.f, (float)(v1 - v0) * W), 2);
-			nvgFillColor(args.vg, ORANGE);
+			nvgFillColor(args.vg, theme::kLitOrange);
 			nvgFill(args.vg);
 		}
 	}
@@ -479,7 +473,7 @@ struct SounaireDisplay : OpaqueWidget {
 			nvgMoveTo(args.vg, x, 14);
 			nvgLineTo(args.vg, x, B);
 		}
-		nvgStrokeColor(args.vg, PAPER);
+		nvgStrokeColor(args.vg, theme::kScreenYellow);
 		nvgStrokeWidth(args.vg, 1.f);
 		nvgStroke(args.vg);
 		nvgBeginPath(args.vg);
@@ -491,7 +485,7 @@ struct SounaireDisplay : OpaqueWidget {
 			nvgLineTo(args.vg, x, 20);
 			nvgClosePath(args.vg);
 		}
-		nvgFillColor(args.vg, PAPER);
+		nvgFillColor(args.vg, theme::kScreenYellow);
 		nvgFill(args.vg);
 		if (looping) {
 			nvgBeginPath(args.vg);
@@ -500,7 +494,7 @@ struct SounaireDisplay : OpaqueWidget {
 				nvgMoveTo(args.vg, x, 14);
 				nvgLineTo(args.vg, x, B);
 			}
-			nvgStrokeColor(args.vg, PAPER);
+			nvgStrokeColor(args.vg, theme::kScreenYellow);
 			nvgStrokeWidth(args.vg, 1.f);
 			nvgStroke(args.vg);
 		}
@@ -517,7 +511,7 @@ struct SounaireDisplay : OpaqueWidget {
 			float x0 = posToX(std::min(ls, le)), x1 = posToX(std::max(ls, le));
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, x0, 14, x1 - x0, B - 14);
-			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? BLUE : PINK_BIDOO, 0x40));
+			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? BLUE : theme::kWavePink, 0x40));
 			nvgFill(args.vg);
 		}
 		// the part that does not play, dimmed as the framebuffer does it without a cable
@@ -527,7 +521,7 @@ struct SounaireDisplay : OpaqueWidget {
 			nvgRect(args.vg, 0, 14, a, B - 14);
 		if (b < W)
 			nvgRect(args.vg, b, 14, W - b, B - 14);
-		nvgFillColor(args.vg, nvgTransRGBA(INK, 0xaa));
+		nvgFillColor(args.vg, nvgTransRGBA(theme::kScreenBlack, 0xaa));
 		nvgFill(args.vg);
 		drawMarkers(args, st, en, ls, le, looping, B);
 	}
@@ -541,7 +535,7 @@ struct SounaireDisplay : OpaqueWidget {
 		float W = box.size.x, H = box.size.y;
 		nvgBeginPath(args.vg);
 		nvgRoundedRect(args.vg, 0, 0, W, H, 3);
-		nvgFillColor(args.vg, INK);
+		nvgFillColor(args.vg, theme::kScreenBlack);
 		nvgFill(args.vg);
 		if (!module || !fb) {
 			OpaqueWidget::drawLayer(args, layer);
@@ -574,7 +568,7 @@ struct SounaireDisplay : OpaqueWidget {
 				float x = posToX(pos / v.frames);
 				nvgBeginPath(args.vg);
 				nvgRect(args.vg, x, 14, 1.f, B - 14);
-				nvgFillColor(args.vg, nvgRGBA(255, 233, 0, (unsigned char)(80 + 175 * clamp(v.env, 0.f, 1.f))));
+				nvgFillColor(args.vg, nvgTransRGBA(theme::kScreenYellow, (unsigned char)(80 + 175 * clamp(v.env, 0.f, 1.f))));
 				nvgFill(args.vg);
 			}
 		}
@@ -582,14 +576,14 @@ struct SounaireDisplay : OpaqueWidget {
 			float x0 = posToX(std::min(selFrom, selTo)), x1 = posToX(std::max(selFrom, selTo));
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, x0, 14, x1 - x0, B - 14);
-			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? ORANGE : PAPER, 0x60));
+			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? theme::kLitOrange : theme::kScreenYellow, 0x60));
 			nvgFill(args.vg);
 		}
 		// header line: sample, rate, length; under the waveform: what plays
 		if (f && f->handle >= 0) {
 			nvgFontFaceId(args.vg, f->handle);
 			nvgFontSize(args.vg, 10.f);
-			nvgFillColor(args.vg, PAPER);
+			nvgFillColor(args.vg, theme::kScreenYellow);
 			nvgTextAlign(args.vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
 			std::string line;
 			float rec = module->recSeconds;
@@ -605,9 +599,9 @@ struct SounaireDisplay : OpaqueWidget {
 			else
 				line = "DROP A WAV, AIFF OR FLAC HERE";
 			if (rec > 0.f)
-				nvgFillColor(args.vg, ORANGE);
+				nvgFillColor(args.vg, theme::kLitOrange);
 			nvgText(args.vg, 4, 3, line.c_str(), nullptr);
-			nvgFillColor(args.vg, PAPER);
+			nvgFillColor(args.vg, theme::kScreenYellow);
 			nvgTextAlign(args.vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BOTTOM);
 			std::string root;
 			if (slicing) {
@@ -773,7 +767,7 @@ struct SounaireKeys : OpaqueWidget {
 			if (isBlack(k))
 				continue;
 			bool in = k >= a && k <= b, played = keyPlayed(k);
-			NVGcolor c = played || k == root ? PAPER : (in ? KEY : TRACK);
+			NVGcolor c = played || k == root ? theme::kScreenYellow : (in ? theme::kKeyWhite : theme::kKeyOff);
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, wi * ww + 0.5f, 0, ww - 1.f, H);
 			nvgFillColor(args.vg, c);
@@ -781,14 +775,14 @@ struct SounaireKeys : OpaqueWidget {
 			if (played) {
 				nvgBeginPath(args.vg);
 				nvgRect(args.vg, wi * ww + 0.5f, H - 3, ww - 1.f, 3);
-				nvgFillColor(args.vg, INK);
+				nvgFillColor(args.vg, theme::kScreenBlack);
 				nvgFill(args.vg);
 			}
 			if (k % 12 == 0 && f && f->handle >= 0) {
 				nvgFontFaceId(args.vg, f->handle);
 				nvgFontSize(args.vg, 8.f);
 				nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_BOTTOM);
-				nvgFillColor(args.vg, (!in && !played && k != root) ? PAPER : INK);
+				nvgFillColor(args.vg, (!in && !played && k != root) ? theme::kScreenYellow : theme::kScreenBlack);
 				nvgText(args.vg, wi * ww + ww / 2, H - 3, sounaire_ui::noteName((float)k).c_str(), nullptr);
 			}
 			wi++;
@@ -800,12 +794,12 @@ struct SounaireKeys : OpaqueWidget {
 				continue;
 			}
 			bool in = k >= a && k <= b, played = keyPlayed(k);
-			NVGcolor c = played || k == root ? PAPER : (in ? KEY_BLACK : INK);
+			NVGcolor c = played || k == root ? theme::kScreenYellow : (in ? theme::kKeyBlack : theme::kScreenBlack);
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, wi * ww - ww * 0.3f, 0, ww * 0.6f, H * 0.6f);
 			nvgFillColor(args.vg, c);
 			nvgFill(args.vg);
-			nvgStrokeColor(args.vg, INK);
+			nvgStrokeColor(args.vg, theme::kScreenBlack);
 			nvgStrokeWidth(args.vg, 0.6f);
 			nvgStroke(args.vg);
 		}
@@ -818,7 +812,7 @@ struct SounaireKeys : OpaqueWidget {
 		if (!s || s->frames < 2 || !display) {
 			nvgBeginPath(args.vg);
 			nvgRoundedRect(args.vg, 0, 0, W, H, 3);
-			nvgFillColor(args.vg, TRACK);
+			nvgFillColor(args.vg, theme::kKeyOff);
 			nvgFill(args.vg);
 			return;
 		}
@@ -839,15 +833,15 @@ struct SounaireKeys : OpaqueWidget {
 			float x0 = display->posToX(u.start[i] / F) + 0.5f, x1 = display->posToX(u.end(i, s->frames) / F) - 0.5f;
 			if (x1 < 0.f || x0 > W || x1 - x0 < 0.5f)
 				continue;
-			NVGcolor c = i == sel ? PAPER : KEY;
+			NVGcolor c = i == sel ? theme::kScreenYellow : theme::kKeyWhite;
 			if (lit[i] > 0.f)
-				c = nvgLerpRGBA(c, PAPER, std::min(1.f, 0.3f + lit[i]));
+				c = nvgLerpRGBA(c, theme::kScreenYellow, std::min(1.f, 0.3f + lit[i]));
 			nvgBeginPath(args.vg);
 			nvgRoundedRect(args.vg, x0, 0, x1 - x0, H, 2);
 			nvgFillColor(args.vg, c);
 			nvgFill(args.vg);
 			if (lit[i] > 0.f) {
-				nvgStrokeColor(args.vg, INK);
+				nvgStrokeColor(args.vg, theme::kScreenBlack);
 				nvgStrokeWidth(args.vg, 1.f);
 				nvgStroke(args.vg);
 			}
@@ -855,7 +849,7 @@ struct SounaireKeys : OpaqueWidget {
 				float cx = (std::max(x0, 0.f) + std::min(x1, W)) / 2;
 				nvgFontFaceId(args.vg, f->handle);
 				nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-				nvgFillColor(args.vg, INK);
+				nvgFillColor(args.vg, theme::kScreenBlack);
 				nvgFontSize(args.vg, 10.f);
 				bool both = x1 - x0 > 30.f;
 				nvgText(args.vg, cx, both ? H * 0.32f : H * 0.5f, std::to_string(i + 1).c_str(), nullptr);
@@ -944,20 +938,17 @@ struct SOUNAIREWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/SOUNAIRE.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
 		SounaireDisplay *display = new SounaireDisplay;
 		display->module = module;
-		display->box.pos = Vec(10, 34);
+		display->box.pos = Vec(theme::kSideMargin, theme::kScreenTop);
 		display->box.size = Vec(460, 76);
 		addChild(display);
 		SounaireKeys *keys = new SounaireKeys;
 		keys->module = module;
 		keys->display = display;
-		keys->box.pos = Vec(10, 112);
+		keys->box.pos = Vec(theme::kSideMargin, 112);
 		keys->box.size = Vec(460, 28);
 		addChild(keys);
 
@@ -1004,21 +995,22 @@ struct SOUNAIREWidget : BidooWidget {
 		// two rows of jacks (centres 28 + 38 i): playing, then slices, clock and
 		// recording; the outputs on the red box, one on each row
 		auto jx = [](int i) { return 28.f + 32.f * i; };
+		const float upperRow = 306.f; // three rows of knobs leave no room for theme::kSecondRowY
 		int row1[10] = {SOUNAIRE::VOCT_INPUT, SOUNAIRE::GATE_INPUT, SOUNAIRE::VEL_INPUT, SOUNAIRE::BEND_INPUT,
 		                SOUNAIRE::START_INPUT, SOUNAIRE::SPEED_INPUT, SOUNAIRE::CUTOFF_INPUT, SOUNAIRE::RES_INPUT,
 		                SOUNAIRE::PITCH_INPUT, SOUNAIRE::PLAY_INPUT};
 		for (int i = 0; i < 10; i++)
-			addInput(createInputCentered<PJ301MPort>(Vec(jx(i), 305.f), module, row1[i]));
+			addInput(createInputCentered<PJ301MPort>(Vec(jx(i), upperRow), module, row1[i]));
 		const int row2[8] = {SOUNAIRE::TRIG_INPUT, SOUNAIRE::SLICE_INPUT, SOUNAIRE::RESET_INPUT, SOUNAIRE::CLOCK_INPUT,
 		                     SOUNAIRE::END_INPUT, SOUNAIRE::LOOP_IN_INPUT, SOUNAIRE::LOOP_OUT_INPUT, SOUNAIRE::REC_INPUT};
 		for (int i = 0; i < 8; i++)
-			addInput(createInputCentered<PJ301MPort>(Vec(jx(i), 341.f), module, row2[i]));
-		addParam(createParamCentered<BidooRoundButton>(Vec(351.f, 341.f), module, SOUNAIRE::REC_PARAM));
+			addInput(createInputCentered<PJ301MPort>(Vec(jx(i), theme::kBottomRowY), module, row2[i]));
+		addParam(createParamCentered<BidooRoundButton>(Vec(351.f, theme::kBottomRowY), module, SOUNAIRE::REC_PARAM));
 		// the audio inputs have their own box, before the outputs
-		addInput(createInputCentered<PJ301MPort>(Vec(392.f, 305.f), module, SOUNAIRE::INL_INPUT));
-		addInput(createInputCentered<PJ301MPort>(Vec(392.f, 341.f), module, SOUNAIRE::INR_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(Vec(446.f, 305.f), module, SOUNAIRE::L_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(Vec(446.f, 341.f), module, SOUNAIRE::R_OUTPUT));
+		addInput(createInputCentered<PJ301MPort>(Vec(392.f, upperRow), module, SOUNAIRE::INL_INPUT));
+		addInput(createInputCentered<PJ301MPort>(Vec(392.f, theme::kBottomRowY), module, SOUNAIRE::INR_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(Vec(446.f, upperRow), module, SOUNAIRE::L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(Vec(446.f, theme::kBottomRowY), module, SOUNAIRE::R_OUTPUT));
 	}
 
 	// the knobs that mean something else in SLICES mode say so in their tooltips

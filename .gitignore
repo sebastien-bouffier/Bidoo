@@ -9,3 +9,4 @@ dist
 /src/dep/share
 *.bz2
 /dep
+__pycache__

@@ -7,8 +7,6 @@
 #endif
 
 namespace filtre_ui {
-static const NVGcolor INK = nvgRGB(0, 0, 0);
-static const NVGcolor PAPER = nvgRGB(255, 233, 0); // the screens' yellow
 using filtre::kPoints;
 
 // The curve's measures run on their own thread: a reverb or a long comb takes a few milliseconds, and the UI must not
@@ -137,10 +135,10 @@ struct Screen : TransparentWidget {
 	void draw(const DrawArgs &args) override {
 		NVGcontext *vg = args.vg;
 		const float w = box.size.x, h = box.size.y, ph = plotH();
-		const NVGcolor dimPaper = nvgRGBA(255, 233, 0, 110), gridC = nvgRGBA(255, 233, 0, 26), strongGrid = nvgRGBA(255, 233, 0, 80);
+		const NVGcolor dimPaper = nvgTransRGBA(theme::kScreenYellow, 110), gridC = nvgTransRGBA(theme::kScreenYellow, 26), strongGrid = nvgTransRGBA(theme::kScreenYellow, 80);
 		nvgBeginPath(vg);
 		nvgRoundedRect(vg, 0, 0, w, h, 3.f);
-		nvgFillColor(vg, INK);
+		nvgFillColor(vg, theme::kScreenBlack);
 		nvgFill(vg);
 
 		std::shared_ptr<window::Font> font = APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
@@ -174,7 +172,7 @@ struct Screen : TransparentWidget {
 			nvgStroke(vg);
 			if (db > -48 && db < 24) {
 				label(vg, 3.f, y - 1.f, db ? rack::string::f("%+d", db) : "0", NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM, dimPaper);
-				label(vg, w - 3.f, y - 1.f, std::to_string(db - 24), NVG_ALIGN_RIGHT | NVG_ALIGN_BOTTOM, nvgTransRGBA(PINK_BIDOO, 170));
+				label(vg, w - 3.f, y - 1.f, std::to_string(db - 24), NVG_ALIGN_RIGHT | NVG_ALIGN_BOTTOM, nvgTransRGBA(theme::kWavePink, 170));
 			}
 		}
 
@@ -185,16 +183,16 @@ struct Screen : TransparentWidget {
 			nvgLineTo(vg, xOfPoint(p), yOfSpectrum(out[p]));
 		nvgLineTo(vg, w, ph);
 		nvgClosePath(vg);
-		nvgFillColor(vg, nvgTransRGBA(PINK_BIDOO, 150));
+		nvgFillColor(vg, nvgTransRGBA(theme::kWavePink, 150));
 		nvgFill(vg);
 		nvgBeginPath(vg);
 		line(vg, out, false);
-		nvgStrokeColor(vg, PINK_BIDOO);
+		nvgStrokeColor(vg, theme::kWavePink);
 		nvgStrokeWidth(vg, 1.f);
 		nvgStroke(vg);
 		nvgBeginPath(vg);
 		line(vg, in, false);
-		nvgStrokeColor(vg, nvgRGBA(255, 233, 0, 90));
+		nvgStrokeColor(vg, nvgTransRGBA(theme::kScreenYellow, 90));
 		nvgStrokeWidth(vg, 1.f);
 		nvgStroke(vg);
 
@@ -203,7 +201,7 @@ struct Screen : TransparentWidget {
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, cx, ph - 7.f);
 		nvgLineTo(vg, cx, ph);
-		nvgStrokeColor(vg, PAPER);
+		nvgStrokeColor(vg, theme::kScreenYellow);
 		nvgStrokeWidth(vg, 1.5f);
 		nvgStroke(vg);
 
@@ -219,25 +217,25 @@ struct Screen : TransparentWidget {
 		for (int p = kPoints - 1; p >= 0; p--)
 			nvgLineTo(vg, xOfPoint(p), yOfCurve(curve.low[p]));
 		nvgClosePath(vg);
-		nvgFillColor(vg, nvgRGBA(255, 233, 0, 56));
+		nvgFillColor(vg, nvgTransRGBA(theme::kScreenYellow, 56));
 		nvgFill(vg);
 		nvgBeginPath(vg);
 		line(vg, curve.mean, true);
-		nvgStrokeColor(vg, PAPER);
+		nvgStrokeColor(vg, theme::kScreenYellow);
 		nvgStrokeWidth(vg, 1.6f);
 		nvgLineJoin(vg, NVG_ROUND);
 		nvgStroke(vg);
 
 		// the readout
 		const filtre::TypeInfo &info = filtre::typeAt(filtre::positionOfId(shown.id));
-		label(vg, 24.f, 3.f, info.name, NVG_ALIGN_LEFT | NVG_ALIGN_TOP, PAPER, 15.f);
+		label(vg, 24.f, 3.f, info.name, NVG_ALIGN_LEFT | NVG_ALIGN_TOP, theme::kScreenYellow, 15.f);
 		if (info.morph)
-			label(vg, 24.f, 18.f, rack::string::f("MORPH %s  %.0f%%", info.morph, shown.morph * 100.f), NVG_ALIGN_LEFT | NVG_ALIGN_TOP, PAPER);
+			label(vg, 24.f, 18.f, rack::string::f("MORPH %s  %.0f%%", info.morph, shown.morph * 100.f), NVG_ALIGN_LEFT | NVG_ALIGN_TOP, theme::kScreenYellow);
 		else
 			label(vg, 24.f, 18.f, "no MORPH", NVG_ALIGN_LEFT | NVG_ALIGN_TOP, dimPaper);
-		label(vg, w - 24.f, 3.f, hzText(shown.cutoff), NVG_ALIGN_RIGHT | NVG_ALIGN_TOP, PAPER, 15.f);
+		label(vg, w - 24.f, 3.f, hzText(shown.cutoff), NVG_ALIGN_RIGHT | NVG_ALIGN_TOP, theme::kScreenYellow, 15.f);
 		label(vg, w - 24.f, 18.f, rack::string::f("RES %.0f%%  DRIVE %.0f%%  MIX %.0f%%", shown.res * 100.f, shown.drive * 100.f, shown.mix * 100.f),
-		      NVG_ALIGN_RIGHT | NVG_ALIGN_TOP, PAPER);
+		      NVG_ALIGN_RIGHT | NVG_ALIGN_TOP, theme::kScreenYellow);
 		std::string note;
 		if (curve.kind == filtre::CurveKind::Noise)
 			note = "curve: white noise through it, this type moves frequencies";
@@ -249,9 +247,9 @@ struct Screen : TransparentWidget {
 			const float noteW = nvgTextBounds(vg, 0.f, 0.f, note.c_str(), nullptr, nullptr);
 			nvgBeginPath(vg);
 			nvgRect(vg, w - 24.f - noteW - 3.f, ph - 13.f, noteW + 6.f, 11.f);
-			nvgFillColor(vg, nvgRGBA(0, 0, 0, 190));
+			nvgFillColor(vg, nvgTransRGBA(theme::kScreenBlack, 190));
 			nvgFill(vg);
-			label(vg, w - 24.f, ph - 3.f, note, NVG_ALIGN_RIGHT | NVG_ALIGN_BOTTOM, PAPER);
+			label(vg, w - 24.f, ph - 3.f, note, NVG_ALIGN_RIGHT | NVG_ALIGN_BOTTOM, theme::kScreenYellow);
 		}
 		nvgResetScissor(vg);
 	}
@@ -451,37 +449,35 @@ struct FILTREWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/FILTRE.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
 		Display *display = new Display;
 		display->module = module;
-		display->box.pos = Vec(10, 34);
-		display->box.size = Vec(400, 164);
+		display->box.pos = Vec(theme::kSideMargin, theme::kScreenTop);
+		display->box.size = Vec(box.size.x - 2.f * theme::kSideMargin, 190);
 		addChild(display);
 		display->setup();
 
 		// a column per control: knob, attenuverter, CV jack
+		const float knobRow = 256.f;
 		static const int knobs[6] = {FILTRE::TYPE_PARAM, FILTRE::CUTOFF_PARAM, FILTRE::RES_PARAM, FILTRE::DRIVE_PARAM, FILTRE::MORPH_PARAM, FILTRE::MIX_PARAM};
 		static const int amounts[6] = {FILTRE::TYPE_CV_PARAM, FILTRE::CUTOFF_CV_PARAM, FILTRE::RES_CV_PARAM, FILTRE::DRIVE_CV_PARAM, FILTRE::MORPH_CV_PARAM, FILTRE::MIX_CV_PARAM};
 		static const int cvs[6] = {FILTRE::TYPE_INPUT, FILTRE::CUTOFF_INPUT, FILTRE::RES_INPUT, FILTRE::DRIVE_INPUT, FILTRE::MORPH_INPUT, FILTRE::MIX_INPUT};
 		for (int i = 0; i < 6; i++) {
 			const float x = 82.f + 51.f * i;
 			if (i == 0)
-				addParam(createParamCentered<TypeKnob>(Vec(x, 236.f), module, knobs[i]));
+				addParam(createParamCentered<TypeKnob>(Vec(x, knobRow), module, knobs[i]));
 			else if (i == 4)
-				addParam(createParamCentered<MorphKnob>(Vec(x, 236.f), module, knobs[i]));
+				addParam(createParamCentered<MorphKnob>(Vec(x, knobRow), module, knobs[i]));
 			else
-				addParam(createParamCentered<BidooBlueKnob>(Vec(x, 236.f), module, knobs[i]));
-			addParam(createParamCentered<BidooBlueTrimpot>(Vec(x, 270.f), module, amounts[i]));
-			addInput(createInputCentered<PJ301MPort>(Vec(x, 316.f), module, cvs[i]));
+				addParam(createParamCentered<BidooBlueKnob>(Vec(x, knobRow), module, knobs[i]));
+			addParam(createParamCentered<BidooBlueTrimpot>(Vec(x, theme::kSecondRowY), module, amounts[i]));
+			addInput(createInputCentered<PJ301MPort>(Vec(x, theme::kBottomRowY), module, cvs[i]));
 		}
-		addInput(createInputCentered<PJ301MPort>(Vec(30.f, 236.f), module, FILTRE::INL_INPUT));
-		addInput(createInputCentered<PJ301MPort>(Vec(30.f, 316.f), module, FILTRE::INR_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(Vec(390.f, 236.f), module, FILTRE::OUTL_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(Vec(390.f, 316.f), module, FILTRE::OUTR_OUTPUT));
+		addInput(createInputCentered<PJ301MPort>(Vec(30.f, knobRow), module, FILTRE::INL_INPUT));
+		addInput(createInputCentered<PJ301MPort>(Vec(30.f, theme::kBottomRowY), module, FILTRE::INR_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(Vec(390.f, knobRow), module, FILTRE::OUTL_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(Vec(390.f, theme::kBottomRowY), module, FILTRE::OUTR_OUTPUT));
 	}
 
 	void appendContextMenu(Menu *menu) override {

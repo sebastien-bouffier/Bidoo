@@ -6,11 +6,7 @@
 namespace copia_ui {
 namespace g = copia::g;
 
-static const NVGcolor INK = nvgRGB(0, 0, 0);
-static const NVGcolor PAPER = nvgRGB(255, 233, 0); // the screens' yellow
-static const NVGcolor ACCENT = nvgRGB(0xF0, 0x62, 0x2F);
 static const NVGcolor PALE = nvgRGB(0x9A, 0x8C, 0x00); // a dim yellow: the chance lane
-static const NVGcolor BUTTON = nvgRGB(0xF6, 0xF4, 0xF8); // the white of the panel buttons
 static const NVGcolor PAD_USED = nvgRGB(0xBE, 0xBE, 0xBE);
 
 inline std::shared_ptr<window::Font> monoFont() {
@@ -374,7 +370,7 @@ struct CopiaDisplay : OpaqueWidget {
 	void draw(const DrawArgs &args) override {
 		nvgBeginPath(args.vg);
 		nvgRoundedRect(args.vg, 0, 0, box.size.x, box.size.y, 3.f);
-		nvgFillColor(args.vg, INK);
+		nvgFillColor(args.vg, theme::kScreenBlack);
 		nvgFill(args.vg);
 		if (!module)
 			drawContent(args);
@@ -395,7 +391,7 @@ struct CopiaDisplay : OpaqueWidget {
 		const float W = box.size.x;
 		const NVGcolor dim = nvgRGB(0x57, 0x53, 0x4A);
 		if (!module) {
-			text(args, W / 2, WAVE / 2, "cOPIA  live resampler", NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, PAPER, 11.f);
+			text(args, W / 2, WAVE / 2, "cOPIA  live resampler", NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE, theme::kScreenYellow, 11.f);
 			return;
 		}
 		copia::Engine &e = module->engine;
@@ -411,7 +407,7 @@ struct CopiaDisplay : OpaqueWidget {
 				const float h = std::min(1.f, lp.peaks[i]) * (WAVE / 2 - 2);
 				nvgRect(args.vg, x, WAVE / 2 - h, std::max(1.f, ww / copia::kPeaks), 2 * h + 0.5f);
 			}
-			nvgFillColor(args.vg, PINK_BIDOO);
+			nvgFillColor(args.vg, theme::kWavePink);
 			nvgFill(args.vg);
 			// the bars
 			const int bars = std::max(1, (int)std::round(lp.beats / std::max(1, module->beatsPerBar)));
@@ -425,14 +421,14 @@ struct CopiaDisplay : OpaqueWidget {
 			if (ph >= 0.f) {
 				nvgBeginPath(args.vg);
 				nvgRect(args.vg, LABEL + ww * ph - 1, 0, 2, WAVE);
-				nvgFillColor(args.vg, PAPER);
+				nvgFillColor(args.vg, theme::kScreenYellow);
 				nvgFill(args.vg);
 			}
 		}
 		if (cs == 2) {
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, LABEL, WAVE - 3, ww * e.capProgress.load(), 3);
-			nvgFillColor(args.vg, ACCENT);
+			nvgFillColor(args.vg, theme::kLitOrange);
 			nvgFill(args.vg);
 		}
 		// what is going on, top left
@@ -447,7 +443,7 @@ struct CopiaDisplay : OpaqueWidget {
 			state = "NO LOOP";
 		const bool blink = cs != 1 || std::fmod(system::getTime(), 0.5) < 0.25;
 		if (blink)
-			text(args, 4, 3, state, NVG_ALIGN_LEFT | NVG_ALIGN_TOP, cs > 0 ? ACCENT : PAPER, 10.f);
+			text(args, 4, 3, state, NVG_ALIGN_LEFT | NVG_ALIGN_TOP, cs > 0 ? theme::kLitOrange : theme::kScreenYellow, 10.f);
 		const float bpm = module->bpmNow.load();
 		text(args, 4, 16, module->runningNow.load() ? rack::string::f("%.1f BPM", bpm) : std::string("STOPPED"), NVG_ALIGN_LEFT | NVG_ALIGN_TOP, dim, 8.f);
 		std::string right = rack::string::f("SC %d", e.current.load() + 1);
@@ -460,9 +456,9 @@ struct CopiaDisplay : OpaqueWidget {
 		const float rightW = nvgTextBounds(args.vg, 0.f, 0.f, right.c_str(), nullptr, nullptr);
 		nvgBeginPath(args.vg);
 		nvgRect(args.vg, W - rightW - 7.f, 1.f, rightW + 7.f, 12.f);
-		nvgFillColor(args.vg, INK);
+		nvgFillColor(args.vg, theme::kScreenBlack);
 		nvgFill(args.vg);
-		text(args, W - 4, 3, right, NVG_ALIGN_RIGHT | NVG_ALIGN_TOP, PAPER, 9.f);
+		text(args, W - 4, 3, right, NVG_ALIGN_RIGHT | NVG_ALIGN_TOP, theme::kScreenYellow, 9.f);
 
 		// ---- the lanes
 		copia::Scene &sc = scene();
@@ -485,13 +481,13 @@ struct CopiaDisplay : OpaqueWidget {
 			const bool muted = !chance && module->mute[lane].load();
 			// the label
 			if (chance) {
-				text(args, 4, y + lh / 2, "? CHANCE", NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, PAPER, 8.f);
+				text(args, 4, y + lh / 2, "? CHANCE", NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, theme::kScreenYellow, 8.f);
 			}
 			else {
 				const bool sounding = e.sounding(lane);
-				text(args, 4, y + lh / 2, std::to_string(lane + 1), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, muted ? dim : sounding ? ACCENT : PAPER, 9.f);
-				text(args, 16, y + lh / 2, copia::kEffects[copia::effectIndex(sc.slot[lane].effect())].shortName, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, muted ? dim : PAPER, 8.f);
-				text(args, LABEL - 4, y + lh / 2, sc.slot[lane].live.load() ? "LV" : "LP", NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, sc.slot[lane].live.load() ? ACCENT : dim, 8.f);
+				text(args, 4, y + lh / 2, std::to_string(lane + 1), NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, muted ? dim : sounding ? theme::kLitOrange : theme::kScreenYellow, 9.f);
+				text(args, 16, y + lh / 2, copia::kEffects[copia::effectIndex(sc.slot[lane].effect())].shortName, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE, muted ? dim : theme::kScreenYellow, 8.f);
+				text(args, LABEL - 4, y + lh / 2, sc.slot[lane].live.load() ? "LV" : "LP", NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE, sc.slot[lane].live.load() ? theme::kLitOrange : dim, 8.f);
 			}
 			// the blocks
 			for (int st = 0; st < n;) {
@@ -507,7 +503,7 @@ struct CopiaDisplay : OpaqueWidget {
 				const float h = (lh - 3) * std::max(0.2f, level);
 				nvgBeginPath(args.vg);
 				nvgRect(args.vg, x0, y + lh - 1.5f - h, x1 - x0, h);
-				NVGcolor c = muted ? dim : chance ? PALE : PAPER;
+				NVGcolor c = muted ? dim : chance ? PALE : theme::kScreenYellow;
 				if (prob < 1.f)
 					c = nvgTransRGBAf(c, 0.45f);
 				nvgFillColor(args.vg, c);
@@ -516,7 +512,7 @@ struct CopiaDisplay : OpaqueWidget {
 				for (int k = 1; k < rat; k++) {
 					nvgBeginPath(args.vg);
 					nvgRect(args.vg, x0 + (x1 - x0) * k / rat, y + lh - 1.5f - h, 1, h);
-					nvgFillColor(args.vg, INK);
+					nvgFillColor(args.vg, theme::kScreenBlack);
 					nvgFill(args.vg);
 				}
 				st = last + 1;
@@ -530,7 +526,7 @@ struct CopiaDisplay : OpaqueWidget {
 		if (play >= 0.f) {
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, LABEL + std::fmod(play, (float)n) * sw - 0.5f, TOP, 1.f, lh * copia::kLanes);
-			nvgFillColor(args.vg, PAPER);
+			nvgFillColor(args.vg, theme::kScreenYellow);
 			nvgFill(args.vg);
 		}
 	}
@@ -594,16 +590,16 @@ struct ScenePads : OpaqueWidget {
 			const bool used = module ? module->engine.scenes[i].used.load() : i == 0;
 			nvgBeginPath(args.vg);
 			nvgRoundedRect(args.vg, x + 0.5f, 0.5f, PAD - 1, PAD - 1, 2.f);
-			nvgFillColor(args.vg, i == cur ? ACCENT : used ? PAD_USED : BUTTON);
+			nvgFillColor(args.vg, i == cur ? theme::kLitOrange : used ? PAD_USED : theme::kButtonWhite);
 			nvgFill(args.vg);
-			nvgStrokeColor(args.vg, i == target && target != cur ? ACCENT : INK);
+			nvgStrokeColor(args.vg, i == target && target != cur ? theme::kLitOrange : theme::kScreenBlack);
 			nvgStrokeWidth(args.vg, i == target && target != cur ? 2.f : 1.f);
 			nvgStroke(args.vg);
 			if (f) {
 				nvgFontFaceId(args.vg, f->handle);
 				nvgFontSize(args.vg, 9.f);
 				nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-				nvgFillColor(args.vg, i == cur ? BUTTON : INK);
+				nvgFillColor(args.vg, i == cur ? theme::kButtonWhite : theme::kScreenBlack);
 				nvgText(args.vg, x + PAD / 2, PAD / 2 + 0.5f, i == b ? "B" : std::to_string(i + 1).c_str(), nullptr);
 			}
 		}
@@ -632,19 +628,19 @@ struct CaptureButton : app::Switch {
 		const bool loop = m && m->engine.front.load() >= 0;
 		nvgBeginPath(args.vg);
 		nvgCircle(args.vg, c, c, c - 0.5f);
-		nvgFillColor(args.vg, INK);
+		nvgFillColor(args.vg, theme::kScreenBlack);
 		nvgFill(args.vg);
 		bool lit = st == 2 || (st == 1 && std::fmod(system::getTime(), 0.5) < 0.25);
 		nvgBeginPath(args.vg);
 		nvgCircle(args.vg, c, c, c * 0.6f);
-		nvgFillColor(args.vg, lit ? ACCENT : BUTTON);
+		nvgFillColor(args.vg, lit ? theme::kLitOrange : theme::kButtonWhite);
 		nvgFill(args.vg);
 		if (loop || st == 2) {
 			const float a0 = -M_PI / 2;
 			const float a1 = st == 2 ? a0 + 2 * M_PI * m->engine.capProgress.load() : a0 + 2 * M_PI;
 			nvgBeginPath(args.vg);
 			nvgArc(args.vg, c, c, c * 0.78f, a0, a1, NVG_CW);
-			nvgStrokeColor(args.vg, ACCENT);
+			nvgStrokeColor(args.vg, theme::kLitOrange);
 			nvgStrokeWidth(args.vg, 2.f);
 			nvgStroke(args.vg);
 		}
@@ -659,19 +655,16 @@ struct COPIAWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/COPIA.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
 		CopiaDisplay *display = new CopiaDisplay;
 		display->module = module;
-		display->box.pos = Vec(10, 34);
-		display->box.size = Vec(490, 134);
+		display->box.pos = Vec(theme::kSideMargin, theme::kScreenTop);
+		display->box.size = Vec(box.size.x - 2.f * theme::kSideMargin, 150);
 		addChild(display);
 
 		// row 1: capture, length, grid, rand, mutate, scenes, morph, mix, in/out
-		const float r1 = 200.f;
+		const float r1 = 213.f;
 		CaptureButton *cap = createParamCentered<CaptureButton>(Vec(30, r1), module, COPIA::CAPTURE_PARAM);
 		cap->m = module;
 		addParam(cap);
@@ -703,7 +696,7 @@ struct COPIAWidget : BidooWidget {
 		inout->box.pos = Vec(478 - 14, r1 - 14);
 
 		// row 2: each slot's effect and punch-in knobs
-		const float r2 = 243.f - 3.f;
+		const float r2 = 253.f;
 		for (int s = 0; s < copia::kSlots; s++) {
 			const float cx = 10.f + 61.25f * (s + 0.5f);
 			knob(cx - 14.f, r2, COPIA::FX_PARAM + s, true);
@@ -715,15 +708,15 @@ struct COPIAWidget : BidooWidget {
 		const int rowA[9] = {COPIA::INL_INPUT, COPIA::INR_INPUT, COPIA::CLOCK_INPUT, COPIA::RESET_INPUT, COPIA::CAPTURE_INPUT,
 		                     COPIA::INOUT_INPUT, COPIA::SCENE_INPUT, COPIA::MORPH_INPUT, COPIA::MIX_INPUT};
 		for (int i = 0; i < 9; i++)
-			addInput(createInputCentered<PJ301MPort>(Vec(jx(i), 283.f), module, rowA[i]));
+			addInput(createInputCentered<PJ301MPort>(Vec(jx(i), theme::kSecondRowY), module, rowA[i]));
 		for (int s = 0; s < copia::kSlots; s++)
-			addInput(createInputCentered<PJ301MPort>(Vec(jx(s), 327.f), module, COPIA::PUNCH_INPUT + s));
+			addInput(createInputCentered<PJ301MPort>(Vec(jx(s), theme::kBottomRowY), module, COPIA::PUNCH_INPUT + s));
 		const int outA[4] = {COPIA::OUTL_OUTPUT, COPIA::OUTR_OUTPUT, COPIA::BAR_OUTPUT, COPIA::REC_OUTPUT};
 		const int outB[3] = {COPIA::WETL_OUTPUT, COPIA::WETR_OUTPUT, COPIA::LANES_OUTPUT};
 		for (int i = 0; i < 4; i++)
-			addOutput(createOutputCentered<PJ301MPort>(Vec(369.2f + 37.6f * i, 283.f), module, outA[i]));
+			addOutput(createOutputCentered<PJ301MPort>(Vec(369.2f + 37.6f * i, theme::kSecondRowY), module, outA[i]));
 		for (int i = 0; i < 3; i++)
-			addOutput(createOutputCentered<PJ301MPort>(Vec(369.2f + 37.6f * i, 327.f), module, outB[i]));
+			addOutput(createOutputCentered<PJ301MPort>(Vec(369.2f + 37.6f * i, theme::kBottomRowY), module, outB[i]));
 	}
 
 	void appendContextMenu(Menu *menu) override {

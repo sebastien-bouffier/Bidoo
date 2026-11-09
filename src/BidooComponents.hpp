@@ -5,6 +5,7 @@
 #include <jansson.h>
 #include "widget/Widget.hpp"
 #include <iostream>
+#include "BidooTheme.hpp"
 
 using namespace std;
 
@@ -404,11 +405,11 @@ struct BidooRoundButton : app::Switch {
 		const bool lit = pq && pq->getValue() > 0.5f;
 		nvgBeginPath(args.vg);
 		nvgCircle(args.vg, c, c, c - 0.5f);
-		nvgFillColor(args.vg, nvgRGB(0, 0, 0));
+		nvgFillColor(args.vg, theme::kScreenBlack);
 		nvgFill(args.vg);
 		nvgBeginPath(args.vg);
 		nvgCircle(args.vg, c, c, c * inner);
-		nvgFillColor(args.vg, lit ? nvgRGB(0xF0, 0x62, 0x2F) : nvgRGB(0xF6, 0xF4, 0xF8));
+		nvgFillColor(args.vg, lit ? theme::kLitOrange : theme::kButtonWhite);
 		nvgFill(args.vg);
 	}
 };

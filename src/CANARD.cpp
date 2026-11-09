@@ -931,16 +931,33 @@ struct CANARDDisplay : OpaqueWidget {
 	void drawWave(const DrawArgs& args, const CanardSample &s, int c, float top) {
 		Rect b = Rect(Vec(zoomLeftAnchor, top), Vec(zoomWidth, height));
 		nvgScissor(args.vg, 0, b.pos.y, width, height);
-		// filled: one bar per overview bin, from its lowest to its highest value
-		const float binW = b.size.x / CanardSample::OVERVIEW;
+		// filled: one column per pixel, from its lowest to its highest value; from the overview when
+		// a pixel covers more than one of its bins, from the frames when zoomed in
+		const int total = s.size(), bins = CanardSample::OVERVIEW;
+		const double perPixel = (double)total / b.size.x, binFrames = (double)total / bins;
 		nvgBeginPath(args.vg);
-		for (int i = 0; i < CanardSample::OVERVIEW; i++) {
-			const float x = b.pos.x + binW * i;
-			if (x + binW < 0.f || x > width)
+		for (int px = 0; px < (int)width; px++) {
+			const double f0 = (px - b.pos.x) * perPixel, f1 = f0 + perPixel;
+			if (f1 <= 0.0 || f0 >= total)
 				continue;
-			const float yHi = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(s.overviewMax[c][i], -1.f, 1.f));
-			const float yLo = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(s.overviewMin[c][i], -1.f, 1.f));
-			nvgRect(args.vg, x, yHi, std::max(binW, 1.f), std::max(yLo - yHi, 1.f));
+			float lo = 1.f, hi = -1.f;
+			if (perPixel >= binFrames || (int)s.frames.size() < total) {
+				const int k0 = clamp((int)(f0 / binFrames), 0, bins - 1), k1 = clamp((int)(f1 / binFrames), k0 + 1, bins);
+				for (int k = k0; k < k1; k++) {
+					lo = std::min(lo, s.overviewMin[c][k]);
+					hi = std::max(hi, s.overviewMax[c][k]);
+				}
+			}
+			else {
+				const int j0 = clamp((int)f0, 0, total - 1), j1 = clamp((int)std::ceil(f1), j0, total - 1);
+				for (int j = j0; j <= j1; j++) {
+					lo = std::min(lo, s.frames[j].samples[c]);
+					hi = std::max(hi, s.frames[j].samples[c]);
+				}
+			}
+			const float yHi = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(hi, -1.f, 1.f));
+			const float yLo = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(lo, -1.f, 1.f));
+			nvgRect(args.vg, px, yHi, 1.f, std::max(yLo - yHi, 1.f));
 		}
 		nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
 		nvgFillColor(args.vg, PINK_BIDOO);
