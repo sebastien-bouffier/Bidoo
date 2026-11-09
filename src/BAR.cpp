@@ -405,13 +405,13 @@ struct BARWidget : BidooWidget {
 		addParam(createParam<BidooBlueTrimpot>(Vec(74.0f,291.0f), module, BAR::MIX_PARAM));
 		addParam(createParam<BidooBlueTrimpot>(Vec(106.0f,291.0f), module, BAR::LOOKAHEAD_PARAM));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(5.0f, 340.0f), module, BAR::IN_L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(5.0f+22.f, 340.0f), module, BAR::IN_R_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(49.0f, 340.0f), module, BAR::SC_L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(49.0f+22.f, 340.0f), module, BAR::SC_R_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(7.5f, 339.0f), module, BAR::IN_L_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(25.5f, 339.0f), module, BAR::IN_R_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(51.0f, 339.0f), module, BAR::SC_L_INPUT));
+		addInput(createInput<TinyPJ301MPort>(Vec(69.0f, 339.0f), module, BAR::SC_R_INPUT));
 
-		addOutput(createOutput<TinyPJ301MPort>(Vec(93.0f, 340.0f), module, BAR::OUT_L_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(93.0f+22.0f, 340.0f), module, BAR::OUT_R_OUTPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(94.5f, 339.0f), module, BAR::OUT_L_OUTPUT));
+		addOutput(createOutput<TinyPJ301MPort>(Vec(112.5f, 339.0f), module, BAR::OUT_R_OUTPUT));
 	}
 };
 
