@@ -1,10 +1,14 @@
-// sOUNAiRe panel: Riso look (paper, ink, blue for a sound source). The panel SVG
+// sOUNAiRe panel. The panel SVG
 // holds the labels; knobs, buttons, jacks and the display draw themselves.
 #pragma once
-#include "RisoComponents.hpp"
+#include "BidooComponents.hpp"
 
 namespace sounaire_ui {
-using namespace riso;
+static const NVGcolor INK = nvgRGB(0, 0, 0);
+static const NVGcolor PAPER = nvgRGB(255, 233, 0); // the screens' yellow
+static const NVGcolor TRACK = nvgRGB(0x4A, 0x4A, 0x4A);
+static const NVGcolor BLUE = nvgRGB(0x2F, 0x55, 0xD4);
+static const NVGcolor ORANGE = nvgRGB(0xF0, 0x62, 0x2F);
 
 inline std::string noteName(float n) {
 	return ::noteName(n);
@@ -310,7 +314,7 @@ struct SounaireDisplay : OpaqueWidget {
 			                module->params[SOUNAIRE::LOOP_START_PARAM].getValue(), module->params[SOUNAIRE::LOOP_END_PARAM].getValue(),
 			                module->params[SOUNAIRE::LOOP_MODE_PARAM].getValue() > 0.5f ? 1.0 : 0.0, module->sliceMode() ? 1.0 : 0.0,
 			                (double)module->sliceVersion.load(), (double)module->selectedSlice.load(), module->autoNormalize ? 1.0 : 0.0,
-			                box.size.x, box.size.y, 0.0, 0.0};
+			                box.size.x, box.size.y, module->waveBlue ? 1.0 : 0.0, 0.0};
 			if (std::memcmp(k, waveKey, sizeof(k)) != 0) {
 				std::memcpy(waveKey, k, sizeof(k));
 				fb->setDirty();
@@ -348,7 +352,7 @@ struct SounaireDisplay : OpaqueWidget {
 			float sx0 = posToX(cuts.start[sel] / F), sx1 = posToX(cuts.end(sel, s->frames) / F);
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, sx0, 14, sx1 - sx0, B - 14);
-			nvgFillColor(args.vg, nvgRGBA(0xF0, 0x62, 0x2F, 0x38));
+			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? ORANGE : BLUE, 0x38));
 			nvgFill(args.vg);
 		}
 		// loop region
@@ -358,7 +362,7 @@ struct SounaireDisplay : OpaqueWidget {
 			float x0 = posToX(std::min(ls, le)), x1 = posToX(std::max(ls, le));
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, x0, 14, x1 - x0, B - 14);
-			nvgFillColor(args.vg, nvgRGBA(0x2F, 0x55, 0xD4, 0x40));
+			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? BLUE : ORANGE, 0x40));
 			nvgFill(args.vg);
 		}
 		// waveform, normalized as it plays: from the overview when a pixel
@@ -400,7 +404,8 @@ struct SounaireDisplay : OpaqueWidget {
 				hi = clamp(hi * norm, -1.f, 1.f);
 				nvgRect(args.vg, i, mid - hi * amp, 1.f, std::max(1.f, (hi - lo) * amp));
 			}
-			nvgFillColor(args.vg, pass == 0 ? BLUE : nvgRGBA(0x2F, 0x55, 0xD4, 0x55));
+			NVGcolor waveColor = module->waveBlue ? BLUE : ORANGE;
+			nvgFillColor(args.vg, pass == 0 ? waveColor : nvgTransRGBA(waveColor, 0x55));
 			nvgFill(args.vg);
 		}
 		// SLICES mode: the cuts, each slice numbered
@@ -421,7 +426,7 @@ struct SounaireDisplay : OpaqueWidget {
 			nvgBeginPath(args.vg);
 			nvgMoveTo(args.vg, xs, 14);
 			nvgLineTo(args.vg, xs, B);
-			nvgStrokeColor(args.vg, ORANGE);
+			nvgStrokeColor(args.vg, module->waveBlue ? ORANGE : BLUE);
 			nvgStroke(args.vg);
 			if (f && f->handle >= 0) {
 				nvgFontFaceId(args.vg, f->handle);
@@ -432,7 +437,7 @@ struct SounaireDisplay : OpaqueWidget {
 					float next = posToX(cuts.end(i, s->frames) / F);
 					if (next < 0.f || x > W || next - x <= 9.f)
 						continue;
-					nvgFillColor(args.vg, i == sel ? ORANGE : PAPER);
+					nvgFillColor(args.vg, i == sel ? (module->waveBlue ? ORANGE : BLUE) : PAPER);
 					nvgText(args.vg, std::max(x, 0.f) + 2, 15, std::to_string(i + 1).c_str(), nullptr);
 				}
 			}
@@ -520,7 +525,7 @@ struct SounaireDisplay : OpaqueWidget {
 				float x = posToX(pos / v.frames);
 				nvgBeginPath(args.vg);
 				nvgRect(args.vg, x, 14, 1.f, B - 14);
-				nvgFillColor(args.vg, nvgRGBA(0xF2, 0xEE, 0xE4, (unsigned char)(80 + 175 * clamp(v.env, 0.f, 1.f))));
+				nvgFillColor(args.vg, nvgRGBA(255, 233, 0, (unsigned char)(80 + 175 * clamp(v.env, 0.f, 1.f))));
 				nvgFill(args.vg);
 			}
 		}
@@ -528,7 +533,7 @@ struct SounaireDisplay : OpaqueWidget {
 			float x0 = posToX(std::min(selFrom, selTo)), x1 = posToX(std::max(selFrom, selTo));
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, x0, 14, x1 - x0, B - 14);
-			nvgFillColor(args.vg, nvgRGBA(0xF0, 0x62, 0x2F, 0x60));
+			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? ORANGE : BLUE, 0x60));
 			nvgFill(args.vg);
 		}
 		// header line: sample, rate, length; under the waveform: what plays
@@ -888,27 +893,33 @@ struct SOUNAIREWidget : BidooWidget {
 	SOUNAIREWidget(SOUNAIRE *module) {
 		using namespace sounaire_ui;
 		setModule(module);
-		themable = false; // the Riso panel has no other look
 		prepareThemes(asset::plugin(pluginInstance, "res/SOUNAIRE.svg"));
+
+		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+
 		SounaireDisplay *display = new SounaireDisplay;
 		display->module = module;
-		display->box.pos = Vec(10, 24);
+		display->box.pos = Vec(10, 34);
 		display->box.size = Vec(460, 76);
 		addChild(display);
 		SounaireKeys *keys = new SounaireKeys;
 		keys->module = module;
 		keys->display = display;
-		keys->box.pos = Vec(10, 104);
+		keys->box.pos = Vec(10, 112);
 		keys->box.size = Vec(460, 28);
 		addChild(keys);
 
 		// three rows of eight columns
 		auto cx = [](int col) { return 40.f + 57.f * col; };
-		const float rows[3] = {164.f, 212.f, 260.f};
+		const float rows[3] = {169.f, 215.f, 261.f};
 		auto knob = [&](int col, int row, int param, bool snapped) {
-			app::Knob *k = snapped ? (app::Knob *)createParamCentered<RisoSnapKnob>(Vec(cx(col), rows[row]), module, param)
-			                       : (app::Knob *)createParamCentered<RisoKnob>(Vec(cx(col), rows[row]), module, param);
-			addParam(k);
+			if (snapped)
+				addParam(createParamCentered<BidooSmallSnapBlueKnob>(Vec(cx(col), rows[row]), module, param));
+			else
+				addParam(createParamCentered<BidooSmallBlueKnob>(Vec(cx(col), rows[row]), module, param));
 		};
 		knob(0, 0, SOUNAIRE::START_PARAM, false);
 		knob(1, 0, SOUNAIRE::END_PARAM, false);
@@ -918,7 +929,7 @@ struct SOUNAIREWidget : BidooWidget {
 		knob(5, 0, SOUNAIRE::LOOP_MODE_PARAM, true);
 		// REVERSE and LEGATO do nothing in SLICES mode: faded there
 		for (int i = 0; i < 2; i++) {
-			RisoButton *b = createParamCentered<RisoButton>(Vec(cx(6 + i), rows[0]), module, i == 0 ? SOUNAIRE::REVERSE_PARAM : SOUNAIRE::LEGATO_PARAM);
+			BidooRoundButton *b = createParamCentered<BidooRoundButton>(Vec(cx(6 + i), rows[0]), module, i == 0 ? SOUNAIRE::REVERSE_PARAM : SOUNAIRE::LEGATO_PARAM);
 			b->dimmed = [=]() { return module && module->sliceMode(); };
 			addParam(b);
 		}
@@ -939,28 +950,25 @@ struct SOUNAIREWidget : BidooWidget {
 		knob(4, 2, SOUNAIRE::ATTACK_PARAM, false);
 		knob(5, 2, SOUNAIRE::RELEASE_PARAM, false);
 		knob(6, 2, SOUNAIRE::PLAY_PARAM, true);
-		addParam(createParamCentered<RisoButton>(Vec(cx(7), rows[2]), module, SOUNAIRE::MODE_PARAM));
+		addParam(createParamCentered<BidooRoundButton>(Vec(cx(7), rows[2]), module, SOUNAIRE::MODE_PARAM));
 
-		// two rows of jacks (centres 24 + 38 i): playing, then slices, clock and
-		// recording; the outputs on the ink block, one on each row
-		auto jx = [](int i) { return 24.f + 38.f * i; };
+		// two rows of jacks (centres 28 + 38 i): playing, then slices, clock and
+		// recording; the outputs on the red box, one on each row
+		auto jx = [](int i) { return 28.f + 38.f * i; };
 		int row1[10] = {SOUNAIRE::VOCT_INPUT, SOUNAIRE::GATE_INPUT, SOUNAIRE::VEL_INPUT, SOUNAIRE::BEND_INPUT,
 		                SOUNAIRE::START_INPUT, SOUNAIRE::SPEED_INPUT, SOUNAIRE::CUTOFF_INPUT, SOUNAIRE::RES_INPUT,
 		                SOUNAIRE::PITCH_INPUT, SOUNAIRE::PLAY_INPUT};
 		for (int i = 0; i < 10; i++)
-			addInput(createInputCentered<RisoJack>(Vec(jx(i), 306.f), module, row1[i]));
+			addInput(createInputCentered<PJ301MPort>(Vec(jx(i), 305.f), module, row1[i]));
 		const int row2Col[6] = {0, 1, 2, 3, 5, 6};
 		int row2[6] = {SOUNAIRE::TRIG_INPUT, SOUNAIRE::SLICE_INPUT, SOUNAIRE::RESET_INPUT, SOUNAIRE::CLOCK_INPUT,
 		               SOUNAIRE::INL_INPUT, SOUNAIRE::INR_INPUT};
 		for (int i = 0; i < 6; i++)
-			addInput(createInputCentered<RisoJack>(Vec(jx(row2Col[i]), 348.f), module, row2[i]));
-		addParam(createParamCentered<RisoButton>(Vec(jx(7), 348.f), module, SOUNAIRE::REC_PARAM));
-		addInput(createInputCentered<RisoJack>(Vec(jx(8), 348.f), module, SOUNAIRE::REC_INPUT));
-		RisoJack *l = createOutputCentered<RisoJack>(Vec(452.f, 306.f), module, SOUNAIRE::L_OUTPUT);
-		RisoJack *r = createOutputCentered<RisoJack>(Vec(452.f, 348.f), module, SOUNAIRE::R_OUTPUT);
-		l->onInk = r->onInk = true;
-		addOutput(l);
-		addOutput(r);
+			addInput(createInputCentered<PJ301MPort>(Vec(jx(row2Col[i]), 341.f), module, row2[i]));
+		addParam(createParamCentered<BidooRoundButton>(Vec(405.f, 341.f), module, SOUNAIRE::REC_PARAM));
+		addInput(createInputCentered<PJ301MPort>(Vec(jx(8), 341.f), module, SOUNAIRE::REC_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(Vec(446.f, 305.f), module, SOUNAIRE::L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(Vec(446.f, 341.f), module, SOUNAIRE::R_OUTPUT));
 	}
 
 	// the knobs that mean something else in SLICES mode say so in their tooltips
@@ -1019,6 +1027,9 @@ struct SOUNAIREWidget : BidooWidget {
 		}));
 		menu->addChild(createMenuItem("Find the root note again (whole sample)", "", [=]() { m->requestRootAnalysis(0.0, 1.0); }));
 		menu->addChild(createBoolPtrMenuItem("Normalize the sample", "", &m->autoNormalize));
+		menu->addChild(createIndexSubmenuItem("Waveform colour", {"Orange", "Blue"},
+			[=]() { return m->waveBlue ? 1 : 0; },
+			[=](int i) { m->waveBlue = i == 1; }));
 		menu->addChild(createBoolPtrMenuItem("Find the root note when loading", "", &m->autoRoot));
 		menu->addChild(createBoolPtrMenuItem("Polyphonic outputs (one channel per voice)", "", &m->polyOut));
 		menu->addChild(createBoolPtrMenuItem("Equal-power loop crossfade (off: linear)", "", &m->xfadeEqualPower));

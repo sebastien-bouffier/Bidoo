@@ -2,6 +2,7 @@
 #include "BidooComponents.hpp"
 #include "dsp/digital.hpp"
 #include <cstdio>
+#include <climits>
 
 using namespace std;
 
@@ -14,6 +15,12 @@ using namespace std;
 // optional single Step. Matrix mode sums each knob into its row output (1-4)
 // and its column output (A-D); independent mode keeps separate settings for
 // rows and columns.
+//
+// Timing is exact: the position, every event and every length are integers, in
+// units of 1/3600000 of an internal tick, which holds a time shift of 1/10000
+// of a degree exactly. Tempo is kept to 1/1000 BPM. A trigger lands on the first
+// sample where the position has reached its event, and falls on the first sample
+// where it has reached the event plus the pulse width. No float decides a sample.
 
 enum pageType { pDiv, pStep, pProb, pSpeed, pClockShift, pTimeShift, pPulseWidth };
 enum playMode { indepEditA, indepEditB, matrix };
@@ -22,6 +29,7 @@ static const int RIOT_BANKS = 16;
 static const int RIOT_SETS = 3;
 static const int RIOT_CELLS = 16;
 static const int TICKS_PER_CLOCK = 24;
+static const long long UNITS_PER_TICK = 3600000;
 
 struct RiotCell {
 	int div = 0;            // 0 off, 1..255 clocks
@@ -29,25 +37,27 @@ struct RiotCell {
 	float prob = 1.f;       // 0..1
 	int speed = 24;         // 2..96 internal ticks per clock of this division
 	int clockShift = 0;     // 0..div-1 whole clocks
-	float timeShift = 0.f;  // 0..360 degrees of what remains of the division
-	float pulseWidth = 0.25f; // 0..1 of the division, 0 = one internal tick
+	int timeShift = 0;      // 1/10000 of a degree, 0..360: of what remains of the division
+	int pulseWidth = 250000; // millionths, 0..1 of the division, 0 = one internal tick
 
-	// Delay of the division after its clock count, in its clocks.
-	double offset() const {
+	// Delay of the division after its clock count.
+	long long offset() const {
 		int cs = div > 0 ? std::min(clockShift, div - 1) : 0;
-		return cs + timeShift / 360.0 * (div - cs);
+		return ((long long)cs * UNITS_PER_TICK + (long long)timeShift * (div - cs)) * speed;
+	}
+	// Length of the division.
+	long long period() const {
+		return (long long)div * speed * UNITS_PER_TICK;
 	}
 };
 
-// Per cell lower bound of the next tick that can fire, so the exact test in
-// fire() only runs near an event. It is keyed on the cell settings it was
-// computed from and on the cycle epoch (the counter only moves backwards in
-// beginCycle), so any edit or jump falls back to the exact test.
+// The next event a cell can fire, so the test in fire() only runs on an event. It
+// is keyed on the cell settings it was computed from and on the cycle epoch (the
+// counter only moves backwards in beginCycle), so any edit or jump tests again.
 struct RiotNext {
-	double tick = -1.0;
+	long long tick = -1;
 	unsigned epoch = 0;
-	int div = -1, step = -1, speed = -1, clockShift = -1;
-	float timeShift = -1.f;
+	int div = -1, step = -1, speed = -1, clockShift = -1, timeShift = -1;
 	bool matches(const RiotCell &c, unsigned e) const {
 		return epoch == e && div == c.div && step == c.step && speed == c.speed && clockShift == c.clockShift && timeShift == c.timeShift;
 	}
@@ -114,12 +124,25 @@ struct RATEAU : BidooModule {
 	bool clock24ppq = false;    // external clock: 16th notes or 24 PPQ
 	bool beatSync = false;      // bank changes wait for the cycle start
 
-	// Counter position in internal ticks; count = position / 24.
-	double position = TICKS_PER_CLOCK;
-	double lastEdgePosition = TICKS_PER_CLOCK;
+	// Counter position in units; count = position / (24 * UNITS_PER_TICK).
+	long long position = TICKS_PER_CLOCK * UNITS_PER_TICK;
+	long long lastEdgePosition = TICKS_PER_CLOCK * UNITS_PER_TICK;
 	bool restart = true;
-	float sinceEdge = 10.f;     // no previous edge yet
-	float edgePeriod = 0.f;     // seconds between external clocks, 0 = unknown
+	long edgeCount = -1;        // samples since the last external clock, -1 before the first
+	long edgePeriod = 0;        // samples between external clocks, 0 = unknown
+	bool holdUntilEdge = true;  // after a reset the counter waits for the next clock
+
+	// The rate, as units per sample rateNum / rateDen, kept up as an exact rational:
+	// after n samples the position has moved exactly floor(n * rateNum / rateDen).
+	long long rateNum = 0;
+	long rateDen = 1;
+	long long rateQuotient = 0;
+	long rateRemainder = 0;
+	long rateCarry = 0;
+	float rateBpm = -1.f;
+	float rateSampleRate = -1.f;
+	long minPulse = 5;          // samples
+	long long nowPosition = 0;  // where the counter is on this sample, for the pulse lengths
 
 	dsp::SchmittTrigger pageTriggers[7];
 	dsp::SchmittTrigger clockTrigger;
@@ -130,7 +153,7 @@ struct RATEAU : BidooModule {
 	dsp::SchmittTrigger startStopTrigger;
 	dsp::SchmittTrigger modeInputTrigger;
 	dsp::SchmittTrigger muteTriggers[8];
-	dsp::PulseGenerator gatePulses[RIOT_CELLS][RIOT_SETS];
+	long gateSamples[RIOT_CELLS][RIOT_SETS] = {{0}};
 	bool gates[RIOT_CELLS][RIOT_SETS] = {{false}};
 	RiotNext nextHits[RIOT_SETS][RIOT_CELLS];
 	unsigned cycleEpoch = 1;
@@ -200,8 +223,8 @@ struct RATEAU : BidooModule {
 			case pProb: return c.prob * 10.f;
 			case pSpeed: return (c.speed - 2) * 10.f / 94.f;
 			case pClockShift: return c.clockShift * 10.f / 255.f;
-			case pTimeShift: return c.timeShift * 10.f / 360.f;
-			default: return c.pulseWidth * 10.f;
+			case pTimeShift: return c.timeShift / 360000.f;
+			default: return c.pulseWidth / 100000.f;
 		}
 	}
 
@@ -213,8 +236,8 @@ struct RATEAU : BidooModule {
 			case pProb: c.prob = x; break;
 			case pSpeed: c.speed = 2 + (int)std::round(x * 94.f); break;
 			case pClockShift: c.clockShift = (int)std::round(x * 255.f); break;
-			case pTimeShift: c.timeShift = x * 360.f; break;
-			default: c.pulseWidth = x; break;
+			case pTimeShift: c.timeShift = (int)std::llround((double)x * 3600000.0); break;
+			default: c.pulseWidth = (int)std::llround((double)x * 1000000.0); break;
 		}
 	}
 
@@ -250,7 +273,7 @@ struct RATEAU : BidooModule {
 				json_t *cellsJ = json_array();
 				for (int i = 0; i < RIOT_CELLS; i++) {
 					const RiotCell &c = banks[b].cells[s][i];
-					json_array_append_new(cellsJ, json_pack("[i, i, f, i, i, f, f]", c.div, c.step, (double)c.prob, c.speed, c.clockShift, (double)c.timeShift, (double)c.pulseWidth));
+					json_array_append_new(cellsJ, json_pack("[i, i, f, i, i, f, f]", c.div, c.step, (double)c.prob, c.speed, c.clockShift, c.timeShift / 10000.0, c.pulseWidth / 1000000.0));
 				}
 				json_array_append_new(setsJ, cellsJ);
 			}
@@ -304,8 +327,10 @@ struct RATEAU : BidooModule {
 					cl.prob = jsonFloat(json_array_get(c, 2), 1.f, 0.f, 1.f);
 					cl.speed = jsonInt(json_array_get(c, 3), 24, 2, 96);
 					cl.clockShift = jsonInt(json_array_get(c, 4), 0, 0, 255);
-					cl.timeShift = jsonFloat(json_array_get(c, 5), 0.f, 0.f, 360.f);
-					cl.pulseWidth = jsonFloat(json_array_get(c, 6), 0.25f, 0.f, 1.f);
+					json_t *tsJ = json_array_get(c, 5);
+					cl.timeShift = tsJ ? (int)std::llround(clamp(json_number_value(tsJ), 0.0, 360.0) * 10000.0) : 0;
+					json_t *pwJ = json_array_get(c, 6);
+					cl.pulseWidth = pwJ ? (int)std::llround(clamp(json_number_value(pwJ), 0.0, 1.0) * 1000000.0) : 250000;
 				}
 			}
 		}
@@ -326,84 +351,96 @@ struct RATEAU : BidooModule {
 	}
 
 	void process(const ProcessArgs &args) override;
-	void advance(double from, double to, float tickSeconds);
-	void fire(double from, double to, float tickSeconds);
-	void restartCycle(float tickSeconds);
-	void beginCycle(double startPosition);
+	void advance(long long from, long long to);
+	void fire(long long from, long long to);
+	void restartCycle(long long over = 0);
+	void beginCycle(long long startPosition);
+	void setRate(long long num, long den);
+	long pulseSamples(long long end) const;
 };
 
-// Fires the divisions and steps whose time falls in (from, to], in ticks.
+static long long floorDiv(const long long a, const long long b) {
+	return a >= 0 ? a / b : -((-a + b - 1) / b);
+}
+
+void RATEAU::setRate(const long long num, const long den) {
+	rateNum = num;
+	rateDen = den;
+	rateQuotient = num / den;
+	rateRemainder = num % den;
+	rateCarry = 0;
+}
+
+// Samples until the counter reaches `end`, at the present rate.
+long RATEAU::pulseSamples(const long long end) const {
+	const long long need = (end - nowPosition) * rateDen - rateCarry;
+	return std::max(need > 0 ? (long)((need + rateNum - 1) / rateNum) : 0L, minPulse);
+}
+
+// Fires the divisions and steps whose time falls in (from, to], in units.
 // Only the sets that are heard are fired: the matrix set, or the row and column
 // sets in independent mode.
-void RATEAU::fire(double from, double to, float tickSeconds) {
+void RATEAU::fire(const long long from, const long long to) {
 	int setA = pMode == matrix ? (int)matrix : (int)indepEditA;
 	int setB = pMode == matrix ? (int)matrix : (int)indepEditB;
 	for (int s = setA; s <= setB; s++) {
 		for (int i = 0; i < RIOT_CELLS; i++) {
 			const RiotCell &c = cell(i, s);
 			RiotNext &nx = nextHits[s][i];
-			// Nothing can fire before the bound (the margin is far above rounding).
-			if (nx.matches(c, cycleEpoch) && to < nx.tick - 1e-3)
+			// Nothing can fire before the next event.
+			if (nx.matches(c, cycleEpoch) && to < nx.tick)
 				continue;
 			bool hit = false;
-			double base = c.div;
+			long long event = 0;
+			long long base = 0;
+			long long next = -1;
 			if (c.div > 0) {
-				double off = c.offset();
-				double x0 = from / c.speed - off;
-				double x1 = to / c.speed - off;
-				// Events at counts k * div + offset, k >= 1.
-				if (x1 >= c.div) {
-					double k0 = std::max(std::floor(x0 / c.div), 0.0);
-					double k1 = std::floor(x1 / c.div);
-					hit = k1 > k0;
+				const long long off = c.offset();
+				const long long period = c.period();
+				// Events at k * period + off, k >= 1.
+				const long long k1 = floorDiv(to - off, period);
+				if (k1 >= 1) {
+					hit = k1 > std::max(floorDiv(from - off, period), 0LL);
+					event = k1 * period + off;
 				}
-				base = c.div + off;
+				base = period + off;
+				next = (std::max(k1, 0LL) + 1) * period + off;
 			}
-			if (!hit && c.step > 0) {
-				double t = (double)c.step * c.speed;
-				hit = from < t && t <= to;
-				if (hit && c.div == 0)
-					base = 1.0;
-			}
-			// Next possible event after 'to': the next division count, or the step.
-			{
-				double next = INFINITY;
-				if (c.div > 0) {
-					double off = c.offset();
-					double x1 = to / c.speed - off;
-					double k = std::max(std::floor(x1 / c.div), 0.0) + 1.0;
-					next = (k * c.div + off) * c.speed;
+			if (c.step > 0) {
+				const long long t = (long long)c.step * c.speed * UNITS_PER_TICK;
+				if (!hit && from < t && t <= to) {
+					hit = true;
+					event = t;
+					if (c.div == 0)
+						base = c.speed * UNITS_PER_TICK;
 				}
-				if (c.step > 0) {
-					double t = (double)c.step * c.speed;
-					if (t > to)
-						next = std::min(next, t);
-				}
-				nx.tick = next;
-				nx.epoch = cycleEpoch;
-				nx.div = c.div;
-				nx.step = c.step;
-				nx.speed = c.speed;
-				nx.clockShift = c.clockShift;
-				nx.timeShift = c.timeShift;
+				if (t > to && (next < 0 || t < next))
+					next = t;
 			}
+			// Next event after 'to': the next division count, or the step.
+			nx.tick = next < 0 ? LLONG_MAX : next;
+			nx.epoch = cycleEpoch;
+			nx.div = c.div;
+			nx.step = c.step;
+			nx.speed = c.speed;
+			nx.clockShift = c.clockShift;
+			nx.timeShift = c.timeShift;
 			if (!hit || random::uniform() >= c.prob)
 				continue;
 			// Pulse width is a share of the division plus its shift; at 0 it is one tick.
-			double ticks = c.pulseWidth > 0.f ? c.pulseWidth * base * c.speed : 1.0;
+			long long length = c.pulseWidth > 0 ? base * c.pulseWidth / 1000000 : UNITS_PER_TICK;
 			if (c.div > 0)
-				ticks = std::min(ticks, (double)c.div * c.speed);
+				length = std::min(length, c.period());
 			// End one internal tick early, so a trigger on the next clock is a new edge.
-			if (ticks > 1.5)
-				ticks -= 1.0;
-			gatePulses[i][s].reset();
-			gatePulses[i][s].trigger(std::max((float)(ticks * tickSeconds), 1e-4f));
+			if (length * 2 > UNITS_PER_TICK * 3)
+				length -= UNITS_PER_TICK;
+			gateSamples[i][s] = pulseSamples(event + length);
 		}
 	}
 }
 
-// Puts the counter at startPosition (in ticks) and applies a waiting pattern change.
-void RATEAU::beginCycle(double startPosition) {
+// Puts the counter at startPosition and applies a waiting pattern change.
+void RATEAU::beginCycle(const long long startPosition) {
 	if (pendingBank >= 0) {
 		bank = pendingBank;
 		pendingBank = -1;
@@ -411,35 +448,38 @@ void RATEAU::beginCycle(double startPosition) {
 	}
 	position = startPosition;
 	lastEdgePosition = position;
-	cycleEpoch++;  // the counter may move backwards: drop the next-event bounds
+	cycleEpoch++;  // the counter may move backwards: drop the next events
 	for (int s = 0; s < RIOT_SETS; s++)
 		for (int i = 0; i < RIOT_CELLS; i++)
-			gatePulses[i][s].reset();
+			gateSamples[i][s] = 0;
 }
 
-void RATEAU::restartCycle(float tickSeconds) {
-	beginCycle(0.0);
-	position = lastEdgePosition = (double)banks[bank].cycleStart * TICKS_PER_CLOCK;
+void RATEAU::restartCycle(const long long over) {
+	beginCycle(0);
+	position = lastEdgePosition = banks[bank].cycleStart * TICKS_PER_CLOCK * UNITS_PER_TICK;
+	nowPosition = position + over;
 	// Everything due on the start count fires now.
-	fire(position - 1e-6, position, tickSeconds);
+	fire(position - 1, position);
 }
 
 // Moves the counter, wrapping at the cycle end.
-void RATEAU::advance(double from, double to, float tickSeconds) {
+void RATEAU::advance(const long long from, const long long to) {
 	const RiotBank &b = banks[bank];
+	nowPosition = to;
 	if (b.cycleEnd > 0) {
-		double endTicks = (double)(b.cycleEnd + 1) * TICKS_PER_CLOCK;
-		if (b.cycleEnd >= b.cycleStart && to >= endTicks) {
-			fire(from, endTicks - 1e-6, tickSeconds);
-			double over = to - endTicks;
-			restartCycle(tickSeconds);
-			double start = position;
+		const long long end = (b.cycleEnd + 1) * TICKS_PER_CLOCK * UNITS_PER_TICK;
+		if (b.cycleEnd >= b.cycleStart && to >= end) {
+			fire(from, end - 1);
+			const long long over = to - end;
+			restartCycle(over);
+			const long long start = position;
 			position = start + over;
-			fire(start, position, tickSeconds);
+			nowPosition = position;
+			fire(start, position);
 			return;
 		}
 	}
-	fire(from, to, tickSeconds);
+	fire(from, to);
 	position = to;
 }
 
@@ -459,7 +499,7 @@ void RATEAU::process(const ProcessArgs &args) {
 			// the sets heard change: drop the pulses of the sets left behind
 			for (int s = 0; s < RIOT_SETS; s++)
 				for (int i = 0; i < RIOT_CELLS; i++)
-					gatePulses[i][s].reset();
+					gateSamples[i][s] = 0;
 		}
 		pMode = m;
 		updateControls();
@@ -504,57 +544,99 @@ void RATEAU::process(const ProcessArgs &args) {
 		}
 	}
 
-	// Clock: external edges lock the counter; in between it moves at the
-	// measured rate but never past the next edge, so it stops with the clock.
+	// Clock: external edges lock the counter; in between it moves at the measured
+	// rate but never past the next edge, so it stops with the clock.
 	bool external = inputs[CLOCK_INPUT].isConnected();
-	double ticksPerEdge = clock24ppq ? 4.0 : (double)TICKS_PER_CLOCK;
+	const long long unitsPerEdge = (clock24ppq ? 4 : TICKS_PER_CLOCK) * UNITS_PER_TICK;
 	bool edge = clockTrigger.process(inputs[CLOCK_INPUT].getVoltage(), 0.1f, 1.f);
 	bool reset = resetTrigger.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f);
-	sinceEdge += args.sampleTime;
-	float tickSeconds;
-	if (external)
-		tickSeconds = edgePeriod > 0.f ? (float)(edgePeriod / ticksPerEdge) : 60.f / (120.f * 96.f);
-	else
-		tickSeconds = 60.f / (banks[bank].bpm * 96.f);
+	if (edgeCount >= 0)
+		edgeCount++;
+	const long sampleRate = std::lround(args.sampleRate);
+	// The internal tempo, or the 120 BPM a pulse uses until the first clocks are measured.
+	if ((!external || edgePeriod <= 0) && (banks[bank].bpm != rateBpm || args.sampleRate != rateSampleRate)) {
+		rateBpm = banks[bank].bpm;
+		rateSampleRate = args.sampleRate;
+		minPulse = (sampleRate + 9999) / 10000;
+		setRate(std::llround((double)(external ? 120.f : rateBpm) * 1000.0) * 5760, sampleRate);
+	}
 
+	bool restarted = false;
 	if (reset || restart) {
+		const bool wasRestart = restart;
 		restart = false;
 		if (external) {
 			// One clock before the start: the next clock edge (or this one) plays the start count.
-			beginCycle(0.0);
-			position = lastEdgePosition = (double)banks[bank].cycleStart * TICKS_PER_CLOCK - ticksPerEdge;
+			beginCycle(0);
+			const long long start = banks[bank].cycleStart * TICKS_PER_CLOCK * UNITS_PER_TICK;
+			position = lastEdgePosition = start - unitsPerEdge;
+			holdUntilEdge = true;
+			// A reset up to 1 ms after a clock (and nearer that clock than the next) belongs
+			// to it: the start count plays now, and the counter is where that clock put it.
+			const long window = edgePeriod > 0 ? std::min((sampleRate + 500) / 1000, edgePeriod / 2) : (sampleRate + 500) / 1000;
+			if (!edge && !wasRestart && edgeCount >= 0 && edgeCount < window) {
+				advance(position, start);
+				lastEdgePosition = position;
+				holdUntilEdge = false;
+				if (edgePeriod > 0) {
+					const long long moved = unitsPerEdge * edgeCount;
+					rateCarry = moved % edgePeriod;
+					advance(position, position + moved / edgePeriod);
+				}
+				restarted = true;  // already where it belongs on this sample
+			}
 		}
 		else {
-			restartCycle(tickSeconds);
+			rateCarry = 0;
+			restartCycle();
+			restarted = true;  // on the start count on this sample
 		}
 	}
 	if (external) {
 		if (edge) {
-			if (sinceEdge < 2.f)
-				edgePeriod = sinceEdge;
-			sinceEdge = 0.f;
-			double target = lastEdgePosition + ticksPerEdge;
-			advance(position, std::max(target, position), tickSeconds);
+			if (edgeCount > 0 && edgeCount < 2 * sampleRate) {
+				edgePeriod = edgeCount;
+				rateBpm = -1.f;
+			}
+			edgeCount = 0;
+			if (edgePeriod > 0)
+				setRate(unitsPerEdge, edgePeriod);
+			const long long target = lastEdgePosition + unitsPerEdge;
+			holdUntilEdge = false;
+			advance(position, std::max(target, position));
 			lastEdgePosition = position;
 		}
-		else if (edgePeriod > 0.f) {
-			double limit = lastEdgePosition + ticksPerEdge - 1e-6;
-			double next = std::min(position + args.sampleTime / tickSeconds, limit);
-			if (next > position)
-				advance(position, next, tickSeconds);
+		else if (!restarted && !holdUntilEdge && edgePeriod > 0 && edgeCount < edgePeriod) {
+			long long next = position + rateQuotient;
+			rateCarry += rateRemainder;
+			if (rateCarry >= rateDen) {
+				rateCarry -= rateDen;
+				next++;
+			}
+			advance(position, next);
 		}
 	}
-	else if (running) {
-		advance(position, position + args.sampleTime / tickSeconds, tickSeconds);
+	else if (running && !restarted) {
+		long long next = position + rateQuotient;
+		rateCarry += rateRemainder;
+		if (rateCarry >= rateDen) {
+			rateCarry -= rateDen;
+			next++;
+		}
+		advance(position, next);
 		lastEdgePosition = position;
 	}
 
 	// Rows 1-4 and columns A-D; independent mode reads the row and column sets.
 	int rowSet = pMode == matrix ? matrix : indepEditA;
 	int colSet = pMode == matrix ? matrix : indepEditB;
-	for (int s = rowSet; s <= colSet; s++)
-		for (int i = 0; i < RIOT_CELLS; i++)
-			gates[i][s] = gatePulses[i][s].process(args.sampleTime);
+	for (int s = rowSet; s <= colSet; s++) {
+		for (int i = 0; i < RIOT_CELLS; i++) {
+			gates[i][s] = gateSamples[i][s] > 0;
+			if (gates[i][s])
+				gateSamples[i][s]--;
+		}
+	}
 	for (int r = 0; r < 4; r++) {
 		bool on = gates[r*4][rowSet] || gates[r*4+1][rowSet] || gates[r*4+2][rowSet] || gates[r*4+3][rowSet];
 		outputs[GATE_OUTPUTS + r].setVoltage(!mutes[r] && on ? 10.f : 0.f);
@@ -637,8 +719,8 @@ struct RATEAUDisplay : TransparentWidget {
 					case pProb: snprintf(sValue, sizeof(sValue), " => %.0f %%", c.prob * 100.0f); break;
 					case pSpeed: snprintf(sValue, sizeof(sValue), " => %d%s", c.speed, speedName(c.speed)); break;
 					case pClockShift: snprintf(sValue, sizeof(sValue), " => %d", c.div > 0 ? std::min(c.clockShift, c.div - 1) : 0); break;
-					case pTimeShift: snprintf(sValue, sizeof(sValue), " => %.0f deg", c.timeShift); break;
-					default: snprintf(sValue, sizeof(sValue), " => %.0f %%", c.pulseWidth * 100.0f); break;
+					case pTimeShift: snprintf(sValue, sizeof(sValue), " => %.0f deg", c.timeShift / 10000.0); break;
+					default: snprintf(sValue, sizeof(sValue), " => %.0f %%", c.pulseWidth / 10000.0); break;
 				}
 				nvgText(args.vg, 135, 0, sBank, NULL);
 				nvgText(args.vg, 0, 0, sFControl, NULL);

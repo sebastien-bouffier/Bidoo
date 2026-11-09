@@ -228,8 +228,22 @@ struct MetroPattern {
 	}
 };
 
-// The controls DTROY and BORDL share. The play mode, count mode, slide and
-// skip controls differ and are configured by each module.
+// A pattern edit on its way to the undo history (audio thread to UI thread),
+// or an undo on its way back: only what differs between the two is applied.
+struct MetroEdit {
+	int pattern = 0;
+	const char *name = "";
+	MetroPattern before, after;
+};
+
+// A knob's value on its way back to the pattern it was moved on.
+struct MetroKnobUndo {
+	int pattern = 0;
+	int paramId = 0;
+	float value = 0.f;
+};
+
+// The controls DTROY and BORDL share.
 template <class M>
 void configMetro(M &m) {
 	m.configParam(M::CLOCK_PARAM, -3.f, 3.f, 0.f, "Clock", " BPM", 2.f, 120.f);
@@ -251,6 +265,8 @@ void configMetro(M &m) {
 	m.paramQuantities[M::PATTERN_PARAM]->randomizeEnabled = false;
 	m.configParam(M::SENSITIVITY_PARAM, 0.1f, 1.f, 1.f, "Pitch sensitivity", "%", 0.f, 100.f);
 
+	m.configButton(M::PLAY_MODE_PARAM, "Play mode (forward, backward, ping-pong, random, brownian)");
+	m.configButton(M::COUNT_MODE_PARAM, "Count mode (steps or pulses)");
 	m.configButton(M::COPY_PARAM, "Copy, then paste on another pattern");
 	m.configButton(M::LEFT_PARAM, "Rotate the stages left");
 	m.configButton(M::RIGHT_PARAM, "Rotate the stages right");
@@ -267,7 +283,7 @@ void configMetro(M &m) {
 	m.configInput(M::SCALE_INPUT, "Scale (1 V per scale)");
 	m.configInput(M::EXTGATE1_INPUT, "External gate 1");
 	m.configInput(M::EXTGATE2_INPUT, "External gate 2");
-	m.configInput(M::PATTERN_INPUT, "Played pattern (0-10 V = 1-16)");
+	m.configInput(M::PATTERN_INPUT, "Played pattern (0.625 V per pattern: 0-10 V = 1-16)");
 	m.configInput(M::TRANSPOSE_INPUT, "Transpose (1V/oct, before the quantizer)");
 	m.configInput(M::SENSITIVITY_INPUT, "Sensitivity (10 V = 100%)");
 
@@ -279,6 +295,8 @@ void configMetro(M &m) {
 		m.configParam(M::TRIG_COUNT_PARAM + i, 1.f, 8.f, 1.f, rack::string::f("Stage %d pulses", i + 1));
 		m.paramQuantities[M::TRIG_COUNT_PARAM + i]->snapEnabled = true;
 		m.configSwitch(M::TRIG_TYPE_PARAM + i, 0.f, 5.f, 2.f, rack::string::f("Stage %d gate", i + 1), {"Rest", "Single", "Multiple", "Hold", "External gate 1", "External gate 2"});
+		m.configButton(M::TRIG_SLIDE_PARAM + i, rack::string::f("Stage %d slide", i + 1));
+		m.configButton(M::TRIG_SKIP_PARAM + i, rack::string::f("Stage %d skip", i + 1));
 		m.configOutput(M::STEP_OUTPUT + i, rack::string::f("Stage %d", i + 1));
 	}
 }
@@ -301,10 +319,15 @@ struct MetroEngine {
 	dsp::SchmittTrigger downTrigger;
 	dsp::SchmittTrigger leftTrigger;
 	dsp::SchmittTrigger rightTrigger;
-	dsp::PulseGenerator stepPulse[8];
+	long stepPulse[8] = {0};     // samples left of the stage output pulses
 
 	bool running = true;
 	double phase = 0.0;          // position in the current pulse, 0..1
+	// The internal clock from a count, not added up: n samples at `rate` from clockBase,
+	// less the pulses already played.
+	long long clockSamples = 0;
+	double clockBase = 0.0;
+	long long clockPulses = 0;
 	long sinceClock = -1;        // samples since the last external clock
 	long clockInterval = 0;      // samples between the last two external clocks
 	bool resetArmed = true;      // the next clock plays the first step
@@ -336,6 +359,80 @@ struct MetroEngine {
 
 	MetroPattern patterns[16];
 	quantizer::Quantizer quant;
+
+	// The audio thread owns the patterns: the buttons edit them here at control
+	// rate, an undo only asks for a change. No lock on either side.
+	dsp::RingBuffer<MetroEdit, 8> editsToHistory;
+	dsp::RingBuffer<MetroEdit, 8> editsToApply;
+	dsp::RingBuffer<MetroKnobUndo, 32> knobsToApply;
+
+	void pushEdit(const char *name, const MetroPattern &before) {
+		if (editsToHistory.full())
+			return;
+		MetroEdit e;
+		e.pattern = selectedPattern;
+		e.name = name;
+		e.before = before;
+		e.after = patterns[selectedPattern];
+		editsToHistory.push(e);
+	}
+
+	// What differs between from and to, written to p: knobs moved since stay.
+	static void applyDifference(MetroPattern &p, const MetroPattern &from, const MetroPattern &to) {
+		#define METRO_APPLY(f) if (from.f != to.f) p.f = to.f;
+		METRO_APPLY(playMode) METRO_APPLY(countMode) METRO_APPLY(numberOfStepsParam) METRO_APPLY(rootNote) METRO_APPLY(scale)
+		METRO_APPLY(gateTime) METRO_APPLY(slideTime) METRO_APPLY(sensitivity)
+		for (int i = 0; i < 8; i++) {
+			METRO_APPLY(stagePitch[i]) METRO_APPLY(stagePulses[i]) METRO_APPLY(stageType[i]) METRO_APPLY(stageSlide[i]) METRO_APPLY(stageSkip[i])
+			METRO_APPLY(stageGateProb[i]) METRO_APPLY(stagePitchRnd[i]) METRO_APPLY(stageAccent[i]) METRO_APPLY(stageAccentRnd[i])
+		}
+		#undef METRO_APPLY
+	}
+
+	// The same conversions as savePanel, for one knob and any pattern.
+	static void setKnob(MetroPattern &p, const int id, const float v) {
+		if (id == M::STEPS_PARAM) p.numberOfStepsParam = clamp((int)std::round(v), 1, 16);
+		else if (id == M::ROOT_NOTE_PARAM) p.rootNote = clamp((int)std::round(v), 0, 11);
+		else if (id == M::SCALE_PARAM) p.scale = clamp((int)std::round(v), 0, quantizer::numScales - 1);
+		else if (id == M::GATE_TIME_PARAM) p.gateTime = v;
+		else if (id == M::SLIDE_TIME_PARAM) p.slideTime = v;
+		else if (id == M::SENSITIVITY_PARAM) p.sensitivity = v;
+		else if (id >= M::TRIG_PITCH_PARAM && id < M::TRIG_PITCH_PARAM + 8) p.stagePitch[id - M::TRIG_PITCH_PARAM] = v;
+		else if (id >= M::TRIG_COUNT_PARAM && id < M::TRIG_COUNT_PARAM + 8) p.stagePulses[id - M::TRIG_COUNT_PARAM] = clamp((int)std::round(v), 1, 8);
+		else if (id >= M::TRIG_TYPE_PARAM && id < M::TRIG_TYPE_PARAM + 8) p.stageType[id - M::TRIG_TYPE_PARAM] = clamp((int)std::round(v), 0, 5);
+		else if constexpr (M::EXTENDED) {
+			if (id >= M::TRIG_GATEPROB_PARAM && id < M::TRIG_GATEPROB_PARAM + 8) p.stageGateProb[id - M::TRIG_GATEPROB_PARAM] = v;
+			else if (id >= M::TRIG_PITCHRND_PARAM && id < M::TRIG_PITCHRND_PARAM + 8) p.stagePitchRnd[id - M::TRIG_PITCHRND_PARAM] = v;
+			else if (id >= M::TRIG_ACCENT_PARAM && id < M::TRIG_ACCENT_PARAM + 8) p.stageAccent[id - M::TRIG_ACCENT_PARAM] = v;
+			else if (id >= M::TRIG_RNDACCENT_PARAM && id < M::TRIG_RNDACCENT_PARAM + 8) p.stageAccentRnd[id - M::TRIG_RNDACCENT_PARAM] = v;
+		}
+	}
+
+	static bool isPatternKnob(const int id) {
+		if (id == M::STEPS_PARAM || id == M::ROOT_NOTE_PARAM || id == M::SCALE_PARAM || id == M::GATE_TIME_PARAM || id == M::SLIDE_TIME_PARAM || id == M::SENSITIVITY_PARAM)
+			return true;
+		if ((id >= M::TRIG_PITCH_PARAM && id < M::TRIG_PITCH_PARAM + 8) || (id >= M::TRIG_COUNT_PARAM && id < M::TRIG_COUNT_PARAM + 8) || (id >= M::TRIG_TYPE_PARAM && id < M::TRIG_TYPE_PARAM + 8))
+			return true;
+		if constexpr (M::EXTENDED)
+			return (id >= M::TRIG_GATEPROB_PARAM && id < M::TRIG_GATEPROB_PARAM + 8) || (id >= M::TRIG_PITCHRND_PARAM && id < M::TRIG_PITCHRND_PARAM + 8)
+				|| (id >= M::TRIG_ACCENT_PARAM && id < M::TRIG_ACCENT_PARAM + 8) || (id >= M::TRIG_RNDACCENT_PARAM && id < M::TRIG_RNDACCENT_PARAM + 8);
+		return false;
+	}
+
+	void applyUndos(M &m) {
+		while (!editsToApply.empty()) {
+			const MetroEdit e = editsToApply.shift();
+			applyDifference(patterns[e.pattern], e.before, e.after);
+			if (e.pattern == selectedPattern)
+				loadPanel(m);
+		}
+		while (!knobsToApply.empty()) {
+			const MetroKnobUndo k = knobsToApply.shift();
+			setKnob(patterns[k.pattern], k.paramId, k.value);
+			if (k.pattern == selectedPattern)
+				m.params[k.paramId].setValue(k.value);
+		}
+	}
 
 	void reset() {
 		for (int i = 0; i < 16; i++)
@@ -446,25 +543,40 @@ struct MetroEngine {
 			selectedPattern = sel;
 			loadPanel(m);
 		}
+		applyUndos(m);
 		savePanel(m);
 		MetroPattern &ed = patterns[selectedPattern];
 		for (int i = 0; i < 8; i++) {
-			if (slideTriggers[i].process(m.params[M::TRIG_SLIDE_PARAM + i].getValue()))
+			if (slideTriggers[i].process(m.params[M::TRIG_SLIDE_PARAM + i].getValue())) {
+				const MetroPattern before = ed;
 				ed.stageSlide[i] = !ed.stageSlide[i];
-			if (skipTriggers[i].process(m.params[M::TRIG_SKIP_PARAM + i].getValue()))
+				pushEdit("stage slide", before);
+			}
+			if (skipTriggers[i].process(m.params[M::TRIG_SKIP_PARAM + i].getValue())) {
+				const MetroPattern before = ed;
 				ed.stageSkip[i] = !ed.stageSkip[i];
+				pushEdit("stage skip", before);
+			}
 		}
-		if (playModeTrigger.process(m.params[M::PLAY_MODE_PARAM].getValue()))
+		if (playModeTrigger.process(m.params[M::PLAY_MODE_PARAM].getValue())) {
+			const MetroPattern before = ed;
 			ed.playMode = (ed.playMode + 1) % 5;
-		if (countModeTrigger.process(m.params[M::COUNT_MODE_PARAM].getValue()))
+			pushEdit("play mode", before);
+		}
+		if (countModeTrigger.process(m.params[M::COUNT_MODE_PARAM].getValue())) {
+			const MetroPattern before = ed;
 			ed.countMode = (ed.countMode + 1) % 2;
+			pushEdit("count mode", before);
+		}
 		bool reload = false;
 		if (copyTrigger.process(m.params[M::COPY_PARAM].getValue())) {
 			if (copyPattern < 0)
 				copyPattern = selectedPattern;
 			else {
 				if (copyPattern != selectedPattern) {
+					const MetroPattern before = ed;
 					ed.copySettings(patterns[copyPattern]);
+					pushEdit("paste pattern", before);
 					reload = true;
 				}
 				copyPattern = -1;
@@ -473,13 +585,16 @@ struct MetroEngine {
 		bool up = upTrigger.process(m.params[M::UP_PARAM].getValue());
 		bool down = downTrigger.process(m.params[M::DOWN_PARAM].getValue());
 		if (up || down) {
+			const MetroPattern before = ed;
 			for (int i = 0; i < 8; i++)
 				ed.stagePitch[i] = clamp(ed.stagePitch[i] + (up ? 1.f : -1.f) / 12.f, -4.f, 6.f);
+			pushEdit("transpose pattern", before);
 			reload = true;
 		}
 		bool left = leftTrigger.process(m.params[M::LEFT_PARAM].getValue());
 		bool right = rightTrigger.process(m.params[M::RIGHT_PARAM].getValue());
 		if (left || right) {
+			const MetroPattern before = ed;
 			rotate(ed.stagePitch, left);
 			rotate(ed.stagePulses, left);
 			rotate(ed.stageType, left);
@@ -489,6 +604,7 @@ struct MetroEngine {
 			rotate(ed.stagePitchRnd, left);
 			rotate(ed.stageAccent, left);
 			rotate(ed.stageAccentRnd, left);
+			pushEdit("rotate pattern", before);
 			reload = true;
 		}
 		if (reload)
@@ -532,7 +648,7 @@ struct MetroEngine {
 		}
 
 		// Playing: the pattern CV picks any pattern, the position carries over.
-		int newPattern = m.inputs[M::PATTERN_INPUT].isConnected() ? clamp((int)rescale(m.inputs[M::PATTERN_INPUT].getVoltage(), 0.f, 10.f, 1.f, 16.1f) - 1, 0, 15) : selectedPattern;
+		int newPattern = m.inputs[M::PATTERN_INPUT].isConnected() ? clamp((int)std::floor(m.inputs[M::PATTERN_INPUT].getVoltage() * 1.6f), 0, 15) : selectedPattern;
 		bool patternChanged = newPattern != playedPattern;
 		if (patternChanged) {
 			patterns[newPattern].currentStep = patterns[playedPattern].currentStep;
@@ -551,6 +667,9 @@ struct MetroEngine {
 		if (rv != rateVolts) {
 			rateVolts = rv;
 			rate = 2.0 * std::exp2(rv);
+			clockBase = phase;
+			clockSamples = 0;
+			clockPulses = 0;
 		}
 		bool ext = m.inputs[M::EXT_CLOCK_INPUT].isConnected();
 		bool extEdge = clockTrigger.process(ext ? m.inputs[M::EXT_CLOCK_INPUT].getVoltage() : 0.f, 0.1f, 1.f);
@@ -567,7 +686,7 @@ struct MetroEngine {
 			sinceClock = -1;
 			clockInterval = 0;
 		}
-		const long ms = (long)std::round(1e-3f * args.sampleRate);
+		const long ms = (std::lround(args.sampleRate) + 500) / 1000;
 		if (resetTrigger.process(m.params[M::RESET_PARAM].getValue() + m.inputs[M::RESET_INPUT].getVoltage(), 0.1f, 1.f)) {
 			resetArmed = true;
 			m.lights[M::RESET_LIGHT].setBrightness(1.f);
@@ -575,6 +694,9 @@ struct MetroEngine {
 			// reset up to 1 ms after an external clock belongs to that clock.
 			if (!ext) {
 				phase = 0.0;
+				clockBase = 0.0;
+				clockSamples = 0;
+				clockPulses = 0;
 				tick = running;
 			}
 			else if (running && started && sincePulse < ms)
@@ -587,12 +709,15 @@ struct MetroEngine {
 					phase = 0.0;
 				}
 				else
-					phase = clockInterval > 0 ? (double)sinceClock / clockInterval : phase + rate * args.sampleTime;
+					phase = clockInterval > 0 ? (double)sinceClock / clockInterval : phase + rate / args.sampleRate;
 			}
 			else if (!tick) {
-				phase += rate * args.sampleTime;
+				clockSamples++;
+				phase = clockBase + (double)clockSamples * rate / std::lround(args.sampleRate) - (double)clockPulses;
 				if (phase >= 1.0) {
-					phase -= std::floor(phase);
+					const long long whole = (long long)std::floor(phase);
+					clockPulses += whole;
+					phase -= (double)whole;
 					tick = true;
 				}
 			}
@@ -609,7 +734,7 @@ struct MetroEngine {
 			sincePulse = 0;
 			const MetroStep &s = pl.steps[pl.currentStep];
 			if (!s.skip && (stepOutputsMode || pulse == 0))
-				stepPulse[s.index].trigger(1e-3f);
+				stepPulse[s.index] = std::max(ms, 1L);
 			m.lights[M::STEPS_LIGHTS + s.index].setBrightness(1.f);
 			if constexpr (M::EXTENDED) {
 				// Drawn once per step, kept through its pulses.
@@ -624,8 +749,10 @@ struct MetroEngine {
 		// Gate.
 		const MetroStep &s = pl.steps[pl.currentStep];
 		bool active = running && started && !s.skip;
-		float gateCoeff = clamp(pl.gateTime - 0.02f + m.inputs[M::GATE_TIME_INPUT].getVoltage() * 0.1f, 0.f, 0.99f);
-		bool timed = phase < gateCoeff || sincePulse < ms;
+		// The gate length in millionths of a pulse, so no float decides the sample it falls on.
+		const long long gateMillionths = clamp((long long)std::llround((double)pl.gateTime * 1e6 + (double)m.inputs[M::GATE_TIME_INPUT].getVoltage() * 1e5) - 20000LL, 0LL, 990000LL);
+		const bool phaseLow = (ext && clockInterval > 0) ? (long long)sinceClock * 1000000 < gateMillionths * clockInterval : phase * 1e6 < (double)gateMillionths;
+		bool timed = phaseLow || sincePulse < ms;
 		bool gate = false;
 		float gateValue = 10.f;
 		if (active && stepOn) {
@@ -661,7 +788,11 @@ struct MetroEngine {
 
 		// Stage outputs per sample, lights at control rate.
 		for (int i = 0; i < 8; i++)
-			m.outputs[M::STEP_OUTPUT + i].setVoltage(stepPulse[i].process(args.sampleTime) ? 10.f : 0.f);
+		{
+			m.outputs[M::STEP_OUTPUT + i].setVoltage(stepPulse[i] > 0 ? 10.f : 0.f);
+			if (stepPulse[i] > 0)
+				stepPulse[i]--;
+		}
 		if (control)
 			processLights(m, args.sampleTime);
 	}
@@ -690,3 +821,221 @@ struct MetroEngine {
 		started = false;
 	}
 };
+
+// The module part DTROY and BORDL share. M is the module itself.
+template <class M>
+struct MetroModule : BidooModule {
+	MetroEngine<M> engine;
+
+	void process(const ProcessArgs &args) override {
+		engine.process(*static_cast<M*>(this), args);
+	}
+
+	json_t *dataToJson() override {
+		return engine.toJson(BidooModule::dataToJson());
+	}
+
+	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
+		engine.fromJson(rootJ);
+	}
+
+	void onReset() override {
+		engine.reset();
+	}
+
+	void randomizeSlidesSkips() {
+		MetroPattern &p = engine.patterns[engine.selectedPattern];
+		for (int i = 0; i < 8; i++) {
+			p.stageSlide[i] = random::uniform() > 0.8f;
+			p.stageSkip[i] = random::uniform() > 0.85f;
+		}
+	}
+
+	// A change of the selected pattern from the menu: the audio thread applies
+	// it, and Rack's undo gets it.
+	template <typename F>
+	void menuEdit(const char *name, F change) {
+		if (engine.editsToApply.full())
+			return;
+		MetroEdit e;
+		e.pattern = engine.selectedPattern;
+		e.name = name;
+		e.before = engine.patterns[e.pattern];
+		e.after = e.before;
+		change(e.after);
+		engine.editsToApply.push(e);
+		pushHistory(e);
+	}
+
+	void randomizeSlidesSkipsEdit() {
+		menuEdit("randomize slides & skips", [](MetroPattern &p) {
+			for (int i = 0; i < 8; i++) {
+				p.stageSlide[i] = random::uniform() > 0.8f;
+				p.stageSkip[i] = random::uniform() > 0.85f;
+			}
+		});
+	}
+
+	void randomizePitch() {
+		menuEdit("randomize pitches", [](MetroPattern &p) {
+			for (int i = 0; i < 8; i++)
+				p.stagePitch[i] = random::uniform() * 10.f - 4.f;
+		});
+	}
+
+	void randomizeGates() {
+		menuEdit("randomize gates", [](MetroPattern &p) {
+			for (int i = 0; i < 8; i++) {
+				p.stagePulses[i] = (int)(random::uniform() * 7.f + 1.f);
+				p.stageType[i] = (int)(random::uniform() * 6.f);
+			}
+		});
+	}
+
+	struct EditAction : history::ModuleAction {
+		MetroEdit edit;
+
+		void send(const bool undo) {
+			M *m = dynamic_cast<M*>(APP->engine->getModule(moduleId));
+			if (!m || m->engine.editsToApply.full())
+				return;
+			MetroEdit e = edit;
+			if (undo)
+				std::swap(e.before, e.after);
+			m->engine.editsToApply.push(e);
+		}
+		void undo() override {send(true);}
+		void redo() override {send(false);}
+	};
+
+	// Rack's undo of a knob only moves it back, which would write the old value to
+	// whatever pattern is selected by then: replaced by this one, tied to the
+	// pattern the knob was on.
+	struct KnobAction : history::ModuleAction {
+		int pattern, paramId;
+		float oldValue, newValue;
+
+		void send(const float v) {
+			M *m = dynamic_cast<M*>(APP->engine->getModule(moduleId));
+			if (!m || m->engine.knobsToApply.full())
+				return;
+			m->engine.knobsToApply.push({pattern, paramId, v});
+		}
+		void undo() override {send(oldValue);}
+		void redo() override {send(newValue);}
+	};
+
+	void pushHistory(const MetroEdit &e) {
+		if (!APP->history)
+			return;
+		EditAction *a = new EditAction;
+		a->name = e.name;
+		a->moduleId = id;
+		a->edit = e;
+		APP->history->push(a);
+	}
+
+	// UI thread, once a frame.
+	void updateHistory() {
+		while (!engine.editsToHistory.empty())
+			pushHistory(engine.editsToHistory.shift());
+		history::State *h = APP->history;
+		if (!h || h->actionIndex <= 0 || h->actionIndex > (int)h->actions.size())
+			return;
+		history::ParamChange *pc = dynamic_cast<history::ParamChange*>(h->actions[h->actionIndex - 1]);
+		if (!pc || pc->moduleId != id || !MetroEngine<M>::isPatternKnob(pc->paramId))
+			return;
+		KnobAction *a = new KnobAction;
+		a->name = pc->name;
+		a->moduleId = id;
+		a->pattern = engine.selectedPattern;
+		a->paramId = pc->paramId;
+		a->oldValue = pc->oldValue;
+		a->newValue = pc->newValue;
+		h->actions[h->actionIndex - 1] = a;
+		delete pc;
+	}
+};
+
+// The widget part both share: the history runs in the UI thread.
+template <class M>
+struct MetroWidget : BidooWidget {
+	void step() override {
+		BidooWidget::step();
+		if (module)
+			static_cast<M*>(module)->updateHistory();
+	}
+};
+
+// The small display: play mode, patterns, steps, root and scale.
+template <class M>
+struct MetroDisplay : TransparentWidget {
+	M *module;
+
+	// No strings built per frame: labels are static, numbers go through snprintf.
+	void drawMessage(NVGcontext *vg, Vec pos, const char *note, const char *playMode, const char *selectedPattern, const char *playedPattern, const char *steps, const char *scale) {
+		nvgFontSize(vg, 18.0f);
+		nvgFillColor(vg, YELLOW_BIDOO);
+		nvgText(vg, pos.x + 3.0f, pos.y + 8.0f, playMode, NULL);
+		nvgFontSize(vg, 14.0f);
+		nvgText(vg, pos.x + 114.0f, pos.y + 7.0f, selectedPattern, NULL);
+
+		nvgText(vg, pos.x + 30.0f, pos.y + 7.0f, steps, NULL);
+		nvgText(vg, pos.x + 3.0f, pos.y + 21.0f, note, NULL);
+		nvgText(vg, pos.x + 25.0f, pos.y + 21.0f, scale, NULL);
+
+		// The played pattern blinks: 0.5 s shown, 0.25 s hidden, whatever the frame rate.
+		if (std::fmod(system::getTime(), 0.75) < 0.5)
+			nvgText(vg, pos.x + 90.0f, pos.y + 7.0f, playedPattern, NULL);
+	}
+
+	static const char *displayRootNote(int value) {
+		return quantizer::rootNotes[value+1].label.c_str();
+	}
+
+	static const char *displayScale(int value) {
+		return quantizer::scales[value].label.c_str();
+	}
+
+	static const char *displayPlayMode(int value) {
+		switch(value){
+			case 0: return "►";
+			case 1: return "◄";
+			case 2: return "►◄";
+			case 3: return "►*";
+			case 4: return "►?";
+			default: return "";
+		}
+	}
+
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			if (module) {
+				const MetroPattern &p = module->engine.patterns[module->engine.selectedPattern];
+				char steps[16], selectedPattern[8], playedPattern[8];
+				snprintf(steps, sizeof(steps), "%s%d", p.countMode == 0 ? "steps:" : "pulses:", p.numberOfStepsParam);
+				snprintf(selectedPattern, sizeof(selectedPattern), "P%d", module->engine.selectedPattern + 1);
+				snprintf(playedPattern, sizeof(playedPattern), "P%d", module->engine.playedPattern + 1);
+				// BORDL shows the root with its CV, DTROY the knob's.
+				int root;
+				if constexpr (M::EXTENDED)
+					root = module->engine.rootNote(*module, p);
+				else
+					root = p.rootNote;
+				drawMessage(args.vg, Vec(0.0f, 20.0f), displayRootNote(root), displayPlayMode(p.playMode), selectedPattern, playedPattern, steps, displayScale(p.scale));
+			}
+		}
+		Widget::drawLayer(args, layer);
+	}
+};
+
+// The context menu lines both modules add.
+template <class M>
+void appendMetroMenu(ui::Menu *menu, M *m) {
+	menu->addChild(new MenuSeparator());
+	menu->addChild(createMenuItem("Randomize pitches", "", [=]() { m->randomizePitch(); }));
+	menu->addChild(createMenuItem("Randomize gates", "", [=]() { m->randomizeGates(); }));
+	menu->addChild(createMenuItem("Randomize slides & skips", "", [=]() { m->randomizeSlidesSkipsEdit(); }));
+	menu->addChild(createBoolPtrMenuItem("Stage outputs on every pulse", "", &m->engine.stepOutputsMode));
+}

@@ -1,13 +1,15 @@
-// FiLTRe's panel: the Riso look in orange (an effect). The screen draws the spectrum of the signal and the curve of the
+// FiLTRe's panel. The screen draws the spectrum of the signal and the curve of the
 // selected filter, cached in a framebuffer and redrawn only when they change; the panel SVG holds the labels.
 #pragma once
-#include "RisoComponents.hpp"
+#include "BidooComponents.hpp"
 #if defined(__SSE2__)
 #include <xmmintrin.h>
 #endif
 
 namespace filtre_ui {
-using namespace riso;
+static const NVGcolor INK = nvgRGB(0, 0, 0);
+static const NVGcolor PAPER = nvgRGB(255, 233, 0); // the screens' yellow
+static const NVGcolor ORANGE = nvgRGB(0xF0, 0x62, 0x2F);
 using filtre::kPoints;
 
 // The curve's measures run on their own thread: a reverb or a long comb takes a few milliseconds, and the UI must not
@@ -136,7 +138,7 @@ struct Screen : TransparentWidget {
 	void draw(const DrawArgs &args) override {
 		NVGcontext *vg = args.vg;
 		const float w = box.size.x, h = box.size.y, ph = plotH();
-		const NVGcolor dimPaper = nvgRGBA(0xF2, 0xEE, 0xE4, 110), gridC = nvgRGBA(0xF2, 0xEE, 0xE4, 26), strongGrid = nvgRGBA(0xF2, 0xEE, 0xE4, 80);
+		const NVGcolor dimPaper = nvgRGBA(255, 233, 0, 110), gridC = nvgRGBA(255, 233, 0, 26), strongGrid = nvgRGBA(255, 233, 0, 80);
 		nvgBeginPath(vg);
 		nvgRoundedRect(vg, 0, 0, w, h, 3.f);
 		nvgFillColor(vg, INK);
@@ -193,7 +195,7 @@ struct Screen : TransparentWidget {
 		nvgStroke(vg);
 		nvgBeginPath(vg);
 		line(vg, in, false);
-		nvgStrokeColor(vg, nvgRGBA(0xF2, 0xEE, 0xE4, 90));
+		nvgStrokeColor(vg, nvgRGBA(255, 233, 0, 90));
 		nvgStrokeWidth(vg, 1.f);
 		nvgStroke(vg);
 
@@ -218,7 +220,7 @@ struct Screen : TransparentWidget {
 		for (int p = kPoints - 1; p >= 0; p--)
 			nvgLineTo(vg, xOfPoint(p), yOfCurve(curve.low[p]));
 		nvgClosePath(vg);
-		nvgFillColor(vg, nvgRGBA(0xF2, 0xEE, 0xE4, 56));
+		nvgFillColor(vg, nvgRGBA(255, 233, 0, 56));
 		nvgFill(vg);
 		nvgBeginPath(vg);
 		line(vg, curve.mean, true);
@@ -248,7 +250,7 @@ struct Screen : TransparentWidget {
 			const float noteW = nvgTextBounds(vg, 0.f, 0.f, note.c_str(), nullptr, nullptr);
 			nvgBeginPath(vg);
 			nvgRect(vg, w - 24.f - noteW - 3.f, ph - 13.f, noteW + 6.f, 11.f);
-			nvgFillColor(vg, nvgRGBA(0x1B, 0x1A, 0x17, 190));
+			nvgFillColor(vg, nvgRGBA(0, 0, 0, 190));
 			nvgFill(vg);
 			label(vg, w - 24.f, ph - 3.f, note, NVG_ALIGN_RIGHT | NVG_ALIGN_BOTTOM, PAPER);
 		}
@@ -422,7 +424,7 @@ struct Display : OpaqueWidget {
 };
 
 // The TYPE knob: right-click for the types by family
-struct TypeKnob : RisoSnapKnob {
+struct TypeKnob : BidooBlueSnapKnob {
 	void appendContextMenu(Menu *menu) override {
 		FILTRE *m = dynamic_cast<FILTRE *>(module);
 		if (!m)
@@ -433,49 +435,12 @@ struct TypeKnob : RisoSnapKnob {
 };
 
 // Faded when the type does not use it
-struct MorphKnob : RisoKnob {
+struct MorphKnob : BidooBlueKnob {
 	void draw(const DrawArgs &args) override {
 		FILTRE *m = dynamic_cast<FILTRE *>(module);
 		if (m && !filtre::typeAt(filtre::positionOfId(m->shownId.load())).morph)
 			nvgGlobalAlpha(args.vg, 0.3f);
-		RisoKnob::draw(args);
-	}
-};
-
-// An attenuverter: small, its arc from the middle
-struct Attenuverter : app::Knob {
-	Attenuverter() {
-		box.size = Vec(18, 18);
-		minAngle = -0.75f * M_PI;
-		maxAngle = 0.75f * M_PI;
-	}
-	void draw(const DrawArgs &args) override {
-		engine::ParamQuantity *pq = getParamQuantity();
-		const float v = pq ? pq->getScaledValue() : 0.5f;
-		const float c = box.size.x / 2, r = c - 1.2f;
-		const float a0 = 0.75f * M_PI, av = a0 + v * 1.5f * M_PI, mid = a0 + 0.75f * M_PI;
-		nvgLineCap(args.vg, NVG_ROUND);
-		nvgStrokeWidth(args.vg, 1.6f);
-		nvgBeginPath(args.vg);
-		nvgArc(args.vg, c, c, r, a0, a0 + 1.5f * M_PI, NVG_CW);
-		nvgStrokeColor(args.vg, TRACK);
-		nvgStroke(args.vg);
-		if (std::fabs(av - mid) > 0.02f) {
-			nvgBeginPath(args.vg);
-			nvgArc(args.vg, c, c, r, std::min(av, mid), std::max(av, mid), NVG_CW);
-			nvgStrokeColor(args.vg, ORANGE);
-			nvgStroke(args.vg);
-		}
-		nvgBeginPath(args.vg);
-		nvgCircle(args.vg, c, c, r * 0.68f);
-		nvgFillColor(args.vg, INK);
-		nvgFill(args.vg);
-		nvgBeginPath(args.vg);
-		nvgMoveTo(args.vg, c, c);
-		nvgLineTo(args.vg, c + std::cos(av) * r * 0.5f, c + std::sin(av) * r * 0.5f);
-		nvgStrokeColor(args.vg, PAPER);
-		nvgStrokeWidth(args.vg, 1.5f);
-		nvgStroke(args.vg);
+		BidooBlueKnob::draw(args);
 	}
 };
 
@@ -485,13 +450,17 @@ struct FILTREWidget : BidooWidget {
 	FILTREWidget(FILTRE *module) {
 		using namespace filtre_ui;
 		setModule(module);
-		themable = false; // the Riso panel has no other look
 		prepareThemes(asset::plugin(pluginInstance, "res/FILTRE.svg"));
+
+		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
 		Display *display = new Display;
 		display->module = module;
-		display->box.pos = Vec(10, 21);
-		display->box.size = Vec(400, 190);
+		display->box.pos = Vec(10, 34);
+		display->box.size = Vec(400, 164);
 		addChild(display);
 		display->setup();
 
@@ -501,26 +470,19 @@ struct FILTREWidget : BidooWidget {
 		static const int cvs[6] = {FILTRE::TYPE_INPUT, FILTRE::CUTOFF_INPUT, FILTRE::RES_INPUT, FILTRE::DRIVE_INPUT, FILTRE::MORPH_INPUT, FILTRE::MIX_INPUT};
 		for (int i = 0; i < 6; i++) {
 			const float x = 82.f + 51.f * i;
-			RisoKnob *k;
 			if (i == 0)
-				k = createParamCentered<TypeKnob>(Vec(x, 234.f), module, knobs[i]);
+				addParam(createParamCentered<TypeKnob>(Vec(x, 236.f), module, knobs[i]));
 			else if (i == 4)
-				k = createParamCentered<MorphKnob>(Vec(x, 234.f), module, knobs[i]);
+				addParam(createParamCentered<MorphKnob>(Vec(x, 236.f), module, knobs[i]));
 			else
-				k = createParamCentered<RisoKnob>(Vec(x, 234.f), module, knobs[i]);
-			k->arc = ORANGE;
-			addParam(k);
-			addParam(createParamCentered<Attenuverter>(Vec(x, 276.f), module, amounts[i]));
-			addInput(createInputCentered<RisoJack>(Vec(x, 312.f), module, cvs[i]));
+				addParam(createParamCentered<BidooBlueKnob>(Vec(x, 236.f), module, knobs[i]));
+			addParam(createParamCentered<BidooBlueTrimpot>(Vec(x, 270.f), module, amounts[i]));
+			addInput(createInputCentered<PJ301MPort>(Vec(x, 316.f), module, cvs[i]));
 		}
-		addInput(createInputCentered<RisoJack>(Vec(30.f, 252.f), module, FILTRE::INL_INPUT));
-		addInput(createInputCentered<RisoJack>(Vec(30.f, 300.f), module, FILTRE::INR_INPUT));
-		RisoJack *ol = createOutputCentered<RisoJack>(Vec(390.f, 252.f), module, FILTRE::OUTL_OUTPUT);
-		ol->onInk = true;
-		addOutput(ol);
-		RisoJack *orj = createOutputCentered<RisoJack>(Vec(390.f, 300.f), module, FILTRE::OUTR_OUTPUT);
-		orj->onInk = true;
-		addOutput(orj);
+		addInput(createInputCentered<PJ301MPort>(Vec(30.f, 236.f), module, FILTRE::INL_INPUT));
+		addInput(createInputCentered<PJ301MPort>(Vec(30.f, 316.f), module, FILTRE::INR_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(Vec(390.f, 236.f), module, FILTRE::OUTL_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(Vec(390.f, 316.f), module, FILTRE::OUTR_OUTPUT));
 	}
 
 	void appendContextMenu(Menu *menu) override {

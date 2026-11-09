@@ -31,6 +31,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelMOIRE);
 	p->addModel(modelPILOT);
 	p->addModel(modelHUITRE);
+	p->addModel(modelSAISON);
 	p->addModel(modelOUAIVE);
 	p->addModel(modelEDSAROS);
 	p->addModel(modelPOUPRE);
@@ -57,6 +58,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelSOUNAIRE);
 	p->addModel(modelCOPIA);
 	p->addModel(modelFILTRE);
+	p->addModel(modelACIDE);
 	p->addModel(modelRABBIT);
 	p->addModel(modelBISTROT);
 	p->addModel(modelSIGMA);
@@ -92,8 +94,6 @@ void BidooModule::dataFromJson(json_t *rootJ) {
 
 void BidooWidget::appendContextMenu(Menu *menu) {
 	ModuleWidget::appendContextMenu(menu);
-	if (!themable)
-		return;
 	menu->addChild(new MenuSeparator());
 	menu->addChild(createSubmenuItem("Theme", "", [=](ui::Menu* menu) {
 		menu->addChild(construct<LightItem>(&MenuItem::text, dynamic_cast<BidooModule*>(module)->themeId == 0 ? "Light ✓" : "Light", &LightItem::module, dynamic_cast<BidooModule*>(module), &LightItem::pWidget, dynamic_cast<BidooWidget*>(this)));
@@ -263,16 +263,7 @@ void BidooWidget::showTheme(int theme) {
 void BidooWidget::step() {
 	if (module) {
 		BidooModule *m = dynamic_cast<BidooModule*>(module);
-		if (!themable) {
-			// one look only (the Riso panels): always the panel as drawn
-			if (m->themeChanged || m->loadDefault) {
-				m->loadDefault = false;
-				m->themeChanged = false;
-				m->themeId = 0;
-				showTheme(0);
-			}
-		}
-		else if (m->loadDefault && m->themeId == -1) {
+		if (m->loadDefault && m->themeId == -1) {
 			m->loadDefault = false;
 			readThemeAndContrastFromDefault();
 			m->themeId = defaultPanelTheme;
@@ -286,9 +277,8 @@ void BidooWidget::step() {
 	else {
 		// module browser preview: follow the cached default, no file access per frame
 		readThemeAndContrastFromDefault();
-		int theme = themable ? defaultPanelTheme : 0;
-		if (theme != shownTheme)
-			showTheme(theme);
+		if (defaultPanelTheme != shownTheme)
+			showTheme(defaultPanelTheme);
 	}
 	ModuleWidget::step();
 }

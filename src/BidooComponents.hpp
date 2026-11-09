@@ -389,6 +389,30 @@ struct MiniLEDButton : app::SvgSwitch {
 	}
 };
 
+// A round panel button drawn in the screens' orange when on; inner is the size of its centre; faded when dimmed says so.
+struct BidooRoundButton : app::Switch {
+	float inner = 0.68f;
+	std::function<bool()> dimmed;
+	BidooRoundButton() {
+		box.size = Vec(20, 20);
+	}
+	void draw(const DrawArgs &args) override {
+		if (dimmed && dimmed())
+			nvgGlobalAlpha(args.vg, 0.3f);
+		const float c = box.size.x / 2;
+		engine::ParamQuantity *pq = getParamQuantity();
+		const bool lit = pq && pq->getValue() > 0.5f;
+		nvgBeginPath(args.vg);
+		nvgCircle(args.vg, c, c, c - 0.5f);
+		nvgFillColor(args.vg, nvgRGB(0, 0, 0));
+		nvgFill(args.vg);
+		nvgBeginPath(args.vg);
+		nvgCircle(args.vg, c, c, c * inner);
+		nvgFillColor(args.vg, lit ? nvgRGB(0xF0, 0x62, 0x2F) : nvgRGB(0xF6, 0xF4, 0xF8));
+		nvgFill(args.vg);
+	}
+};
+
 struct BidooLEDButton : LEDButton {
 	BidooLEDButton() {
 

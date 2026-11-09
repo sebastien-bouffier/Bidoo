@@ -47,6 +47,7 @@ extern Model *modelDUKE;
 extern Model *modelMOIRE;
 extern Model *modelPILOT;
 extern Model *modelHUITRE;
+extern Model *modelSAISON;
 extern Model *modelCANARD;
 extern Model *modelFREIN;
 extern Model *modelLOURDE;
@@ -60,6 +61,7 @@ extern Model *modelREI;
 extern Model *modelSOUNAIRE;
 extern Model *modelCOPIA;
 extern Model *modelFILTRE;
+extern Model *modelACIDE;
 extern Model *modelMU;
 extern Model *modelSIGMA;
 extern Model *modelRABBIT;
@@ -88,7 +90,6 @@ struct BidooWidget : ModuleWidget {
 	SvgPanel* blackPanel;
 	int defaultPanelTheme = 0;
 	int shownTheme = -1; // panel currently visible, -1 before the first showTheme
-	bool themable = true; // false: one look only, no Theme menu (the Riso panels)
 
 	BidooWidget() {
 		readThemeAndContrastFromDefault();

@@ -1,6 +1,31 @@
-### Next
+### v2.5.0 (09/11/2026)
 New module
 - FiLTRe: all 71 filter types of the Potion synth (28 HP), the same code as Potion: low, high, band, notch, shelves, morphing, dual, combs, phasers, formants, ring mod, downsample, diffuser, reverb. TYPE, CUTOFF, RES, DRIVE, MORPH and MIX with attenuverters and CV; stereo, up to 16 voices. The screen shows the spectrum of the output, the input behind it, and the measured curve of the selected filter with the current settings
+- aCiDe: a mono acid bass voice (10 HP): saw or square, a diode ladder modelled from published analyses of the circuit, filter and volume envelopes, accent with its build-up, slide and VCA. V/OCT, GATE, ACCENT, SLIDE, CV on CUTOFF, RES, ENV MOD and DECAY. Plays directly from zOù MAï: GATE and V/O, CV1 for accent, CV2 for slide
+- sAiSOn: a pattern launcher with 16 slots (20 HP), HUITre in two columns; slot n selects pattern n on zOù MAï, enCORE, dTrOY, bordL and ratEaU
+Improvements
+- sOUNAiRe, cOPIA: new panels in the look of the other modules, with the Light, Dark and Black themes; the loop of cOPIA is drawn in orange
+- sOUNAiRe: the waveform is orange, blue is a choice in the menu (Waveform colour)
+- zOù MAï, enCORE: a row of 4 polyphonic outputs under the track outputs (GATE, V/O, CV1, CV2): 8 channels each, channel n = track n
+- zOù MAï, enCORE: undo (Ctrl+Z) for erase, paste, random, up/down/left/right, notes, octaves, step and track on/off, solo, slide mode, labels, at trig, page, track and pattern level, each named in the Undo menu; undoing a knob puts the value back on the trig or track it was moved on, whatever is selected by then
+- dTrOY, bordL: undo for paste, the slide, skip, play mode and count mode buttons, transpose, rotate and the Randomize menu lines; undoing a knob puts the value back on its pattern
+- zOù MAï, enCORE: new trig conditions FIRST (first pass of the track since the pattern started or a reset) and LAST (each step's last turn before a requested pattern change)
+- zOù MAï, enCORE: new track speeds x1/8, x1/4, x1/2, x3/4 and x3/2 besides the whole ones, exact over long runs
+- zOù MAï, enCORE: much smaller patches: settings at their default are no longer saved
+- zOù MAï, enCORE: euclidean fill of a track, Hits and Rotation in the Track menu, B over SEL or ON/OFF; only turns trigs on and off
+- zOù MAï, enCORE: per-track swing, 50-75 %, on page 2 of the upper screen or in the Track menu: even-numbered steps start later, added to their trim
+- zOù MAï, enCORE: ratchet ramps per trig, on page 2 of the lower screen (P2 button in the corner of each screen): CV1 End, CV2 End, Pitch (semitones per pulse) and Distance (each gap a percentage of the previous one)
+- zOù MAï, enCORE (and expanders): 16 patterns; PTRN CV 0.625 V per pattern, 0-10 V adds 0-16 to the knob (was 1.25 V); patterns at their default are not saved
+- dTrOY, bordL: PATTERN CV exactly 0.625 V per pattern (was about 0.66 V), as the other sequencers
+- zOù MAï and enCORE (and expanders), dTrOY and bordL: one shared code each
+- zOù MAï, enCORE: exact timing: positions, trims, lengths and pulse distances are integers, so the same musical position falls on the same sample at any speed, clock or platform, with no drift. Existing patches load, and can shift by a sample; zOù MAï's trigs right at a step or trim boundary and enCORE's behaviour fixes below can change how they play
+Fixes
+- enCORE now behaves as zOù MAï: PRE is cleared on reset and on each loop and follows every trig, the next trig's condition is drawn ahead, a reset redraws the condition of step 0 even when the track is already on it, the pendulum plays 0..n-1..1 with no repeated last step and keeps what passes the turn; the clock is also read while stopped
+- zOù MAï, enCORE: COUNT starts at 1 (the first cycle played one pass too many); a pulse lasts its length exactly; a trig that does not play no longer holds back the next trig trimmed early, and a trim on an exact sample plays on that sample; pendulum on a 1-step track plays every step
+- zOù MAï: RUN or a reset between two clocks: the next steps stay on the clock's subdivisions (at fast speeds they ran early until the next clock, or were lost)
+- dTrOY, bordL: the internal clock keeps exact time (up to one sample off over minutes); gate lengths and stage output pulses no longer depend on float rounding; existing patches can shift by a sample
+- ratEaU: exact timing: position, events, time shift and pulse width are integers, so triggers fall on the same sample at any tempo and clock, with no drift (before, up to 3 samples off at the end of 10 minutes on the internal clock and more within it). Existing patches can shift by some samples, pulse lengths too. RESET between two clocks now waits for the next clock instead of firing the steps in between; a RESET up to 1 ms after a clock belongs to that clock
+- zOù MAï, enCORE: random notes reach all 12 semitones (B never came up) and stay in the track's root and scale when it has one; random Val. and Base 1-100 (were 0-99); random track length up to 64 (was 63); full random speed over the whole range (was x1-x3); enCORE: random length and pulse distance over their whole range (length 0 no longer drawn)
 
 ### v2.4.0 (07/11/2026)
 New module

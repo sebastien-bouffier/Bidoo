@@ -34,7 +34,7 @@ The plugin includes the following code, each under its own license, in `src/dep`
 | [LodePNG](https://github.com/lvandeve/lodepng) | Lode Vandevenne | zlib (in `lodepng.h`) | EMILE, liMonADe |
 | Resampler | Laurent de Soras | LGPL-2.1 (`resampler/license.txt`) | antN, eDsaroS, fLAME, the samplers |
 | [Biquad](https://www.earlevel.com/main/2012/11/26/biquad-c-source-code/) | Nigel Redmon | free to use and modify (in `filters/biquad.h`) | the filters in `filters` |
-| bidoo-dsp (excerpt) | Sébastien Bouffier | GPL-3.0-or-later (`bidoo-dsp/README.md`) | REI, cOPIA, FiLTRe, bAFIs, lIMbO |
+| bidoo-dsp (excerpt) | Sébastien Bouffier | GPL-3.0-or-later (`bidoo-dsp/README.md`) | REI, cOPIA, FiLTRe, bAFIs, lIMbO, aCiDe |
 | Potion voice filter (excerpt) | Sébastien Bouffier | GPL-3.0-or-later (`potion/README.md`) | FiLTRe |
 
 ## Donate

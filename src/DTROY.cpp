@@ -7,7 +7,7 @@ using namespace std;
 
 // 8 stages with pitch, pulses, gate type, slide and skip; the engine is
 // shared with BORDL (MetroSeq.hpp).
-struct DTROY : BidooModule {
+struct DTROY : MetroModule<DTROY> {
 	enum ParamIds {
 		CLOCK_PARAM,
 		RUN_PARAM,
@@ -66,121 +66,20 @@ struct DTROY : BidooModule {
 	};
 
 	static constexpr bool EXTENDED = false;
-	MetroEngine<DTROY> engine;
 
 	DTROY() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configMetro(*this);
-		configButton(PLAY_MODE_PARAM, "Play mode (forward, backward, ping-pong, random, brownian)");
-		configButton(COUNT_MODE_PARAM, "Count mode (steps or pulses)");
 		for (int i = 0; i < 8; i++) {
-			configButton(TRIG_SLIDE_PARAM + i, rack::string::f("Stage %d slide", i + 1));
-			configButton(TRIG_SKIP_PARAM + i, rack::string::f("Stage %d skip", i + 1));
 		}
-	}
-
-	void process(const ProcessArgs &args) override {
-		engine.process(*this, args);
-	}
-
-	json_t *dataToJson() override {
-		return engine.toJson(BidooModule::dataToJson());
-	}
-
-	void dataFromJson(json_t *rootJ) override {
-		BidooModule::dataFromJson(rootJ);
-		engine.fromJson(rootJ);
-	}
-
-	void onReset() override {
-		engine.reset();
 	}
 
 	void onRandomize() override {
 		randomizeSlidesSkips();
 	}
-
-	void randomizeSlidesSkips() {
-		MetroPattern &p = engine.patterns[engine.selectedPattern];
-		for (int i = 0; i < 8; i++) {
-			p.stageSlide[i] = random::uniform() > 0.8f;
-			p.stageSkip[i] = random::uniform() > 0.85f;
-		}
-	}
-
-	void randomizePitch() {
-		for (int i = 0; i < 8; i++)
-			params[TRIG_PITCH_PARAM + i].setValue(random::uniform() * 10.f - 4.f);
-	}
-
-	void randomizeGates() {
-		for (int i = 0; i < 8; i++) {
-			params[TRIG_COUNT_PARAM + i].setValue((int)(random::uniform() * 7.f + 1.f));
-			params[TRIG_TYPE_PARAM + i].setValue((int)(random::uniform() * 6.f));
-		}
-	}
 };
 
-struct DTROYDisplay : TransparentWidget {
-	DTROY *module;
-
-	DTROYDisplay() {
-
-	}
-
-	// No strings built per frame: labels are static, numbers go through snprintf.
-	void drawMessage(NVGcontext *vg, Vec pos, const char *note, const char *playMode, const char *selectedPattern, const char *playedPattern, const char *steps, const char *scale) {
-		nvgFontSize(vg, 18.0f);
-		nvgFillColor(vg, YELLOW_BIDOO);
-		nvgText(vg, pos.x + 3.0f, pos.y + 8.0f, playMode, NULL);
-		nvgFontSize(vg, 14.0f);
-		nvgText(vg, pos.x + 114.0f, pos.y + 7.0f, selectedPattern, NULL);
-
-		nvgText(vg, pos.x + 30.0f, pos.y + 7.0f, steps, NULL);
-		nvgText(vg, pos.x + 3.0f, pos.y + 21.0f, note, NULL);
-		nvgText(vg, pos.x + 25.0f, pos.y + 21.0f, scale, NULL);
-
-		// The played pattern blinks: 0.5 s shown, 0.25 s hidden, whatever the frame rate.
-		if (std::fmod(system::getTime(), 0.75) < 0.5)
-			nvgText(vg, pos.x + 90.0f, pos.y + 7.0f, playedPattern, NULL);
-	}
-
-	static const char *displayRootNote(int value) {
-		return quantizer::rootNotes[value+1].label.c_str();
-	}
-
-	static const char *displayScale(int value) {
-		return quantizer::scales[value].label.c_str();
-	}
-
-	static const char *displayPlayMode(int value) {
-		switch(value){
-			case 0: return "►";
-			case 1: return "◄";
-			case 2: return "►◄";
-			case 3: return "►*";
-			case 4: return "►?";
-			default: return "";
-		}
-	}
-
-	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer == 1) {
-			if (module) {
-				const MetroPattern &p = module->engine.patterns[module->engine.selectedPattern];
-				char steps[16], selectedPattern[8], playedPattern[8];
-				snprintf(steps, sizeof(steps), "%s%d", p.countMode == 0 ? "steps:" : "pulses:", p.numberOfStepsParam);
-				snprintf(selectedPattern, sizeof(selectedPattern), "P%d", module->engine.selectedPattern + 1);
-				snprintf(playedPattern, sizeof(playedPattern), "P%d", module->engine.playedPattern + 1);
-				drawMessage(args.vg, Vec(0.0f, 20.0f), displayRootNote(p.rootNote), displayPlayMode(p.playMode), selectedPattern, playedPattern, steps, displayScale(p.scale));
-			}
-		}
-		Widget::drawLayer(args, layer);
-	}
-
-};
-
-struct DTROYWidget : BidooWidget {
+struct DTROYWidget : MetroWidget<DTROY> {
 	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam,
 	 *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam,
 		*pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8],
@@ -201,7 +100,7 @@ DTROYWidget::DTROYWidget(DTROY *module) {
 	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
 	{
-		DTROYDisplay *display = new DTROYDisplay();
+		MetroDisplay<DTROY> *display = new MetroDisplay<DTROY>();
 		display->module = module;
 		display->box.pos = Vec(20.0f, 217.0f);
 		display->box.size = Vec(250.0f, 60.0f);
@@ -286,11 +185,7 @@ void DTROYWidget::appendContextMenu(ui::Menu *menu) {
 	DTROY *m = dynamic_cast<DTROY*>(this->module);
 	if (!m)
 		return;
-	menu->addChild(new MenuSeparator());
-	menu->addChild(createMenuItem("Randomize pitches", "", [=]() { m->randomizePitch(); }));
-	menu->addChild(createMenuItem("Randomize gates", "", [=]() { m->randomizeGates(); }));
-	menu->addChild(createMenuItem("Randomize slides & skips", "", [=]() { m->randomizeSlidesSkips(); }));
-	menu->addChild(createBoolPtrMenuItem("Stage outputs on every pulse", "", &m->engine.stepOutputsMode));
+	appendMetroMenu(menu, m);
 }
 
 Model *modelDTROY = createModel<DTROY, DTROYWidget>("dTrOY");

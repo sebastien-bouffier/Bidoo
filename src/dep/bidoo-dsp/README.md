@@ -9,6 +9,10 @@ Headers copied unchanged from the author's bidoo-dsp library:
   they include (core, delay, filters, oversampling, reverb, shaping, synth, time)
 - commit 2f039ad, for FiLTRe: `bidoo/dsp/filters/VoiceFilters.h` (the voice filter families of Potion's filter,
   `../potion/Filter.h`), with the filters and shaping headers above
+- commit 2f039ad, for zOù MAï and enCORE: `bidoo/dsp/time/Euclid.h` (the euclidean fill)
+- commit 8646ec3, for aCiDe:
+  `bidoo/dsp/filters/DiodeLadder.h` (the diode ladder model) and `bidoo/dsp/synth/AcidVoice.h` (the voice), which also
+  use `bidoo/dsp/synth/KaiserBlep.h`, `bidoo/dsp/oversampling/IirHalfBand.h` and `bidoo/dsp/shaping/TanhPade.h` above
 
 Copyright (c) 2026 Sebastien Bouffier (Bidoo). Distributed here under the GPL-3.0-or-later, as the
 rest of this plugin.

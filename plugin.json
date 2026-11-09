@@ -1,6 +1,6 @@
 {
   "slug": "Bidoo",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "license": "GPL-3.0-or-later",
   "name": "Bidoo",
   "brand": "Bidoo",
@@ -368,6 +368,17 @@
       ]
     },
     {
+      "slug": "ACIDE",
+      "name": "aCiDe",
+      "description": "Mono acid bass voice: saw or square oscillator, diode ladder filter, envelopes, accent and slide",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#acide",
+      "tags": [
+        "Synth voice",
+        "Oscillator",
+        "Filter"
+      ]
+    },
+    {
       "slug": "HCTIP",
       "name": "HCTIP",
       "description": "Pitch shifter",
@@ -479,6 +490,15 @@
       "name": "HUITre",
       "description": "Pattern launcher",
       "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#huitre",
+      "tags": [
+        "Controller"
+      ]
+    },
+    {
+      "slug": "SAISON",
+      "name": "sAiSOn",
+      "description": "Pattern launcher with 16 slots",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#saison",
       "tags": [
         "Controller"
       ]

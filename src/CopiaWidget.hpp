@@ -1,14 +1,17 @@
-// cOPIA panel: the Riso look in orange (an effect). The display shows the loop and the lanes, where the
+// cOPIA panel. The display shows the loop and the lanes, where the
 // pattern is drawn; the panel SVG holds the labels.
 #pragma once
-#include "RisoComponents.hpp"
+#include "BidooComponents.hpp"
 
 namespace copia_ui {
-using namespace riso;
 namespace g = copia::g;
 
-static const NVGcolor ACCENT = ORANGE;
-static const NVGcolor PALE = nvgRGB(0xE4, 0xDE, 0xD0);
+static const NVGcolor INK = nvgRGB(0, 0, 0);
+static const NVGcolor PAPER = nvgRGB(255, 233, 0); // the screens' yellow
+static const NVGcolor ACCENT = nvgRGB(0xF0, 0x62, 0x2F);
+static const NVGcolor PALE = nvgRGB(255, 233, 0);
+static const NVGcolor BUTTON = nvgRGB(0xF6, 0xF4, 0xF8); // the white of the panel buttons
+static const NVGcolor PAD_USED = nvgRGB(0xBE, 0xBE, 0xBE);
 
 inline std::shared_ptr<window::Font> monoFont() {
 	return APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
@@ -408,7 +411,7 @@ struct CopiaDisplay : OpaqueWidget {
 				const float h = std::min(1.f, lp.peaks[i]) * (WAVE / 2 - 2);
 				nvgRect(args.vg, x, WAVE / 2 - h, std::max(1.f, ww / copia::kPeaks), 2 * h + 0.5f);
 			}
-			nvgFillColor(args.vg, PALE);
+			nvgFillColor(args.vg, ACCENT);
 			nvgFill(args.vg);
 			// the bars
 			const int bars = std::max(1, (int)std::round(lp.beats / std::max(1, module->beatsPerBar)));
@@ -422,7 +425,7 @@ struct CopiaDisplay : OpaqueWidget {
 			if (ph >= 0.f) {
 				nvgBeginPath(args.vg);
 				nvgRect(args.vg, LABEL + ww * ph - 1, 0, 2, WAVE);
-				nvgFillColor(args.vg, ACCENT);
+				nvgFillColor(args.vg, PAPER);
 				nvgFill(args.vg);
 			}
 		}
@@ -584,7 +587,7 @@ struct ScenePads : OpaqueWidget {
 			const bool used = module ? module->engine.scenes[i].used.load() : i == 0;
 			nvgBeginPath(args.vg);
 			nvgRoundedRect(args.vg, x + 0.5f, 0.5f, PAD - 1, PAD - 1, 2.f);
-			nvgFillColor(args.vg, i == cur ? ACCENT : used ? TRACK : PAPER);
+			nvgFillColor(args.vg, i == cur ? ACCENT : used ? PAD_USED : BUTTON);
 			nvgFill(args.vg);
 			nvgStrokeColor(args.vg, i == target && target != cur ? ACCENT : INK);
 			nvgStrokeWidth(args.vg, i == target && target != cur ? 2.f : 1.f);
@@ -593,7 +596,7 @@ struct ScenePads : OpaqueWidget {
 				nvgFontFaceId(args.vg, f->handle);
 				nvgFontSize(args.vg, 9.f);
 				nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-				nvgFillColor(args.vg, i == cur ? PAPER : INK);
+				nvgFillColor(args.vg, i == cur ? BUTTON : INK);
 				nvgText(args.vg, x + PAD / 2, PAD / 2 + 0.5f, i == b ? "B" : std::to_string(i + 1).c_str(), nullptr);
 			}
 		}
@@ -626,8 +629,8 @@ struct CaptureButton : app::Switch {
 		nvgFill(args.vg);
 		bool lit = st == 2 || (st == 1 && std::fmod(system::getTime(), 0.5) < 0.25);
 		nvgBeginPath(args.vg);
-		nvgCircle(args.vg, c, c, c * 0.5f);
-		nvgFillColor(args.vg, lit ? ACCENT : PAPER);
+		nvgCircle(args.vg, c, c, c * 0.6f);
+		nvgFillColor(args.vg, lit ? ACCENT : BUTTON);
 		nvgFill(args.vg);
 		if (loop || st == 2) {
 			const float a0 = -M_PI / 2;
@@ -647,29 +650,32 @@ struct COPIAWidget : BidooWidget {
 	COPIAWidget(COPIA *module) {
 		using namespace copia_ui;
 		setModule(module);
-		themable = false; // the Riso panel has no other look
 		prepareThemes(asset::plugin(pluginInstance, "res/COPIA.svg"));
+
+		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
 
 		CopiaDisplay *display = new CopiaDisplay;
 		display->module = module;
-		display->box.pos = Vec(10, 22);
-		display->box.size = Vec(490, 150);
+		display->box.pos = Vec(10, 34);
+		display->box.size = Vec(490, 134);
 		addChild(display);
 
 		// row 1: capture, length, grid, rand, mutate, scenes, morph, mix, in/out
-		const float r1 = 208.f;
+		const float r1 = 200.f;
 		CaptureButton *cap = createParamCentered<CaptureButton>(Vec(30, r1), module, COPIA::CAPTURE_PARAM);
 		cap->m = module;
 		addParam(cap);
 		auto knob = [&](float x, float y, int param, bool snapped) {
-			RisoKnob *k = snapped ? (RisoKnob *)createParamCentered<RisoSnapKnob>(Vec(x, y), module, param)
-			                      : createParamCentered<RisoKnob>(Vec(x, y), module, param);
-			k->arc = ACCENT;
-			addParam(k);
+			if (snapped)
+				addParam(createParamCentered<BidooSmallSnapBlueKnob>(Vec(x, y), module, param));
+			else
+				addParam(createParamCentered<BidooSmallBlueKnob>(Vec(x, y), module, param));
 		};
 		auto button = [&](float x, float y, int param) {
-			RisoButton *b = createParamCentered<RisoButton>(Vec(x, y), module, param);
-			b->lit = ACCENT;
+			BidooRoundButton *b = createParamCentered<BidooRoundButton>(Vec(x, y), module, param);
 			addParam(b);
 			return b;
 		};
@@ -684,38 +690,33 @@ struct COPIAWidget : BidooWidget {
 		addChild(pads);
 		knob(398, r1, COPIA::MORPH_PARAM, false);
 		knob(436, r1, COPIA::MIX_PARAM, false);
-		RisoButton *inout = button(478, r1, COPIA::INOUT_PARAM);
+		BidooRoundButton *inout = button(478, r1, COPIA::INOUT_PARAM);
+		inout->inner = 0.6f;
 		inout->box.size = Vec(28, 28);
 		inout->box.pos = Vec(478 - 14, r1 - 14);
 
 		// row 2: each slot's effect and punch-in knobs
-		const float r2 = 256.f;
+		const float r2 = 243.f - 3.f;
 		for (int s = 0; s < copia::kSlots; s++) {
 			const float cx = 10.f + 61.25f * (s + 0.5f);
 			knob(cx - 14.f, r2, COPIA::FX_PARAM + s, true);
 			knob(cx + 14.f, r2, COPIA::PUNCH_PARAM + s, false);
 		}
 
-		// jacks: inputs on paper, outputs on the ink block
-		auto jx = [](int i) { return 24.f + 36.f * i; };
+		// jacks: inputs on the black box, outputs on the red one
+		auto jx = [](int i) { return 28.f + 36.f * i; };
 		const int rowA[9] = {COPIA::INL_INPUT, COPIA::INR_INPUT, COPIA::CLOCK_INPUT, COPIA::RESET_INPUT, COPIA::CAPTURE_INPUT,
 		                     COPIA::INOUT_INPUT, COPIA::SCENE_INPUT, COPIA::MORPH_INPUT, COPIA::MIX_INPUT};
 		for (int i = 0; i < 9; i++)
-			addInput(createInputCentered<RisoJack>(Vec(jx(i), 302.f), module, rowA[i]));
+			addInput(createInputCentered<PJ301MPort>(Vec(jx(i), 283.f), module, rowA[i]));
 		for (int s = 0; s < copia::kSlots; s++)
-			addInput(createInputCentered<RisoJack>(Vec(jx(s), 342.f), module, COPIA::PUNCH_INPUT + s));
+			addInput(createInputCentered<PJ301MPort>(Vec(jx(s), 327.f), module, COPIA::PUNCH_INPUT + s));
 		const int outA[4] = {COPIA::OUTL_OUTPUT, COPIA::OUTR_OUTPUT, COPIA::BAR_OUTPUT, COPIA::REC_OUTPUT};
 		const int outB[3] = {COPIA::WETL_OUTPUT, COPIA::WETR_OUTPUT, COPIA::LANES_OUTPUT};
-		for (int i = 0; i < 4; i++) {
-			RisoJack *j = createOutputCentered<RisoJack>(Vec(362.f + 36.f * i, 302.f), module, outA[i]);
-			j->onInk = true;
-			addOutput(j);
-		}
-		for (int i = 0; i < 3; i++) {
-			RisoJack *j = createOutputCentered<RisoJack>(Vec(362.f + 36.f * i, 342.f), module, outB[i]);
-			j->onInk = true;
-			addOutput(j);
-		}
+		for (int i = 0; i < 4; i++)
+			addOutput(createOutputCentered<PJ301MPort>(Vec(374.f + 36.f * i, 283.f), module, outA[i]));
+		for (int i = 0; i < 3; i++)
+			addOutput(createOutputCentered<PJ301MPort>(Vec(374.f + 36.f * i, 327.f), module, outB[i]));
 	}
 
 	void appendContextMenu(Menu *menu) override {

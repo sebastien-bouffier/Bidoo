@@ -192,6 +192,7 @@ struct SOUNAIRE : BidooModule {
 
 	// ---- options (context menu), saved
 	bool autoNormalize = true;
+	bool waveBlue = false; // the waveform's colour on the display: orange, or blue
 	bool autoRoot = true;
 	bool polyOut = true;
 	int bendRange = 2;
@@ -887,6 +888,7 @@ struct SOUNAIRE : BidooModule {
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "autoNormalize", json_boolean(autoNormalize));
+		json_object_set_new(rootJ, "waveBlue", json_boolean(waveBlue));
 		json_object_set_new(rootJ, "autoRoot", json_boolean(autoRoot));
 		json_object_set_new(rootJ, "polyOut", json_boolean(polyOut));
 		json_object_set_new(rootJ, "bendRange", json_integer(bendRange));
@@ -920,6 +922,7 @@ struct SOUNAIRE : BidooModule {
 	void dataFromJson(json_t *rootJ) override {
 		BidooModule::dataFromJson(rootJ);
 		if (json_t *j = json_object_get(rootJ, "autoNormalize")) autoNormalize = json_boolean_value(j);
+		if (json_t *j = json_object_get(rootJ, "waveBlue")) waveBlue = json_boolean_value(j);
 		if (json_t *j = json_object_get(rootJ, "autoRoot")) autoRoot = json_boolean_value(j);
 		if (json_t *j = json_object_get(rootJ, "polyOut")) polyOut = json_boolean_value(j);
 		if (json_t *j = json_object_get(rootJ, "bendRange")) bendRange = clamp((int)json_integer_value(j), 1, 48);
