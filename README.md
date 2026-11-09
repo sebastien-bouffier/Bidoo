@@ -5,6 +5,8 @@
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
+![All the modules of the plugin](docs/modules.png)
+
 ## How to
 
 Install the plugin from the [VCV Library](https://library.vcvrack.com/Bidoo), or download the newest version from the [latest release](https://github.com/sebastien-bouffier/Bidoo/releases/latest): put the .vcvplugin for your system in the plugins folder of your Rack user folder (Help > Open user folder in Rack), then restart Rack.
