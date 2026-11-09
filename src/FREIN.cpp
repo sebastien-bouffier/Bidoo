@@ -184,16 +184,27 @@ struct FREINWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/FREIN.svg"));
 
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(19.5f, 20.0f), module, FREIN::BREAK_LIGHT));
+		// No screws, as before. The original hand-drawn panel: one column down the middle, where the panel draws the lines
+		// from each control to its CV jack and centres every label. The column is the stop button's (the panel's centre);
+		// each control keeps its old top.
+		const float kGroupPitch = 79.f;   // from one control and its CV jack to the next
+		const float kBoxPitch = 47.f;     // from the IN box to the OUT box
+		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};   // SmallLight
+		const theme::Pos stop = theme::specificCorner(8.5f, 50, theme::kCKD6Size);
+		const theme::Pos stopCv = theme::colRow(stop, theme::specificCorner(15, 90, theme::kTinyJackSize));
+		const theme::Pos speed = theme::colRow(stop, theme::specificCorner(7.5f, 208, theme::kBlueKnobSize));
+		const theme::Pos in = theme::colRow(stop, theme::specificCorner(10, 283, theme::kJackSize));
+		// the light keeps its old corner, 0.05 px left of the column
+		addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::specificCorner(19.5f, 20, kSmallLightSize), module, FREIN::BREAK_LIGHT));
 
-		addParam(createParam<BlueCKD6>(Vec(8.5f, 50), module, FREIN::TRIG_PARAM));
-		addInput(createInput<TinyPJ301MPort>(Vec(15, 90.f), module, FREIN::TRIG_INPUT));
-		addParam(createParam<BlueCKD6>(Vec(8.5f, 129.f), module, FREIN::START_PARAM));
-		addInput(createInput<TinyPJ301MPort>(Vec(15, 169.f), module, FREIN::START_INPUT));
-		addParam(createParam<BidooBlueKnob>(Vec(7.5f, 208.f), module, FREIN::SPEED_PARAM));
-		addInput(createInput<TinyPJ301MPort>(Vec(15, 248.f), module, FREIN::SPEED_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10, 283.0f), module, FREIN::INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10, 330), module, FREIN::OUTPUT));
+		addParam(theme::param<BlueCKD6>(stop, module, FREIN::TRIG_PARAM));
+		addInput(theme::input<TinyPJ301MPort>(stopCv, module, FREIN::TRIG_INPUT));
+		addParam(theme::param<BlueCKD6>(stop.down(kGroupPitch), module, FREIN::START_PARAM));
+		addInput(theme::input<TinyPJ301MPort>(stopCv.down(kGroupPitch), module, FREIN::START_INPUT));
+		addParam(theme::param<BidooBlueKnob>(speed, module, FREIN::SPEED_PARAM));
+		addInput(theme::input<TinyPJ301MPort>(stopCv.down(2.f * kGroupPitch), module, FREIN::SPEED_INPUT));
+		addInput(theme::input<PJ301MPort>(in, module, FREIN::INPUT));
+		addOutput(theme::output<PJ301MPort>(in.down(kBoxPitch), module, FREIN::OUTPUT));
 	}
 };
 

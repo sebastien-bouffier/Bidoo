@@ -272,50 +272,62 @@ MOIREWidget::MOIREWidget(MOIRE *module) {
 	setModule(module);
 	prepareThemes(asset::plugin(pluginInstance, "res/MOIRE.svg"));
 
-	addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+	theme::addScrews(this);
 
-	static const float portX0[10] = {20,34,48,62,76,90,120,150,180,210};
-	static const float portY0[12] = {20,50,80,110,140,170,200,230,260,290,320,350};
+	// The original hand-drawn panel. Left: the target and current scene trimpots with their CV jacks, joined by the
+	// panel's lines, the two arrow buttons, the scene screens and the morph knob with its CV jack; the range switch and
+	// POLY. Right: the 4 x 4 grid of knobs in the white screen, each with its type button, and the 16 CV outputs below.
+	// Old corners kept, except: the trimpots and their jacks, now on the lines the panel draws (they were 0.5 to 0.6 px
+	// right), the range switch between its labels (0.75 px left), and the knob grid with its type buttons, now in the
+	// outputs' columns, centred in the white screen (it was 1.04 px left).
+	const theme::Size kCKSSSize = {14.f, 20.64111f};                  // CKSS
+	const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
+	const theme::Size kMiniButtonSize = {mm2px(1.8f), mm2px(1.8f)};   // MiniLEDButton
+	const theme::Size kColoredKnobSize = {mm2px(8.f), mm2px(8.f)};    // BidooColoredKnob
+	const theme::Pos sceneLine = theme::specific(29.f, 0);   // the lines from the scene trimpots to their jacks
 
-	addParam(createParam<BlueCKD6>(Vec(portX0[5], portY0[0]+18), module, MOIRE::SAVE_PARAM));
-	addParam(createParam<BlueCKD6>(Vec(portX0[5]+30, portY0[0]+18), module, MOIRE::RND_PARAM));
+	const theme::Pos save = theme::specificCorner(90, 38, theme::kCKD6Size);
+	addParam(theme::param<BlueCKD6>(save, module, MOIRE::SAVE_PARAM));
+	addParam(theme::param<BlueCKD6>(save.right(30), module, MOIRE::RND_PARAM));
 
-  addParam(createParam<BidooBlueSnapTrimpot>(Vec(portX0[0], portY0[1]+16), module, MOIRE::TARGETSCENE_PARAM));
+	addParam(theme::param<BidooBlueSnapTrimpot>(theme::colRow(sceneLine, theme::specificCorner(0, 66, theme::kTrimpotSize)), module, MOIRE::TARGETSCENE_PARAM));
 	MOIREDisplay *displayTarget = new MOIREDisplay();
-	displayTarget->box.pos = Vec(50,portY0[2]-21);
-	displayTarget->box.size = Vec(20, 20);
+	displayTarget->box = theme::specificRect(50, 59, 20, 20);
 	displayTarget->value = module ? &module->targetScene : NULL;
 	addChild(displayTarget);
-	addParam(createParam<BidooBlueSnapTrimpot>(Vec(portX0[0], portY0[6]-5), module, MOIRE::CURRENTSCENE_PARAM));
+	addParam(theme::param<BidooBlueSnapTrimpot>(theme::colRow(sceneLine, theme::specificCorner(0, 195, theme::kTrimpotSize)), module, MOIRE::CURRENTSCENE_PARAM));
 	MOIREDisplay *displayCurrent = new MOIREDisplay();
-	displayCurrent->box.pos = Vec(50,portY0[5]+19);
-	displayCurrent->box.size = Vec(20, 20);
+	displayCurrent->box = theme::specificRect(50, 189, 20, 20);
 	displayCurrent->value = module ? &module->currentScene : NULL;
 	addChild(displayCurrent);
 
-	addParam(createParam<BlueCKD6>(Vec(portX0[0]-5, portY0[3]-3), module, MOIRE::ADONF_PARAM));
-	addParam(createParam<BlueCKD6>(Vec(portX0[0]-5, portY0[4]+5), module, MOIRE::NADA_PARAM));
+	addParam(theme::param<BlueCKD6>(theme::specificCorner(15, 107, theme::kCKD6Size), module, MOIRE::ADONF_PARAM));
+	addParam(theme::param<BlueCKD6>(theme::specificCorner(15, 145, theme::kCKD6Size), module, MOIRE::NADA_PARAM));
 
-	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[0]+21), module, MOIRE::TARGETSCENE_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+2, portY0[7]-6), module, MOIRE::CURRENTSCENE_INPUT));
-	addInput(createInput<TinyPJ301MPort>(Vec(portX0[0]+33.2, portY0[7]-6), module, MOIRE::MORPH_INPUT));
+	addInput(theme::input<TinyPJ301MPort>(theme::colRow(sceneLine, theme::specificCorner(0, 41, theme::kTinyJackSize)), module, MOIRE::TARGETSCENE_INPUT));
+	addInput(theme::input<TinyPJ301MPort>(theme::colRow(sceneLine, theme::specificCorner(0, 224, theme::kTinyJackSize)), module, MOIRE::CURRENTSCENE_INPUT));
+	addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(20 + 33.2f, 224, theme::kTinyJackSize), module, MOIRE::MORPH_INPUT));
 
-	morphButton = createParam<MOIREMorphKnob>(Vec(portX0[0]+26, portY0[3]+14), module, MOIRE::MORPH_PARAM);
+	morphButton = theme::param<MOIREMorphKnob>(theme::specificCorner(46, 124, theme::kBlueKnobSize), module, MOIRE::MORPH_PARAM);
 	addParam(morphButton);
 
-	addParam(createParam<CKSS>(Vec(40, 279), module, MOIRE::VOLTAGE_PARAM));
+	addParam(theme::param<CKSS>(theme::colRow(theme::specific(47.75f, 0), theme::specificCorner(0, 279, kCKSSSize)), module, MOIRE::VOLTAGE_PARAM));   // between its labels
 	// under the range switch, level with the last row of outputs
-	addOutput(createOutput<PJ301MPort>(Vec(35.15f, 320), module, MOIRE::POLY_OUTPUT));
+	addOutput(theme::output<PJ301MPort>(theme::specificCorner(35.15f, 320, theme::kJackSize), module, MOIRE::POLY_OUTPUT));
 
+	const float kGridPitch = 30.f;
+	const theme::Pos firstOut = theme::specificCorner(92, 230, theme::kJackSize);
+	const float kButtonFromKnob = 23.f; // a type button's corner from its knob's
 	for (int i = 0; i < 16; i++) {
-		controls[i] = createParam<MOIREColoredKnob>(Vec(portX0[i%4+5]+1, portY0[int(i/4) + 2] + 2), module, MOIRE::CONTROLS_PARAMS + i);
+		const float dx = kGridPitch * (i % 4), dy = kGridPitch * (i / 4);
+		const theme::Pos out = firstOut.offset(dx, dy);
+		const theme::Pos knob = theme::colRow(out, theme::specificCorner(0, 82 + dy, kColoredKnobSize));   // in its output's column
+		const float knobLeft = knob.x - kColoredKnobSize.w * 0.5f;
+		controls[i] = theme::param<MOIREColoredKnob>(knob, module, MOIRE::CONTROLS_PARAMS + i);
 		addParam(controls[i]);
-		addParam(createParam<MiniLEDButton>(Vec(portX0[i%4+5]+24, portY0[int(i/4) + 2]+24), module, MOIRE::TYPE_PARAMS + i));
-		addChild(createLight<SmallLight<RedLight>>(Vec(portX0[i%4+5]+24, portY0[int(i/4) + 2]+25), module, MOIRE::TYPE_LIGHTS + i));
-		addOutput(createOutput<PJ301MPort>(Vec(portX0[i%4+5]+2, portY0[int(i/4) + 7]), module, MOIRE::CV_OUTPUTS + i));
+		addParam(theme::param<MiniLEDButton>(theme::specificCorner(knobLeft + kButtonFromKnob, 104 + dy, kMiniButtonSize), module, MOIRE::TYPE_PARAMS + i));
+		addChild(theme::light<SmallLight<RedLight>>(theme::specificCorner(knobLeft + kButtonFromKnob, 105 + dy, kSmallLightSize), module, MOIRE::TYPE_LIGHTS + i));
+		addOutput(theme::output<PJ301MPort>(out, module, MOIRE::CV_OUTPUTS + i));
 	}
 }
 

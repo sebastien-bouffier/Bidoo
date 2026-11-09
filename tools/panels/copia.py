@@ -8,7 +8,7 @@ W = PW * K
 SCREEN_H = 150                      # the same in src/CopiaWidget.hpp
 LABELS1 = 194                       # labels above the small knob rows, which are at 213 and 253
 LABELS2 = 235
-IN_X0, OUT_X0, COL = 28, 369.2, 37.6   # the jack columns; the same in src/CopiaWidget.hpp
+IN_X0, OUT_X0, COL = 27, 370.2, 37.6   # the jack columns, each row centred in its box; the same in src/CopiaWidget.hpp
 
 def build():
     p = k.Picture(1938, W)
@@ -84,12 +84,12 @@ def build():
     for i, l in enumerate(['IN L', 'IN R', 'CLOCK', 'RESET', 'CAPT', 'IN/OUT', 'SCENE', 'MORPH', 'MIX']):
         out.append(k.jack_label(l, IN_X0 + COL * i, k.SECOND_ROW, 7))
     for i in range(8):
-        out.append(k.jack_label(f'PUNCH {i+1}', IN_X0 + COL * i, k.BOTTOM_ROW, 6.5))
+        out.append(k.jack_label(f'PUNCH {i+1}', IN_X0 + COL * i, k.BOTTOM_ROW, 6.5, jack_above=k.SECOND_ROW))
     out.append(k.box(353.2, k.SECOND_TOP, 146.8, tall, k.OUTPUT))
     for i, l in enumerate(['OUT L', 'OUT R', 'BAR', 'REC']):
         out.append(k.jack_label(l, OUT_X0 + COL * i, k.SECOND_ROW, 7))
     for i, l in enumerate(['WET L', 'WET R', 'LANES']):
-        out.append(k.jack_label(l, OUT_X0 + COL * i, k.BOTTOM_ROW, 7))
+        out.append(k.jack_label(l, OUT_X0 + COL * i, k.BOTTOM_ROW, 7, jack_above=k.SECOND_ROW))
     out.append(k.logo(W))
     out.append('</svg>')
     return out

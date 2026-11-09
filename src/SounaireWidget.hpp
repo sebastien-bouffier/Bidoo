@@ -942,24 +942,26 @@ struct SOUNAIREWidget : BidooWidget {
 
 		SounaireDisplay *display = new SounaireDisplay;
 		display->module = module;
-		display->box.pos = Vec(theme::kSideMargin, theme::kScreenTop);
-		display->box.size = Vec(460, 76);
+		// Placed as tools/panels/sounaire.py draws them: the screen (SCREEN_H 106: display then keys), three rows of
+		// eight knobs on its KNOB_ROWS and its columns (28 + 418 / 7 c, off the theme grid's), the jacks on JX0 + COL i,
+		// on its UPPER_ROW and on the grid's bottom row, REC, IN and OUT where its boxes are.
+		display->box = theme::specificRect(theme::kSideMargin, theme::kScreenTop, 460, 76);
 		addChild(display);
 		SounaireKeys *keys = new SounaireKeys;
 		keys->module = module;
 		keys->display = display;
-		keys->box.pos = Vec(theme::kSideMargin, 112);
-		keys->box.size = Vec(460, 28);
+		keys->box = theme::specificRect(theme::kSideMargin, 112, 460, 28);
 		addChild(keys);
 
 		// three rows of eight columns
 		auto cx = [](int col) { return 28.f + 418.f / 7.f * col; }; // from the first input to the outputs
-		const float rows[3] = {169.f, 215.f, 261.f};
+		const float rows[3] = {169.f, 215.f, 261.f};   // sounaire.py KNOB_ROWS
+		auto at = [&](int col, int row) { return theme::specific(cx(col), rows[row]); };
 		auto knob = [&](int col, int row, int param, bool snapped) {
 			if (snapped)
-				addParam(createParamCentered<BidooSmallSnapBlueKnob>(Vec(cx(col), rows[row]), module, param));
+				addParam(theme::param<BidooSmallSnapBlueKnob>(at(col, row), module, param));
 			else
-				addParam(createParamCentered<BidooSmallBlueKnob>(Vec(cx(col), rows[row]), module, param));
+				addParam(theme::param<BidooSmallBlueKnob>(at(col, row), module, param));
 		};
 		knob(0, 0, SOUNAIRE::START_PARAM, false);
 		knob(1, 0, SOUNAIRE::END_PARAM, false);
@@ -969,7 +971,7 @@ struct SOUNAIREWidget : BidooWidget {
 		knob(5, 0, SOUNAIRE::LOOP_MODE_PARAM, true);
 		// REVERSE and LEGATO do nothing in SLICES mode: faded there
 		for (int i = 0; i < 2; i++) {
-			BidooRoundButton *b = createParamCentered<BidooRoundButton>(Vec(cx(6 + i), rows[0]), module, i == 0 ? SOUNAIRE::REVERSE_PARAM : SOUNAIRE::LEGATO_PARAM);
+			BidooRoundButton *b = theme::param<BidooRoundButton>(at(6 + i, 0), module, i == 0 ? SOUNAIRE::REVERSE_PARAM : SOUNAIRE::LEGATO_PARAM);
 			b->dimmed = [=]() { return module && module->sliceMode(); };
 			addParam(b);
 		}
@@ -990,27 +992,29 @@ struct SOUNAIREWidget : BidooWidget {
 		knob(4, 2, SOUNAIRE::ATTACK_PARAM, false);
 		knob(5, 2, SOUNAIRE::RELEASE_PARAM, false);
 		knob(6, 2, SOUNAIRE::PLAY_PARAM, true);
-		addParam(createParamCentered<BidooRoundButton>(Vec(cx(7), rows[2]), module, SOUNAIRE::MODE_PARAM));
+		addParam(theme::param<BidooRoundButton>(at(7, 2), module, SOUNAIRE::MODE_PARAM));
 
 		// two rows of jacks (centres 28 + 38 i): playing, then slices, clock and
 		// recording; the outputs on the red box, one on each row
-		auto jx = [](int i) { return 28.f + 32.f * i; };
-		const float upperRow = 306.f; // three rows of knobs leave no room for theme::kSecondRowY
+		auto jx = [](int i) { return 28.f + 32.f * i; };   // sounaire.py JX0, COL
+		const float upperRow = 306.f; // sounaire.py UPPER_ROW: three rows of knobs leave no room for the grid's row 1
+		auto upper = [&](float x) { return theme::specific(x, upperRow); };
+		auto bottom = [&](float x) { return theme::specific(x, theme::row(0)); };
 		int row1[10] = {SOUNAIRE::VOCT_INPUT, SOUNAIRE::GATE_INPUT, SOUNAIRE::VEL_INPUT, SOUNAIRE::BEND_INPUT,
 		                SOUNAIRE::START_INPUT, SOUNAIRE::SPEED_INPUT, SOUNAIRE::CUTOFF_INPUT, SOUNAIRE::RES_INPUT,
 		                SOUNAIRE::PITCH_INPUT, SOUNAIRE::PLAY_INPUT};
 		for (int i = 0; i < 10; i++)
-			addInput(createInputCentered<PJ301MPort>(Vec(jx(i), upperRow), module, row1[i]));
+			addInput(theme::input<PJ301MPort>(upper(jx(i)), module, row1[i]));
 		const int row2[8] = {SOUNAIRE::TRIG_INPUT, SOUNAIRE::SLICE_INPUT, SOUNAIRE::RESET_INPUT, SOUNAIRE::CLOCK_INPUT,
 		                     SOUNAIRE::END_INPUT, SOUNAIRE::LOOP_IN_INPUT, SOUNAIRE::LOOP_OUT_INPUT, SOUNAIRE::REC_INPUT};
 		for (int i = 0; i < 8; i++)
-			addInput(createInputCentered<PJ301MPort>(Vec(jx(i), theme::kBottomRowY), module, row2[i]));
-		addParam(createParamCentered<BidooRoundButton>(Vec(351.f, theme::kBottomRowY), module, SOUNAIRE::REC_PARAM));
+			addInput(theme::input<PJ301MPort>(bottom(jx(i)), module, row2[i]));
+		addParam(theme::param<BidooRoundButton>(bottom(351.f), module, SOUNAIRE::REC_PARAM));   // under its REC label
 		// the audio inputs have their own box, before the outputs
-		addInput(createInputCentered<PJ301MPort>(Vec(392.f, upperRow), module, SOUNAIRE::INL_INPUT));
-		addInput(createInputCentered<PJ301MPort>(Vec(392.f, theme::kBottomRowY), module, SOUNAIRE::INR_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(Vec(446.f, upperRow), module, SOUNAIRE::L_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(Vec(446.f, theme::kBottomRowY), module, SOUNAIRE::R_OUTPUT));
+		addInput(theme::input<PJ301MPort>(upper(392.f), module, SOUNAIRE::INL_INPUT));     // the IN box's centre
+		addInput(theme::input<PJ301MPort>(bottom(392.f), module, SOUNAIRE::INR_INPUT));
+		addOutput(theme::output<PJ301MPort>(upper(446.f), module, SOUNAIRE::L_OUTPUT));   // the OUT box's centre
+		addOutput(theme::output<PJ301MPort>(bottom(446.f), module, SOUNAIRE::R_OUTPUT));
 	}
 
 	// the knobs that mean something else in SLICES mode say so in their tooltips

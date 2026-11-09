@@ -349,22 +349,32 @@ struct MINIBARWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/MINIBAR.svg"));
 
+		// No screws, as before. The original hand-drawn panel: the bypass button and its light under the title, on the
+		// panel's centre like the title; eight trimpots down the left, each beside its upright label (the old code had
+		// them 1 px above the labels' middles); the screen; three tiny jacks in their boxes, within 0.4 px, left as
+		// they were.
 		if (module) {
 			MINIBARDisplay *display = new MINIBARDisplay();
 			display->module = module;
-			display->box.pos = Vec(34.0f, 45.0f);
-			display->box.size = Vec(70.0f, 70.0f);
+			display->box = theme::specificRect(34, 45, 70, 70);
 			addChild(display);
 		}
 
 		LabelMICROBARWidget *display = new LabelMICROBARWidget();
-		display->box.pos = Vec(31.5f, 287);
+		display->box.pos = theme::specific(31.5f, 287);   // where the screen writes the value being edited
 		addChild(display);
 
-		addParam(createParam<MiniLEDButton>(Vec(34.0f, 15.0f), module, MINIBAR::BYPASS_PARAM));
-		addChild(createLight<SmallLight<RedLight>>(Vec(34.0f, 15.0f), module, MINIBAR::BYPASS_LIGHT));
+		const float centre = box.size.x * 0.5f;
+		const theme::Size kMiniButtonSize = {mm2px(1.8f), mm2px(1.8f)};   // MiniLEDButton
+		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
+		addParam(theme::param<MiniLEDButton>(theme::sameRow(theme::specificCorner(34, 15, kMiniButtonSize), centre), module, MINIBAR::BYPASS_PARAM));
+		addChild(theme::light<SmallLight<RedLight>>(theme::sameRow(theme::specificCorner(34, 15, kSmallLightSize), centre), module, MINIBAR::BYPASS_LIGHT));
 
-		MicrobarTrimpotWithDisplay* tresh = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,37.0f), module, MINIBAR::THRESHOLD_PARAM);
+		const float kTrimpotPitch = 35.f;
+		const theme::Pos first = theme::specificCorner(2, 38, theme::kTrimpotSize);
+		auto trimpot = [&](int i) { return first.down(kTrimpotPitch * i); };
+
+		MicrobarTrimpotWithDisplay* tresh = theme::param<MicrobarTrimpotWithDisplay>(trimpot(0), module, MINIBAR::THRESHOLD_PARAM);
 		tresh->lblDisplay = display;
 		tresh->valueForDisplay = module ? &module->threshold : NULL;
 		tresh->format = "%2.1f";
@@ -372,7 +382,7 @@ struct MINIBARWidget : BidooWidget {
 		tresh->tail = "dB";
 		addParam(tresh);
 
-		MicrobarTrimpotWithDisplay* ratio = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,72.0f), module, MINIBAR::RATIO_PARAM);
+		MicrobarTrimpotWithDisplay* ratio = theme::param<MicrobarTrimpotWithDisplay>(trimpot(1), module, MINIBAR::RATIO_PARAM);
 		ratio->lblDisplay = display;
 		ratio->valueForDisplay = module ? &module->ratio : NULL;
 		ratio->format = "%1.0f:1";
@@ -380,7 +390,7 @@ struct MINIBARWidget : BidooWidget {
 		ratio->tail = " ";
 		addParam(ratio);
 
-		MicrobarTrimpotWithDisplay* attack = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,107.0f), module, MINIBAR::ATTACK_PARAM);
+		MicrobarTrimpotWithDisplay* attack = theme::param<MicrobarTrimpotWithDisplay>(trimpot(2), module, MINIBAR::ATTACK_PARAM);
 		attack->lblDisplay = display;
 		attack->valueForDisplay = module ? &module->attackTime : NULL;
 		attack->format = "%1.0f";
@@ -388,7 +398,7 @@ struct MINIBARWidget : BidooWidget {
 		attack->tail = "ms";
 		addParam(attack);
 
-		MicrobarTrimpotWithDisplay* release = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,142.0f), module, MINIBAR::RELEASE_PARAM);
+		MicrobarTrimpotWithDisplay* release = theme::param<MicrobarTrimpotWithDisplay>(trimpot(3), module, MINIBAR::RELEASE_PARAM);
 		release->lblDisplay = display;
 		release->valueForDisplay = module ? &module->releaseTime : NULL;
 		release->format = "%1.0f";
@@ -396,7 +406,7 @@ struct MINIBARWidget : BidooWidget {
 		release->tail = "ms";
 		addParam(release);
 
-		MicrobarTrimpotWithDisplay* knee = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,177.0f), module, MINIBAR::KNEE_PARAM);
+		MicrobarTrimpotWithDisplay* knee = theme::param<MicrobarTrimpotWithDisplay>(trimpot(4), module, MINIBAR::KNEE_PARAM);
 		knee->lblDisplay = display;
 		knee->valueForDisplay = module ? &module->knee : NULL;
 		knee->format = "%1.1f";
@@ -404,7 +414,7 @@ struct MINIBARWidget : BidooWidget {
 		knee->tail = "dB";
 		addParam(knee);
 
-		MicrobarTrimpotWithDisplay* makeup = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,212.0f), module, MINIBAR::MAKEUP_PARAM);
+		MicrobarTrimpotWithDisplay* makeup = theme::param<MicrobarTrimpotWithDisplay>(trimpot(5), module, MINIBAR::MAKEUP_PARAM);
 		makeup->lblDisplay = display;
 		makeup->valueForDisplay = module ? &module->makeup : NULL;
 		makeup->format = "%1.1f";
@@ -412,7 +422,7 @@ struct MINIBARWidget : BidooWidget {
 		makeup->tail = "dB";
 		addParam(makeup);
 
-		MicrobarTrimpotWithDisplay* mix = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,247.0f), module, MINIBAR::MIX_PARAM);
+		MicrobarTrimpotWithDisplay* mix = theme::param<MicrobarTrimpotWithDisplay>(trimpot(6), module, MINIBAR::MIX_PARAM);
 		mix->lblDisplay = display;
 		mix->valueForDisplay = module ? &module->mixDisplay : NULL;
 		mix->format = "%1.0f";
@@ -420,7 +430,7 @@ struct MINIBARWidget : BidooWidget {
 		mix->tail = "%";
 		addParam(mix);
 
-		MicrobarTrimpotWithDisplay* looka = createParam<MicrobarTrimpotWithDisplay>(Vec(2.0f,282.0f), module, MINIBAR::LOOKAHEAD_PARAM);
+		MicrobarTrimpotWithDisplay* looka = theme::param<MicrobarTrimpotWithDisplay>(trimpot(7), module, MINIBAR::LOOKAHEAD_PARAM);
 		looka->lblDisplay = display;
 		looka->valueForDisplay = module ? &module->lookAhead : NULL;
 		looka->format = "%1.0f";
@@ -428,9 +438,11 @@ struct MINIBARWidget : BidooWidget {
 		looka->tail = "%";
 		addParam(looka);
 
-		addInput(createInput<TinyPJ301MPort>(Vec(6.0f, 340.0f), module, MINIBAR::IN_L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(30.0f, 340.0f), module, MINIBAR::SC_L_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(54.0f, 340.0f), module, MINIBAR::OUT_L_OUTPUT));
+		const float kJackPitch = 24.f;
+		const theme::Pos in = theme::specificCorner(6, 340, theme::kTinyJackSize);
+		addInput(theme::input<TinyPJ301MPort>(in, module, MINIBAR::IN_L_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(in.right(kJackPitch), module, MINIBAR::SC_L_INPUT));
+		addOutput(theme::output<TinyPJ301MPort>(in.right(2.f * kJackPitch), module, MINIBAR::OUT_L_OUTPUT));
 	}
 };
 

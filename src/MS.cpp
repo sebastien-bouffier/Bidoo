@@ -63,15 +63,20 @@ struct MSWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/MS.svg"));
 
-		addInput(createInput<PJ301MPort>(Vec(10, 30), module, MS::L_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10, 70), module, MS::R_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10, 110), module, MS::M_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10, 150), module, MS::S_OUTPUT));
+		// No screws, as before. The original hand-drawn panel: eight jacks down the middle, 40 px apart, where the panel
+		// centres its boxes and labels. The first keeps its old top; the column is the panel's centre.
+		const float kJackPitch = 40.f;
+		const theme::Pos first = theme::sameRow(theme::specificCorner(10, 30, theme::kJackSize), box.size.x * 0.5f);
+		auto jack = [&](int i) { return first.down(kJackPitch * i); };
+		addInput(theme::input<PJ301MPort>(jack(0), module, MS::L_INPUT));
+		addInput(theme::input<PJ301MPort>(jack(1), module, MS::R_INPUT));
+		addOutput(theme::output<PJ301MPort>(jack(2), module, MS::M_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(jack(3), module, MS::S_OUTPUT));
 
-		addInput(createInput<PJ301MPort>(Vec(10, 190), module, MS::M_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10, 230), module, MS::S_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10, 270), module, MS::L_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10, 310), module, MS::R_OUTPUT));
+		addInput(theme::input<PJ301MPort>(jack(4), module, MS::M_INPUT));
+		addInput(theme::input<PJ301MPort>(jack(5), module, MS::S_INPUT));
+		addOutput(theme::output<PJ301MPort>(jack(6), module, MS::L_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(jack(7), module, MS::R_OUTPUT));
 	}
 };
 

@@ -134,24 +134,42 @@ SAISONWidget::SAISONWidget(SAISON *module) {
 
 	theme::addScrews(this);
 
-	addParam(createParam<LEDButton>(Vec(13.0f, 36.f), module, SAISON::MODE_PARAM));
-	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(13.0f+6.0f, 36.f+6.0f), module, SAISON::MODE_LIGHT));
+	// The panel was drawn by hand (tools/panels/saison.py generates only its picture), 8re's layout twice: the mode button
+	// under GATE/TRIG; two columns of eight rows, each a step button, the PTN, CV1 and CV2 trimpots under their labels and
+	// a gate jack in the GATE column; STEP and the three outputs in their boxes. Each row now shares the trimpots' row
+	// (the old code had the button 1 px above it and the jack 0.9 px below), and the bottom jacks sit on their boxes'
+	// centres (up to 0.6 px off). Columns keep their old corners.
+	const theme::Size kButtonSize = {17.9996f, 18.f};                 // LEDButton
+	const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
+	const theme::Size kBezelSize = {21.26028f, 21.25987f};            // LEDBezel
+	const theme::Size kStepLightSize = {mm2px(6.f), mm2px(6.f)};      // SAISONLight
+	const float kLightIn = 6.f;      // from the mode button's corner to its light's
+	const float kBezelLightIn = 1.8f;
+	addParam(theme::param<LEDButton>(theme::specificCorner(13, 36, kButtonSize), module, SAISON::MODE_PARAM));
+	addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::specificCorner(13 + kLightIn, 36 + kLightIn, kSmallLightSize), module, SAISON::MODE_LIGHT));
 
-	addInput(createInput<PJ301MPort>(Vec(82, theme::kBottomRowTop), module, SAISON::MEASURE_INPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(119.0f, theme::kBottomRowTop), module, SAISON::PATTERN_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(156.5f, theme::kBottomRowTop), module, SAISON::CV1_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(193.5f, theme::kBottomRowTop), module, SAISON::CV2_OUTPUT));
+	const theme::Pos boxCol[4] = {theme::specific(94.156f, 0), theme::specific(131.438f, 0), theme::specific(168.719f, 0), theme::specific(205.969f, 0)};   // the boxes' centres
+	const theme::Pos ioRow = theme::specificCorner(0, theme::kBottomRowTop, theme::kJackSize);
+	addInput(theme::input<PJ301MPort>(theme::colRow(boxCol[0], ioRow), module, SAISON::MEASURE_INPUT));
+	addOutput(theme::output<PJ301MPort>(theme::colRow(boxCol[1], ioRow), module, SAISON::PATTERN_OUTPUT));
+	addOutput(theme::output<PJ301MPort>(theme::colRow(boxCol[2], ioRow), module, SAISON::CV1_OUTPUT));
+	addOutput(theme::output<PJ301MPort>(theme::colRow(boxCol[3], ioRow), module, SAISON::CV2_OUTPUT));
 
 	// Two columns of eight.
+	const float kRowBelow = 32.f;
+	const float kHalfRight = 150.f;   // from the left half to the right half
+	const float kTrimpotRight = 27.f;
+	const theme::Pos ptn = theme::specificCorner(45, 64, theme::kTrimpotSize);
 	for (int i = 0; i < SAISON::NUM_SLOTS; i++) {
-		const float x = i < 8 ? 0.0f : 150.0f;
-		const float y = 12 + (i % 8) * 32;
-		addParam(createParam<LEDBezel>(Vec(x + 11.0f, 50 + y), module, SAISON::TRIG_PARAM + i));
-		addChild(createLight<SAISONLight<RedGreenBlueLight>>(Vec(x + 12.8f, 51.8f + y), module, SAISON::PATTERN_LIGHT + i*3));
-		addParam(createParam<BidooBlueTrimpot>(Vec(x + 45, 52 + y), module, SAISON::PATTERN_PARAM+i));
-		addParam(createParam<BidooBlueTrimpot>(Vec(x + 72, 52 + y), module, SAISON::CV1_PARAM+i));
-		addParam(createParam<BidooBlueTrimpot>(Vec(x + 99, 52 + y), module, SAISON::CV2_PARAM+i));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(x + 130, 55 + y), module, SAISON::PATTERNTRIG_OUTPUT+i));
+		const float x = i < 8 ? 0.0f : kHalfRight;
+		const theme::Pos row = ptn.offset(x, kRowBelow * (i % 8));
+		const theme::Pos step = theme::colRow(theme::specificCorner(x + 11, 0, kBezelSize), theme::specific(0, row.y));
+		addParam(theme::param<LEDBezel>(step, module, SAISON::TRIG_PARAM + i));
+		addChild(theme::light<SAISONLight<RedGreenBlueLight>>(theme::specificCorner(x + 11 + kBezelLightIn, step.y - kBezelSize.h * 0.5f + kBezelLightIn, kStepLightSize), module, SAISON::PATTERN_LIGHT + i*3));
+		addParam(theme::param<BidooBlueTrimpot>(row, module, SAISON::PATTERN_PARAM+i));
+		addParam(theme::param<BidooBlueTrimpot>(row.right(kTrimpotRight), module, SAISON::CV1_PARAM+i));
+		addParam(theme::param<BidooBlueTrimpot>(row.right(2.f * kTrimpotRight), module, SAISON::CV2_PARAM+i));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specificCorner(x + 130, 0, theme::kTinyJackSize), theme::specific(0, row.y)), module, SAISON::PATTERNTRIG_OUTPUT+i));
 	}
 }
 

@@ -263,11 +263,11 @@ struct ZouSeqExpanderWidget : BidooWidget {
 	ZouSeqExpanderWidget(E *module) {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, E::Traits::PANEL));
+		// The zOu MAi and ENCORE expanders share this widget: eight rows of fill, force and kill buttons with their CV
+		// jacks, the dice knob and jack, transpose, and the rotation trimpots and jacks. Every column already sits within
+		// 0.3 px of its label tag: each position keeps its old corner (specific), with the widget's own size.
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
 		const float xInputAnchor = 7.5f;
 		const float xOffset = 23.50f;
@@ -279,26 +279,26 @@ struct ZouSeqExpanderWidget : BidooWidget {
 
 
 		for (int i = 0; i<8; i++) {
-			addInput(createInput<TinyPJ301MPort>(Vec(xInputAnchor, yInputAnchor+i*yOffset), module, E::FILL_INPUT+i));
-			addParam(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(xControlAnchor, yControlAnchor+i*yOffset+yButtonOffset), module, E::FILL_PARAM+i, E::FILL_LIGHT+i*3));
+			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::FILL_INPUT+i), xInputAnchor, yInputAnchor+i*yOffset));
+			addParam(theme::atCorner(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(), module, E::FILL_PARAM+i, E::FILL_LIGHT+i*3), xControlAnchor, yControlAnchor+i*yOffset+yButtonOffset));
 
-			addInput(createInput<TinyPJ301MPort>(Vec(xInputAnchor+xOffset, yInputAnchor+i*yOffset), module, E::FORCE_INPUT+i));
-			addParam(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(xControlAnchor+xOffset, yControlAnchor+i*yOffset+yButtonOffset), module, E::FORCE_PARAM+i, E::FORCE_LIGHT+i*3));
+			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::FORCE_INPUT+i), xInputAnchor+xOffset, yInputAnchor+i*yOffset));
+			addParam(theme::atCorner(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(), module, E::FORCE_PARAM+i, E::FORCE_LIGHT+i*3), xControlAnchor+xOffset, yControlAnchor+i*yOffset+yButtonOffset));
 
-			addInput(createInput<TinyPJ301MPort>(Vec(xInputAnchor+2*xOffset, yInputAnchor+i*yOffset), module, E::KILL_INPUT+i));
-			addParam(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(xControlAnchor+2*xOffset, yControlAnchor+i*yOffset+yButtonOffset), module, E::KILL_PARAM+i, E::KILL_LIGHT+i*3));
+			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::KILL_INPUT+i), xInputAnchor+2*xOffset, yInputAnchor+i*yOffset));
+			addParam(theme::atCorner(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(), module, E::KILL_PARAM+i, E::KILL_LIGHT+i*3), xControlAnchor+2*xOffset, yControlAnchor+i*yOffset+yButtonOffset));
 
-			addInput(createInput<TinyPJ301MPort>(Vec(xInputAnchor+4*xOffset, yInputAnchor+i*yOffset - 7.0f), module, E::DICE_INPUT+i));
-			addParam(createParam<BidooSmallBlueKnob>(Vec(xControlAnchor+3*xOffset-7, yControlAnchor+i*yOffset+9), module, E::DICE_PARAM+i));
+			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::DICE_INPUT+i), xInputAnchor+4*xOffset, yInputAnchor+i*yOffset - 7.0f));
+			addParam(theme::atCorner(createParam<BidooSmallBlueKnob>(Vec(), module, E::DICE_PARAM+i), xControlAnchor+3*xOffset-7, yControlAnchor+i*yOffset+9));
 
-			addParam(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(xControlAnchor+5*xOffset, yControlAnchor+i*yOffset+yButtonOffset), module, E::TRSPTYPE_PARAM+i, E::TRSPTYPE_LIGHT+i*3));
-			addInput(createInput<TinyPJ301MPort>(Vec(xInputAnchor + 5.0f*xOffset, yInputAnchor + i*yOffset), module, E::TRSP_INPUT+i));
+			addParam(theme::atCorner(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(), module, E::TRSPTYPE_PARAM+i, E::TRSPTYPE_LIGHT+i*3), xControlAnchor+5*xOffset, yControlAnchor+i*yOffset+yButtonOffset));
+			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::TRSP_INPUT+i), xInputAnchor + 5.0f*xOffset, yInputAnchor + i*yOffset));
 
-			addParam(createParam<BidooBlueSnapTrimpot>(Vec(xControlAnchor+6.0f*xOffset, yControlAnchor+i*yOffset+11.0f), module, E::ROTSHIFT_PARAM+i));
-			addParam(createParam<BidooBlueSnapTrimpot>(Vec(xControlAnchor+7.2f*xOffset, yControlAnchor+i*yOffset+11.0f), module, E::ROTLEN_PARAM+i));
+			addParam(theme::atCorner(createParam<BidooBlueSnapTrimpot>(Vec(), module, E::ROTSHIFT_PARAM+i), xControlAnchor+6.0f*xOffset, yControlAnchor+i*yOffset+11.0f));
+			addParam(theme::atCorner(createParam<BidooBlueSnapTrimpot>(Vec(), module, E::ROTLEN_PARAM+i), xControlAnchor+7.2f*xOffset, yControlAnchor+i*yOffset+11.0f));
 
-			addInput(createInput<TinyPJ301MPort>(Vec(xInputAnchor + 8.5*xOffset, yInputAnchor + i*yOffset-7.0f), module, E::ROTLEFT_INPUT+i));
-			addInput(createInput<TinyPJ301MPort>(Vec(xInputAnchor + 9.5*xOffset, yInputAnchor+ i*yOffset-7.0f), module, E::ROTRIGHT_INPUT+i));
+			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::ROTLEFT_INPUT+i), xInputAnchor + 8.5*xOffset, yInputAnchor + i*yOffset-7.0f));
+			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::ROTRIGHT_INPUT+i), xInputAnchor + 9.5*xOffset, yInputAnchor+ i*yOffset-7.0f));
 
 		}
 

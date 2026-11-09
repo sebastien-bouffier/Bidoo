@@ -1052,56 +1052,57 @@ struct CANARDWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/CANARD.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
-		{
-			CANARDDisplay *display = new CANARDDisplay();
-			display->module = module;
-			display->box.pos = Vec(10, 35);
-			display->box.size = Vec(175, 110);
-			addChild(display);
-		}
+		// The original hand-drawn panel: the screen; five columns, each a control over its CV jack joined by a line,
+		// in two rows, with the EOC box and the threshold trimpot in the last column; the mode switch; the stereo in
+		// and out. Every column is now on the line and label the panel draws (the old code had its controls 0.14 to
+		// 1.15 px off them); each stereo jack under its L or R label; rows keep their old tops.
+		CANARDDisplay *display = new CANARDDisplay();
+		display->module = module;
+		display->box = theme::specificRect(10, 35, 175, 110);
+		addChild(display);
 
-		static const float portX0[5] = {16, 53, 90, 126, 161};
+		const theme::Pos col[5] = {theme::specific(24.f, 0), theme::specific(60.938f, 0), theme::specific(98.f, 0), theme::specific(133.625f, 0), theme::specific(168.719f, 0)};
+		const theme::Pos knobRow = theme::specificCorner(0, 170, theme::kBlueKnobSize);
+		const theme::Pos buttonRow = theme::specificCorner(0, 170, theme::kCKD6Size);
+		const theme::Pos jackRow = theme::specificCorner(0, 202, theme::kJackSize);
+		const float kLowerBelow = 75.f;   // from the upper row of controls and jacks to the lower one
+		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};   // SmallLight
+		const theme::Size kCKSSSize = {14.f, 20.64111f};                // CKSS
+		auto at = [&](int c, theme::Pos row) { return theme::colRow(col[c], row); };
 
-		addChild(createLight<SmallLight<RedLight>>(Vec(portX0[0]-10, 167), module, CANARD::REC_LIGHT));
-		addParam(createParam<BlueCKD6>(Vec(portX0[0]-6, 170), module, CANARD::RECORD_PARAM));
+		addChild(theme::light<SmallLight<RedLight>>(theme::specificCorner(6, 167, kSmallLightSize), module, CANARD::REC_LIGHT));   // beside REC, as drawn
+		addParam(theme::param<BlueCKD6>(at(0, buttonRow), module, CANARD::RECORD_PARAM));
+		addParam(theme::param<BidooBlueKnob>(at(2, knobRow), module, CANARD::SAMPLE_START_PARAM));
+		addParam(theme::param<BidooBlueKnob>(at(3, knobRow), module, CANARD::LOOP_LENGTH_PARAM));
+		addParam(theme::param<BidooBlueSnapKnob>(at(4, knobRow), module, CANARD::READ_MODE_PARAM));
+		addInput(theme::input<PJ301MPort>(at(0, jackRow), module, CANARD::RECORD_INPUT));
+		addInput(theme::input<PJ301MPort>(at(1, jackRow), module, CANARD::TRIG_INPUT));
+		addInput(theme::input<PJ301MPort>(at(1, theme::specificCorner(0, 172, theme::kJackSize)), module, CANARD::GATE_INPUT));
+		addInput(theme::input<PJ301MPort>(at(2, jackRow), module, CANARD::SAMPLE_START_INPUT));
+		addInput(theme::input<PJ301MPort>(at(3, jackRow), module, CANARD::LOOP_LENGTH_INPUT));
+		addInput(theme::input<PJ301MPort>(at(4, jackRow), module, CANARD::READ_MODE_INPUT));
 
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[2]-7, 170), module, CANARD::SAMPLE_START_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[3]-7, 170), module, CANARD::LOOP_LENGTH_PARAM));
-		addParam(createParam<BidooBlueSnapKnob>(Vec(portX0[4]-6, 170), module, CANARD::READ_MODE_PARAM));
-
-		addInput(createInput<PJ301MPort>(Vec(portX0[0]-4.5f, 202), module, CANARD::RECORD_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[1]-4.5f, 202), module, CANARD::TRIG_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[1]-4.5f, 172), module, CANARD::GATE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[2]-5.0f, 202), module, CANARD::SAMPLE_START_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[3]-5.0f, 202), module, CANARD::LOOP_LENGTH_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[4]-4.5f, 202), module, CANARD::READ_MODE_INPUT));
-
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[0]-7, 245), module, CANARD::SPEED_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[1]-7, 245), module, CANARD::FADE_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[2]-7, 245), module, CANARD::SLICE_PARAM));
-		addParam(createParam<BlueCKD6>(Vec(portX0[3]-6, 245), module, CANARD::CLEAR_PARAM));
-		addOutput(createOutput<PJ301MPort>(Vec(portX0[4]-4.5f, 247), module, CANARD::EOC_OUTPUT));
-
-		addInput(createInput<PJ301MPort>(Vec(portX0[0]-4.5f, 277), module, CANARD::SPEED_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[1]-4.5f, 277), module, CANARD::FADE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[2]-4.5f, 277), module, CANARD::SLICE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[3]-5.0f, 277), module, CANARD::CLEAR_INPUT));
-
-		BidooTransientsBlueTrimpot *trim = createParam<BidooTransientsBlueTrimpot>(Vec(portX0[4]-1, 280), module, CANARD::THRESHOLD_PARAM);
+		addParam(theme::param<BidooBlueKnob>(at(0, knobRow.down(kLowerBelow)), module, CANARD::SPEED_PARAM));
+		addParam(theme::param<BidooBlueKnob>(at(1, knobRow.down(kLowerBelow)), module, CANARD::FADE_PARAM));
+		addParam(theme::param<BidooBlueKnob>(at(2, knobRow.down(kLowerBelow)), module, CANARD::SLICE_PARAM));
+		addParam(theme::param<BlueCKD6>(at(3, buttonRow.down(kLowerBelow)), module, CANARD::CLEAR_PARAM));
+		addOutput(theme::output<PJ301MPort>(at(4, theme::specificCorner(0, 247, theme::kJackSize)), module, CANARD::EOC_OUTPUT));   // in the EOC box
+		addInput(theme::input<PJ301MPort>(at(0, jackRow.down(kLowerBelow)), module, CANARD::SPEED_INPUT));
+		addInput(theme::input<PJ301MPort>(at(1, jackRow.down(kLowerBelow)), module, CANARD::FADE_INPUT));
+		addInput(theme::input<PJ301MPort>(at(2, jackRow.down(kLowerBelow)), module, CANARD::SLICE_INPUT));
+		addInput(theme::input<PJ301MPort>(at(3, jackRow.down(kLowerBelow)), module, CANARD::CLEAR_INPUT));
+		BidooTransientsBlueTrimpot *trim = theme::param<BidooTransientsBlueTrimpot>(at(4, theme::specificCorner(0, 280, theme::kTrimpotSize)), module, CANARD::THRESHOLD_PARAM);
 		trim->module=module;
 		addParam(trim);
+		addParam(theme::param<CKSS>(theme::specificCorner(89, 325, kCKSSSize), module, CANARD::MODE_PARAM));
 
-		addParam(createParam<CKSS>(Vec(89, 325), module, CANARD::MODE_PARAM));
-
-		addInput(createInput<TinyPJ301MPort>(Vec(8, 340), module, CANARD::INL_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(8+22, 340), module, CANARD::INR_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(150, 340), module, CANARD::OUTL_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(150+22, 340), module, CANARD::OUTR_OUTPUT));
+		const theme::Pos stereoRow = theme::specificCorner(8, 340, theme::kTinyJackSize);
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(14.594f, 0), stereoRow), module, CANARD::INL_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(38.125f, 0), stereoRow), module, CANARD::INR_INPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(157.281f, 0), stereoRow), module, CANARD::OUTL_OUTPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(178.812f, 0), stereoRow), module, CANARD::OUTR_OUTPUT));
 	}
 
 	struct CANARDDeleteSlice : MenuItem {

@@ -1143,134 +1143,132 @@ struct EDSAROSBidooSmallSnapBlueKnob : BidooSmallSnapBlueKnob {
 struct EDSAROSWidget : BidooWidget {
 	EDSAROSWidget(EDSAROS *module) {
 		setModule(module);
-    prepareThemes(asset::plugin(pluginInstance, "res/EDSAROS.svg"));
+		prepareThemes(asset::plugin(pluginInstance, "res/EDSAROS.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
-		{
-			EDSAROSDisplay *display = new EDSAROSDisplay();
-			display->module = module;
-			display->box.pos = Vec(5, 25);
-			display->box.size = Vec(125, 60);
-			addChild(display);
-		}
+		// The original hand-drawn panel: the screen; a grid of small knobs, five across, 28 px down, each with its tiny
+		// CV jack below and the mode screens on the right; GATE, VO, the zero-crossing button and OUT. Old corners kept
+		// (every knob and jack within 0.25 px of its label), except the three bottom jacks, now on their boxes' centres
+		// (the old code had VO 0.7 px left of its box).
+		EDSAROSDisplay *display = new EDSAROSDisplay();
+		display->module = module;
+		display->box = theme::specificRect(5, 25, 125, 60);
+		addChild(display);
 
-		const float controlsXAnchor = 3.5f;
-		const float controlsXOffset = 26;
-		const float controlsYAnchor = 97;
-		const float controlsYOffset = 28;
-		const float inputsXOffset = 4.5f;
+		const float controlsXOffset = 26;   // across
+		const float controlsYOffset = 28;   // down
+		const float inputsXOffset = 4.5f;   // a tiny jack's corner right of its knob's
+		const theme::Pos firstKnob = theme::specificCorner(3.5f, 97, theme::Size{mm2px(8.f), mm2px(8.f)});   // BidooSmallBlueKnob (8 mm)
+		const theme::Pos firstCv = theme::specificCorner(3.5f + inputsXOffset, 97 + controlsYOffset, theme::kTinyJackSize);
+		auto knob = [&](int c, int r) { return firstKnob.offset(controlsXOffset * c, controlsYOffset * r); };
+		auto cv = [&](int c, int r) { return firstCv.offset(controlsXOffset * c, controlsYOffset * r); };
+		auto modeScreen = [&](int r) { return theme::specificRect(3.5f + 4 * controlsXOffset + 12, 97 + r * controlsYOffset + 10.5f, 20, 10); };
 
-		EDSAROSBidooSmallBlueKnob *btnSampleStartParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor, controlsYAnchor), module, EDSAROS::SAMPLESTART_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnSampleStartParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(0, 0), module, EDSAROS::SAMPLESTART_PARAM);
 		btnSampleStartParam->showSample = true;
 		addParam(btnSampleStartParam);
-		EDSAROSBidooSmallBlueKnob *btnSampleEndParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor+controlsXOffset, controlsYAnchor), module, EDSAROS::SAMPLEEND_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnSampleEndParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(1, 0), module, EDSAROS::SAMPLEEND_PARAM);
 		btnSampleEndParam->showSample = true;
 		addParam(btnSampleEndParam);
-		EDSAROSBidooSmallBlueKnob *btnLoopStartParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor+2*controlsXOffset, controlsYAnchor), module, EDSAROS::LOOPSTART_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnLoopStartParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(2, 0), module, EDSAROS::LOOPSTART_PARAM);
 		btnLoopStartParam->showSample = true;
 		addParam(btnLoopStartParam);
-		EDSAROSBidooSmallBlueKnob *btnLoopEndParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor+3*controlsXOffset, controlsYAnchor), module, EDSAROS::LOOPEND_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnLoopEndParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(3, 0), module, EDSAROS::LOOPEND_PARAM);
 		btnLoopEndParam->showSample = true;
 		addParam(btnLoopEndParam);
-		EDSAROSBidooSmallBlueKnob *btnReleaseStartParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor+4*controlsXOffset, controlsYAnchor), module, EDSAROS::RELEASESTART_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnReleaseStartParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(4, 0), module, EDSAROS::RELEASESTART_PARAM);
 		btnReleaseStartParam->showSample = true;
 		addParam(btnReleaseStartParam);
 
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+inputsXOffset, controlsYAnchor+controlsYOffset), module, EDSAROS::SAMPLESTART_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+controlsXOffset+inputsXOffset, controlsYAnchor+controlsYOffset), module, EDSAROS::SAMPLEEND_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+2*controlsXOffset+inputsXOffset, controlsYAnchor+controlsYOffset), module, EDSAROS::LOOPSTART_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+3*controlsXOffset+inputsXOffset, controlsYAnchor+controlsYOffset), module, EDSAROS::LOOPEND_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+4*controlsXOffset+inputsXOffset, controlsYAnchor+controlsYOffset), module, EDSAROS::RELEASESTART_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(0, 0), module, EDSAROS::SAMPLESTART_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(1, 0), module, EDSAROS::SAMPLEEND_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(2, 0), module, EDSAROS::LOOPSTART_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(3, 0), module, EDSAROS::LOOPEND_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(4, 0), module, EDSAROS::RELEASESTART_INPUT));
 
-		EDSAROSBidooSmallBlueKnob *btnAttackParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor, controlsYAnchor+2*controlsYOffset), module, EDSAROS::ATTACK_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnAttackParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(0, 2), module, EDSAROS::ATTACK_PARAM);
 		btnAttackParam->showSample = false;
 		addParam(btnAttackParam);
-		EDSAROSBidooSmallBlueKnob *btnDecayParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor+controlsXOffset, controlsYAnchor+2*controlsYOffset), module, EDSAROS::DECAY_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnDecayParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(1, 2), module, EDSAROS::DECAY_PARAM);
 		btnDecayParam->showSample = false;
 		addParam(btnDecayParam);
-		EDSAROSBidooSmallBlueKnob *btnReleaseParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor+2*controlsXOffset, controlsYAnchor+2*controlsYOffset), module, EDSAROS::RELEASE_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnReleaseParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(2, 2), module, EDSAROS::RELEASE_PARAM);
 		btnReleaseParam->showSample = false;
 		addParam(btnReleaseParam);
 
-		EDSAROSBidooSmallSnapBlueKnob *btnLoopModeParam = createParam<EDSAROSBidooSmallSnapBlueKnob>(Vec(controlsXAnchor+4*controlsXOffset, controlsYAnchor+2*controlsYOffset), module, EDSAROS::LOOPMODE_PARAM);
+		EDSAROSBidooSmallSnapBlueKnob *btnLoopModeParam = theme::param<EDSAROSBidooSmallSnapBlueKnob>(knob(4, 2), module, EDSAROS::LOOPMODE_PARAM);
 		btnLoopModeParam->showSample = true;
 		addParam(btnLoopModeParam);
 
 		{
 			EDSAROSLoopDisplay *displayLoop = new EDSAROSLoopDisplay();
 			displayLoop->module = module;
-			displayLoop->box.pos = Vec(controlsXAnchor+4*controlsXOffset+12, controlsYAnchor+3*controlsYOffset+10.5f);
-			displayLoop->box.size = Vec(20.0f, 10.0f);
+			displayLoop->box = modeScreen(3);
 			addChild(displayLoop);
 		}
 
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+inputsXOffset, controlsYAnchor+3*controlsYOffset), module, EDSAROS::ATTACK_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+controlsXOffset+inputsXOffset, controlsYAnchor+3*controlsYOffset), module, EDSAROS::DECAY_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+2*controlsXOffset+inputsXOffset, controlsYAnchor+3*controlsYOffset), module, EDSAROS::RELEASE_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(0, 2), module, EDSAROS::ATTACK_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(1, 2), module, EDSAROS::DECAY_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(2, 2), module, EDSAROS::RELEASE_INPUT));
 
-		EDSAROSBidooSmallBlueKnob *btnAttackSlopeParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor, controlsYAnchor+4*controlsYOffset), module, EDSAROS::ATTACKSLOPE_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnAttackSlopeParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(0, 4), module, EDSAROS::ATTACKSLOPE_PARAM);
 		btnAttackSlopeParam->showSample = false;
 		addParam(btnAttackSlopeParam);
-		EDSAROSBidooSmallBlueKnob *btnDecaySlopeParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor+controlsXOffset, controlsYAnchor+4*controlsYOffset), module, EDSAROS::DECAYSLOPE_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnDecaySlopeParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(1, 4), module, EDSAROS::DECAYSLOPE_PARAM);
 		btnDecaySlopeParam->showSample = false;
 		addParam(btnDecaySlopeParam);
-		EDSAROSBidooSmallBlueKnob *btnReleaseSlopeParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor+2*controlsXOffset, controlsYAnchor+4*controlsYOffset), module, EDSAROS::RELEASESLOPE_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnReleaseSlopeParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(2, 4), module, EDSAROS::RELEASESLOPE_PARAM);
 		btnReleaseSlopeParam->showSample = false;
 		addParam(btnReleaseSlopeParam);
-		EDSAROSBidooSmallSnapBlueKnob *btnReleaseModeParam = createParam<EDSAROSBidooSmallSnapBlueKnob>(Vec(controlsXAnchor+4*controlsXOffset, controlsYAnchor+4*controlsYOffset), module, EDSAROS::RELEASEMODE_PARAM);
+		EDSAROSBidooSmallSnapBlueKnob *btnReleaseModeParam = theme::param<EDSAROSBidooSmallSnapBlueKnob>(knob(4, 4), module, EDSAROS::RELEASEMODE_PARAM);
 		btnReleaseModeParam->showSample = true;
 		addParam(btnReleaseModeParam);
 
 		{
 			EDSAROSReleaseDisplay *displayRelease = new EDSAROSReleaseDisplay();
 			displayRelease->module = module;
-			displayRelease->box.pos = Vec(controlsXAnchor+4*controlsXOffset+12, controlsYAnchor+5*controlsYOffset+10.5f);
-			displayRelease->box.size = Vec(20.0f, 10.0f);
+			displayRelease->box = modeScreen(5);
 			addChild(displayRelease);
 		}
 
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+inputsXOffset, controlsYAnchor+5*controlsYOffset), module, EDSAROS::ATTACKSLOPE_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+controlsXOffset+inputsXOffset, controlsYAnchor+5*controlsYOffset), module, EDSAROS::DECAYSLOPE_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+2*controlsXOffset+inputsXOffset, controlsYAnchor+5*controlsYOffset), module, EDSAROS::RELEASESLOPE_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(0, 4), module, EDSAROS::ATTACKSLOPE_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(1, 4), module, EDSAROS::DECAYSLOPE_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(2, 4), module, EDSAROS::RELEASESLOPE_INPUT));
 
-		EDSAROSBidooSmallBlueKnob *btnInitParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor, controlsYAnchor+6*controlsYOffset), module, EDSAROS::INIT_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnInitParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(0, 6), module, EDSAROS::INIT_PARAM);
 		btnInitParam->showSample = false;
 		addParam(btnInitParam);
-		EDSAROSBidooSmallBlueKnob *btnPeakParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor+controlsXOffset, controlsYAnchor+6*controlsYOffset), module, EDSAROS::PEAK_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnPeakParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(1, 6), module, EDSAROS::PEAK_PARAM);
 		btnPeakParam->showSample = false;
 		addParam(btnPeakParam);
-		EDSAROSBidooSmallBlueKnob *btnSustainParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor+2*controlsXOffset, controlsYAnchor+6*controlsYOffset), module, EDSAROS::SUSTAIN_PARAM);
+		EDSAROSBidooSmallBlueKnob *btnSustainParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(2, 6), module, EDSAROS::SUSTAIN_PARAM);
 		btnSustainParam->showSample = false;
 		addParam(btnSustainParam);
-    EDSAROSBidooSmallBlueKnob *btnGainParam = createParam<EDSAROSBidooSmallBlueKnob>(Vec(controlsXAnchor+3*controlsXOffset, controlsYAnchor+6*controlsYOffset), module, EDSAROS::GAIN_PARAM);
+    EDSAROSBidooSmallBlueKnob *btnGainParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(3, 6), module, EDSAROS::GAIN_PARAM);
 		btnGainParam->showSample = true;
 		addParam(btnGainParam);
-		EDSAROSBidooSmallSnapBlueKnob *btnLinkModeParam = createParam<EDSAROSBidooSmallSnapBlueKnob>(Vec(controlsXAnchor+4*controlsXOffset, controlsYAnchor+6*controlsYOffset), module, EDSAROS::LINKTYPE_PARAM);
+		EDSAROSBidooSmallSnapBlueKnob *btnLinkModeParam = theme::param<EDSAROSBidooSmallSnapBlueKnob>(knob(4, 6), module, EDSAROS::LINKTYPE_PARAM);
 		btnLinkModeParam->showSample = true;
 		addParam(btnLinkModeParam);
 
 		{
 			EDSAROSLinkDisplay *displayLink = new EDSAROSLinkDisplay();
 			displayLink->module = module;
-			displayLink->box.pos = Vec(controlsXAnchor+4*controlsXOffset+12, controlsYAnchor+7*controlsYOffset+10.5f);
-			displayLink->box.size = Vec(20.0f, 10.0f);
+			displayLink->box = modeScreen(7);
 			addChild(displayLink);
 		}
 
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+inputsXOffset, controlsYAnchor+7*controlsYOffset), module, EDSAROS::INIT_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+controlsXOffset+inputsXOffset, controlsYAnchor+7*controlsYOffset), module, EDSAROS::PEAK_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(controlsXAnchor+2*controlsXOffset+inputsXOffset, controlsYAnchor+7*controlsYOffset), module, EDSAROS::SUSTAIN_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(0, 6), module, EDSAROS::INIT_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(1, 6), module, EDSAROS::PEAK_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(cv(2, 6), module, EDSAROS::SUSTAIN_INPUT));
 
-    addParam(createParam<LEDButton>(Vec(75.0f, 333.f), module, EDSAROS::ZEROCROSSING_PARAM));
-  	addChild(createLight<SmallLight<GreenLight>>(Vec(75.0f+6.0f, 333.f+6.0f), module, EDSAROS::ZEROCROSSING_LIGHT));
-
-		addInput(createInput<PJ301MPort>(Vec(7, 330), module, EDSAROS::TRIG_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(40, 330), module, EDSAROS::PITCH_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(103, 330), module, EDSAROS::OUT));
+		addParam(theme::param<LEDButton>(theme::specificCorner(75, 333, theme::Size{17.9996f, 18.f}), module, EDSAROS::ZEROCROSSING_PARAM));   // LEDButton
+		addChild(theme::light<SmallLight<GreenLight>>(theme::specificCorner(75 + 6, 333 + 6, theme::Size{mm2px(2.f), mm2px(2.f)}), module, EDSAROS::ZEROCROSSING_LIGHT));   // SmallLight, 6 px into the button
+		const theme::Pos jackRow = theme::specificCorner(7, 330, theme::kJackSize);
+		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(19.156f, 0), jackRow), module, EDSAROS::TRIG_INPUT));    // the boxes' centres
+		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(52.531f, 0), jackRow), module, EDSAROS::PITCH_INPUT));
+		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(115.125f, 0), jackRow), module, EDSAROS::OUT));
 	}
 
   struct EDSAROSItem : MenuItem {

@@ -52,14 +52,18 @@ struct SIGMAWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/SIGMA.svg"));
 
-		for (int i = 0; i < SIGMA::NUM_OUTPUTS; i++) {
-			addOutput(createOutput<TinyPJ301MPort>(Vec(15.0f + round(i / 3)*30.0f, 120.0f + (i % 3)*100.0f), module, i));
-		}
-
-		for (int i = 0; i < SIGMA::NUM_INPUTS; i++) {
-			addInput(createInput<TinyPJ301MPort>(Vec(15.0f + round(i / 9)*30.0f, 50.0f + (i % 9)*20.0f + round((i % 9) / 3)*40.0f), module, i));
-		}
-
+		// No screws, as before. The original hand-drawn panel: two columns of three groups, three inputs in a black box
+		// over their sum's output in a red one. Old corners kept: the columns sit within 0.4 px of the boxes' centres;
+		// the inputs sit high in their boxes, which run down into the joint with the output, as on MS.
+		const float kColumnRight = 30.f;   // from the left column to the right
+		const float kGroupBelow = 100.f;   // from one group to the next
+		const float kInputBelow = 20.f;    // from one input to the next
+		const theme::Pos firstOut = theme::specificCorner(15, 120, theme::kTinyJackSize);
+		const theme::Pos firstIn = theme::specificCorner(15, 50, theme::kTinyJackSize);
+		for (int i = 0; i < SIGMA::NUM_OUTPUTS; i++)
+			addOutput(theme::output<TinyPJ301MPort>(firstOut.offset(kColumnRight * (i / 3), kGroupBelow * (i % 3)), module, i));
+		for (int i = 0; i < SIGMA::NUM_INPUTS; i++)
+			addInput(theme::input<TinyPJ301MPort>(firstIn.offset(kColumnRight * (i / 9), kGroupBelow * ((i % 9) / 3) + kInputBelow * (i % 3)), module, i));
 	}
 };
 

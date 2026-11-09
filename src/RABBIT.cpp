@@ -151,19 +151,27 @@ struct RABBITWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/RABBIT.svg"));
 
+		// No screws, as before. The original hand-drawn panel: eight rows of an OFF jack and button, a REV button and
+		// jack; the stereo in and out. The buttons keep their old corners; each row's jacks sit on their buttons' row
+		// (the old code had them 0.87 px below it), and each stereo jack under its L or R label.
+		const float kBitBelow = 32.f;
+		const theme::Size kBezelSize = {21.26028f, 21.25987f};   // LEDLightBezel
+		const theme::Pos offButton = theme::specificCorner(27, 50, kBezelSize);
+		const theme::Pos revButton = theme::specificCorner(57, 50, kBezelSize);
+		const theme::Pos offCvCol = theme::specificCorner(8, 54, theme::kTinyJackSize);
+		const theme::Pos revCvCol = theme::specificCorner(83, 54, theme::kTinyJackSize);
 		for (int i = 0; i < 8; i++) {
-			addParam(createLightParam<LEDLightBezel<RedLight>>(Vec(27.0f, 50.0f + 32.0f * i), module, RABBIT::BITOFF_PARAM + i, RABBIT::BITOFF_LIGHTS + i));
-
-			addInput(createInput<TinyPJ301MPort>(Vec(8.0f, 54.0f + 32.0f * i), module, RABBIT::BITOFF_INPUT + i));
-			addInput(createInput<TinyPJ301MPort>(Vec(83.0f, 54.0f + 32.0f * i), module, RABBIT::BITREV_INPUT + i));
-
-			addParam(createLightParam<LEDLightBezel<BlueLight>>(Vec(57.0f, 50.0f + 32.0f * i), module, RABBIT::BITREV_PARAM + i, RABBIT::BITREV_LIGHTS + i));
+			const theme::Pos off = offButton.down(kBitBelow * i);
+			addParam(theme::place(createLightParam<LEDLightBezel<RedLight>>(Vec(), module, RABBIT::BITOFF_PARAM + i, RABBIT::BITOFF_LIGHTS + i), off));
+			addInput(theme::input<TinyPJ301MPort>(theme::colRow(offCvCol, theme::specific(0, off.y)), module, RABBIT::BITOFF_INPUT + i));
+			addInput(theme::input<TinyPJ301MPort>(theme::colRow(revCvCol, theme::specific(0, off.y)), module, RABBIT::BITREV_INPUT + i));
+			addParam(theme::place(createLightParam<LEDLightBezel<BlueLight>>(Vec(), module, RABBIT::BITREV_PARAM + i, RABBIT::BITREV_LIGHTS + i), revButton.down(kBitBelow * i)));
 		}
-
-		addInput(createInput<TinyPJ301MPort>(Vec(8.0f, 340.0f), module, RABBIT::L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(8.f+22.0f, 340.0f), module, RABBIT::R_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f, 340.0f), module, RABBIT::L_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f+22.0f, 340.0f), module, RABBIT::R_OUTPUT));
+		const theme::Pos stereoRow = theme::specificCorner(8, 340, theme::kTinyJackSize);
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(13.906f, 0), stereoRow), module, RABBIT::L_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(37.438f, 0), stereoRow), module, RABBIT::R_INPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(67.281f, 0), stereoRow), module, RABBIT::L_OUTPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(88.812f, 0), stereoRow), module, RABBIT::R_OUTPUT));
 	}
 };
 

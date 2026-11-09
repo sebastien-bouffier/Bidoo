@@ -3456,56 +3456,54 @@ struct ZouSeqWidget : BidooWidget {
 
 	ZouSeqWidget(M *module) {
 		setModule(module);
-    prepareThemes(asset::plugin(pluginInstance, M::Traits::PANEL));
+		prepareThemes(asset::plugin(pluginInstance, M::Traits::PANEL));
+		// zOu MAi and ENCORE share this widget and its layout. A dense, hand-drawn panel whose controls already sit within
+		// 0.4 px of their labels and boxes: every position keeps its old corner (specific), with the widget's own size.
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
 		{
 			ZouSeqDisplay<M> *display = new ZouSeqDisplay<M>();
 			display->module = module;
-			display->box.pos = Vec(140.0f, 30.0f);
-			display->box.size = Vec(200.0f, 225.0f);
+			display->box = theme::specificRect(140.0f, 30.0f, 200.0f, 225.0f);
 			addChild(display);
 		}
 
 		static const float portY0[7] = {30.0f, 75.0f, 120.0f, 165.0f, 210.0f, 255.0f, 294.0f};
 
-		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[0]), module, M::EXTCLOCK_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[1]), module, M::RESET_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[2]), module, M::G1_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[3]), module, M::G2_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[4]), module, M::PATTERN_INPUT));
-		addParam(createParam<ZouPatternBtn<M>>(Vec(7.f,portY0[5]-13.f), module, M::PATTERN_PARAM));
+		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::EXTCLOCK_INPUT), 10.0f, portY0[0]));
+		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::RESET_INPUT), 10.0f, portY0[1]));
+		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::G1_INPUT), 10.0f, portY0[2]));
+		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::G2_INPUT), 10.0f, portY0[3]));
+		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::PATTERN_INPUT), 10.0f, portY0[4]));
+		addParam(theme::atCorner(createParam<ZouPatternBtn<M>>(Vec(), module, M::PATTERN_PARAM), 7.f, portY0[5]-13.f));
 
 		static const float portX0Controls[6] = {142.0f, 175.0f, 208.0f, 241.0f, 284.0f, 336.0f};
 		static const float portX1Controls[6] = {147.0f, 184.0f, 221.0f, 258.0f, 295.0f, 332.0f};
 
-		addParam(createParam<BidooBlueSnapKnob>(Vec(portX0Controls[0],portY0[1]-3), module, M::TRACKLENGTH_PARAM));
-		addParam(createParam<BidooBlueSnapKnob>(Vec(portX0Controls[1],portY0[1]-3), module, M::TRACKSPEED_PARAM));
-		addParam(createParam<BidooBlueSnapKnob>(Vec(portX0Controls[2],portY0[1]-3), module, M::TRACKREADMODE_PARAM));
-		addParam(createParam<BidooBlueSnapKnob>(Vec(portX0Controls[3],portY0[1]-3), module, M::TRACKROOTNOTE_PARAM));
-		addParam(createParam<BidooBlueSnapKnob>(Vec(portX0Controls[4],portY0[1]-3), module, M::TRACKSCALE_PARAM));
-		addParam(createParam<CKSS>(Vec(portX0Controls[5]+6,portY0[1]+2), module, M::TRACKQUANTIZECV1_PARAM));
+		addParam(theme::atCorner(createParam<BidooBlueSnapKnob>(Vec(), module, M::TRACKLENGTH_PARAM), portX0Controls[0], portY0[1]-3));
+		addParam(theme::atCorner(createParam<BidooBlueSnapKnob>(Vec(), module, M::TRACKSPEED_PARAM), portX0Controls[1], portY0[1]-3));
+		addParam(theme::atCorner(createParam<BidooBlueSnapKnob>(Vec(), module, M::TRACKREADMODE_PARAM), portX0Controls[2], portY0[1]-3));
+		addParam(theme::atCorner(createParam<BidooBlueSnapKnob>(Vec(), module, M::TRACKROOTNOTE_PARAM), portX0Controls[3], portY0[1]-3));
+		addParam(theme::atCorner(createParam<BidooBlueSnapKnob>(Vec(), module, M::TRACKSCALE_PARAM), portX0Controls[4], portY0[1]-3));
+		addParam(theme::atCorner(createParam<CKSS>(Vec(), module, M::TRACKQUANTIZECV1_PARAM), portX0Controls[5]+6, portY0[1]+2));
 
-		addParam(createParam<BidooBlueKnob>(Vec(portX1Controls[0],portY0[3]+10), module, M::TRIGLENGTH_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX1Controls[1],portY0[3]+10), module, M::TRIGPULSECOUNT_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX1Controls[2],portY0[3]+10), module, M::TRIGPULSEDISTANCE_PARAM));
-		addParam(createParam<BidooBlueSnapKnob>(Vec(portX1Controls[3],portY0[3]+10), module, M::TRIGTYPE_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX1Controls[4],portY0[3]+10), module, M::TRIGTRIM_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX1Controls[5],portY0[3]+10), module, M::TRIGSLIDE_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX1Controls[0],portY0[4]), module, M::TRIGCV1_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX1Controls[1],portY0[4]), module, M::TRIGCV2_PARAM));
-    addParam(createParam<CKSS>(Vec(portX1Controls[5]+7,portY0[4]+5), module, M::TRIGSLIDETYPE_PARAM));
+		addParam(theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, M::TRIGLENGTH_PARAM), portX1Controls[0], portY0[3]+10));
+		addParam(theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, M::TRIGPULSECOUNT_PARAM), portX1Controls[1], portY0[3]+10));
+		addParam(theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, M::TRIGPULSEDISTANCE_PARAM), portX1Controls[2], portY0[3]+10));
+		addParam(theme::atCorner(createParam<BidooBlueSnapKnob>(Vec(), module, M::TRIGTYPE_PARAM), portX1Controls[3], portY0[3]+10));
+		addParam(theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, M::TRIGTRIM_PARAM), portX1Controls[4], portY0[3]+10));
+		addParam(theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, M::TRIGSLIDE_PARAM), portX1Controls[5], portY0[3]+10));
+		addParam(theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, M::TRIGCV1_PARAM), portX1Controls[0], portY0[4]));
+		addParam(theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, M::TRIGCV2_PARAM), portX1Controls[1], portY0[4]));
+    addParam(theme::atCorner(createParam<CKSS>(Vec(), module, M::TRIGSLIDETYPE_PARAM), portX1Controls[5]+7, portY0[4]+5));
 
-		ParamWidget *probCountKnob = createParam<BidooBlueKnob>(Vec(portX1Controls[3],portY0[4]), module, M::TRIGPROBACOUNT_PARAM);
+		ParamWidget *probCountKnob = theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, M::TRIGPROBACOUNT_PARAM), portX1Controls[3], portY0[4]);
 		addParam(probCountKnob);
-		ParamWidget *probCountResetKnob = createParam<BidooBlueKnob>(Vec(portX1Controls[4],portY0[4]), module, M::TRIGPROBACOUNTRESET_PARAM);
+		ParamWidget *probCountResetKnob = theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, M::TRIGPROBACOUNTRESET_PARAM), portX1Controls[4], portY0[4]);
 		addParam(probCountResetKnob);
 
-		ParamWidget *probKnob = createParam<ZouProbKnob>(Vec(portX1Controls[2],portY0[4]), module, M::TRIGPROBA_PARAM);
+		ParamWidget *probKnob = theme::atCorner(createParam<ZouProbKnob>(Vec(), module, M::TRIGPROBA_PARAM), portX1Controls[2], portY0[4]);
 		ZouProbKnob *tProbKnob = dynamic_cast<ZouProbKnob*>(probKnob);
 		tProbKnob->ref = probCountKnob;
 		tProbKnob->refReset = probCountResetKnob;
@@ -3517,7 +3515,7 @@ struct ZouSeqWidget : BidooWidget {
 		{
 			static const int ids[4] = {M::TRIGCV1END_PARAM, M::TRIGCV2END_PARAM, M::TRIGPITCHRAMP_PARAM, M::TRIGDISTRAMP_PARAM};
 			for (int i = 0; i < 4; i++) {
-				ParamWidget *w = i == 2 ? (ParamWidget*)createParam<BidooBlueSnapKnob>(Vec(portX1Controls[i],portY0[3]+10), module, ids[i]) : (ParamWidget*)createParam<BidooBlueKnob>(Vec(portX1Controls[i],portY0[3]+10), module, ids[i]);
+				ParamWidget *w = i == 2 ? (ParamWidget*)theme::atCorner(createParam<BidooBlueSnapKnob>(Vec(), module, ids[i]), portX1Controls[i], portY0[3]+10) : (ParamWidget*)theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, ids[i]), portX1Controls[i], portY0[3]+10);
 				w->visible = false;
 				addParam(w);
 				trigKnobsPage2.push_back(w);
@@ -3527,81 +3525,81 @@ struct ZouSeqWidget : BidooWidget {
 		for (int id : {M::TRACKLENGTH_PARAM, M::TRACKSPEED_PARAM, M::TRACKREADMODE_PARAM, M::TRACKROOTNOTE_PARAM, M::TRACKSCALE_PARAM, M::TRACKQUANTIZECV1_PARAM})
 			trackKnobsPage1.push_back(getParam(id));
 		{
-			ParamWidget *w = createParam<BidooBlueKnob>(Vec(portX0Controls[0],portY0[1]-3), module, M::TRACKSWING_PARAM);
+			ParamWidget *w = theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, M::TRACKSWING_PARAM), portX0Controls[0], portY0[1]-3);
 			w->visible = false;
 			addParam(w);
 			trackKnobsPage2.push_back(w);
 		}
 		// In the top left corner of each screen.
-		addParam(createParam<ZouScreenBtn<M>>(Vec(141.0f, 31.0f), module, M::TRACKPAGE2_PARAM));
-		addParam(createParam<ZouScreenBtn<M>>(Vec(141.0f, 108.0f), module, M::TRIGPAGE2_PARAM));
+		addParam(theme::atCorner(createParam<ZouScreenBtn<M>>(Vec(), module, M::TRACKPAGE2_PARAM), 141.0f, 31.0f));
+		addParam(theme::atCorner(createParam<ZouScreenBtn<M>>(Vec(), module, M::TRIGPAGE2_PARAM), 141.0f, 108.0f));
 
-		addInput(createInput<PJ301MPort>(Vec(10.0f, portY0[6]+4.0f), module, M::FILL_INPUT));
-		addParam(createParam<BlueCKD6>(Vec(40.0f, portY0[6]-1.0f+3.0f), module, M::FILL_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(51.5f, portY0[6]-8.0f), module, M::FILL_LIGHT));
+		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::FILL_INPUT), 10.0f, portY0[6]+4.0f));
+		addParam(theme::atCorner(createParam<BlueCKD6>(Vec(), module, M::FILL_PARAM), 40.0f, portY0[6]-1.0f+3.0f));
+		addChild(theme::atCorner(createLight<SmallLight<BlueLight>>(Vec(), module, M::FILL_LIGHT), 51.5f, portY0[6]-8.0f));
 
-		addInput(createInput<PJ301MPort>(Vec(74.0f, portY0[6]+4.0f), module, M::RUN_INPUT));
-    addParam(createParam<BlueCKD6>(Vec(104.0f, portY0[6]-1.0f+3.0f), module, M::RUN_PARAM));
+		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::RUN_INPUT), 74.0f, portY0[6]+4.0f));
+    addParam(theme::atCorner(createParam<BlueCKD6>(Vec(), module, M::RUN_PARAM), 104.0f, portY0[6]-1.0f+3.0f));
 
 		//static const float portX0[5] = {374.0f, 389.0f, 404.0f, 419.0f, 434.0f};
 
 		for (size_t i=0;i<4;i++) {
-			addParam(createLightParam<ZouPageBtn<M>>(Vec(380+19*i-1.5f, 317.0f-2.5f), module, M::TRIGPAGE_PARAM+i, M::TRIGPAGE_LIGHTS+3*i));
+			addParam(theme::atCorner(createLightParam<ZouPageBtn<M>>(Vec(), module, M::TRIGPAGE_PARAM+i, M::TRIGPAGE_LIGHTS+3*i), 380+19*i-1.5f, 317.0f-2.5f));
 		}
 
 		for (size_t i=0;i<8;i++){
-			addInput(createInput<TinyPJ301MPort>(Vec(50.0f, 67.0f + i*28.0f), module, M::TRACKRESET_INPUTS + i));
-			addInput(createInput<TinyPJ301MPort>(Vec(70.0f, 67.0f + i*28.0f), module, M::TRACKACTIVE_INPUTS + i));
+			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, M::TRACKRESET_INPUTS + i), 50.0f, 67.0f + i*28.0f));
+			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, M::TRACKACTIVE_INPUTS + i), 70.0f, 67.0f + i*28.0f));
 
-			addParam(createLightParam<ZouTrackOnOffBtn<M>>(Vec(90.0f , 64.0f + i*28.0f), module, M::TRACKSONOFF_PARAMS+i, M::TRACKSONOFF_LIGHTS+3*i));
+			addParam(theme::atCorner(createLightParam<ZouTrackOnOffBtn<M>>(Vec(), module, M::TRACKSONOFF_PARAMS+i, M::TRACKSONOFF_LIGHTS+3*i), 90.0f, 64.0f + i*28.0f));
 
 
-			addParam(createLightParam<ZouTrackSelectBtn<M>>(Vec(120.0f -2.5f, 72.0f -2.5f + i*28.0f), module, M::TRACKSELECT_PARAMS+i, M::TRACKSELECT_LIGHTS+3*i));
+			addParam(theme::atCorner(createLightParam<ZouTrackSelectBtn<M>>(Vec(), module, M::TRACKSELECT_PARAMS+i, M::TRACKSELECT_LIGHTS+3*i), 120.0f -2.5f, 72.0f -2.5f + i*28.0f));
 
-			addOutput(createOutput<TinyPJ301MPort>(Vec(375.0f, 65.0f + i * 20.0f), module, M::GATE_OUTPUTS + i));
-			addOutput(createOutput<TinyPJ301MPort>(Vec(395.0f, 65.0f + i * 20.0f),  module, M::VO_OUTPUTS + i));
-			addOutput(createOutput<TinyPJ301MPort>(Vec(415.0f, 65.0f + i * 20.0f),  module, M::CV1_OUTPUTS + i));
-			addOutput(createOutput<TinyPJ301MPort>(Vec(435.0f, 65.0f + i * 20.0f),  module, M::CV2_OUTPUTS + i));
+			addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::GATE_OUTPUTS + i), 375.0f, 65.0f + i * 20.0f));
+			addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::VO_OUTPUTS + i), 395.0f, 65.0f + i * 20.0f));
+			addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::CV1_OUTPUTS + i), 415.0f, 65.0f + i * 20.0f));
+			addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::CV2_OUTPUTS + i), 435.0f, 65.0f + i * 20.0f));
 		}
 
-		addOutput(createOutput<TinyPJ301MPort>(Vec(375.0f, 225.0f), module, M::POLY_GATE_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(395.0f, 225.0f), module, M::POLY_VO_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(415.0f, 225.0f), module, M::POLY_CV1_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(435.0f, 225.0f), module, M::POLY_CV2_OUTPUT));
+		addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::POLY_GATE_OUTPUT), 375.0f, 225.0f));
+		addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::POLY_VO_OUTPUT), 395.0f, 225.0f));
+		addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::POLY_CV1_OUTPUT), 415.0f, 225.0f));
+		addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::POLY_CV2_OUTPUT), 435.0f, 225.0f));
 
 		for (size_t i=0;i<16;i++) {
-			addParam(createLightParam<ZouStepBtn<M>>(Vec(12.0f+ 28.0f*i, 330.0f), module, M::STEPS_PARAMS + i, M::STEPS_LIGHTS + i*3));
+			addParam(theme::atCorner(createLightParam<ZouStepBtn<M>>(Vec(), module, M::STEPS_PARAMS + i, M::STEPS_LIGHTS + i*3), 12.0f+ 28.0f*i, 330.0f));
 		}
 
 		float xKeyboardAnchor = 140.0f;
 		float yKeyboardAnchor = 255.0f;
 
 		for (size_t i=0;i<7;i++) {
-			addParam(createLightParam<ZouOctaveBtn<M>>(Vec(xKeyboardAnchor + 39.5f  + i * 19.0f, yKeyboardAnchor +1.5f), module, M::OCTAVE_PARAMS + i, M::OCTAVE_LIGHTS + i*3));
+			addParam(theme::atCorner(createLightParam<ZouOctaveBtn<M>>(Vec(), module, M::OCTAVE_PARAMS + i, M::OCTAVE_LIGHTS + i*3), xKeyboardAnchor + 39.5f  + i * 19.0f, yKeyboardAnchor +1.5f));
 		}
 
-		addParam(createLightParam<ZouNoteBtn<M>>(Vec(xKeyboardAnchor, yKeyboardAnchor+40.0f), module, M::NOTE_PARAMS, M::NOTE_LIGHTS));
-		addParam(createLightParam<ZouNoteBtn<M>>(Vec(xKeyboardAnchor+15.0f, yKeyboardAnchor+20.0f), module, M::NOTE_PARAMS+1, M::NOTE_LIGHTS+3));
-		addParam(createLightParam<ZouNoteBtn<M>>(Vec(xKeyboardAnchor+30.0f, yKeyboardAnchor+40.0f), module, M::NOTE_PARAMS+2, M::NOTE_LIGHTS+3*2));
-		addParam(createLightParam<ZouNoteBtn<M>>(Vec(xKeyboardAnchor+45.0f, yKeyboardAnchor+20.0f), module, M::NOTE_PARAMS+3, M::NOTE_LIGHTS+3*3));
-		addParam(createLightParam<ZouNoteBtn<M>>(Vec(xKeyboardAnchor+60.0f, yKeyboardAnchor+40.0f), module, M::NOTE_PARAMS+4, M::NOTE_LIGHTS+3*4));
-		addParam(createLightParam<ZouNoteBtn<M>>(Vec(xKeyboardAnchor+90.0f, yKeyboardAnchor+40.0f), module, M::NOTE_PARAMS+5, M::NOTE_LIGHTS+3*5));
-		addParam(createLightParam<ZouNoteBtn<M>>(Vec(xKeyboardAnchor+105.0f, yKeyboardAnchor+20.0f), module, M::NOTE_PARAMS+6, M::NOTE_LIGHTS+3*6));
-		addParam(createLightParam<ZouNoteBtn<M>>(Vec(xKeyboardAnchor+120.0f, yKeyboardAnchor+40.0f), module, M::NOTE_PARAMS+7, M::NOTE_LIGHTS+3*7));
-		addParam(createLightParam<ZouNoteBtn<M>>(Vec(xKeyboardAnchor+135.0f, yKeyboardAnchor+20.0f), module, M::NOTE_PARAMS+8, M::NOTE_LIGHTS+3*8));
-		addParam(createLightParam<ZouNoteBtn<M>>(Vec(xKeyboardAnchor+150.0f, yKeyboardAnchor+40.0f), module, M::NOTE_PARAMS+9, M::NOTE_LIGHTS+3*9));
-		addParam(createLightParam<ZouNoteBtn<M>>(Vec(xKeyboardAnchor+165.0f, yKeyboardAnchor+20.0f), module, M::NOTE_PARAMS+10, M::NOTE_LIGHTS+3*10));
-		addParam(createLightParam<ZouNoteBtn<M>>(Vec(xKeyboardAnchor+180.0f, yKeyboardAnchor+40.0f), module, M::NOTE_PARAMS+11, M::NOTE_LIGHTS+3*11));
+		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS, M::NOTE_LIGHTS), xKeyboardAnchor, yKeyboardAnchor+40.0f));
+		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+1, M::NOTE_LIGHTS+3), xKeyboardAnchor+15.0f, yKeyboardAnchor+20.0f));
+		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+2, M::NOTE_LIGHTS+3*2), xKeyboardAnchor+30.0f, yKeyboardAnchor+40.0f));
+		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+3, M::NOTE_LIGHTS+3*3), xKeyboardAnchor+45.0f, yKeyboardAnchor+20.0f));
+		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+4, M::NOTE_LIGHTS+3*4), xKeyboardAnchor+60.0f, yKeyboardAnchor+40.0f));
+		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+5, M::NOTE_LIGHTS+3*5), xKeyboardAnchor+90.0f, yKeyboardAnchor+40.0f));
+		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+6, M::NOTE_LIGHTS+3*6), xKeyboardAnchor+105.0f, yKeyboardAnchor+20.0f));
+		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+7, M::NOTE_LIGHTS+3*7), xKeyboardAnchor+120.0f, yKeyboardAnchor+40.0f));
+		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+8, M::NOTE_LIGHTS+3*8), xKeyboardAnchor+135.0f, yKeyboardAnchor+20.0f));
+		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+9, M::NOTE_LIGHTS+3*9), xKeyboardAnchor+150.0f, yKeyboardAnchor+40.0f));
+		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+10, M::NOTE_LIGHTS+3*10), xKeyboardAnchor+165.0f, yKeyboardAnchor+20.0f));
+		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+11, M::NOTE_LIGHTS+3*11), xKeyboardAnchor+180.0f, yKeyboardAnchor+40.0f));
 
 
 		ZouRecordBtn* rBtn;
-		addParam(rBtn = createParam<ZouRecordBtn>(Vec(297.0f, 358.0f), module, M::RECORD_PARAM));
+		addParam(rBtn = theme::atCorner(createParam<ZouRecordBtn>(Vec(), module, M::RECORD_PARAM), 297.0f, 358.0f));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(327.0f, 360.0f), module, M::GATE_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(356.0f, 360.0f), module, M::VO_INPUT));
+		addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, M::GATE_INPUT), 327.0f, 360.0f));
+		addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, M::VO_INPUT), 356.0f, 360.0f));
 
 		ZouQuantizeBtn* qBtn;
-		addParam(qBtn = createParam<ZouQuantizeBtn>(Vec(385.0f, 358.0f), module, M::QUANTIZE_PARAM));
+		addParam(qBtn = theme::atCorner(createParam<ZouQuantizeBtn>(Vec(), module, M::QUANTIZE_PARAM), 385.0f, 358.0f));
 		
 	}
 

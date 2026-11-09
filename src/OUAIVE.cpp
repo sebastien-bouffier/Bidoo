@@ -616,41 +616,49 @@ struct OUAIVEWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/OUAIVE.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
-		{
-			OUAIVEDisplay *display = new OUAIVEDisplay();
-			display->module = module;
-			display->box.pos = Vec(5, 70);
-			display->box.size = Vec(125, 110);
-			addChild(display);
-		}
+		// The original hand-drawn panel: no control sits on the grid, so each position is either specific (the old
+		// top left corner, kept to the pixel) or relative to one of those. See docs/THEME.md, "Placing controls in code".
+		OUAIVEDisplay *display = new OUAIVEDisplay();
+		display->module = module;
+		display->box = theme::specificRect(5, 70, 125, 110);
+		addChild(display);
 
-		static const float portX0[4] = {34, 67, 101};
+		// Top: position reset in on the left, end of cycle out on the right
+		const theme::Pos reset = theme::specificCorner(10, 18, theme::kTinyJackSize);
+		const theme::Pos eoc = theme::specificCorner(112, 18, theme::kTinyJackSize);
+		addInput(theme::input<TinyPJ301MPort>(reset, module, OUAIVE::POS_RESET_INPUT));
+		addOutput(theme::output<TinyPJ301MPort>(eoc, module, OUAIVE::EOC_OUTPUT));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(10, 18), module, OUAIVE::POS_RESET_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(112, 18), module, OUAIVE::EOC_OUTPUT));
+		// Mode buttons, the read mode's CV jack on the right; below, one row each for slices and speed:
+		// the knob, its CV amount, its CV jack in the same column as the read mode's
+		const float kCvAmountRight = 24.f;   // from a knob to its CV trimpot
+		const float kSpeedBelow = 25.f;      // from the slices row to the speed row
+		const theme::Pos trigMode = theme::specificCorner(9, 215, theme::kCKD6Size);
+		const theme::Pos readMode = trigMode.right(44.f);
+		const theme::Pos readModeCv = theme::specificCorner(106, 222, theme::kTinyJackSize);
+		const theme::Pos slices = theme::specificCorner(58, 250, theme::kTrimpotSize);
+		const theme::Pos slicesCv = readModeCv.down(30.f);
+		const theme::Pos speed = slices.down(kSpeedBelow);
+		const theme::Pos speedCv = slicesCv.down(kSpeedBelow);
+		addParam(theme::param<BlueCKD6>(trigMode, module, OUAIVE::TRIG_MODE_PARAM));
+		addParam(theme::param<BlueCKD6>(readMode, module, OUAIVE::READ_MODE_PARAM));
+		addInput(theme::input<TinyPJ301MPort>(readModeCv, module, OUAIVE::READ_MODE_INPUT));
+		addParam(theme::param<BidooBlueTrimpot>(slices, module, OUAIVE::NB_SLICES_PARAM));
+		addParam(theme::param<BidooBlueTrimpot>(slices.right(kCvAmountRight), module, OUAIVE::CVSLICES_PARAM));
+		addInput(theme::input<TinyPJ301MPort>(slicesCv, module, OUAIVE::NB_SLICES_INPUT));
+		addParam(theme::param<BidooBlueTrimpot>(speed, module, OUAIVE::SPEED_PARAM));
+		addParam(theme::param<BidooBlueTrimpot>(speed.right(kCvAmountRight), module, OUAIVE::CVSPEED_PARAM));
+		addInput(theme::input<TinyPJ301MPort>(speedCv, module, OUAIVE::SPEED_INPUT));
 
-		addParam(createParam<BlueCKD6>(Vec(portX0[0]-25, 215), module, OUAIVE::TRIG_MODE_PARAM));
-
-		addParam(createParam<BlueCKD6>(Vec(portX0[1]-14, 215), module, OUAIVE::READ_MODE_PARAM));
-		addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 222), module, OUAIVE::READ_MODE_INPUT));
-
-		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]-9, 250), module, OUAIVE::NB_SLICES_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]+15, 250), module, OUAIVE::CVSLICES_PARAM));
-		addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 252), module, OUAIVE::NB_SLICES_INPUT));
-
-		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]-9, 275), module, OUAIVE::SPEED_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(portX0[1]+15, 275), module, OUAIVE::CVSPEED_PARAM));
-		addInput(createInput<TinyPJ301MPort>(Vec(portX0[2]+5, 277), module, OUAIVE::SPEED_INPUT));
-
-		addInput(createInput<PJ301MPort>(Vec(7, 330), module, OUAIVE::GATE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(40, 330), module, OUAIVE::POS_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[2]-11, 340), module, OUAIVE::OUTL_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[2]+11, 340), module, OUAIVE::OUTR_OUTPUT));
+		// Bottom: gate and position in, the stereo out on the right, R under the end of cycle out
+		const theme::Pos gate = theme::specificCorner(7, 330, theme::kJackSize);
+		const theme::Pos outL = theme::specificCorner(90, 340, theme::kTinyJackSize);
+		addInput(theme::input<PJ301MPort>(gate, module, OUAIVE::GATE_INPUT));
+		addInput(theme::input<PJ301MPort>(gate.right(33.f), module, OUAIVE::POS_INPUT));
+		addOutput(theme::output<TinyPJ301MPort>(outL, module, OUAIVE::OUTL_OUTPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(eoc, outL), module, OUAIVE::OUTR_OUTPUT));
 	}
 
   struct OUAIVEItem : MenuItem {

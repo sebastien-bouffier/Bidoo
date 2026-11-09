@@ -175,14 +175,21 @@ struct LATEWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/LATE.svg"));
 
-		addParam(createParam<BidooBlueKnob>(Vec(8, 70), module, LATE::SWING_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(13, 105), module, LATE::CVCOEFF_PARAM));
-
-		addInput(createInput<PJ301MPort>(Vec(10, 130), module, LATE::SWING_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10, 236), module, LATE::RESET_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10, 283.0f), module, LATE::CLOCK_INPUT));
-
-		addOutput(createOutput<PJ301MPort>(Vec(10, 330), module, LATE::CLOCK_OUTPUT));
+		// No screws, as before. The original hand-drawn panel: one column down the middle, where the panel draws the line
+		// from the knob through its CV amount to its CV jack and centres every label. Each row keeps its old top; the
+		// column is the panel's centre.
+		const float kBoxPitch = 47.f;   // from one box to the next: RST, IN, OUT
+		const theme::Pos swing = theme::sameRow(theme::specificCorner(8, 70, theme::kBlueKnobSize), box.size.x * 0.5f);
+		const theme::Pos cvAmount = theme::colRow(swing, theme::specificCorner(13, 105, theme::kTrimpotSize));
+		const theme::Pos swingCv = theme::colRow(swing, theme::specificCorner(10, 130, theme::kJackSize));
+		const theme::Pos reset = theme::colRow(swing, theme::specificCorner(10, 236, theme::kJackSize));
+		const theme::Pos clock = reset.down(kBoxPitch);
+		addParam(theme::param<BidooBlueKnob>(swing, module, LATE::SWING_PARAM));
+		addParam(theme::param<BidooBlueTrimpot>(cvAmount, module, LATE::CVCOEFF_PARAM));
+		addInput(theme::input<PJ301MPort>(swingCv, module, LATE::SWING_INPUT));
+		addInput(theme::input<PJ301MPort>(reset, module, LATE::RESET_INPUT));
+		addInput(theme::input<PJ301MPort>(clock, module, LATE::CLOCK_INPUT));
+		addOutput(theme::output<PJ301MPort>(clock.down(kBoxPitch), module, LATE::CLOCK_OUTPUT));
 	}
 };
 

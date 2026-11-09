@@ -242,31 +242,30 @@ struct SPORE : BidooModule {
 struct SPOREWidget : BidooWidget {
 	SPOREWidget(SPORE *module) {
 		setModule(module);
-    prepareThemes(asset::plugin(pluginInstance, "res/SPORE.svg"));
+		prepareThemes(asset::plugin(pluginInstance, "res/SPORE.svg"));
 
-		const float controlYAnchor = 15;
-		const float controlYOffset = 54.0f;
-		const float inputYAnchor = 49.5f;
-		const float inputXAnchor = 15.0f;
+		// No screws, as before. The original hand-drawn panel: four knobs down the middle, each joined by a line to its CV
+		// jack, then the window and shape trimpots side by side, then IN and OUT. The column is the CV jacks' (the
+		// panel's centre, where it draws the lines and centres IN and OUT); each control keeps its old top.
+		const float kGroupPitch = 54.f;   // from one knob and its CV jack to the next
+		const float kBoxPitch = 47.f;     // from the IN box to the OUT box
+		const theme::Pos pitchCv = theme::specificCorner(15, 49.5f, theme::kTinyJackSize);
+		const theme::Pos pitch = theme::colRow(pitchCv, theme::specificCorner(8, 15, theme::kBlueKnobSize));
+		const int knobIds[4] = {SPORE::PITCH_PARAM, SPORE::GRAINSIZE_PARAM, SPORE::HOPSIZEANALYSIS_PARAM, SPORE::HOPSIZESYNTHESIS_PARAM};
+		const int cvIds[4] = {SPORE::PITCH_INPUT, SPORE::GRAINSIZE_INPUT, SPORE::HOPSIZEANALYSIS_INPUT, SPORE::HOPSIZESYNTHESIS_INPUT};
+		for (int i = 0; i < 4; i++) {
+			addParam(theme::param<BidooBlueKnob>(pitch.down(kGroupPitch * i), module, knobIds[i]));
+			addInput(theme::input<TinyPJ301MPort>(pitchCv.down(kGroupPitch * i), module, cvIds[i]));
+		}
 
-		addParam(createParam<BidooBlueKnob>(Vec(8, controlYAnchor), module, SPORE::PITCH_PARAM));
-		addInput(createInput<TinyPJ301MPort>(Vec(inputXAnchor, inputYAnchor), module, SPORE::PITCH_INPUT));
+		// The trimpots keep their old corners, within 0.35 px of their WINDOW and SHAPE labels
+		const float trimpotTop = 15 + 4.2f * kGroupPitch;
+		addParam(theme::param<BidooBlueSnapTrimpot>(theme::specificCorner(2, trimpotTop, theme::kTrimpotSize), module, SPORE::WINDOW_PARAM));
+		addParam(theme::param<BidooBlueTrimpot>(theme::specificCorner(24, trimpotTop, theme::kTrimpotSize), module, SPORE::ATTACKRELEASE_PARAM));
 
-		addParam(createParam<BidooBlueKnob>(Vec(8, controlYAnchor + controlYOffset), module, SPORE::GRAINSIZE_PARAM));
-		addInput(createInput<TinyPJ301MPort>(Vec(inputXAnchor, inputYAnchor + controlYOffset), module, SPORE::GRAINSIZE_INPUT));
-
-		addParam(createParam<BidooBlueKnob>(Vec(8, controlYAnchor + 2*controlYOffset), module, SPORE::HOPSIZEANALYSIS_PARAM));
-		addInput(createInput<TinyPJ301MPort>(Vec(inputXAnchor, inputYAnchor + 2*controlYOffset), module, SPORE::HOPSIZEANALYSIS_INPUT));
-
-		addParam(createParam<BidooBlueKnob>(Vec(8, controlYAnchor + 3*controlYOffset), module, SPORE::HOPSIZESYNTHESIS_PARAM));
-		addInput(createInput<TinyPJ301MPort>(Vec(inputXAnchor, inputYAnchor + 3*controlYOffset), module, SPORE::HOPSIZESYNTHESIS_INPUT));
-
-
-		addParam(createParam<BidooBlueSnapTrimpot>(Vec(2, controlYAnchor + 4.2f*controlYOffset), module, SPORE::WINDOW_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(24, controlYAnchor + 4.2f*controlYOffset), module, SPORE::ATTACKRELEASE_PARAM));
-
-		addInput(createInput<PJ301MPort>(Vec(10, 283.0f), module, SPORE::INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10, 330), module, SPORE::OUTPUT));
+		const theme::Pos in = theme::colRow(pitchCv, theme::specificCorner(10, 283, theme::kJackSize));
+		addInput(theme::input<PJ301MPort>(in, module, SPORE::INPUT));
+		addOutput(theme::output<PJ301MPort>(in.down(kBoxPitch), module, SPORE::OUTPUT));
 	}
 };
 

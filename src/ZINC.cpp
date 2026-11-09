@@ -322,46 +322,42 @@ struct ZINCWidget : BidooWidget {
 
 	ZINCWidget(ZINC *module) {
 		setModule(module);
-    prepareThemes(asset::plugin(pluginInstance, "res/ZINC.svg"));
+		prepareThemes(asset::plugin(pluginInstance, "res/ZINC.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		theme::addScrews(this);
 
-		static const float portX0[4] = { 20, 63, 106, 149 };
+		// The original hand-drawn panel: a 4 x 4 grid of band knobs (no labels), six trimpots under their labels, the
+		// MOD, CAR and GAIN knobs, three boxed jacks. Old corners kept, except the CAR and GAIN knobs, now under their
+		// labels (the old code had them 0.4 and 0.7 px right), and the jacks on their boxes' centres (up to 0.65 px off).
+		ZINCDisplay *display = new ZINCDisplay();
+		display->module = module;
+		display->box = theme::specificRect(14, 14, 110, 70);
+		addChild(display);
 
-		{
-			ZINCDisplay *display = new ZINCDisplay();
-			display->module = module;
-			display->box.pos = Vec(14, 14);
-			display->box.size = Vec(110, 70);
-			addChild(display);
-		}
-
+		const theme::Size kBandKnobSize = {28.f, 28.f};   // BidooziNCColoredKnob sets its own box
+		const float kBandRight[4] = {0.f, 43.f, 86.f, 129.f};
+		const float kBandBelow = 45.f;
+		const theme::Pos firstBand = theme::specificCorner(19, 41, kBandKnobSize);
 		for (int i = 0; i < BANDS; i++) {
-			controls[i]=createParam<BidooziNCColoredKnob>(Vec(portX0[i%(BANDS/4)]-1, 41+45*(int)(i/4)), module, ZINC::BG_PARAM + i);
+			controls[i] = theme::param<BidooziNCColoredKnob>(firstBand.offset(kBandRight[i % (BANDS / 4)], kBandBelow * (i / 4)), module, ZINC::BG_PARAM + i);
 			addParam(controls[i]);
 		}
 
-		const float xAnchor = 8.0f;
-		const float xOffset = 32.0f;
+		const float kTrimpotRight = 32.f;
+		const theme::Pos attack = theme::specificCorner(8, 230, theme::kTrimpotSize);
+		const int trimpotIds[6] = {ZINC::ATTACK_PARAM, ZINC::DECAY_PARAM, ZINC::Q1_PARAM, ZINC::Q2_PARAM, ZINC::Q3_PARAM, ZINC::Q4_PARAM};
+		for (int i = 0; i < 6; i++)
+			addParam(theme::param<BidooBlueTrimpot>(attack.right(kTrimpotRight * i), module, trimpotIds[i]));
 
-		addParam(createParam<BidooBlueTrimpot>(Vec(xAnchor, 230), module, ZINC::ATTACK_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(xAnchor+ xOffset, 230), module, ZINC::DECAY_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(xAnchor+ 2*xOffset, 230), module, ZINC::Q1_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(xAnchor+ 3*xOffset, 230), module, ZINC::Q2_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(xAnchor+ 4*xOffset, 230), module, ZINC::Q3_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(xAnchor+ 5*xOffset, 230), module, ZINC::Q4_PARAM));
+		const theme::Pos gainRow = theme::specificCorner(41, 268, theme::kBlueKnobSize);
+		addParam(theme::param<BidooBlueKnob>(gainRow, module, ZINC::GMOD_PARAM));
+		addParam(theme::param<BidooBlueKnob>(theme::colRow(theme::specific(97.375f, 0), gainRow), module, ZINC::GCARR_PARAM));   // under CAR
+		addParam(theme::param<BidooBlueKnob>(theme::colRow(theme::specific(139.094f, 0), gainRow), module, ZINC::G_PARAM));      // under GAIN
 
-
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[0] + 21, 268), module, ZINC::GMOD_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[1] + 20, 268), module, ZINC::GCARR_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX0[2] + 19, 268), module, ZINC::G_PARAM));
-
-		addInput(createInput<PJ301MPort>(Vec(7.f, 330), module, ZINC::IN_MOD));
-		addInput(createInput<PJ301MPort>(Vec(85.f, 330), module, ZINC::IN_CARR));
-		addOutput(createOutput<PJ301MPort>(Vec(164.5f, 330), module, ZINC::OUT));
+		const theme::Pos jackRow = theme::specificCorner(7, 330, theme::kJackSize);
+		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(19.156f, 0), jackRow), module, ZINC::IN_MOD));     // the boxes' centres
+		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(97.5f, 0), jackRow), module, ZINC::IN_CARR));
+		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(175.844f, 0), jackRow), module, ZINC::OUT));
 	}
 
 	void step() override;

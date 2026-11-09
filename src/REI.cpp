@@ -274,39 +274,47 @@ struct REIWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/REI.svg"));
 
-		const float yAnchor = 38.0f;
-		const float inputsOffset = 32.0f;
-		const float groupsOffset = 64.0f;
-		const float xInputsAnchor = 33.0f;
-		const float xInputsOffset = 24.0f;
+		// No screws, as before. The original hand-drawn panel: four rows of two knobs (freeze is a button), each with a
+		// line down to its tiny CV jack; the clipping switch; the stereo in and out. The left knobs keep their old
+		// corners (within 0.26 px of their labels); the right knobs and the freeze button go under their labels (the old
+		// code had them 0.43 to 0.78 px left); each stereo jack under its L or R label.
+		const float kGroupPitch = 64.f;   // from one row of knobs to the next
+		const float kCvBelow = 32.f;      // from a knob's top to its CV jack's
+		const float kCvRight = 24.f;      // from the left CV jack to the right one
+		const theme::Pos leftKnob = theme::specificCorner(13, 38, theme::kBlueKnobSize);
+		const theme::Pos rightKnobRow = theme::specificCorner(63, 38, theme::kBlueKnobSize);
+		const theme::Pos leftCv = theme::specificCorner(33, 38 + kCvBelow, theme::kTinyJackSize);
+		const theme::Pos rightLabel[4] = {theme::specific(78.188f, 0), theme::specific(78.406f, 0), theme::specific(78.469f, 0), theme::specific(78.531f, 0)};   // DAMP, FREEZE, PITCH, WET
+		const int leftIds[4] = {REI::SIZE_PARAM, REI::WIDTH_PARAM, REI::SHIMM_PARAM, REI::DRY_PARAM};
+		const int rightIds[4] = {REI::DAMP_PARAM, -1, REI::SHIMMPITCH_PARAM, REI::WET_PARAM};
+		const int leftCvIds[4] = {REI::SIZE_INPUT, REI::WIDTH_INPUT, REI::SHIMM_INPUT, REI::DRY_INPUT};
+		const int rightCvIds[4] = {REI::DAMP_INPUT, REI::FREEZE_INPUT, REI::SHIMMPITCH_INPUT, REI::WET_INPUT};
+		const theme::Size kBezelSize = {21.26028f, 21.25987f};   // LEDBezel
+		const float kBezelIn = 4.f;                              // the bezel's top below the knobs' row
+		const float kLightIn = 1.8f;                             // from the bezel's corner to its light's
+		for (int i = 0; i < 4; i++) {
+			addParam(theme::param<BidooBlueKnob>(leftKnob.down(kGroupPitch * i), module, leftIds[i]));
+			if (rightIds[i] >= 0) {
+				addParam(theme::param<BidooBlueKnob>(theme::colRow(rightLabel[i], rightKnobRow).down(kGroupPitch * i), module, rightIds[i]));
+			}
+			else {
+				const theme::Pos freeze = theme::colRow(rightLabel[i], theme::specificCorner(67, 38 + kBezelIn, kBezelSize)).down(kGroupPitch * i);
+				const theme::Pos light = theme::specificCorner(freeze.x - kBezelSize.w * 0.5f + kLightIn, freeze.top + kLightIn, theme::Size{mm2px(6.f), mm2px(6.f)});   // REILight
+				addParam(theme::param<LEDBezel>(freeze, module, REI::FREEZE_PARAM));
+				addChild(theme::light<REILight<BlueLight>>(light, module, REI::FREEZE_LIGHT));
+			}
+			addInput(theme::input<TinyPJ301MPort>(leftCv.down(kGroupPitch * i), module, leftCvIds[i]));
+			addInput(theme::input<TinyPJ301MPort>(leftCv.offset(kCvRight, kGroupPitch * i), module, rightCvIds[i]));
+		}
 
-		addParam(createParam<BidooBlueKnob>(Vec(13, yAnchor), module, REI::SIZE_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(63, yAnchor), module, REI::DAMP_PARAM));
-		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor, yAnchor+inputsOffset), module, REI::SIZE_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor+xInputsOffset, yAnchor+inputsOffset), module, REI::DAMP_INPUT));
+		const theme::Size kCKSSSize = {14.f, 20.64111f};   // CKSS
+		addParam(theme::param<CKSS>(theme::specificCorner(21, 289, kCKSSSize), module, REI::CLIPPING_PARAM));
 
-		addParam(createParam<BidooBlueKnob>(Vec(13, yAnchor+groupsOffset), module, REI::WIDTH_PARAM));
-		addParam(createParam<LEDBezel>(Vec(67, yAnchor+groupsOffset+4), module, REI::FREEZE_PARAM));
-		addChild(createLight<REILight<BlueLight>>(Vec(68.8f, yAnchor+groupsOffset+5.8f), module, REI::FREEZE_LIGHT));
-		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor, yAnchor+groupsOffset+inputsOffset), module, REI::WIDTH_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor+xInputsOffset, yAnchor+groupsOffset+inputsOffset), module, REI::FREEZE_INPUT));
-
-		addParam(createParam<BidooBlueKnob>(Vec(13, yAnchor+2*groupsOffset), module, REI::SHIMM_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(63, yAnchor+2*groupsOffset), module, REI::SHIMMPITCH_PARAM));
-		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor, yAnchor+2*groupsOffset+inputsOffset), module, REI::SHIMM_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor+xInputsOffset, yAnchor+2*groupsOffset+inputsOffset), module, REI::SHIMMPITCH_INPUT));
-
-		addParam(createParam<BidooBlueKnob>(Vec(13, yAnchor+3*groupsOffset), module, REI::DRY_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(63, yAnchor+3*groupsOffset), module, REI::WET_PARAM));
-		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor, yAnchor+3*groupsOffset+inputsOffset), module, REI::DRY_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(xInputsAnchor+xInputsOffset, yAnchor+3*groupsOffset+inputsOffset), module, REI::WET_INPUT));
-
-		addParam(createParam<CKSS>(Vec(21.0f, 289.0f), module, REI::CLIPPING_PARAM));
-
-		addInput(createInput<TinyPJ301MPort>(Vec(8.0f, 340.0f), module, REI::IN_L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(8.0f+22.0f, 340.0f), module, REI::IN_R_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f, 340.0f), module, REI::OUT_L_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f+22.0f, 340.0f), module, REI::OUT_R_OUTPUT));
+		const theme::Pos stereoRow = theme::specificCorner(8, 340, theme::kTinyJackSize);
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(14.594f, 0), stereoRow), module, REI::IN_L_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(38.125f, 0), stereoRow), module, REI::IN_R_INPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(67.281f, 0), stereoRow), module, REI::OUT_L_OUTPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(88.812f, 0), stereoRow), module, REI::OUT_R_OUTPUT));
 	}
 
 	void appendContextMenu(Menu *menu) override {

@@ -657,66 +657,72 @@ struct COPIAWidget : BidooWidget {
 
 		theme::addScrews(this);
 
+		// Placed as tools/panels/copia.py draws them: the screen (SCREEN_H 150), row 1 at the x of its labels, row 2 on
+		// the grid's eight columns (each slot's FX and PUNCH knobs either side of its column), the jacks on its IN_X0,
+		// OUT_X0 and COL columns and on the grid's two jack rows.
 		CopiaDisplay *display = new CopiaDisplay;
 		display->module = module;
-		display->box.pos = Vec(theme::kSideMargin, theme::kScreenTop);
-		display->box.size = Vec(box.size.x - 2.f * theme::kSideMargin, 150);
+		display->box = theme::specificRect(theme::kSideMargin, theme::kScreenTop, box.size.x - 2.f * theme::kSideMargin, 150);   // copia.py SCREEN_H
 		addChild(display);
 
 		// row 1: capture, length, grid, rand, mutate, scenes, morph, mix, in/out
 		const float r1 = 213.f;
-		CaptureButton *cap = createParamCentered<CaptureButton>(Vec(30, r1), module, COPIA::CAPTURE_PARAM);
+		auto at1 = [&](float x) { return theme::specific(x, r1); };   // copia.py's row 1 labels
+		CaptureButton *cap = theme::param<CaptureButton>(at1(30), module, COPIA::CAPTURE_PARAM);
 		cap->m = module;
 		addParam(cap);
-		auto knob = [&](float x, float y, int param, bool snapped) {
+		auto knob = [&](theme::Pos p, int param, bool snapped) {
 			if (snapped)
-				addParam(createParamCentered<BidooSmallSnapBlueKnob>(Vec(x, y), module, param));
+				addParam(theme::param<BidooSmallSnapBlueKnob>(p, module, param));
 			else
-				addParam(createParamCentered<BidooSmallBlueKnob>(Vec(x, y), module, param));
+				addParam(theme::param<BidooSmallBlueKnob>(p, module, param));
 		};
-		auto button = [&](float x, float y, int param) {
-			BidooRoundButton *b = createParamCentered<BidooRoundButton>(Vec(x, y), module, param);
+		auto button = [&](theme::Pos p, int param) {
+			BidooRoundButton *b = theme::param<BidooRoundButton>(p, module, param);
 			addParam(b);
 			return b;
 		};
-		knob(72, r1, COPIA::LENGTH_PARAM, true);
-		knob(110, r1, COPIA::GRID_PARAM, true);
-		button(146, r1, COPIA::RAND_PARAM)->momentary = true;
-		button(178, r1, COPIA::MUTATE_PARAM)->momentary = true;
+		knob(at1(72), COPIA::LENGTH_PARAM, true);
+		knob(at1(110), COPIA::GRID_PARAM, true);
+		button(at1(146), COPIA::RAND_PARAM)->momentary = true;
+		button(at1(178), COPIA::MUTATE_PARAM)->momentary = true;
 		ScenePads *pads = new ScenePads;
 		pads->module = module;
-		pads->box.pos = Vec(200, r1 - 9);
-		pads->box.size = Vec(ScenePads::STEP * copia::kScenes, ScenePads::PAD);
+		pads->box = theme::specificRect(200, r1 - 9, ScenePads::STEP * copia::kScenes, ScenePads::PAD);
 		addChild(pads);
-		knob(398, r1, COPIA::MORPH_PARAM, false);
-		knob(436, r1, COPIA::MIX_PARAM, false);
-		BidooRoundButton *inout = button(478, r1, COPIA::INOUT_PARAM);
+		knob(at1(398), COPIA::MORPH_PARAM, false);
+		knob(at1(436), COPIA::MIX_PARAM, false);
+		BidooRoundButton *inout = button(at1(478), COPIA::INOUT_PARAM);
 		inout->inner = 0.6f;
-		inout->box.size = Vec(28, 28);
-		inout->box.pos = Vec(478 - 14, r1 - 14);
+		inout->box.size = Vec(28, 28);   // a bigger button: placed again at the same centre
+		theme::place(inout, at1(478));
 
-		// row 2: each slot's effect and punch-in knobs
+		// row 2: each slot's effect and punch-in knobs, either side of its grid column
 		const float r2 = 253.f;
+		const float kKnobSide = 14.f;
 		for (int s = 0; s < copia::kSlots; s++) {
-			const float cx = 10.f + 61.25f * (s + 0.5f);
-			knob(cx - 14.f, r2, COPIA::FX_PARAM + s, true);
-			knob(cx + 14.f, r2, COPIA::PUNCH_PARAM + s, false);
+			const theme::Pos slot = theme::specific(theme::col(s, copia::kSlots, box.size.x), r2);
+			knob(slot.right(-kKnobSide), COPIA::FX_PARAM + s, true);
+			knob(slot.right(kKnobSide), COPIA::PUNCH_PARAM + s, false);
 		}
 
 		// jacks: inputs on the black box, outputs on the red one
-		auto jx = [](int i) { return 28.f + 37.6f * i; };
+		const float kCol = 37.6f;   // copia.py COL
+		const theme::Pos inA = theme::specific(27.f, theme::row(1));       // copia.py IN_X0: the row centred in its box
+		const theme::Pos outA = theme::specific(370.2f, theme::row(1));    // copia.py OUT_X0: the row centred in its box
+		const float rowDown = theme::row(0) - theme::row(1);
 		const int rowA[9] = {COPIA::INL_INPUT, COPIA::INR_INPUT, COPIA::CLOCK_INPUT, COPIA::RESET_INPUT, COPIA::CAPTURE_INPUT,
 		                     COPIA::INOUT_INPUT, COPIA::SCENE_INPUT, COPIA::MORPH_INPUT, COPIA::MIX_INPUT};
 		for (int i = 0; i < 9; i++)
-			addInput(createInputCentered<PJ301MPort>(Vec(jx(i), theme::kSecondRowY), module, rowA[i]));
+			addInput(theme::input<PJ301MPort>(inA.right(kCol * i), module, rowA[i]));
 		for (int s = 0; s < copia::kSlots; s++)
-			addInput(createInputCentered<PJ301MPort>(Vec(jx(s), theme::kBottomRowY), module, COPIA::PUNCH_INPUT + s));
-		const int outA[4] = {COPIA::OUTL_OUTPUT, COPIA::OUTR_OUTPUT, COPIA::BAR_OUTPUT, COPIA::REC_OUTPUT};
-		const int outB[3] = {COPIA::WETL_OUTPUT, COPIA::WETR_OUTPUT, COPIA::LANES_OUTPUT};
+			addInput(theme::input<PJ301MPort>(inA.offset(kCol * s, rowDown), module, COPIA::PUNCH_INPUT + s));
+		const int outsA[4] = {COPIA::OUTL_OUTPUT, COPIA::OUTR_OUTPUT, COPIA::BAR_OUTPUT, COPIA::REC_OUTPUT};
+		const int outsB[3] = {COPIA::WETL_OUTPUT, COPIA::WETR_OUTPUT, COPIA::LANES_OUTPUT};
 		for (int i = 0; i < 4; i++)
-			addOutput(createOutputCentered<PJ301MPort>(Vec(369.2f + 37.6f * i, theme::kSecondRowY), module, outA[i]));
+			addOutput(theme::output<PJ301MPort>(outA.right(kCol * i), module, outsA[i]));
 		for (int i = 0; i < 3; i++)
-			addOutput(createOutputCentered<PJ301MPort>(Vec(369.2f + 37.6f * i, theme::kBottomRowY), module, outB[i]));
+			addOutput(theme::output<PJ301MPort>(outA.offset(kCol * i, rowDown), module, outsB[i]));
 	}
 
 	void appendContextMenu(Menu *menu) override {

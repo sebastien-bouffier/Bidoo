@@ -104,30 +104,20 @@ struct DILEMOWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/DILEMO.svg"));
 
-		const int inputXAnchor = 7;
-		const int inputYAnchor = 79;
-		const int outputXAnchor = 44;
-		const int outputYAnchor = 79;
-		const int inputYOffset = 43;
+		// No screws, as before. The original hand-drawn panel: the threshold knob, then seven rows of an input and an
+		// output in their boxes, 43 px apart. Every position is within 0.3 px of its label and box: old corners kept.
+		const float kRowPitch = 43.f;
+		const float kOutRight = 37.f;   // from an input to its output
+		addParam(theme::param<BidooBlueKnob>(theme::specificCorner(22.5f, 30, theme::kBlueKnobSize), module, DILEMO::THRESHOLD_PARAM));
 
-		addParam(createParam<BidooBlueKnob>(Vec(22.5,30), module, DILEMO::THRESHOLD_PARAM));
-
-  	addInput(createInput<PJ301MPort>(Vec(inputXAnchor,inputYAnchor), module, DILEMO::IN1_AND));
-		addInput(createInput<PJ301MPort>(Vec(inputXAnchor,inputYAnchor+inputYOffset), module, DILEMO::IN2_AND));
-		addInput(createInput<PJ301MPort>(Vec(inputXAnchor,inputYAnchor+2*inputYOffset), module, DILEMO::IN1_OR));
-		addInput(createInput<PJ301MPort>(Vec(inputXAnchor,inputYAnchor+3*inputYOffset), module, DILEMO::IN2_OR));
-		addInput(createInput<PJ301MPort>(Vec(inputXAnchor,inputYAnchor+4*inputYOffset), module, DILEMO::IN1_XOR));
-		addInput(createInput<PJ301MPort>(Vec(inputXAnchor,inputYAnchor+5*inputYOffset), module, DILEMO::IN2_XOR));
-		addInput(createInput<PJ301MPort>(Vec(inputXAnchor,inputYAnchor+6*inputYOffset), module, DILEMO::IN_NOT));
-
-  	addOutput(createOutput<PJ301MPort>(Vec(outputXAnchor,outputYAnchor), module, DILEMO::AND_OUT));
-		addOutput(createOutput<PJ301MPort>(Vec(outputXAnchor,outputYAnchor+inputYOffset), module, DILEMO::NAND_OUT));
-		addOutput(createOutput<PJ301MPort>(Vec(outputXAnchor,outputYAnchor+2*inputYOffset), module, DILEMO::OR_OUT));
-		addOutput(createOutput<PJ301MPort>(Vec(outputXAnchor,outputYAnchor+3*inputYOffset), module, DILEMO::NOR_OUT));
-		addOutput(createOutput<PJ301MPort>(Vec(outputXAnchor,outputYAnchor+4*inputYOffset), module, DILEMO::XOR_OUT));
-		addOutput(createOutput<PJ301MPort>(Vec(outputXAnchor,outputYAnchor+5*inputYOffset), module, DILEMO::XNOR_OUT));
-		addOutput(createOutput<PJ301MPort>(Vec(outputXAnchor,outputYAnchor+6*inputYOffset), module, DILEMO::NOT_OUT));
-  }
+		const theme::Pos firstIn = theme::specificCorner(7, 79, theme::kJackSize);
+		const int inIds[7] = {DILEMO::IN1_AND, DILEMO::IN2_AND, DILEMO::IN1_OR, DILEMO::IN2_OR, DILEMO::IN1_XOR, DILEMO::IN2_XOR, DILEMO::IN_NOT};
+		const int outIds[7] = {DILEMO::AND_OUT, DILEMO::NAND_OUT, DILEMO::OR_OUT, DILEMO::NOR_OUT, DILEMO::XOR_OUT, DILEMO::XNOR_OUT, DILEMO::NOT_OUT};
+		for (int i = 0; i < 7; i++)
+			addInput(theme::input<PJ301MPort>(firstIn.down(kRowPitch * i), module, inIds[i]));
+		for (int i = 0; i < 7; i++)
+			addOutput(theme::output<PJ301MPort>(firstIn.offset(kOutRight, kRowPitch * i), module, outIds[i]));
+	}
 };
 
 Model *modelDILEMO = createModel<DILEMO, DILEMOWidget>("DilEMO");

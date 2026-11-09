@@ -13,6 +13,7 @@
 // For the whole product (early reflections, input saturation, post EQ, ducking, gate, styles)
 // see fab's Grotte, which uses the same core.
 
+#include "../core/Math.h"
 #include "DecayModel.h"
 #include "Fdn16.h"
 #include "GlideAllpass.h"
@@ -84,9 +85,29 @@ public:
             if (subPos == 0)
                 update (p, kSubBlock);
             const int len = std::min (kSubBlock - subPos, n - done);
-            float inPeak = 0.0f;
+            float inPeak = 0.0f, inSum = 0.0f;
             for (int i = 0; i < len; ++i)
+            {
                 inPeak = std::max (inPeak, std::abs (inL[done + i]) + std::abs (inR[done + i]));
+                inSum += inL[done + i] + inR[done + i];
+            }
+            // A NaN or an infinity would stay in the network for good: it hears silence in its place.
+            // A sum per sub-block, so finite audio goes through untouched, bit for bit.
+            float cleanL[kSubBlock], cleanR[kSubBlock];
+            const float* subL = inL + done;
+            const float* subR = inR + done;
+            if (! std::isfinite (inSum))
+            {
+                inPeak = 0.0f;
+                for (int i = 0; i < len; ++i)
+                {
+                    cleanL[i] = finiteOrZero (subL[i]);
+                    cleanR[i] = finiteOrZero (subR[i]);
+                    inPeak = std::max (inPeak, std::abs (cleanL[i]) + std::abs (cleanR[i]));
+                }
+                subL = cleanL;
+                subR = cleanR;
+            }
             const bool frozen = p.freeze || freezeAmt > 0.0f;
             if (idle.skip (inPeak, frozen))
             {
@@ -96,10 +117,21 @@ public:
             }
             else
             {
-                run (inL + done, inR + done, outL + done, outR + done, len);
-                float outPeak = 0.0f;
+                run (subL, subR, outL + done, outR + done, len);
+                float outPeak = 0.0f, outSum = 0.0f;
                 for (int i = 0; i < len; ++i)
+                {
                     outPeak = std::max (outPeak, std::max (std::abs (outL[done + i]), std::abs (outR[done + i])));
+                    outSum += outL[done + i] + outR[done + i];
+                }
+                if (! std::isfinite (outSum)) // the state overflowed (finite input, but far too loud): start the tail again
+                {
+                    reset();
+                    std::fill (outL + done, outL + done + len, 0.0f);
+                    std::fill (outR + done, outR + done + len, 0.0f);
+                    done += len;
+                    continue;
+                }
                 idle.ran (len, inPeak, outPeak, frozen);
             }
             subPos = (subPos + len) % kSubBlock;

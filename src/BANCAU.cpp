@@ -247,54 +247,47 @@ struct BANCAUWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/BANCAU.svg"));
 
-		const float xPilars[6] = {10-2.5f,45-2.5f,80-2.5f,120-2.5f,155-2.5f,190-2.5f};
-		const int yPilars[6] = {60,110,160,208,260,320};
-		const int portOffset = 3;
-		const int ckssOffset = 8;
+		// No screws, as before. The original hand-drawn panel: two envelopes side by side, each three columns of rise and
+		// fall knobs, three CV jacks joined by a line, EXP/CYC/EXP switches, and two rows of boxed jacks. Old corners
+		// kept (every column sits within 0.4 px of its box and line), except the CV jacks, now on the line the panel
+		// draws through them (the old code had them 0.7 px above it).
+		const float kColumn[6] = {7.5f, 42.5f, 77.5f, 117.5f, 152.5f, 187.5f};   // the old columns' left edges
+		const float kPortIn = 3.f;    // a jack's corner from its column's edge
+		const float kSwitchIn = 8.f;  // a switch's
+		const theme::Size kCKSSSize = {14.f, 20.64111f};   // CKSS
+		const theme::Pos riseRow = theme::specificCorner(0, 60, theme::kBlueKnobSize);
+		const theme::Pos cvRow = theme::specificCorner(0, 160 + kPortIn, theme::kJackSize);
+		const theme::Pos cvLine = theme::specific(0, 175.562f);   // the line through the CV jacks
+		const theme::Pos switchRow = theme::specificCorner(0, 208 + 5, kCKSSSize);
+		const theme::Pos inRow = theme::specificCorner(0, 260 + kPortIn, theme::kJackSize);
+		const theme::Pos outRow = theme::specificCorner(0, 320 + kPortIn, theme::kJackSize);
+		const float kCvKnobBelow = 50.f;   // from the rise and fall knobs to their CV amounts
+		auto knob = [&](int c, float down) { return riseRow.offset(kColumn[c], down); };
+		auto jack = [&](int c, theme::Pos row) { return row.right(kColumn[c] + kPortIn); };
+		auto cv = [&](int c) { return theme::colRow(jack(c, cvRow), cvLine); };
+		auto sw = [&](int c) { return switchRow.right(kColumn[c] + kSwitchIn); };
 
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[0], yPilars[0]), module, BANCAU::RISE1_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[2], yPilars[0]), module, BANCAU::FALL1_PARAM));
-
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[0], yPilars[1]), module, BANCAU::RISECV1_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[2], yPilars[1]), module, BANCAU::FALLCV1_PARAM));
-
-		addInput(createInput<PJ301MPort>(Vec(xPilars[0]+portOffset, yPilars[2]+portOffset), module, BANCAU::RISECV1_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[1]+portOffset, yPilars[2]+portOffset), module, BANCAU::BOTHCV1_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[2]+portOffset, yPilars[2]+portOffset), module, BANCAU::FALLCV1_INPUT));
-
-		addParam(createParam<CKSS>(Vec(xPilars[0]+ckssOffset, yPilars[3]+5), module, BANCAU::RISEEXP1_PARAM));
-		addParam(createParam<CKSS>(Vec(xPilars[1]+ckssOffset, yPilars[3]+5), module, BANCAU::CYCLE1_PARAM));
-		addParam(createParam<CKSS>(Vec(xPilars[2]+ckssOffset, yPilars[3]+5), module, BANCAU::FALLEXP1_PARAM));
-
-		addInput(createInput<PJ301MPort>(Vec(xPilars[0]+portOffset, yPilars[4]+portOffset), module, BANCAU::VOCT1_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[1]+portOffset, yPilars[4]+portOffset), module, BANCAU::IN1_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[2]+portOffset, yPilars[4]+portOffset), module, BANCAU::TRIG1_INPUT));
-
-		addOutput(createOutput<PJ301MPort>(Vec(xPilars[0]+portOffset, yPilars[5]+portOffset), module, BANCAU::OUT1_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(xPilars[1]+portOffset, yPilars[5]+portOffset), module, BANCAU::PULSE1_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(xPilars[2]+portOffset, yPilars[5]+portOffset), module, BANCAU::END1_OUTPUT));
-
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[3], yPilars[0]), module, BANCAU::RISE2_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[5], yPilars[0]), module, BANCAU::FALL2_PARAM));
-
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[3], yPilars[1]), module, BANCAU::RISECV2_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(xPilars[5], yPilars[1]), module, BANCAU::FALLCV2_PARAM));
-
-		addInput(createInput<PJ301MPort>(Vec(xPilars[3]+portOffset, yPilars[2]+portOffset), module, BANCAU::RISECV2_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[4]+portOffset, yPilars[2]+portOffset), module, BANCAU::BOTHCV2_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[5]+portOffset, yPilars[2]+portOffset), module, BANCAU::FALLCV2_INPUT));
-
-		addParam(createParam<CKSS>(Vec(xPilars[3]+ckssOffset, yPilars[3]+5), module, BANCAU::RISEEXP2_PARAM));
-		addParam(createParam<CKSS>(Vec(xPilars[4]+ckssOffset, yPilars[3]+5), module, BANCAU::CYCLE2_PARAM));
-		addParam(createParam<CKSS>(Vec(xPilars[5]+ckssOffset, yPilars[3]+5), module, BANCAU::FALLEXP2_PARAM));
-
-		addInput(createInput<PJ301MPort>(Vec(xPilars[3]+portOffset, yPilars[4]+portOffset), module, BANCAU::VOCT2_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[4]+portOffset, yPilars[4]+portOffset), module, BANCAU::IN2_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPilars[5]+portOffset, yPilars[4]+portOffset), module, BANCAU::TRIG2_INPUT));
-
-		addOutput(createOutput<PJ301MPort>(Vec(xPilars[3]+portOffset, yPilars[5]+portOffset), module, BANCAU::OUT2_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(xPilars[4]+portOffset, yPilars[5]+portOffset), module, BANCAU::BP2_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(xPilars[5]+portOffset, yPilars[5]+portOffset), module, BANCAU::END2_OUTPUT));
+		const int riseIds[2] = {BANCAU::RISE1_PARAM, BANCAU::RISE2_PARAM}, fallIds[2] = {BANCAU::FALL1_PARAM, BANCAU::FALL2_PARAM};
+		const int riseCvIds[2] = {BANCAU::RISECV1_PARAM, BANCAU::RISECV2_PARAM}, fallCvIds[2] = {BANCAU::FALLCV1_PARAM, BANCAU::FALLCV2_PARAM};
+		const int cvIns[2][3] = {{BANCAU::RISECV1_INPUT, BANCAU::BOTHCV1_INPUT, BANCAU::FALLCV1_INPUT}, {BANCAU::RISECV2_INPUT, BANCAU::BOTHCV2_INPUT, BANCAU::FALLCV2_INPUT}};
+		const int switches[2][3] = {{BANCAU::RISEEXP1_PARAM, BANCAU::CYCLE1_PARAM, BANCAU::FALLEXP1_PARAM}, {BANCAU::RISEEXP2_PARAM, BANCAU::CYCLE2_PARAM, BANCAU::FALLEXP2_PARAM}};
+		const int ins[2][3] = {{BANCAU::VOCT1_INPUT, BANCAU::IN1_INPUT, BANCAU::TRIG1_INPUT}, {BANCAU::VOCT2_INPUT, BANCAU::IN2_INPUT, BANCAU::TRIG2_INPUT}};
+		const int outs[2][3] = {{BANCAU::OUT1_OUTPUT, BANCAU::PULSE1_OUTPUT, BANCAU::END1_OUTPUT}, {BANCAU::OUT2_OUTPUT, BANCAU::BP2_OUTPUT, BANCAU::END2_OUTPUT}};
+		for (int e = 0; e < 2; e++) {
+			const int c0 = 3 * e;
+			addParam(theme::param<BidooBlueKnob>(knob(c0, 0), module, riseIds[e]));
+			addParam(theme::param<BidooBlueKnob>(knob(c0 + 2, 0), module, fallIds[e]));
+			addParam(theme::param<BidooBlueKnob>(knob(c0, kCvKnobBelow), module, riseCvIds[e]));
+			addParam(theme::param<BidooBlueKnob>(knob(c0 + 2, kCvKnobBelow), module, fallCvIds[e]));
+			for (int i = 0; i < 3; i++)
+				addInput(theme::input<PJ301MPort>(cv(c0 + i), module, cvIns[e][i]));
+			for (int i = 0; i < 3; i++)
+				addParam(theme::param<CKSS>(sw(c0 + i), module, switches[e][i]));
+			for (int i = 0; i < 3; i++)
+				addInput(theme::input<PJ301MPort>(jack(c0 + i, inRow), module, ins[e][i]));
+			for (int i = 0; i < 3; i++)
+				addOutput(theme::output<PJ301MPort>(jack(c0 + i, outRow), module, outs[e][i]));
+		}
 	}
 };
 

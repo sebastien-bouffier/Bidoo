@@ -106,44 +106,45 @@ struct LOURDEWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/LOURDE.svg"));
 
-  	addInput(createInput<PJ301MPort>(Vec(25.5,77), module, LOURDE::IN1));
-    addInput(createInput<PJ301MPort>(Vec(25.5,157), module, LOURDE::IN2));
-    addInput(createInput<PJ301MPort>(Vec(25.5,237), module, LOURDE::IN3));
+		// No screws, as before. The original hand-drawn panel: three groups of a value screen, a weight knob joined by a
+		// line to its CV jack, and an input box below; the floor group above the output. Each knob and CV jack sit on
+		// the line the panel draws between them (the old code had them 0.4 to 0.8 px above it); the floor group was
+		// already on its line and keeps its old corners. The column (37.3, boxes at 37.5) is left as it was.
+		const float kGroupPitch = 80.f;   // from one group to the next
+		const theme::Pos knobCol = theme::specificCorner(22.5f, 30, theme::kBlueKnobSize);
+		const theme::Pos cvCol = theme::specificCorner(56, 37, theme::kTinyJackSize);
+		const theme::Pos groupLine[3] = {theme::specific(0, 45.312f), theme::specific(0, 125.188f), theme::specific(0, 205.125f)};
+		const theme::Pos in1 = theme::specificCorner(25.5f, 77, theme::kJackSize);
+		const int inIds[3] = {LOURDE::IN1, LOURDE::IN2, LOURDE::IN3};
+		const int cvIds[3] = {LOURDE::INWEIGHT1, LOURDE::INWEIGHT2, LOURDE::INWEIGHT3};
+		const int knobIds[3] = {LOURDE::WEIGHT1, LOURDE::WEIGHT2, LOURDE::WEIGHT3};
+		for (int i = 0; i < 3; i++)
+			addInput(theme::input<PJ301MPort>(in1.down(kGroupPitch * i), module, inIds[i]));
+		for (int i = 0; i < 3; i++)
+			addInput(theme::input<TinyPJ301MPort>(theme::colRow(cvCol, groupLine[i]), module, cvIds[i]));
+		for (int i = 0; i < 3; i++)
+			addParam(theme::param<BidooBlueKnob>(theme::colRow(knobCol, groupLine[i]), module, knobIds[i]));
 
-    addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 37.0f), module, LOURDE::INWEIGHT1));
-    addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 117.0f), module, LOURDE::INWEIGHT2));
-    addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 197.0f), module, LOURDE::INWEIGHT3));
+		// The value screens' text, kept where it was
+		const theme::Pos valueAt = theme::specific(15, 45);
+		for (int i = 0; i < 3; i++) {
+			LourdeValueDisplay *display = new LourdeValueDisplay();
+			display->box.pos = valueAt.down(kGroupPitch * i);
+			display->value = module ? &module->shown[i] : NULL;
+			addChild(display);
+		}
 
-    addParam(createParam<BidooBlueKnob>(Vec(22.5,30), module, LOURDE::WEIGHT1));
-    addParam(createParam<BidooBlueKnob>(Vec(22.5,110), module, LOURDE::WEIGHT2));
-    addParam(createParam<BidooBlueKnob>(Vec(22.5,190), module, LOURDE::WEIGHT3));
-
-		LourdeValueDisplay *displayW1 = new LourdeValueDisplay();
-		displayW1->box.pos = Vec(15,45);
-		displayW1->value = module ? &module->shown[0] : NULL;
-		addChild(displayW1);
-
-		LourdeValueDisplay *displayW2 = new LourdeValueDisplay();
-		displayW2->box.pos = Vec(15,125);
-		displayW2->value = module ? &module->shown[1] : NULL;
-		addChild(displayW2);
-
-		LourdeValueDisplay *displayW3 = new LourdeValueDisplay();
-		displayW3->box.pos = Vec(15,205);
-		displayW3->value = module ? &module->shown[2] : NULL;
-		addChild(displayW3);
-
-    addParam(createParam<BidooBlueKnob>(Vec(22.5,282), module, LOURDE::OUTFLOOR));
+		addParam(theme::param<BidooBlueKnob>(theme::specificCorner(22.5f, 282, theme::kBlueKnobSize), module, LOURDE::OUTFLOOR));
 
 		LourdeValueDisplay *displayOF = new LourdeValueDisplay();
-		displayOF->box.pos = Vec(15,296);
+		displayOF->box.pos = theme::specific(15, 296);
 		displayOF->value = module ? &module->shown[3] : NULL;
 		addChild(displayOF);
 
-    addInput(createInput<TinyPJ301MPort>(Vec(56.0f, 289.0f), module, LOURDE::INFLOOR));
+		addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(56, 289, theme::kTinyJackSize), module, LOURDE::INFLOOR));
 
-  	addOutput(createOutput<PJ301MPort>(Vec(25.5,330), module, LOURDE::OUT));
-  }
+		addOutput(theme::output<PJ301MPort>(theme::specificCorner(25.5f, 330, theme::kJackSize), module, LOURDE::OUT));
+	}
 };
 
 Model *modelLOURDE = createModel<LOURDE, LOURDEWidget>("LoURdE");

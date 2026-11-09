@@ -231,124 +231,133 @@ struct BORDLWidget : MetroWidget<BORDL> {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/BORDL.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
+
+		// The original hand-drawn panel, dTrOY's left section with a fifth output. Left: the clock, run, reset and
+		// steps row with their jacks, the key, scale, gate and slide knobs with theirs, each joined by a line; play,
+		// count and the pattern knob joined by a line to its jack; the screen; transpose, copy and the shift arrows;
+		// five jacks in their boxes. Right: the eight steps (pitch and accent knobs with their random trimpots, pulse
+		// count and probability, gate type, slide and skip, step output), a dense grid kept at its old corners. On the
+		// left each control and jack now sits on the line the panel draws between them (the old code had them up to
+		// 1 px off; each row follows its own lines), the pattern jack and knob on their line, and the bottom jacks on
+		// their boxes' centres.
+		const theme::Size kButtonSize = {17.9996f, 18.f};                 // LEDButton
+		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
+		const float kLedIn = 6.f;   // from a button's corner to its light's
+		const theme::Pos topLine[4] = {theme::specific(32.844f, 0), theme::specific(70.281f, 0), theme::specific(107.844f, 0), theme::specific(147.281f, 0)};   // the top row's lines (the second column has none: it takes the middle row's)
+		const theme::Pos midLine[4] = {theme::specific(32.875f, 0), theme::specific(70.281f, 0), theme::specific(108.281f, 0), theme::specific(147.5f, 0)};   // the middle row's lines
 
 		{
 			MetroDisplay<BORDL> *display = new MetroDisplay<BORDL>();
 			display->module = module;
-			display->box.pos = Vec(20.0f, 217.0f);
-			display->box.size = Vec(250.0f, 60.0f);
+			display->box = theme::specificRect(20, 217, 250, 60);
 			addChild(display);
 		}
 
-		static const float portX0[4] = {20.0f, 58.0f, 96.0f, 135.0f};
-
-		addParam(createParam<BidooRoundBlackKnob>(Vec(portX0[0]-2.0f, 36.0f), module, BORDL::CLOCK_PARAM));
-		addParam(createParam<LEDButton>(Vec(61.0f, 40.0f), module, BORDL::RUN_PARAM));
-		addChild(createLight<SmallLight<GreenLight>>(Vec(67.0f, 46.0f), module, BORDL::RUNNING_LIGHT));
-		addParam(createParam<LEDButton>(Vec(99.0f, 40.0f), module, BORDL::RESET_PARAM));
-		addChild(createLight<SmallLight<GreenLight>>(Vec(105.0f, 46.0f), module, BORDL::RESET_LIGHT));
-		stepsParam = createParam<BidooBlueSnapKnob>(Vec(portX0[3]-2.0f, 36.0f), module, BORDL::STEPS_PARAM);
+		addParam(theme::param<BidooRoundBlackKnob>(theme::colRow(topLine[0], theme::specificCorner(0, 36, theme::kBlueKnobSize)), module, BORDL::CLOCK_PARAM));
+		addParam(theme::param<LEDButton>(theme::specificCorner(61, 40, kButtonSize), module, BORDL::RUN_PARAM));
+		addChild(theme::light<SmallLight<GreenLight>>(theme::specificCorner(61 + kLedIn, 40 + kLedIn, kSmallLightSize), module, BORDL::RUNNING_LIGHT));
+		const theme::Pos reset = theme::colRow(topLine[2], theme::specificCorner(0, 40, kButtonSize));
+		addParam(theme::param<LEDButton>(reset, module, BORDL::RESET_PARAM));
+		addChild(theme::light<SmallLight<GreenLight>>(theme::specificCorner(reset.x - kButtonSize.w * 0.5f + kLedIn, 40 + kLedIn, kSmallLightSize), module, BORDL::RESET_LIGHT));
+		stepsParam = theme::param<BidooBlueSnapKnob>(theme::colRow(topLine[3], theme::specificCorner(0, 36, theme::kBlueKnobSize)), module, BORDL::STEPS_PARAM);
 		addParam(stepsParam);
 
+		const theme::Pos topJacks = theme::specificCorner(0, 69, theme::kJackSize);
+		addInput(theme::input<PJ301MPort>(theme::colRow(topLine[0], topJacks), module, BORDL::CLOCK_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(topLine[1], topJacks), module, BORDL::EXT_CLOCK_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(topLine[2], topJacks), module, BORDL::RESET_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(topLine[3], topJacks), module, BORDL::STEPS_INPUT));
 
-	 	addInput(createInput<PJ301MPort>(Vec(portX0[0], 69.0f),  module, BORDL::CLOCK_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[1], 69.0f),  module, BORDL::EXT_CLOCK_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[2], 69.0f),  module, BORDL::RESET_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[3], 69.0f),  module, BORDL::STEPS_INPUT));
-
-		rootNoteParam = createParam<BidooBlueSnapKnob>(Vec(portX0[0]-2.0f, 116.0f), module, BORDL::ROOT_NOTE_PARAM);
+		const theme::Pos midKnobs = theme::specificCorner(0, 116, theme::kBlueKnobSize);
+		rootNoteParam = theme::param<BidooBlueSnapKnob>(theme::colRow(midLine[0], midKnobs), module, BORDL::ROOT_NOTE_PARAM);
 		addParam(rootNoteParam);
-		scaleParam = createParam<BidooBlueSnapKnob>(Vec(portX0[1]-2.0f, 116.0f), module, BORDL::SCALE_PARAM);
+		scaleParam = theme::param<BidooBlueSnapKnob>(theme::colRow(midLine[1], midKnobs), module, BORDL::SCALE_PARAM);
 		addParam(scaleParam);
-		gateTimeParam = createParam<BidooBlueKnob>(Vec(portX0[2]-2.0f, 116.0f), module, BORDL::GATE_TIME_PARAM);
+		gateTimeParam = theme::param<BidooBlueKnob>(theme::colRow(midLine[2], midKnobs), module, BORDL::GATE_TIME_PARAM);
 		addParam(gateTimeParam);
-		slideTimeParam = createParam<BidooBlueKnob>(Vec(portX0[3]-2.0f, 116.0f), module, BORDL::SLIDE_TIME_PARAM);
+		slideTimeParam = theme::param<BidooBlueKnob>(theme::colRow(midLine[3], midKnobs), module, BORDL::SLIDE_TIME_PARAM);
 		addParam(slideTimeParam);
 
-		addInput(createInput<PJ301MPort>(Vec(portX0[0], 149.0f),  module, BORDL::ROOT_NOTE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[1], 149.0f),  module, BORDL::SCALE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[2], 149.0f),  module, BORDL::GATE_TIME_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX0[3], 149.0f),  module, BORDL::SLIDE_TIME_INPUT));
+		const theme::Pos midJacks = theme::specificCorner(0, 149, theme::kJackSize);
+		addInput(theme::input<PJ301MPort>(theme::colRow(midLine[0], midJacks), module, BORDL::ROOT_NOTE_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(midLine[1], midJacks), module, BORDL::SCALE_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(midLine[2], midJacks), module, BORDL::GATE_TIME_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(midLine[3], midJacks), module, BORDL::SLIDE_TIME_INPUT));
 
-		addParam(createLightParam<VCVLightBezel<RedGreenBlueLight>>(Vec(portX0[0]+3.0f, 199.0f), module, BORDL::PLAY_MODE_PARAM, BORDL::PLAYMODE_LIGHT));
-		addParam(createLightParam<VCVLightBezel<RedGreenBlueLight>>(Vec(portX0[1]+3.0f, 199.0f), module, BORDL::COUNT_MODE_PARAM, BORDL::COUNTMODE_LIGHT));
+		addParam(theme::atCorner(createLightParam<VCVLightBezel<RedGreenBlueLight>>(Vec(), module, BORDL::PLAY_MODE_PARAM, BORDL::PLAYMODE_LIGHT), 23, 199));
+		addParam(theme::atCorner(createLightParam<VCVLightBezel<RedGreenBlueLight>>(Vec(), module, BORDL::COUNT_MODE_PARAM, BORDL::COUNTMODE_LIGHT), 61, 199));
 
-
-		addInput(createInput<PJ301MPort>(Vec(portX0[2], 198.0f),  module, BORDL::PATTERN_INPUT));
-		patternParam = createParam<BidooRoundBlackSnapKnob>(Vec(portX0[3],196.0f), module, BORDL::PATTERN_PARAM);
+		const theme::Pos patternLine = theme::specific(0, 210.562f);   // the line from the pattern jack to its knob
+		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specificCorner(96, 0, theme::kJackSize), patternLine), module, BORDL::PATTERN_INPUT));
+		patternParam = theme::param<BidooRoundBlackSnapKnob>(theme::colRow(theme::specificCorner(135, 0, theme::kBlueKnobSize), patternLine), module, BORDL::PATTERN_PARAM);
 		addParam(patternParam);
 
-		static const float portX1[8] = {200.0f, 241.0f, 282.0f, 323.0f, 364.0f, 405.0f, 446.0f, 487.0f};
+		const float portX1[8] = {200, 241, 282, 323, 364, 405, 446, 487};   // the steps' columns
 
-		sensitivityParam = createParam<BidooBlueTrimpot>(Vec(portX1[0]-24.0f, 30.0f), module, BORDL::SENSITIVITY_PARAM);
+		sensitivityParam = theme::atCorner(createParam<BidooBlueTrimpot>(Vec(), module, BORDL::SENSITIVITY_PARAM), portX1[0]-24.0f, 30.0f);
 		addParam(sensitivityParam);
-		addInput(createInput<TinyPJ301MPort>(Vec(portX1[0]-22.0f, 52.0f), module, BORDL::SENSITIVITY_INPUT));
+		addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, BORDL::SENSITIVITY_INPUT), portX1[0]-22.0f, 52.0f));
 
-		addInput(createInput<PJ301MPort>(Vec(portX0[0], 286.0f),  module, BORDL::TRANSPOSE_INPUT));
-		addParam(createParam<BlueCKD6>(Vec(portX0[1]-1.0f, 285.0f), module, BORDL::COPY_PARAM));
-		addChild(createLight<SmallLight<GreenLight>>(Vec(portX0[1]+23.0f, 283.0f), module, BORDL::COPY_LIGHT));
+		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, BORDL::TRANSPOSE_INPUT), 20, 286.0f));
+		addParam(theme::atCorner(createParam<BlueCKD6>(Vec(), module, BORDL::COPY_PARAM), 58-1.0f, 285.0f));
+		addChild(theme::atCorner(createLight<SmallLight<GreenLight>>(Vec(), module, BORDL::COPY_LIGHT), 58+23.0f, 283.0f));
 
-		addParam(createParam<LeftBtn>(Vec(104.0f, 290.0f), module, BORDL::LEFT_PARAM));
-		addParam(createParam<RightBtn>(Vec(134.0f, 290.0f), module, BORDL::RIGHT_PARAM));
-		addParam(createParam<UpBtn>(Vec(119.0f, 282.0f), module, BORDL::UP_PARAM));
-		addParam(createParam<DownBtn>(Vec(119.0f, 297.0f), module, BORDL::DOWN_PARAM));
+		addParam(theme::atCorner(createParam<LeftBtn>(Vec(), module, BORDL::LEFT_PARAM), 104.0f, 290.0f));
+		addParam(theme::atCorner(createParam<RightBtn>(Vec(), module, BORDL::RIGHT_PARAM), 134.0f, 290.0f));
+		addParam(theme::atCorner(createParam<UpBtn>(Vec(), module, BORDL::UP_PARAM), 119.0f, 282.0f));
+		addParam(theme::atCorner(createParam<DownBtn>(Vec(), module, BORDL::DOWN_PARAM), 119.0f, 297.0f));
 
 		for (int i = 0; i < 8; i++) {
-			pitchParams[i] = createParam<BidooBlueKnob>(Vec(portX1[i]+1.0f, 56.0f), module, BORDL::TRIG_PITCH_PARAM + i);
+			pitchParams[i] = theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, BORDL::TRIG_PITCH_PARAM + i), portX1[i]+1.0f, 56.0f);
 			addParam(pitchParams[i]);
-			pitchRndParams[i] = createParam<BidooBlueTrimpot>(Vec(portX1[i]+27.0f, 81.0f), module, BORDL::TRIG_PITCHRND_PARAM + i);
+			pitchRndParams[i] = theme::atCorner(createParam<BidooBlueTrimpot>(Vec(), module, BORDL::TRIG_PITCHRND_PARAM + i), portX1[i]+27.0f, 81.0f);
 			addParam(pitchRndParams[i]);
-			accentParams[i] = createParam<BidooBlueKnob>(Vec(portX1[i]+1.0f, 110.0f), module, BORDL::TRIG_ACCENT_PARAM + i);
+			accentParams[i] = theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, BORDL::TRIG_ACCENT_PARAM + i), portX1[i]+1.0f, 110.0f);
 			addParam(accentParams[i]);
-			rndAccentParams[i] = createParam<BidooBlueTrimpot>(Vec(portX1[i]+27.0f, 135.0f), module, BORDL::TRIG_RNDACCENT_PARAM + i);
+			rndAccentParams[i] = theme::atCorner(createParam<BidooBlueTrimpot>(Vec(), module, BORDL::TRIG_RNDACCENT_PARAM + i), portX1[i]+27.0f, 135.0f);
 			addParam(rndAccentParams[i]);
 			{
 				BORDLPitchDisplay *displayPitch = new BORDLPitchDisplay();
 				displayPitch->module = module;
-				displayPitch->box.pos = Vec(portX1[i]+16.0f, 52.0f);
-				displayPitch->box.size = Vec(20.0f, 10.0f);
+				displayPitch->box = theme::specificRect(portX1[i]+16.0f, 52.0f, 20.0f, 10.0f);
 				displayPitch->index = i;
 				addChild(displayPitch);
 			}
-			pulseParams[i] = createParam<BidooBlueSnapKnob>(Vec(portX1[i]+1.0f, 188.0f), module, BORDL::TRIG_COUNT_PARAM + i);
+			pulseParams[i] = theme::atCorner(createParam<BidooBlueSnapKnob>(Vec(), module, BORDL::TRIG_COUNT_PARAM + i), portX1[i]+1.0f, 188.0f);
 			addParam(pulseParams[i]);
-			pulseProbParams[i] = createParam<BidooBlueTrimpot>(Vec(portX1[i]+27.0f, 213.0f), module, BORDL::TRIG_GATEPROB_PARAM + i);
+			pulseProbParams[i] = theme::atCorner(createParam<BidooBlueTrimpot>(Vec(), module, BORDL::TRIG_GATEPROB_PARAM + i), portX1[i]+27.0f, 213.0f);
 			addParam(pulseProbParams[i]);
 			{
 				BORDLPulseDisplay *displayPulse = new BORDLPulseDisplay();
 				displayPulse->module = module;
-				displayPulse->box.pos = Vec(portX1[i]+15.0f, 179.0f);
-				displayPulse->box.size = Vec(20.0f, 10.0f);
+				displayPulse->box = theme::specificRect(portX1[i]+15.0f, 179.0f, 20.0f, 10.0f);
 				displayPulse->index = i;
 				addChild(displayPulse);
 			}
-			typeParams[i] = createParam<BidooBlueSnapTrimpot>(Vec(portX1[i]+6.5f, 267.0f), module, BORDL::TRIG_TYPE_PARAM + i);
+			typeParams[i] = theme::atCorner(createParam<BidooBlueSnapTrimpot>(Vec(), module, BORDL::TRIG_TYPE_PARAM + i), portX1[i]+6.5f, 267.0f);
 			addParam(typeParams[i]);
 			{
 				BORDLGateDisplay *displayGate = new BORDLGateDisplay();
 				displayGate->module = module;
-				displayGate->box.pos = Vec(portX1[i]+5.0f, 250.0f);
-				displayGate->box.size = Vec(20.0f, 10.0f);
+				displayGate->box = theme::specificRect(portX1[i]+5.0f, 250.0f, 20.0f, 10.0f);
 				displayGate->index = i;
 				addChild(displayGate);
 			}
 
 			const float btnOffset = 3.5f;
-			addParam(createLightParam<SmallLEDLightBezel<BlueLight>>(Vec(portX1[i]+7.0f + btnOffset, 295.0f + btnOffset), module, BORDL::TRIG_SLIDE_PARAM + i, BORDL::SLIDES_LIGHTS + i));
-			addParam(createLightParam<SmallLEDLightBezel<BlueLight>>(Vec(portX1[i]+7.0f + btnOffset, 316.0f + btnOffset), module, BORDL::TRIG_SKIP_PARAM + i, BORDL::SKIPS_LIGHTS + i));
+			addParam(theme::atCorner(createLightParam<SmallLEDLightBezel<BlueLight>>(Vec(), module, BORDL::TRIG_SLIDE_PARAM + i, BORDL::SLIDES_LIGHTS + i), portX1[i]+7.0f + btnOffset, 295.0f + btnOffset));
+			addParam(theme::atCorner(createLightParam<SmallLEDLightBezel<BlueLight>>(Vec(), module, BORDL::TRIG_SKIP_PARAM + i, BORDL::SKIPS_LIGHTS + i), portX1[i]+7.0f + btnOffset, 316.0f + btnOffset));
 
-			addOutput(createOutput<TinyPJ301MPort>(Vec(portX1[i]+9.0f, 344.0f), module, BORDL::STEP_OUTPUT + i));
+			addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, BORDL::STEP_OUTPUT + i), portX1[i]+9.0f, 344.0f));
 		}
 
-		addInput(createInput<PJ301MPort>(Vec(9.5f, 330.0f), module, BORDL::EXTGATE1_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(42.5f, 330.0f), module, BORDL::EXTGATE2_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(76.f, 330.0f), module, BORDL::GATE_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(109.f, 330.0f), module, BORDL::PITCH_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(142.0f, 330.0f), module, BORDL::ACC_OUTPUT));
+		const theme::Pos boxRow = theme::specificCorner(0, 330, theme::kJackSize);   // the boxes' centres
+		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(21.844f, 0), boxRow), module, BORDL::EXTGATE1_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(55.031f, 0), boxRow), module, BORDL::EXTGATE2_INPUT));
+		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(88.219f, 0), boxRow), module, BORDL::GATE_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(121.406f, 0), boxRow), module, BORDL::PITCH_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(154.594f, 0), boxRow), module, BORDL::ACC_OUTPUT));
 	}
 };
 

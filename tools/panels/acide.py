@@ -53,7 +53,9 @@ def build():
     out.append(k.text('SAW', KX[1], KY[0] + 26, k.KNOB_LABEL_SIZE, k.INK))
     # the output, in a red box where the ninth knob would be
     out.append(k.box(KX[2] - 20, KY[2] - 32, 40, 53, k.OUTPUT))
-    out.append(k.text('OUT', KX[2], KY[2] - 20, 9, k.WHITE))
+    # its caption at size 9, centred between the box's top (32 above the jack) and the jack's top
+    cap9 = k.CAP_HEIGHT * 9
+    out.append(k.text('OUT', KX[2], KY[2] - (k.JACK_HALF + (32 - k.JACK_HALF - cap9) / 2), 9, k.WHITE))
     for y, labs in ((k.SECOND_ROW, ['V/OCT', 'GATE', 'ACC', 'SLIDE']), (k.BOTTOM_ROW, ['CUT', 'RES', 'ENV', 'DEC'])):
         for x, l in zip(JX, labs):
             out.append(k.jack_box(x, y, 34, k.INPUT))

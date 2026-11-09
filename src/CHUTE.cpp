@@ -178,35 +178,35 @@ struct CHUTEWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/CHUTE.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
-		{
-			CHUTEDisplay *display = new CHUTEDisplay();
-			display->module = module;
-			display->box.pos = Vec(111.0f, 30.0f);
-			display->box.size = Vec(15.0f, 180.0f);
-			addChild(display);
+		// The original hand-drawn panel. Top: three framed groups, a CV jack joined by a line to its knob; both sit on
+		// the line the panel draws (the old code had the knob 0.9 px below the jack). Bottom: the boxes' centres for the
+		// jacks, the run button over the ALT box on the line from the TRIG jack.
+		CHUTEDisplay *display = new CHUTEDisplay();
+		display->module = module;
+		display->box = theme::specificRect(111, 30, 15, 180);
+		addChild(display);
+
+		const theme::Pos cvCol = theme::specificCorner(20, 52, theme::kJackSize);         // the CV jacks' column
+		const theme::Pos knobCol = theme::specificCorner(59, 50, theme::kBlueKnobSize);   // the knobs' column
+		const theme::Pos groupLine[3] = {theme::specific(0, 64.344f), theme::specific(0, 128.469f), theme::specific(0, 190.531f)};
+		const int cvIds[3] = {CHUTE::ALTITUDE_INPUT, CHUTE::GRAVITY_INPUT, CHUTE::COR_INPUT};
+		const int knobIds[3] = {CHUTE::ALTITUDE_PARAM, CHUTE::GRAVITY_PARAM, CHUTE::COR_PARAM};
+		for (int i = 0; i < 3; i++) {
+			addInput(theme::input<PJ301MPort>(theme::colRow(cvCol, groupLine[i]), module, cvIds[i]));
+			addParam(theme::param<BidooBlueKnob>(theme::colRow(knobCol, groupLine[i]), module, knobIds[i]));
 		}
 
-		static const float portX[2] = {20.0f, 60.0f};
-		static const float portY[3] = {52.0f, 116.0f, 178.0f};
-
-		addInput(createInput<PJ301MPort>(Vec(portX[0], portY[0]), module, CHUTE::ALTITUDE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX[0], portY[1]), module, CHUTE::GRAVITY_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(portX[0], portY[2]), module, CHUTE::COR_INPUT));
-    addInput(createInput<PJ301MPort>(Vec(7.0f, 283.0f), module, CHUTE::TRIG_INPUT));
-
-		addParam(createParam<BidooBlueKnob>(Vec(portX[1]-1, portY[0]-2.0f), module, CHUTE::ALTITUDE_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX[1]-1, portY[1]-2.0f), module, CHUTE::GRAVITY_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(portX[1]-1, portY[2]-2.0f), module, CHUTE::COR_PARAM));
-		addParam(createParam<BlueCKD6>(Vec(53.0f, 277.0f), module, CHUTE::RUN_PARAM));
-
-		addOutput(createOutput<PJ301MPort>(Vec(7, 330), module, CHUTE::GATE_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(55, 330), module, CHUTE::PITCH_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(103.5f, 330), module, CHUTE::PITCHSTEP_OUTPUT));
+		const float kBoxPitch = 48.344f;                            // from one bottom box's centre to the next
+		const theme::Pos fallCol = theme::specific(19.156f, 0);     // the centre of the TRIG and FALL boxes
+		const theme::Pos fall = theme::colRow(fallCol, theme::specificCorner(7, 330, theme::kJackSize));
+		const theme::Pos alt = fall.right(kBoxPitch);
+		addInput(theme::input<PJ301MPort>(theme::colRow(fallCol, theme::specificCorner(7, 283, theme::kJackSize)), module, CHUTE::TRIG_INPUT));
+		addParam(theme::param<BlueCKD6>(theme::colRow(alt, theme::specificCorner(53, 277, theme::kCKD6Size)), module, CHUTE::RUN_PARAM));
+		addOutput(theme::output<PJ301MPort>(fall, module, CHUTE::GATE_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(alt, module, CHUTE::PITCH_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(alt.right(kBoxPitch), module, CHUTE::PITCHSTEP_OUTPUT));
 	}
 };
 

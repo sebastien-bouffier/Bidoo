@@ -94,10 +94,17 @@ struct HCTIPWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/HCTIP.svg"));
 
-		addParam(createParam<BidooBlueKnob>(Vec(8, 70), module, HCTIP::PITCH_PARAM));
-		addInput(createInput<PJ301MPort>(Vec(10, 130.f), module, HCTIP::PITCH_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10, 283.0f), module, HCTIP::INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10, 330), module, HCTIP::OUTPUT));
+		// No screws, as before. The original hand-drawn panel: one column down the middle, where the panel draws the line
+		// from the knob to its CV jack and centres the IN and OUT labels. Each row keeps its old top; the column is the
+		// panel's centre.
+		const float kBoxPitch = 47.f;   // from the IN box to the OUT box
+		const theme::Pos pitch = theme::sameRow(theme::specificCorner(8, 70, theme::kBlueKnobSize), box.size.x * 0.5f);
+		const theme::Pos pitchCv = theme::colRow(pitch, theme::specificCorner(10, 130, theme::kJackSize));
+		const theme::Pos in = theme::colRow(pitch, theme::specificCorner(10, 283, theme::kJackSize));
+		addParam(theme::param<BidooBlueKnob>(pitch, module, HCTIP::PITCH_PARAM));
+		addInput(theme::input<PJ301MPort>(pitchCv, module, HCTIP::PITCH_INPUT));
+		addInput(theme::input<PJ301MPort>(in, module, HCTIP::INPUT));
+		addOutput(theme::output<PJ301MPort>(in.down(kBoxPitch), module, HCTIP::OUTPUT));
 	}
 };
 

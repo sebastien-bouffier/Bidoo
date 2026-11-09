@@ -11,6 +11,7 @@
 // the input all-passes and two orthogonal output taps.
 // Idle skip as in FdnReverb (IdleGate).
 
+#include "../core/Math.h"
 #include "DecayModel.h"
 #include "FdnReverb.h"
 #include "IdleGate.h"
@@ -69,9 +70,29 @@ public:
             if (subPos == 0)
                 update (p, kSubBlock);
             const int len = std::min (kSubBlock - subPos, n - done);
-            float inPeak = 0.0f;
+            float inPeak = 0.0f, inSum = 0.0f;
             for (int i = 0; i < len; ++i)
+            {
                 inPeak = std::max (inPeak, std::abs (inL[done + i]) + std::abs (inR[done + i]));
+                inSum += inL[done + i] + inR[done + i];
+            }
+            // A NaN or an infinity would stay in the network for good: it hears silence in its place.
+            // A sum per sub-block, so finite audio goes through untouched, bit for bit.
+            float cleanL[kSubBlock], cleanR[kSubBlock];
+            const float* subL = inL + done;
+            const float* subR = inR + done;
+            if (! std::isfinite (inSum))
+            {
+                inPeak = 0.0f;
+                for (int i = 0; i < len; ++i)
+                {
+                    cleanL[i] = finiteOrZero (subL[i]);
+                    cleanR[i] = finiteOrZero (subR[i]);
+                    inPeak = std::max (inPeak, std::abs (cleanL[i]) + std::abs (cleanR[i]));
+                }
+                subL = cleanL;
+                subR = cleanR;
+            }
             const bool frozen = p.freeze || freezeAmt > 0.0f;
             if (idle.skip (inPeak, frozen))
             {
@@ -80,16 +101,40 @@ public:
             }
             else
             {
-                run (inL + done, inR + done, outL + done, outR + done, len);
-                float outPeak = 0.0f;
+                // (the sliding read only while some all-pass slides: still, the loop is what it always was)
+                bool sliding = false;
+                for (const auto& a : loopAp)
+                    sliding = sliding || a.sliding;
+                for (const auto& c : diff)
+                    for (const auto& a : c)
+                        sliding = sliding || a.sliding;
+                if (sliding)
+                    run<true> (subL, subR, outL + done, outR + done, len);
+                else
+                    run<false> (subL, subR, outL + done, outR + done, len);
+                float outPeak = 0.0f, outSum = 0.0f;
                 for (int i = 0; i < len; ++i)
+                {
                     outPeak = std::max (outPeak, std::max (std::abs (outL[done + i]), std::abs (outR[done + i])));
+                    outSum += outL[done + i] + outR[done + i];
+                }
+                if (! std::isfinite (outSum)) // the state overflowed (finite input, but far too loud): start the tail again
+                {
+                    reset();
+                    std::fill (outL + done, outL + done + len, 0.0f);
+                    std::fill (outR + done, outR + done + len, 0.0f);
+                    done += len;
+                    continue;
+                }
                 idle.ran (len, inPeak, outPeak, frozen);
             }
             subPos = (subPos + len) % kSubBlock;
             done += len;
         }
     }
+
+    // Length of the LFO's phasor (1 by design), for the long-run test.
+    float lfoMagnitude() const { return std::sqrt (lfoC * lfoC + lfoS * lfoS); }
 
 private:
     // A power-of-two ring read at a fractional delay by linear interpolation (the loss of the
@@ -130,20 +175,66 @@ private:
         return ((c3 * f + c2) * f + c1) * f + x0;
     }
 
-    // Integer-delay Schroeder all-pass.
+    // Integer-delay Schroeder all-pass. When Size moves, its length slides to the new one at one sample
+    // per 32-sample sub-block, read between two samples on the way (a jump, even of one sample, is a
+    // click in the tail; the lines themselves glide). Still, it reads a whole sample as it always did,
+    // and the first update takes its length at once: settings that do not move are bit for bit.
     struct Ap
     {
+        static constexpr float kSlide = 1.0f / (float) kSubBlock; // samples of length per sample
         std::vector<float> buf;
-        int pos = 0, len = 1;
-        void prepare (int maxLen) { buf.assign ((size_t) std::max (2, maxLen), 0.0f); pos = 0; len = 1; }
-        void clear() { std::fill (buf.begin(), buf.end(), 0.0f); pos = 0; }
-        void setLength (int l) { len = std::clamp (l, 1, (int) buf.size() - 1); }
+        int pos = 0, len = 1, target = 1;
+        float cur = 1.0f; // the length read while sliding
+        bool sliding = false;
+        void prepare (int maxLen) { buf.assign ((size_t) std::max (3, maxLen), 0.0f); pos = 0; len = target = 1; cur = 1.0f; sliding = false; }
+        void clear()
+        {
+            std::fill (buf.begin(), buf.end(), 0.0f);
+            pos = 0;
+            len = target;
+            cur = (float) target;
+            sliding = false;
+        }
+        void setLength (int l, bool snap)
+        {
+            target = std::clamp (l, 1, (int) buf.size() - 2);
+            if (snap)
+            {
+                len = target;
+                cur = (float) target;
+                sliding = false;
+            }
+            else
+                sliding = target != len || cur != (float) len;
+        }
+        template <bool maySlide>
         inline float process (float x, float g)
         {
-            int r = pos - len;
-            if (r < 0)
-                r += (int) buf.size();
-            const float d = buf[(size_t) r];
+            float d;
+            if (maySlide && sliding)
+            {
+                const float t = (float) target;
+                cur = std::abs (t - cur) <= kSlide ? t : cur + (t > cur ? kSlide : -kSlide);
+                const int i = (int) cur;
+                const float f = cur - (float) i;
+                int r = pos - i;
+                if (r < 0)
+                    r += (int) buf.size();
+                const int r1 = r == 0 ? (int) buf.size() - 1 : r - 1; // one sample older
+                d = buf[(size_t) r] + f * (buf[(size_t) r1] - buf[(size_t) r]);
+                if (cur == t)
+                {
+                    len = target;
+                    sliding = false;
+                }
+            }
+            else
+            {
+                int r = pos - len;
+                if (r < 0)
+                    r += (int) buf.size();
+                d = buf[(size_t) r];
+            }
             const float v = x - g * d;
             buf[(size_t) pos] = v;
             if (++pos >= (int) buf.size())
@@ -176,14 +267,14 @@ private:
         static const double apMs[kLines] = { 0.71, 1.93, 1.13, 2.61, 0.89, 2.27, 1.49, 3.07 };
         for (int j = 0; j < kLines; ++j)
         {
-            apLen[(size_t) j] = (float) std::max (2.0, std::round (apMs[j] * (0.6 + 0.9 * space) * msToS));
-            loopAp[(size_t) j].setLength ((int) apLen[(size_t) j]);
+            loopAp[(size_t) j].setLength ((int) std::max (2.0, std::round (apMs[j] * (0.6 + 0.9 * space) * msToS)), first);
+            apLen[(size_t) j] = (float) loopAp[(size_t) j].target;
         }
         static const double dMs[2][2] = { { 2.13, 5.93 }, { 2.41, 6.67 } };
         const double dScale = (0.6 + 1.5 * space) * std::clamp (0.08 * rt60 / 0.02, 0.25, 1.0);
         for (int ch = 0; ch < 2; ++ch)
             for (int k = 0; k < 2; ++k)
-                diff[(size_t) ch][(size_t) k].setLength ((int) std::max (2.0, std::round (dMs[ch][k] * dScale * msToS)));
+                diff[(size_t) ch][(size_t) k].setLength ((int) std::max (2.0, std::round (dMs[ch][k] * dScale * msToS)), first);
         inCoef = (float) std::exp (-2.0 * 3.14159265358979323846 * std::min (17000.0, 0.45 * sr) / sr);
 
         // modulation (chorus in the lengths; the rotation of the big network is not here)
@@ -193,6 +284,11 @@ private:
             const double w = 2.0 * 3.14159265358979323846 * 0.7 / sr; // one slow phasor for lines 1 and 4
             lfoRc = (float) std::cos (w);
             lfoRs = (float) std::sin (w);
+            // at this rate the cosine rounds to 1.0f, so each rotation lengthens the phasor (it would
+            // double about every hour): back on the unit circle, on the parameter grid as in Fdn16
+            const float m = 1.0f / std::sqrt (lfoC * lfoC + lfoS * lfoS);
+            lfoC *= m;
+            lfoS *= m;
         }
 
         // reverb time at the two ends
@@ -256,6 +352,7 @@ private:
         first = false;
     }
 
+    template <bool maySlide>
     void run (const float* inL, const float* inR, float* outL, float* outR, int n)
     {
         constexpr float g8 = 0.35355339f;
@@ -270,8 +367,8 @@ private:
                 float v = x[ch];
                 inLp[ch] = v + inCoef * (inLp[ch] - v);
                 v = inLp[ch];
-                v = diff[(size_t) ch][0].process (v, 0.55f);
-                v = diff[(size_t) ch][1].process (v, 0.55f);
+                v = diff[(size_t) ch][0].template process<maySlide> (v, 0.55f);
+                v = diff[(size_t) ch][1].template process<maySlide> (v, 0.55f);
                 li[ch] = v * inGain;
             }
             const float c0 = lfoC, s0 = lfoS;
@@ -285,7 +382,7 @@ private:
                 const float m = (j == 1) ? mod : (j == 4) ? -mod : 0.0f;
                 const float dl = std::max (2.0f, curLen[(size_t) j] + m);
                 float y = (j == 1 || j == 4) ? hermite (lines[(size_t) j], dl) : lines[(size_t) j].read (dl);
-                y = loopAp[(size_t) j].process (y, 0.5f);
+                y = loopAp[(size_t) j].template process<maySlide> (y, 0.5f);
                 const float d = damp[(size_t) j];
                 lp[(size_t) j] = y + d * (lp[(size_t) j] - y);
                 v[j] = lp[(size_t) j] * gain[(size_t) j];

@@ -125,24 +125,27 @@ struct ACIDEWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		static const float kx[3] = {27.f, 75.f, 123.f};
-		static const float ky[3] = {72.f, 142.f, 212.f};
-		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[0], ky[0]), module, ACIDE::TUNE_PARAM));
-		addParam(createParamCentered<CKSS>(Vec(kx[1], ky[0]), module, ACIDE::WAVE_PARAM));
-		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[2], ky[0]), module, ACIDE::VOLUME_PARAM));
-		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[0], ky[1]), module, ACIDE::CUTOFF_PARAM));
-		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[1], ky[1]), module, ACIDE::RES_PARAM));
-		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[2], ky[1]), module, ACIDE::ENVMOD_PARAM));
-		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[0], ky[2]), module, ACIDE::DECAY_PARAM));
-		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[1], ky[2]), module, ACIDE::ACCENT_PARAM));
-		addOutput(createOutputCentered<PJ301MPort>(Vec(kx[2], ky[2]), module, ACIDE::OUT_OUTPUT));
+		// Placed as tools/panels/acide.py draws them: the knobs on its KX/KY columns and rows, specific to this panel
+		// (the grid's columns don't fall there), the jacks on its JX columns and on the grid's two jack rows.
+		static const float kx[3] = {27.f, 75.f, 123.f};   // acide.py KX
+		static const float ky[3] = {72.f, 142.f, 212.f};  // acide.py KY
+		static const float jx[4] = {21.f, 57.f, 93.f, 129.f};   // acide.py JX
+		auto knob = [&](int c, int r) { return theme::specific(kx[c], ky[r]); };
+		addParam(theme::param<BidooBlueKnob>(knob(0, 0), module, ACIDE::TUNE_PARAM));
+		addParam(theme::param<CKSS>(knob(1, 0), module, ACIDE::WAVE_PARAM));
+		addParam(theme::param<BidooBlueKnob>(knob(2, 0), module, ACIDE::VOLUME_PARAM));
+		addParam(theme::param<BidooBlueKnob>(knob(0, 1), module, ACIDE::CUTOFF_PARAM));
+		addParam(theme::param<BidooBlueKnob>(knob(1, 1), module, ACIDE::RES_PARAM));
+		addParam(theme::param<BidooBlueKnob>(knob(2, 1), module, ACIDE::ENVMOD_PARAM));
+		addParam(theme::param<BidooBlueKnob>(knob(0, 2), module, ACIDE::DECAY_PARAM));
+		addParam(theme::param<BidooBlueKnob>(knob(1, 2), module, ACIDE::ACCENT_PARAM));
+		addOutput(theme::output<PJ301MPort>(knob(2, 2), module, ACIDE::OUT_OUTPUT));   // in the red box where the ninth knob would be
 
-		static const float jx[4] = {21.f, 57.f, 93.f, 129.f};
 		static const int top[4] = {ACIDE::VOCT_INPUT, ACIDE::GATE_INPUT, ACIDE::ACCENT_INPUT, ACIDE::SLIDE_INPUT};
 		static const int low[4] = {ACIDE::CUTOFF_INPUT, ACIDE::RES_INPUT, ACIDE::ENVMOD_INPUT, ACIDE::DECAY_INPUT};
 		for (int i = 0; i < 4; i++) {
-			addInput(createInputCentered<PJ301MPort>(Vec(jx[i], theme::kSecondRowY), module, top[i]));
-			addInput(createInputCentered<PJ301MPort>(Vec(jx[i], theme::kBottomRowY), module, low[i]));
+			addInput(theme::input<PJ301MPort>(theme::specific(jx[i], theme::row(1)), module, top[i]));
+			addInput(theme::input<PJ301MPort>(theme::specific(jx[i], theme::row(0)), module, low[i]));
 		}
 	}
 };

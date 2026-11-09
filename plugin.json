@@ -390,6 +390,16 @@
       ]
     },
     {
+      "slug": "DOSE",
+      "name": "dOSE",
+      "description": "Polyphonic VCA with an envelope curve from short to long",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#dose",
+      "tags": [
+        "VCA",
+        "Polyphonic"
+      ]
+    },
+    {
       "slug": "HCTIP",
       "name": "HCTIP",
       "description": "Pitch shifter",

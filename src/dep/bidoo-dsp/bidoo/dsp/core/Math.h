@@ -31,6 +31,31 @@ BIDOO_DSP_INLINE T lerp (T a, T b, T t) noexcept { return a + (b - a) * t; }
 template <typename T>
 BIDOO_DSP_INLINE T finiteOrZero (T x) noexcept { return std::isfinite (x) ? x : (T) 0; }
 
+// The block version, for a plugin's inputs: NaN and +-inf in `numChannels` channels of `n` samples
+// become 0, so one bad sample from the host never reaches the DSP's state. A sum per block (a NaN or
+// an infinity anywhere makes it non-finite), the scan only when it fails, so it costs about one add
+// per sample; finite blocks stay bit for bit. Returns how many samples were replaced.
+inline int zeroNonFinite (float* const* channels, int numChannels, int n) noexcept
+{
+    int replaced = 0;
+    for (int c = 0; c < numChannels; ++c)
+    {
+        float* x = channels[c];
+        float sum = 0.0f;
+        for (int i = 0; i < n; ++i)
+            sum += x[i];
+        if (std::isfinite (sum))
+            continue;
+        for (int i = 0; i < n; ++i)
+            if (! std::isfinite (x[i]))
+            {
+                x[i] = 0.0f;
+                ++replaced;
+            }
+    }
+    return replaced;
+}
+
 // x from [inLo, inHi] to [outLo, outHi], like juce::jmap.
 template <typename T>
 BIDOO_DSP_INLINE T map (T x, T inLo, T inHi, T outLo, T outHi) noexcept

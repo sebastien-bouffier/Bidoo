@@ -286,35 +286,38 @@ struct RICOCHETWidget : BidooWidget {
 
 		theme::addScrews(this);
 
+		// Placed as tools/panels/ricochet.py draws them: the screen is the widget's own (margin 6, top 36), the knobs on
+		// its KX/KY, the mode switch and freeze button at x 165 and 191 under their labels, the jacks on its JX columns
+		// (six equal columns across the screen, off the theme grid's) and on the grid's two jack rows.
 		RicochetScreen *screen = new RicochetScreen;
 		screen->module = module;
-		screen->box.pos = Vec(6.f, 36.f);
-		screen->box.size = Vec(198.f, 96.f);
+		screen->box = theme::specificRect(6, 36, 198, 96);
 		addChild(screen);
 
-		static const float kx[4] = {30.f, 80.f, 130.f, 180.f};
-		static const float ky[2] = {166.f, 228.f};
-		addParam(createParamCentered<BidooBlueSnapKnob>(Vec(kx[0], ky[0]), module, RICOCHET::TYPE_PARAM));
-		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[1], ky[0]), module, RICOCHET::TIME_PARAM));
-		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[2], ky[0]), module, RICOCHET::FEEDBACK_PARAM));
-		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[3], ky[0]), module, RICOCHET::MIX_PARAM));
-		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[0], ky[1]), module, RICOCHET::TONE_PARAM));
-		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[1], ky[1]), module, RICOCHET::CHARACTER_PARAM));
-		addParam(createParamCentered<BidooBlueKnob>(Vec(kx[2], ky[1]), module, RICOCHET::SPREAD_PARAM));
-		addParam(createParamCentered<CKSS>(Vec(165.f, ky[1]), module, RICOCHET::MODE_PARAM));
-		addParam(createParamCentered<BidooRoundButton>(Vec(191.f, ky[1]), module, RICOCHET::FREEZE_PARAM));
+		static const float kx[4] = {30.f, 80.f, 130.f, 180.f};   // ricochet.py KX
+		static const float ky[2] = {166.f, 228.f};               // ricochet.py KY
+		auto knob = [&](int c, int r) { return theme::specific(kx[c], ky[r]); };
+		addParam(theme::param<BidooBlueSnapKnob>(knob(0, 0), module, RICOCHET::TYPE_PARAM));
+		addParam(theme::param<BidooBlueKnob>(knob(1, 0), module, RICOCHET::TIME_PARAM));
+		addParam(theme::param<BidooBlueKnob>(knob(2, 0), module, RICOCHET::FEEDBACK_PARAM));
+		addParam(theme::param<BidooBlueKnob>(knob(3, 0), module, RICOCHET::MIX_PARAM));
+		addParam(theme::param<BidooBlueKnob>(knob(0, 1), module, RICOCHET::TONE_PARAM));
+		addParam(theme::param<BidooBlueKnob>(knob(1, 1), module, RICOCHET::CHARACTER_PARAM));
+		addParam(theme::param<BidooBlueKnob>(knob(2, 1), module, RICOCHET::SPREAD_PARAM));
+		addParam(theme::param<CKSS>(theme::sameRow(knob(0, 1), 165.f), module, RICOCHET::MODE_PARAM));          // under PING / STEREO
+		addParam(theme::param<BidooRoundButton>(theme::sameRow(knob(0, 1), 191.f), module, RICOCHET::FREEZE_PARAM));   // under FREEZE
 
-		// six equal columns from the screen's left edge to its right edge
-		static const float jx[6] = {20.9f, 54.54f, 88.18f, 121.82f, 155.46f, 189.1f};
+		static const float jx[6] = {20.9f, 54.54f, 88.18f, 121.82f, 155.46f, 189.1f};   // ricochet.py JX
+		auto jack = [&](int c, float k) { return theme::specific(jx[c], theme::row(k)); };
 		static const int top[6] = {RICOCHET::TIME_INPUT, RICOCHET::FEEDBACK_INPUT, RICOCHET::TONE_INPUT, RICOCHET::MIX_INPUT, RICOCHET::CHARACTER_INPUT, RICOCHET::TYPE_INPUT};
 		for (int i = 0; i < 6; i++)
-			addInput(createInputCentered<PJ301MPort>(Vec(jx[i], theme::kSecondRowY), module, top[i]));
-		addInput(createInputCentered<PJ301MPort>(Vec(jx[0], theme::kBottomRowY), module, RICOCHET::CLOCK_INPUT));
-		addInput(createInputCentered<PJ301MPort>(Vec(jx[1], theme::kBottomRowY), module, RICOCHET::FREEZE_INPUT));
-		addInput(createInputCentered<PJ301MPort>(Vec(jx[2], theme::kBottomRowY), module, RICOCHET::L_INPUT));
-		addInput(createInputCentered<PJ301MPort>(Vec(jx[3], theme::kBottomRowY), module, RICOCHET::R_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(Vec(jx[4], theme::kBottomRowY), module, RICOCHET::L_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(Vec(jx[5], theme::kBottomRowY), module, RICOCHET::R_OUTPUT));
+			addInput(theme::input<PJ301MPort>(jack(i, 1), module, top[i]));
+		addInput(theme::input<PJ301MPort>(jack(0, 0), module, RICOCHET::CLOCK_INPUT));
+		addInput(theme::input<PJ301MPort>(jack(1, 0), module, RICOCHET::FREEZE_INPUT));
+		addInput(theme::input<PJ301MPort>(jack(2, 0), module, RICOCHET::L_INPUT));
+		addInput(theme::input<PJ301MPort>(jack(3, 0), module, RICOCHET::R_INPUT));
+		addOutput(theme::output<PJ301MPort>(jack(4, 0), module, RICOCHET::L_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(jack(5, 0), module, RICOCHET::R_OUTPUT));
 	}
 };
 

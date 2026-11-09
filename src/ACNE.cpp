@@ -492,64 +492,64 @@ struct AcneBidooColoredTrimpot : BidooColoredTrimpot {
 ACNEWidget::ACNEWidget(ACNE *module) {
 	setModule(module);
 	prepareThemes(asset::plugin(pluginInstance, "res/ACNE.svg"));
+	// The original hand-drawn panel: a dense mixing matrix (a trimpot per input and output), mute, solo and snapshot
+	// buttons, the track links, the inputs and outputs. Every column and row already sits within 0.5 px of its
+	// neighbours: each position keeps its old corner (specific), with the widget's own size.
 
-	addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+	theme::addScrews(this);
 
-	addParam(createParam<BidooBlueKnob>(Vec(474.0f, 39.0f), module, ACNE::MAIN_OUT_GAIN_PARAM));
+	addParam(theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, ACNE::MAIN_OUT_GAIN_PARAM), 474.0f, 39.0f));
 
-	addParam(createParam<BlueCKD6>(Vec(7.0f, 39.0f), module, ACNE::COPY_PARAM));
-	addChild(createLight<SmallLight<GreenLight>>(Vec(18.0f, 28.0f), module, ACNE::COPY_LIGHT));
+	addParam(theme::atCorner(createParam<BlueCKD6>(Vec(), module, ACNE::COPY_PARAM), 7.0f, 39.0f));
+	addChild(theme::atCorner(createLight<SmallLight<GreenLight>>(Vec(), module, ACNE::COPY_LIGHT), 18.0f, 28.0f));
 
-	addParam(createParam<BidooBlueTrimpot>(Vec(432.0f, 28.0f), module, ACNE::RAMP_PARAM));
+	addParam(theme::atCorner(createParam<BidooBlueTrimpot>(Vec(), module, ACNE::RAMP_PARAM), 432.0f, 28.0f));
 
-	addInput(createInput<TinyPJ301MPort>(Vec(58.0f, 30.0f), module, ACNE::SNAPSHOT_INPUT));
+	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, ACNE::SNAPSHOT_INPUT), 58.0f, 30.0f));
 
-	addParam(createParam<MuteBtn>(Vec(2.0f, 293.0f), module, ACNE::SEND_MUTE_PARAM));
-	addParam(createParam<MuteBtn>(Vec(21.0f, 293.0f), module, ACNE::MUTE_PARAM));
-	addParam(createParam<SoloBtn>(Vec(11.0f, 314.0f), module, ACNE::SOLO_PARAM));
+	addParam(theme::atCorner(createParam<MuteBtn>(Vec(), module, ACNE::SEND_MUTE_PARAM), 2.0f, 293.0f));
+	addParam(theme::atCorner(createParam<MuteBtn>(Vec(), module, ACNE::MUTE_PARAM), 21.0f, 293.0f));
+	addParam(theme::atCorner(createParam<SoloBtn>(Vec(), module, ACNE::SOLO_PARAM), 11.0f, 314.0f));
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
-		addOutput(createOutput<TinyPJ301MPort>(Vec(482.0f, 79.0f+i*27.0f), module, ACNE::TRACKS_OUTPUTS + i));
+		addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, ACNE::TRACKS_OUTPUTS + i), 482.0f, 79.0f+i*27.0f));
 
-		addParam(createParam<LEDButton>(Vec(10.0f, 77.0f+i*27.0f), module, ACNE::OUT_MUTE_PARAMS + i));
-		addChild(createLight<SmallLight<RedLight>>(Vec(16.0f, 83.0f+i*27.0f), module, ACNE::OUT_MUTE_LIGHTS + i));
+		addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::OUT_MUTE_PARAMS + i), 10.0f, 77.0f+i*27.0f));
+		addChild(theme::atCorner(createLight<SmallLight<RedLight>>(Vec(), module, ACNE::OUT_MUTE_LIGHTS + i), 16.0f, 83.0f+i*27.0f));
 	}
 
 	for (int i = 0; i < ACNE_NB_TRACKS; i++) {
-		addParam(createParam<LEDButton>(Vec(43.0f+i*27.0f, 49.0f), module, ACNE::SNAPSHOT_PARAMS + i));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(49.0f+i*27.0f, 55.0f), module, ACNE::SNAPSHOT_LIGHTS + i));
+		addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::SNAPSHOT_PARAMS + i), 43.0f+i*27.0f, 49.0f));
+		addChild(theme::atCorner(createLight<SmallLight<BlueLight>>(Vec(), module, ACNE::SNAPSHOT_LIGHTS + i), 49.0f+i*27.0f, 55.0f));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(45.0f+i*27.0f, 340.0f), module, ACNE::TRACKS_INPUTS + i));
+		addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, ACNE::TRACKS_INPUTS + i), 45.0f+i*27.0f, 340.0f));
 
-		addParam(createParam<LEDButton>(Vec(43.0f+i*27.0f, 292.0f), module, ACNE::IN_MUTE_PARAMS + i));
-		addChild(createLight<SmallLight<RedLight>>(Vec(49.0f+i*27.0f, 298.0f), module, ACNE::IN_MUTE_LIGHTS + i));
+		addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::IN_MUTE_PARAMS + i), 43.0f+i*27.0f, 292.0f));
+		addChild(theme::atCorner(createLight<SmallLight<RedLight>>(Vec(), module, ACNE::IN_MUTE_LIGHTS + i), 49.0f+i*27.0f, 298.0f));
 
-		addParam(createParam<LEDButton>(Vec(43.0f+i*27.0f, 314.0f), module, ACNE::IN_SOLO_PARAMS + i));
-		addChild(createLight<SmallLight<GreenLight>>(Vec(49.0f+i*27.0f, 320.0f), module, ACNE::IN_SOLO_LIGHTS + i));
+		addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::IN_SOLO_PARAMS + i), 43.0f+i*27.0f, 314.0f));
+		addChild(theme::atCorner(createLight<SmallLight<GreenLight>>(Vec(), module, ACNE::IN_SOLO_LIGHTS + i), 49.0f+i*27.0f, 320.0f));
 	}
 
 	for (int i = 0; i < 8; i++) {
-		addParam(createParam<MiniLEDButton>(Vec(62.0f+i*54.0f, 309.0f), module, ACNE::TRACKLINK_PARAMS + i));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(62.0f+i*54.0f, 309.0f), module, ACNE::TRACKLINK_LIGHTS + i));
+		addParam(theme::atCorner(createParam<MiniLEDButton>(Vec(), module, ACNE::TRACKLINK_PARAMS + i), 62.0f+i*54.0f, 309.0f));
+		addChild(theme::atCorner(createLight<SmallLight<BlueLight>>(Vec(), module, ACNE::TRACKLINK_LIGHTS + i), 62.0f+i*54.0f, 309.0f));
 	}
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
 		for (int j = 0; j < ACNE_NB_TRACKS; j++) {
-			ParamWidget* trim = createParam<AcneBidooColoredTrimpot>(Vec(43.0f+j*27.0f, 77.0f+i*27.0f), module, ACNE::FADERS_PARAMS + j + i * (ACNE_NB_TRACKS));
+			ParamWidget* trim = theme::atCorner(createParam<AcneBidooColoredTrimpot>(Vec(), module, ACNE::FADERS_PARAMS + j + i * (ACNE_NB_TRACKS)), 43.0f+j*27.0f, 77.0f+i*27.0f);
 			AcneBidooColoredTrimpot* fader = dynamic_cast<AcneBidooColoredTrimpot*>(trim);
 			fader->index= j + i * (ACNE_NB_TRACKS);
 			addParam(trim);
 		}
 	}
 
-	addParam(createParam<LEDButton>(Vec(32.0f, 3.0f), module, ACNE::AUTOSAVE_PARAM));
-	addChild(createLight<SmallLight<BlueLight>>(Vec(38.0f, 9.0f), module, ACNE::AUTOSAVE_LIGHT));
+	addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::AUTOSAVE_PARAM), 32.0f, 3.0f));
+	addChild(theme::atCorner(createLight<SmallLight<BlueLight>>(Vec(), module, ACNE::AUTOSAVE_LIGHT), 38.0f, 9.0f));
 
-	addParam(createParam<LEDButton>(Vec(460.0f, 3.0f), module, ACNE::SAVE_PARAM));
-	addChild(createLight<SmallLight<BlueLight>>(Vec(466.0f, 9.0f), module, ACNE::SAVE_LIGHT));
+	addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::SAVE_PARAM), 460.0f, 3.0f));
+	addChild(theme::atCorner(createLight<SmallLight<BlueLight>>(Vec(), module, ACNE::SAVE_LIGHT), 466.0f, 9.0f));
 }
 
 Model *modelACNE = createModel<ACNE, ACNEWidget>("ACnE");

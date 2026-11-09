@@ -543,54 +543,57 @@ struct moduleModeItem : MenuItem {
 struct TIAREWidget : BidooWidget {
 
 	TIAREWidget(TIARE *module) {
-
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/TIARE.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		theme::addScrews(this);
+
+		// The original hand-drawn panel: FM, FREQ and FINE across the top with the mode switches under FM and FINE; the
+		// XY screen with its two axis sliders; PW, PWM and the PW jack down the right on the panel's line; two rows of
+		// four boxed jacks. Old corners kept (specific) except where a control was off its label, line or box: FM,
+		// FREQ, FINE and the sync switch under their labels, the PW column on its line, the jacks on their boxes' centres.
 
 		if (module) {
 			TIAREDisplay *display = new TIAREDisplay();
 			display->module = module;
-			display->box.pos = Vec(5, 119);
-			display->box.size = Vec(140, 140);
+			display->box = theme::specificRect(5, 119, 140, 140);
 			addChild(display);
 		}
 
-		TiareAxisSlider *sliderX = createParam<TiareAxisSlider>(Vec(5 + 8, 119 + 140 - 7), module, TIARE::DIST_X_PARAM);
-		sliderX->box.size = Vec(140 - 8, 7);
+		// the axis sliders along the screen's bottom and left edges
+		TiareAxisSlider *sliderX = createParam<TiareAxisSlider>(Vec(), module, TIARE::DIST_X_PARAM);
+		sliderX->box = theme::specificRect(5 + 8, 119 + 140 - 7, 140 - 8, 7);
 		sliderX->horizontal = true;
 		sliderX->offset = 8.f;
 		addParam(sliderX);
-		TiareAxisSlider *sliderY = createParam<TiareAxisSlider>(Vec(5, 119), module, TIARE::DIST_Y_PARAM);
-		sliderY->box.size = Vec(7, 140 - 8);
+		TiareAxisSlider *sliderY = createParam<TiareAxisSlider>(Vec(), module, TIARE::DIST_Y_PARAM);
+		sliderY->box = theme::specificRect(5, 119, 7, 140 - 8);
 		addParam(sliderY);
 
-		addParam(createParam<CKSS>(Vec(30, 80), module, TIARE::MODE_PARAM));
-		addParam(createParam<CKSS>(Vec(134, 80), module, TIARE::SYNC_PARAM));
+		const theme::Size kCKSSSize = {14.f, 20.64111f};   // CKSS
+		const theme::Pos fm = theme::colRow(theme::specific(41.844f, 0), theme::specificCorner(33, 45, theme::kTrimpotSize));   // under FM
+		addParam(theme::param<CKSS>(theme::specificCorner(30, 80, kCKSSSize), module, TIARE::MODE_PARAM));
+		addParam(theme::param<CKSS>(theme::colRow(theme::specific(141.828f, 0), theme::specificCorner(134, 80, kCKSSSize)), module, TIARE::SYNC_PARAM));   // between HARD and SOFT
+		addParam(theme::param<BidooLargeBlueKnob>(theme::sameRow(theme::specificCorner(72, 45, theme::kLargeKnobSize), box.size.x * 0.5f), module, TIARE::FREQ_PARAM));   // under FREQ, the panel's centre
+		addParam(theme::param<BidooBlueTrimpot>(theme::colRow(theme::specific(137.688f, 0), fm), module, TIARE::FINE_PARAM));   // under FINE
+		addParam(theme::param<BidooBlueTrimpot>(fm, module, TIARE::FM_PARAM));
+		addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(53, 83, theme::kTinyJackSize), module, TIARE::FM_INPUT));
 
-		addParam(createParam<BidooLargeBlueKnob>(Vec(72, 45), module, TIARE::FREQ_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(129, 45), module, TIARE::FINE_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(33, 45), module, TIARE::FM_PARAM));
+		// pulse width, for the square: PW, its modulation amount and input, on the line the panel draws
+		const theme::Pos pwCol = theme::specific(162.5f, 0);
+		addParam(theme::param<BidooBlueTrimpot>(theme::colRow(pwCol, theme::specificCorner(153.5f, 135, theme::kTrimpotSize)), module, TIARE::PW_PARAM));
+		addParam(theme::param<BidooBlueTrimpot>(theme::colRow(pwCol, theme::specificCorner(153.5f, 174, theme::kTrimpotSize)), module, TIARE::PWM_PARAM));
+		addInput(theme::input<PJ301MPort>(theme::colRow(pwCol, theme::specificCorner(150.5f, 228, theme::kJackSize)), module, TIARE::PW_INPUT));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(53, 83), module, TIARE::FM_INPUT));
-		// pulse width, for the square: PW, its modulation amount and input
-		addParam(createParam<BidooBlueTrimpot>(Vec(153.5f, 135), module, TIARE::PW_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(153.5f, 174), module, TIARE::PWM_PARAM));
-		addInput(createInput<PJ301MPort>(Vec(150.5f, 228), module, TIARE::PW_INPUT));
-
-		addInput(createInput<PJ301MPort>(Vec(15.36f, 283), module, TIARE::PITCH_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(56.79f, 283), module, TIARE::SYNC_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(98.71f, 283), module, TIARE::DIST_X_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(140.14f, 283), module, TIARE::DIST_Y_INPUT));
-
-		addOutput(createOutput<PJ301MPort>(Vec(15.36f, 330), module, TIARE::SIN_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(56.79f, 330), module, TIARE::TRI_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(98.71f, 330), module, TIARE::SAW_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(140.14f, 330), module, TIARE::SQR_OUTPUT));
+		const float kOutsBelow = 47.f;   // from the inputs' row to the outputs'
+		const theme::Pos jackRow = theme::specificCorner(15.36f, 283, theme::kJackSize);
+		const theme::Pos boxCol[4] = {theme::specific(27.531f, 0), theme::specific(69.156f, 0), theme::specific(110.844f, 0), theme::specific(152.469f, 0)};   // the boxes' centres
+		const int inIds[4] = {TIARE::PITCH_INPUT, TIARE::SYNC_INPUT, TIARE::DIST_X_INPUT, TIARE::DIST_Y_INPUT};
+		const int outIds[4] = {TIARE::SIN_OUTPUT, TIARE::TRI_OUTPUT, TIARE::SAW_OUTPUT, TIARE::SQR_OUTPUT};
+		for (int i = 0; i < 4; i++)
+			addInput(theme::input<PJ301MPort>(theme::colRow(boxCol[i], jackRow), module, inIds[i]));
+		for (int i = 0; i < 4; i++)
+			addOutput(theme::output<PJ301MPort>(theme::colRow(boxCol[i], jackRow).down(kOutsBelow), module, outIds[i]));
 	}
 
 	void appendContextMenu(Menu *menu) override {

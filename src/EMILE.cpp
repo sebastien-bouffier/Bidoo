@@ -418,58 +418,53 @@ struct EMILEDisplay : OpaqueWidget {
 struct EMILEWidget : BidooWidget {
 	EMILEWidget(EMILE *module) {
 		setModule(module);
-    prepareThemes(asset::plugin(pluginInstance, "res/EMILE.svg"));
+		prepareThemes(asset::plugin(pluginInstance, "res/EMILE.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
-		{
-			EMILEDisplay *display = new EMILEDisplay();
-			display->module = module;
-			display->box.pos = Vec(5, 30);
-			display->box.size = Vec(125, 130);
-			addChild(display);
+		// The original hand-drawn panel: the picture screen; four colour buttons, each joined by a line to its CV jack;
+		// four knobs under their labels; four boxed jacks. Each button and its jack sit on the line the panel draws
+		// (the old code had the button 0.5 px right of its jack), each knob under its label (it was up to 0.7 px off);
+		// the jacks keep their old corners (within 0.2 px of their boxes).
+		EMILEDisplay *display = new EMILEDisplay();
+		display->module = module;
+		display->box = theme::specificRect(5, 30, 125, 130);
+		addChild(display);
+
+		const theme::Size kButtonSize = {17.9996f, 18.f};                 // LEDButton
+		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
+		const float kLightIn = 6.f;   // from a button's corner to its light's
+		const theme::Pos buttonRow = theme::specificCorner(8, 170, kButtonSize);
+		const theme::Pos cvRow = theme::specificCorner(9, 195, theme::kTinyJackSize);
+		const theme::Pos line[4] = {theme::specific(16.625f, 0), theme::specific(50.125f, 0), theme::specific(83.688f, 0), theme::specific(117.188f, 0)};
+		const int buttonIds[4] = {EMILE::R_PARAM, EMILE::G_PARAM, EMILE::B_PARAM, EMILE::A_PARAM};
+		const int cvIds[4] = {EMILE::R_INPUT, EMILE::G_INPUT, EMILE::B_INPUT, EMILE::A_INPUT};
+		for (int i = 0; i < 4; i++) {
+			const theme::Pos button = theme::colRow(line[i], buttonRow);
+			const theme::Pos light = theme::specificCorner(button.x - kButtonSize.w * 0.5f + kLightIn, button.top + kLightIn, kSmallLightSize);
+			addParam(theme::param<LEDButton>(button, module, buttonIds[i]));
+			switch (i) {
+				case 0: addChild(theme::light<SmallLight<RedLight>>(light, module, EMILE::R_LIGTH)); break;
+				case 1: addChild(theme::light<SmallLight<GreenLight>>(light, module, EMILE::G_LIGTH)); break;
+				case 2: addChild(theme::light<SmallLight<BlueLight>>(light, module, EMILE::B_LIGTH)); break;
+				default: addChild(theme::light<SmallLight<WhiteLight>>(light, module, EMILE::A_LIGTH)); break;
+			}
 		}
+		for (int i = 0; i < 4; i++)
+			addInput(theme::input<TinyPJ301MPort>(theme::colRow(line[i], cvRow), module, cvIds[i]));
 
-    const int xlightsAnchor = 8;
-    const int ylightsAnchor = 170;
-    const float xlightsOffset = 33.5;
-    const int olights = 6;
-    const int inputYOffset = 25;
+		const theme::Pos knobRow = theme::specificCorner(5, 280, theme::kBlueKnobSize);
+		const theme::Pos label[4] = {theme::specific(19.062f, 0), theme::specific(50.625f, 0), theme::specific(82.188f, 0), theme::specific(113.781f, 0)};
+		const int knobIds[4] = {EMILE::TUNE_PARAM, EMILE::POS_PARAM, EMILE::CURVE_PARAM, EMILE::GAIN_PARAM};
+		for (int i = 0; i < 4; i++)
+			addParam(theme::param<BidooBlueKnob>(theme::colRow(label[i], knobRow), module, knobIds[i]));
 
-    addParam(createParam<LEDButton>(Vec(xlightsAnchor, ylightsAnchor), module, EMILE::R_PARAM));
-		addChild(createLight<SmallLight<RedLight>>(Vec(xlightsAnchor+olights, ylightsAnchor+olights), module, EMILE::R_LIGTH));
-    addParam(createParam<LEDButton>(Vec(xlightsAnchor+xlightsOffset, ylightsAnchor), module, EMILE::G_PARAM));
-		addChild(createLight<SmallLight<GreenLight>>(Vec(xlightsAnchor+xlightsOffset+olights, ylightsAnchor+olights), module, EMILE::G_LIGTH));
-    addParam(createParam<LEDButton>(Vec(xlightsAnchor+2*xlightsOffset, ylightsAnchor), module, EMILE::B_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(xlightsAnchor+2*xlightsOffset+olights, ylightsAnchor+olights), module, EMILE::B_LIGTH));
-    addParam(createParam<LEDButton>(Vec(xlightsAnchor+3*xlightsOffset, ylightsAnchor), module, EMILE::A_PARAM));
-		addChild(createLight<SmallLight<WhiteLight>>(Vec(xlightsAnchor+3*xlightsOffset+olights, ylightsAnchor+olights), module, EMILE::A_LIGTH));
-
-    addInput(createInput<TinyPJ301MPort>(Vec(xlightsAnchor+1, ylightsAnchor+inputYOffset), module, EMILE::R_INPUT));
-    addInput(createInput<TinyPJ301MPort>(Vec(xlightsAnchor+xlightsOffset+1, ylightsAnchor+inputYOffset), module, EMILE::G_INPUT));
-    addInput(createInput<TinyPJ301MPort>(Vec(xlightsAnchor+2*xlightsOffset+1, ylightsAnchor+inputYOffset), module, EMILE::B_INPUT));
-    addInput(createInput<TinyPJ301MPort>(Vec(xlightsAnchor+3*xlightsOffset+1, ylightsAnchor+inputYOffset), module, EMILE::A_INPUT));
-
-    const float xPort = 7.5f;
-    const float xPortOffset = 32.2f;
-    const float yPort = 330.0f;
-
-    const float xControl = 5.0f;
-    const float xControlOffset = 31.3f;
-    const float yControl = 280.0f;
-
-    addParam(createParam<BidooBlueKnob>(Vec(xControl, yControl), module, EMILE::TUNE_PARAM));
-    addParam(createParam<BidooBlueKnob>(Vec(xControl+xControlOffset, yControl), module, EMILE::POS_PARAM));
-    addParam(createParam<BidooBlueKnob>(Vec(xControl+2*xControlOffset, yControl), module, EMILE::CURVE_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(xControl+3*xControlOffset, yControl), module, EMILE::GAIN_PARAM));
-
-    addInput(createInput<PJ301MPort>(Vec(xPort, yPort), module, EMILE::TUNE_INPUT));
-    addInput(createInput<PJ301MPort>(Vec(xPort+xPortOffset, yPort), module, EMILE::POS_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(xPort+2*xPortOffset, yPort), module, EMILE::CURVE_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(xPort+3*xPortOffset, yPort), module, EMILE::OUT));
+		const float kJackPitch = 32.2f;
+		const theme::Pos tuneIn = theme::specificCorner(7.5f, 330, theme::kJackSize);
+		addInput(theme::input<PJ301MPort>(tuneIn, module, EMILE::TUNE_INPUT));
+		addInput(theme::input<PJ301MPort>(tuneIn.right(kJackPitch), module, EMILE::POS_INPUT));
+		addInput(theme::input<PJ301MPort>(tuneIn.right(2.f * kJackPitch), module, EMILE::CURVE_INPUT));
+		addOutput(theme::output<PJ301MPort>(tuneIn.right(3.f * kJackPitch), module, EMILE::OUT));
 	}
 
   void onPathDrop(const PathDropEvent& e) override {

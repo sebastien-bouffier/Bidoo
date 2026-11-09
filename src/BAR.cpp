@@ -380,38 +380,42 @@ struct BARWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/BAR.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
+		// The original hand-drawn panel: the bypass button beside the title, the screen, two rows of four trimpots, and
+		// three boxes of stereo jacks. Old corners kept: the jacks' spacing is the one set on purpose today (b927551),
+		// with the L and R labels moved to follow it in the SVG.
 		if (module) {
 			BARDisplay *display = new BARDisplay();
 			display->module = module;
-			display->box.pos = Vec(12.0f, 40.0f);
-			display->box.size = Vec(110.0f, 70.0f);
+			display->box = theme::specificRect(12, 40, 110, 70);
 			addChild(display);
 		}
 
-		addParam(createParam<MiniLEDButton>(Vec(91.0f, 11.0f), module, BAR::BYPASS_PARAM));
-		addChild(createLight<SmallLight<RedLight>>(Vec(91.0f, 11.0f), module, BAR::BYPASS_LIGHT));
+		const theme::Size kMiniButtonSize = {mm2px(1.8f), mm2px(1.8f)};   // MiniLEDButton
+		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
+		addParam(theme::param<MiniLEDButton>(theme::specificCorner(91, 11, kMiniButtonSize), module, BAR::BYPASS_PARAM));
+		addChild(theme::light<SmallLight<RedLight>>(theme::specificCorner(91, 11, kSmallLightSize), module, BAR::BYPASS_LIGHT));
 
-		addParam(createParam<BidooBlueTrimpot>(Vec(10.0f,265.0f), module, BAR::THRESHOLD_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(42.0f,265.0f), module, BAR::RATIO_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(74.0f,265.0f), module, BAR::ATTACK_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(106.0f,265.0f), module, BAR::RELEASE_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(10.0f,291.0f), module, BAR::KNEE_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(42.0f,291.0f), module, BAR::MAKEUP_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(74.0f,291.0f), module, BAR::MIX_PARAM));
-		addParam(createParam<BidooBlueTrimpot>(Vec(106.0f,291.0f), module, BAR::LOOKAHEAD_PARAM));
+		const float kTrimpotPitch = 32.f;   // across
+		const float kTrimpotRowBelow = 26.f;
+		const theme::Pos firstTrimpot = theme::specificCorner(10, 265, theme::kTrimpotSize);
+		const int trimpotIds[8] = {BAR::THRESHOLD_PARAM, BAR::RATIO_PARAM, BAR::ATTACK_PARAM, BAR::RELEASE_PARAM,
+			BAR::KNEE_PARAM, BAR::MAKEUP_PARAM, BAR::MIX_PARAM, BAR::LOOKAHEAD_PARAM};
+		for (int i = 0; i < 8; i++)
+			addParam(theme::param<BidooBlueTrimpot>(firstTrimpot.offset(kTrimpotPitch * (i % 4), kTrimpotRowBelow * (i / 4)), module, trimpotIds[i]));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(7.5f, 339.0f), module, BAR::IN_L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(25.5f, 339.0f), module, BAR::IN_R_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(51.0f, 339.0f), module, BAR::SC_L_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(69.0f, 339.0f), module, BAR::SC_R_INPUT));
+		const float kStereoRight = 18.f;   // from L to R in a box
+		const theme::Pos inL = theme::specificCorner(7.5f, 339, theme::kTinyJackSize);
+		const theme::Pos scL = theme::specificCorner(51, 339, theme::kTinyJackSize);
+		const theme::Pos outL = theme::specificCorner(94.5f, 339, theme::kTinyJackSize);
+		addInput(theme::input<TinyPJ301MPort>(inL, module, BAR::IN_L_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(inL.right(kStereoRight), module, BAR::IN_R_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(scL, module, BAR::SC_L_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(scL.right(kStereoRight), module, BAR::SC_R_INPUT));
 
-		addOutput(createOutput<TinyPJ301MPort>(Vec(94.5f, 339.0f), module, BAR::OUT_L_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(112.5f, 339.0f), module, BAR::OUT_R_OUTPUT));
+		addOutput(theme::output<TinyPJ301MPort>(outL, module, BAR::OUT_L_OUTPUT));
+		addOutput(theme::output<TinyPJ301MPort>(outL.right(kStereoRight), module, BAR::OUT_R_OUTPUT));
 	}
 };
 

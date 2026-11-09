@@ -130,33 +130,40 @@ struct POUPREWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/POUPRE.svg"));
 
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(34.0f, 20.0f), module, POUPRE::SAMPLE_LIGHT));
+		// No screws, as before. The original hand-drawn panel: the sample light and channel knob under the title with the
+		// four preset buttons on the right; five rows of a boxed jack joined by a line to its switch or knob; TRIG and
+		// OUT. Old corners kept, except the light, now on the panel's centre like the title (it was 0.55 px left), and
+		// OUT on its box's centre (it was 0.5 px left). The jacks sit 3.8 px below the lines to their controls, low in
+		// their boxes under the labels: moving them up would hit the labels, so they stay.
+		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
+		const theme::Size kMiniButtonSize = {mm2px(1.8f), mm2px(1.8f)};   // MiniLEDButton
+		const theme::Size kCKSSSize = {14.f, 20.64111f};                  // CKSS
+		const float kRowPitch = 47.f;
+		addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::sameRow(theme::specificCorner(34, 20, kSmallLightSize), box.size.x * 0.5f), module, POUPRE::SAMPLE_LIGHT));
+		addParam(theme::param<BidooBlueSnapKnob>(theme::specificCorner(23, 35, theme::kBlueKnobSize), module, POUPRE::CHANNEL_PARAM));
 
-		addParam(createParam<BidooBlueSnapKnob>(Vec(23.0f,35.0f), module, POUPRE::CHANNEL_PARAM));
+		const theme::Pos gate = theme::specificCorner(49, 92.5f, kCKSSSize);
+		const theme::Pos start = theme::specificCorner(41, 182, theme::kBlueKnobSize);
+		addParam(theme::param<CKSS>(gate, module, POUPRE::GATE_PARAM));
+		addParam(theme::param<CKSS>(gate.down(kRowPitch), module, POUPRE::LOOP_PARAM));
+		addParam(theme::param<BidooBlueKnob>(start, module, POUPRE::START_PARAM));
+		addParam(theme::param<BidooBlueKnob>(start.down(kRowPitch), module, POUPRE::LEN_PARAM));
+		addParam(theme::param<BidooBlueKnob>(start.down(2.f * kRowPitch), module, POUPRE::SPEED_PARAM));
 
-		addParam(createParam<CKSS>(Vec(49.0f,92.5f), module, POUPRE::GATE_PARAM));
-		addParam(createParam<CKSS>(Vec(49.0f,139.5f), module, POUPRE::LOOP_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(41.0f,182.0f), module, POUPRE::START_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(41.0f,229.0f), module, POUPRE::LEN_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(41.0f,276.0f), module, POUPRE::SPEED_PARAM));
+		const theme::Pos gateIn = theme::specificCorner(7, 95, theme::kJackSize);
+		const int inIds[5] = {POUPRE::GATE_INPUT, POUPRE::LOOP_INPUT, POUPRE::START_INPUT, POUPRE::LEN_INPUT, POUPRE::SPEED_INPUT};
+		for (int i = 0; i < 5; i++)
+			addInput(theme::input<PJ301MPort>(gateIn.down(kRowPitch * i), module, inIds[i]));
 
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 95.0f), module, POUPRE::GATE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 142.0f), module, POUPRE::LOOP_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 189.0f), module, POUPRE::START_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 236.0f), module, POUPRE::LEN_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 283.0f), module, POUPRE::SPEED_INPUT));
+		const float kPresetPairs[2] = {20.f, 62.f};   // tops of the two pairs of preset buttons, 10 px apart in a pair
+		for (int i = 0; i < 4; i++)
+			addParam(theme::param<MiniLEDButton>(theme::specificCorner(66, kPresetPairs[i / 2] + 10.f * (i % 2), kMiniButtonSize), module, POUPRE::PRESET_PARAM + i));
+		for (int i = 0; i < 4; i++)
+			addChild(theme::light<SmallLight<BlueLight>>(theme::specificCorner(66, kPresetPairs[i / 2] + 10.f * (i % 2), kSmallLightSize), module, POUPRE::PRESET_LIGHT + i));
 
-		addParam(createParam<MiniLEDButton>(Vec(66.0f, 20.0f), module, POUPRE::PRESET_PARAM));
-		addParam(createParam<MiniLEDButton>(Vec(66.0f, 30.0f), module, POUPRE::PRESET_PARAM+1));
-		addParam(createParam<MiniLEDButton>(Vec(66.0f, 62.0f), module, POUPRE::PRESET_PARAM+2));
-		addParam(createParam<MiniLEDButton>(Vec(66.0f, 72.0f), module, POUPRE::PRESET_PARAM+3));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(66.0f, 20.0f), module, POUPRE::PRESET_LIGHT));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(66.0f, 30.0f), module, POUPRE::PRESET_LIGHT+1));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(66.0f, 62.0f), module, POUPRE::PRESET_LIGHT+2));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(66.0f, 72.0f), module, POUPRE::PRESET_LIGHT+3));
-
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 330.0f), module, POUPRE::TRIG_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(43.5f, 330.0f), module, POUPRE::POLY_OUTPUT));
+		const theme::Pos trig = gateIn.down(5.f * kRowPitch);
+		addInput(theme::input<PJ301MPort>(trig, module, POUPRE::TRIG_INPUT));
+		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(55.844f, 0), trig), module, POUPRE::POLY_OUTPUT));   // the OUT box's centre
 	}
 
 	struct POUPREItem : MenuItem {

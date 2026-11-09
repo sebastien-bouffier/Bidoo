@@ -1129,35 +1129,34 @@ struct ANTNLight : BASE {
 struct ANTNWidget : BidooWidget {
 	ANTNWidget(ANTN *module) {
 		setModule(module);
-    prepareThemes(asset::plugin(pluginInstance, "res/ANTN.svg"));
+		prepareThemes(asset::plugin(pluginInstance, "res/ANTN.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
+		// The original hand-drawn panel: every position keeps its old top left corner (specific) or follows one of them.
+		// The knob, the button and the labels share the panel's centre within half a pixel; left as they were.
 		ANTNBufferDisplay *display = new ANTNBufferDisplay();
 		display->module = module;
-		display->box.pos = Vec(10.0f, 140.0f);
-		display->box.size = Vec(115.0f, 20.0f);
+		display->box = theme::specificRect(10, 140, 115, 20);
 		addChild(display);
 
-
-    ANTNDisplay* urlDisplay = createWidget<ANTNDisplay>(Vec(5, 25));
-		urlDisplay->box.size = Vec(125, 100);
+		ANTNDisplay *urlDisplay = createWidget<ANTNDisplay>(Vec());
+		urlDisplay->box = theme::specificRect(5, 25, 125, 100);
 		urlDisplay->setModule(module);
 		addChild(urlDisplay);
 
-    addParam(createParam<BidooBlueKnob>(Vec(52.5f, 183), module, ANTN::GAIN_PARAM));
+		const theme::Size kBezelSize = {21.26028f, 21.25987f};   // LEDBezel
+		const theme::Size kLightSize = {mm2px(6.f), mm2px(6.f)};  // ANTNLight
+		addParam(theme::param<BidooBlueKnob>(theme::specificCorner(52.5f, 183, theme::kBlueKnobSize), module, ANTN::GAIN_PARAM));
+		addParam(theme::param<LEDBezel>(theme::specificCorner(56.5f, 246, kBezelSize), module, ANTN::TRIG_PARAM));
+		addChild(theme::light<ANTNLight<RedGreenBlueLight>>(theme::specificCorner(58.3f, 247.8f, kLightSize), module, ANTN::ON_LIGHT));
 
-    addParam(createParam<LEDBezel>(Vec(56.5f, 246), module, ANTN::TRIG_PARAM));
-		addChild(createLight<ANTNLight<RedGreenBlueLight>>(Vec(58.3f, 247.8f), module, ANTN::ON_LIGHT));
-
-  	static const float portX0[4] = {34, 67, 101};
-
-  	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[1]-18, 340), module, ANTN::OUTL_OUTPUT));
-  	addOutput(createOutput<TinyPJ301MPort>(Vec(portX0[1]+4, 340), module, ANTN::OUTR_OUTPUT));
-  }
+		// The stereo out, under the L and R labels
+		const float kStereoRight = 22.f;   // from L to R
+		const theme::Pos outL = theme::specificCorner(49, 340, theme::kTinyJackSize);
+		addOutput(theme::output<TinyPJ301MPort>(outL, module, ANTN::OUTL_OUTPUT));
+		addOutput(theme::output<TinyPJ301MPort>(outL.right(kStereoRight), module, ANTN::OUTR_OUTPUT));
+	}
 
   void appendContextMenu(ui::Menu *menu) override {
     BidooWidget::appendContextMenu(menu);

@@ -98,22 +98,32 @@ struct PERCOWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/PERCO.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		theme::addScrews(this);
 
-		addParam(createParam<BidooHugeBlueKnob>(Vec(31, 61), module, PERCO::CUTOFF_PARAM));
-		addParam(createParam<BidooLargeBlueKnob>(Vec(12, 143), module, PERCO::Q_PARAM));
-		addParam(createParam<BidooLargeBlueKnob>(Vec(71, 143), module, PERCO::CMOD_PARAM));
+		// The original hand-drawn panel: three boxed columns of jacks, the cutoff knob over the middle one (its CV jack)
+		// and the RES and F.MOD knobs either side of it. Old corners kept (specific) except where a control was off its
+		// label or box: the FREQ knob onto its CV jack's column, RES mirrored from F.MOD, the RES and HP jacks onto
+		// their boxes' centre.
+		const float kColumnRight = 38.f;      // from the IN column to the FREQ column
+		const float kResColumnRight = 37.775f;   // from the FREQ column to the centre of the RES and HP boxes
+		const float kOutsBelow = 47.f;        // from the inputs' row to the outputs'
+		const theme::Pos in = theme::specificCorner(10, 283, theme::kJackSize);
+		const theme::Pos cutoffIn = in.right(kColumnRight);
+		const theme::Pos qIn = cutoffIn.right(kResColumnRight);
+		const theme::Pos cutoff = theme::colRow(cutoffIn, theme::specificCorner(31, 61, theme::kHugeKnobSize));
+		const theme::Pos cmod = theme::specificCorner(71, 143, theme::kLargeKnobSize);
+		const theme::Pos q = cmod.right(-2.f * (cmod.x - cutoff.x));   // F.MOD mirrored about the cutoff knob
+		addParam(theme::param<BidooHugeBlueKnob>(cutoff, module, PERCO::CUTOFF_PARAM));
+		addParam(theme::param<BidooLargeBlueKnob>(q, module, PERCO::Q_PARAM));
+		addParam(theme::param<BidooLargeBlueKnob>(cmod, module, PERCO::CMOD_PARAM));
 		///Innies
-		addInput(createInput<PJ301MPort>(Vec(10, 283), module, PERCO::IN));
-		addInput(createInput<PJ301MPort>(Vec(48, 283), module, PERCO::CUTOFF_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(85, 283), module, PERCO::Q_INPUT));
+		addInput(theme::input<PJ301MPort>(in, module, PERCO::IN));
+		addInput(theme::input<PJ301MPort>(cutoffIn, module, PERCO::CUTOFF_INPUT));
+		addInput(theme::input<PJ301MPort>(qIn, module, PERCO::Q_INPUT));
 		///Outies
-		addOutput(createOutput<PJ301MPort>(Vec(10, 330), module, PERCO::OUT_LP));
-		addOutput(createOutput<PJ301MPort>(Vec(48, 330), module, PERCO::OUT_BP));
-		addOutput(createOutput<PJ301MPort>(Vec(85, 330), module, PERCO::OUT_HP));
+		addOutput(theme::output<PJ301MPort>(in.down(kOutsBelow), module, PERCO::OUT_LP));
+		addOutput(theme::output<PJ301MPort>(cutoffIn.down(kOutsBelow), module, PERCO::OUT_BP));
+		addOutput(theme::output<PJ301MPort>(qIn.down(kOutsBelow), module, PERCO::OUT_HP));
 	}
 };
 

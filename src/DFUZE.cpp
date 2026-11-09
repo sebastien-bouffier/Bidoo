@@ -215,29 +215,35 @@ struct DFUZEWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/DFUZE.svg"));
 
-		addParam(createParam<BidooBlueKnob>(Vec(13, 46), module, DFUZE::SIZE_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 86), module, DFUZE::REVTIME_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 126), module, DFUZE::DAMP_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 166), module, DFUZE::BANDWIDTH_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 206), module, DFUZE::EARLYLEVEL_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(13, 246), module, DFUZE::TAIL_PARAM));
+		// No screws, as before. The original hand-drawn panel: six rows of a knob joined by a line to its CV jack, then
+		// the freeze button and its jack, then the stereo in and out. Each knob, button and jack sits on the line the
+		// panel draws (the old code had the jacks 0.9 to 1.5 px above it, the knobs up to 0.55, the button 1.1 below);
+		// the button in the knobs' column (it was 1.4 px right); each stereo jack under its L or R label.
+		const theme::Pos knobCol = theme::specificCorner(13, 46, theme::kBlueKnobSize);
+		const theme::Pos cvCol = theme::specificCorner(65, 48, theme::kJackSize);
+		const theme::Pos rowLine[7] = {theme::specific(0, 61.062f), theme::specific(0, 100.938f), theme::specific(0, 141.312f),
+			theme::specific(0, 180.75f), theme::specific(0, 221.312f), theme::specific(0, 261.188f), theme::specific(0, 300.f)};
+		const int knobIds[6] = {DFUZE::SIZE_PARAM, DFUZE::REVTIME_PARAM, DFUZE::DAMP_PARAM, DFUZE::BANDWIDTH_PARAM, DFUZE::EARLYLEVEL_PARAM, DFUZE::TAIL_PARAM};
+		const int cvIds[6] = {DFUZE::SIZE_INPUT, DFUZE::REVTIME_INPUT, DFUZE::DAMP_INPUT, DFUZE::BANDWIDTH_INPUT, DFUZE::EARLYLEVEL_INPUT, DFUZE::TAIL_INPUT};
+		for (int i = 0; i < 6; i++)
+			addParam(theme::param<BidooBlueKnob>(theme::colRow(knobCol, rowLine[i]), module, knobIds[i]));
+		for (int i = 0; i < 6; i++)
+			addInput(theme::input<PJ301MPort>(theme::colRow(cvCol, rowLine[i]), module, cvIds[i]));
 
+		const theme::Size kBezelSize = {21.26028f, 21.25987f};   // LEDBezel
+		const float kLightIn = 1.8f;                             // from the bezel's corner to its light's
+		const theme::Pos freeze = theme::colRow(knobCol, rowLine[6]);
+		const theme::Pos freezeLight = theme::specificCorner(freeze.x - kBezelSize.w * 0.5f + kLightIn, freeze.y - kBezelSize.h * 0.5f + kLightIn,
+			theme::Size{mm2px(6.f), mm2px(6.f)});   // DFUZELight
+		addParam(theme::param<LEDBezel>(freeze, module, DFUZE::FREEZE_PARAM));
+		addChild(theme::light<DFUZELight<BlueLight>>(freezeLight, module, DFUZE::FREEZE_LIGHT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(cvCol, rowLine[6]), module, DFUZE::FREEZE_INPUT));
 
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 48.0f), module, DFUZE::SIZE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 88.0f), module, DFUZE::REVTIME_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 128.0f), module, DFUZE::DAMP_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 168.0f), module, DFUZE::BANDWIDTH_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 208.0f), module, DFUZE::EARLYLEVEL_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 248.0f), module, DFUZE::TAIL_INPUT));
-
-		addParam(createParam<LEDBezel>(Vec(18.5f, 290.5f), module, DFUZE::FREEZE_PARAM));
-		addChild(createLight<DFUZELight<BlueLight>>(Vec(20.3f, 292.3f), module, DFUZE::FREEZE_LIGHT));
-		addInput(createInput<PJ301MPort>(Vec(65.0f, 288.0f), module, DFUZE::FREEZE_INPUT));
-
-		addInput(createInput<TinyPJ301MPort>(Vec(8.0f, 340.0f), module, DFUZE::IN_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(8.0f+22.0f, 340.0f), module, DFUZE::IN_R_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f, 340.0f), module, DFUZE::OUT_L_OUTPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(60.0f+22.0f, 340.0f), module, DFUZE::OUT_R_OUTPUT));
+		const theme::Pos stereoRow = theme::specificCorner(8, 340, theme::kTinyJackSize);
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(15.594f, 0), stereoRow), module, DFUZE::IN_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(37.125f, 0), stereoRow), module, DFUZE::IN_R_INPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(67.281f, 0), stereoRow), module, DFUZE::OUT_L_OUTPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(88.812f, 0), stereoRow), module, DFUZE::OUT_R_OUTPUT));
 	}
 };
 

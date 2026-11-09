@@ -453,31 +453,34 @@ struct FILTREWidget : BidooWidget {
 
 		Display *display = new Display;
 		display->module = module;
-		display->box.pos = Vec(theme::kSideMargin, theme::kScreenTop);
-		display->box.size = Vec(box.size.x - 2.f * theme::kSideMargin, 190);
+		display->box = theme::specificRect(theme::kSideMargin, theme::kScreenTop, box.size.x - 2.f * theme::kSideMargin, 190);   // filtre.py SCREEN_H
 		addChild(display);
 		display->setup();
 
-		// a column per control: knob, attenuverter, CV jack
-		const float knobRow = 256.f;
+		// a column per control: knob, attenuverter, CV jack. Placed as tools/panels/filtre.py draws them: its KNOB_ROW
+		// and KNOB_XS (specific to this panel, off the grid's columns), the attenuverters and CV jacks on the grid's two
+		// jack rows, the stereo in and out at x 30 and 390 like its boxes.
+		const float knobRow = 256.f;   // filtre.py KNOB_ROW
 		static const int knobs[6] = {FILTRE::TYPE_PARAM, FILTRE::CUTOFF_PARAM, FILTRE::RES_PARAM, FILTRE::DRIVE_PARAM, FILTRE::MORPH_PARAM, FILTRE::MIX_PARAM};
 		static const int amounts[6] = {FILTRE::TYPE_CV_PARAM, FILTRE::CUTOFF_CV_PARAM, FILTRE::RES_CV_PARAM, FILTRE::DRIVE_CV_PARAM, FILTRE::MORPH_CV_PARAM, FILTRE::MIX_CV_PARAM};
 		static const int cvs[6] = {FILTRE::TYPE_INPUT, FILTRE::CUTOFF_INPUT, FILTRE::RES_INPUT, FILTRE::DRIVE_INPUT, FILTRE::MORPH_INPUT, FILTRE::MIX_INPUT};
 		for (int i = 0; i < 6; i++) {
-			const float x = 82.f + 51.f * i;
+			const theme::Pos knob = theme::specific(82.f + 51.f * i, knobRow);   // filtre.py KNOB_XS
 			if (i == 0)
-				addParam(createParamCentered<TypeKnob>(Vec(x, knobRow), module, knobs[i]));
+				addParam(theme::param<TypeKnob>(knob, module, knobs[i]));
 			else if (i == 4)
-				addParam(createParamCentered<MorphKnob>(Vec(x, knobRow), module, knobs[i]));
+				addParam(theme::param<MorphKnob>(knob, module, knobs[i]));
 			else
-				addParam(createParamCentered<BidooBlueKnob>(Vec(x, knobRow), module, knobs[i]));
-			addParam(createParamCentered<BidooBlueTrimpot>(Vec(x, theme::kSecondRowY), module, amounts[i]));
-			addInput(createInputCentered<PJ301MPort>(Vec(x, theme::kBottomRowY), module, cvs[i]));
+				addParam(theme::param<BidooBlueKnob>(knob, module, knobs[i]));
+			addParam(theme::param<BidooBlueTrimpot>(theme::sameCol(knob, theme::row(1)), module, amounts[i]));
+			addInput(theme::input<PJ301MPort>(theme::sameCol(knob, theme::row(0)), module, cvs[i]));
 		}
-		addInput(createInputCentered<PJ301MPort>(Vec(30.f, knobRow), module, FILTRE::INL_INPUT));
-		addInput(createInputCentered<PJ301MPort>(Vec(30.f, theme::kBottomRowY), module, FILTRE::INR_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(Vec(390.f, knobRow), module, FILTRE::OUTL_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(Vec(390.f, theme::kBottomRowY), module, FILTRE::OUTR_OUTPUT));
+		const theme::Pos inL = theme::specific(30.f, knobRow);
+		const theme::Pos outL = theme::specific(390.f, knobRow);
+		addInput(theme::input<PJ301MPort>(inL, module, FILTRE::INL_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::sameCol(inL, theme::row(0)), module, FILTRE::INR_INPUT));
+		addOutput(theme::output<PJ301MPort>(outL, module, FILTRE::OUTL_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(theme::sameCol(outL, theme::row(0)), module, FILTRE::OUTR_OUTPUT));
 	}
 
 	void appendContextMenu(Menu *menu) override {

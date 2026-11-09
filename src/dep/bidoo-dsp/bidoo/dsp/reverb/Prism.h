@@ -6,23 +6,25 @@
 // two dispersive spring tanks (chains of allpasses in a delay loop, the chirp of a spring); NON-LIN
 // and REVERSE are dense tapped bursts with a gated or rising envelope. The shimmer is a pitch
 // shifter in the feedback path (a delay-line shifter that splices at the best correlation point).
-// Moved from fadabox (bit-identical at 48 kHz with the settings held, but for the VCV changes
-// below); header-only. It is a second, lighter network next to
+// Moved from fadabox unchanged (bit-identical); header-only. It is a second, lighter network next to
 // the Grotte core (Fdn16 / FdnReverb): 8 lines with one-pole damping instead of 16 with fitted
 // absorption, but with the plate, spring, burst and shimmer voicings. Wet output only.
-//
-// Changes in the Bidoo VCV copy (worth taking upstream): the shimmer's splice search (its span, the
-// compared stretch and the steps) and the lines' DC guard scale with the sample rate (they were sized
-// in samples for 48 kHz); configure() returns at once when the settings did not change; a change of
-// algorithm fades the output out and back in (10 ms each way) instead of clearing the buffers under a
-// playing tail; a change of pre-delay crossfades the two read points (10 ms); the per-block
-// coefficients of process() are worked out once in prepare().
+// Since 2026-11-09 (audit Q3.10, Q3.11) a moved pre-delay crossfades instead of jumping, and the shimmer's
+// splice search and the lines' DC guard keep their 48 kHz times at any rate: still settings at 48 kHz bit
+// for bit as before, other rates not. Since the same day (from the Bidoo VCV copy, which had them first):
+// configure() returns at once when the settings did not change, the per-block coefficients are worked out
+// once in prepare(), and a change of algorithm fades the output out (10 ms), clears the buffers while
+// silent and fades the new algorithm in (10 ms) instead of clearing them under a playing tail (after
+// reset(), when there is no tail, it still switches at once). Settings held: bit for bit as before.
+// And, as FdnReverb / FdnEcoReverb: a NaN or an infinity coming in is heard as silence, and an output that
+// goes non-finite resets the reverb (that block silent); finite audio bit for bit as before.
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <string>
+#include <type_traits>
 #include <vector>
 #include "../core/Random.h"
 #include "../shaping/TanhPade.h"
@@ -105,14 +107,16 @@ public:
     };
 
     void prepare (float sampleRate);
+    // clears every buffer (no allocation); the next change of algorithm then switches at once (no fade)
     void reset();
-    // wet output only
+    // wet output only; non-finite input samples are heard as silence, a non-finite output resets the reverb
     void process (const float* inL, const float* inR, float* outL, float* outR, int n, const Settings& s);
     // seconds for the decay knob of an algorithm, for the screen and tests
     static float decaySeconds (int algo, float decay01);
     static constexpr float kFreezeAt = 126.5f / 127.0f;
 
 private:
+    friend struct PrismTestAccess; // the tests reach the shimmer's shifter alone
     static constexpr int kLines = 8;
     static constexpr int kSpringStages = 20;
     static constexpr int kTaps = 36;
@@ -161,20 +165,38 @@ private:
     {
         Line line;
         float d = 0, d2 = 0, fade = 1, fadeInc = 0;
-        // sized for 48 kHz and scaled with the rate: the splice search spans the same time at any rate
-        int kLen = 384, kStep = 3, coarse = 6, fine = 5, search = 480;
+        // the splice search in samples: set by ear at 48 kHz (384, 3, 6, 5, 480), the same times at any rate
+        int matchLen = 384, matchStep = 3, coarseStep = 6, fineReach = 5, search = 480;
+        float searchF = 480; // (search as a float, for the per-sample bounds)
         void prepare (float sr);
         void reset();
         float process (float x, float ratio, float windowSamples);
         int bestJump (int from, int lo, int hi) const;
+        // the search's numbers: as constants at 48 kHz (so the loops compile as they always did), or scaled
+        struct At48k
+        {
+            static constexpr int len = 384, step = 3, coarse = 6, reach = 5;
+        };
+        struct Scaled
+        {
+            int len, step, coarse, reach;
+        };
+        template <class Numbers>
+        int bestJumpWith (int from, int lo, int hi, Numbers numbers) const;
     };
 
-    void configure (const Settings& s);
     static bool sameSettings (const Settings& a, const Settings& b)
     {
         return a.algo == b.algo && a.preMs == b.preMs && a.decay == b.decay && a.damp == b.damp && a.mod == b.mod && a.shimmer == b.shimmer
                && a.interval == b.interval && a.freeze == b.freeze && a.glideMs == b.glideMs;
     }
+    void clear(); // the buffers and the running state, for reset() and a change of algorithm
+    void processFinite (const float* inL, const float* inR, float* outL, float* outR, int n, const Settings& s);
+    void configure (const Settings& s);
+    // transient: a pre-delay crossfading or the output fading for a change of algorithm (the still loop
+    // stays what it always was); with fadingOut, returns as soon as the output has faded out
+    template <bool transient>
+    int run (const float* inL, const float* inR, float* outL, float* outR, int n, bool fadingOut);
     void fdn (float inL, float inR, float& outL, float& outR);
     void spring (float inL, float inR, float& outL, float& outR);
     void burst (float inL, float inR, float& outL, float& outR);
@@ -224,22 +246,21 @@ private:
     float shimL = 0, shimR = 0, shimEnv = 0, inEnv = 0, shimHpL = 0, shimHpR = 0, shimLpL = 0, shimLpR = 0;
     float shimRatio = 2, shimRatio2 = 2, shimLpA = 0.5f, inGate = 1, shimGain = 0, shimDirect = 0, shimWindow = 2000;
     float outGain = 1;
-    int preSamples = 0;
-    bool freeze = false;
-    unsigned counter = 0;
-    // the settings last configured (configure() returns at once when they are the same)
+    int preSamples = 0, preTarget = 0, preOld = 0; // the pre-delay read now, the one wanted, the one fading out
+    float preFade = 1, preFadeInc = 0;             // below 1: a moved pre-delay crossfading (10 ms)
+    bool snapPre = true;
+    float dcA = 0.0008f; // the lines' DC guard: 0.0008 at 48 kHz (about 6 Hz), the same corner at any rate
+    // per-block coefficients of run(), from the rate (prepare())
+    float shimHpA = 0, gateA = 0, envAtk = 0, envRel = 0, inRelA = 0;
+    // the settings last configured: configure() returns at once when they are the same
     Settings lastSettings;
     bool configured = false;
-    // DC guard of the FDN lines (0.0008 at 48 kHz)
-    float dcA = 0.0008f;
-    // per-block coefficients, from the sample rate
-    float shimHpA = 0, gateA = 0, envAtk = 0, envRel = 0, inRelA = 0, fadeStep = 0;
-    // algorithm change: the output fades out, the new algorithm starts, it fades back in
+    // a change of algorithm: the output fades out (the old algorithm playing on), the buffers are cleared
+    // while silent, the new algorithm fades in; snapAlgo: just reset, nothing to fade
     float switchGain = 1;
-    // pre-delay change: the old read point fades out while the new one fades in
-    int preTarget = 0, preOld = 0;
-    float preX = 1;
-    bool snapPre = true;
+    bool snapAlgo = true;
+    bool freeze = false;
+    unsigned counter = 0;
 };
 
 namespace prism_detail
@@ -379,12 +400,13 @@ inline float PrismReverb::Line::read (float delay) const
 inline void PrismReverb::Shifter::prepare (float rate)
 {
     line.prepare ((int) (rate * 0.25f));
-    const float scale = rate / 48000.0f;
-    kLen = std::max (16, (int) std::lround (384.0f * scale));
-    kStep = std::max (1, (int) std::lround (3.0f * scale));
-    coarse = std::max (1, (int) std::lround (6.0f * scale));
-    fine = std::max (1, (int) std::lround (5.0f * scale));
-    search = std::max (16, (int) std::lround (480.0f * scale));
+    const float toRef = rate / 48000.0f;
+    matchLen = (int) std::lround (384.0f * toRef);
+    matchStep = std::max (1, (int) std::lround (3.0f * toRef));
+    coarseStep = std::max (1, (int) std::lround (6.0f * toRef));
+    fineReach = std::max (1, (int) std::lround (5.0f * toRef));
+    search = (int) std::lround (480.0f * toRef);
+    searchF = (float) search;
     reset();
 }
 
@@ -399,8 +421,12 @@ inline void PrismReverb::Shifter::reset()
 
 // the jump (in samples, lo..hi) where the signal best matches the signal at delay 'from' (both compared
 // over the stretch just before them, normalised so loudness doesn't decide)
-inline int PrismReverb::Shifter::bestJump (int from, int lo, int hi) const
+template <class Numbers>
+inline int PrismReverb::Shifter::bestJumpWith (int from, int lo, int hi, Numbers numbers) const
 {
+    constexpr bool fixed = std::is_same_v<Numbers, At48k>;
+    const int kLen = fixed ? At48k::len : numbers.len, kStep = fixed ? At48k::step : numbers.step;
+    const int coarse = fixed ? At48k::coarse : numbers.coarse, reach = fixed ? At48k::reach : numbers.reach;
     float e0 = 1.0e-9f;
     for (int j = 0; j < kLen; j += kStep)
     {
@@ -418,7 +444,7 @@ inline int PrismReverb::Shifter::bestJump (int from, int lo, int hi) const
         }
         return c / std::sqrt (e0 * e1);
     };
-    // coarse (every 6 samples: no note below 4 kHz slips between), then the best neighbourhood finely
+    // coarse (every 6 samples at 48 kHz: no note below 4 kHz slips between), then the best neighbourhood finely
     int best = (lo + hi) / 2;
     float bestScore = -2;
     for (int k = lo; k <= hi; k += coarse)
@@ -428,7 +454,7 @@ inline int PrismReverb::Shifter::bestJump (int from, int lo, int hi) const
             best = k;
         }
     const int centre = best;
-    for (int k = std::max (lo, centre - fine); k <= std::min (hi, centre + fine); ++k)
+    for (int k = std::max (lo, centre - reach); k <= std::min (hi, centre + reach); ++k)
         if (k != centre)
             if (const float sc = score (k); sc > bestScore)
             {
@@ -438,15 +464,23 @@ inline int PrismReverb::Shifter::bestJump (int from, int lo, int hi) const
     return best;
 }
 
+inline int PrismReverb::Shifter::bestJump (int from, int lo, int hi) const
+{
+    // at 48 kHz with the numbers as constants, as it always was (the compiler unrolls them)
+    if (matchLen == At48k::len && matchStep == At48k::step && coarseStep == At48k::coarse && fineReach == At48k::reach)
+        return bestJumpWith (from, lo, hi, At48k {});
+    return bestJumpWith (from, lo, hi, Scaled { matchLen, matchStep, coarseStep, fineReach });
+}
+
 inline float PrismReverb::Shifter::process (float x, float ratio, float window)
 {
     line.push (x);
     const float slide = ratio - 1.0f; // how fast the read point moves towards the present
-    // search (480 samples at 48 kHz): enough to find a period of any note above 100 Hz
+    // (searchF: 10 ms, enough to find a period of any note above 100 Hz)
     // the old read point must not reach the present while it fades out
-    const float fadeLen = std::max (64.0f, std::min (window * 0.35f, (window - (float) search) / (std::abs (slide) + 1.0f)));
+    const float fadeLen = std::max (64.0f, std::min (window * 0.35f, (window - searchF) / (std::abs (slide) + 1.0f)));
     const float lowest = std::max (0.0f, slide) * fadeLen + 4.0f;
-    const float highest = window + (float) search + 8.0f;
+    const float highest = window + searchF + 8.0f;
     if (d <= 0.0f)
         d = slide > 0.0f ? lowest + window : 8.0f;
     d -= slide;
@@ -475,6 +509,13 @@ inline float PrismReverb::Shifter::process (float x, float ratio, float window)
 inline void PrismReverb::prepare (float sampleRate)
 {
     sr = sampleRate;
+    dcA = 0.0008f * (48000.0f / sr);
+    preFadeInc = 1.0f / (0.01f * sr);
+    shimHpA = 1.0f - std::exp (-prism_detail::kTwoPiF * 160.0f / sr);
+    gateA = 1.0f - std::exp (-1.0f / (0.02f * sr));
+    envAtk = 1.0f - std::exp (-1.0f / (0.005f * sr));
+    envRel = 1.0f - std::exp (-1.0f / (0.3f * sr));
+    inRelA = 1.0f - std::exp (-1.0f / (2.5f * sr));
     tankHpA = 1.0f - std::exp (-prism_detail::kTwoPiF * 140.0f / sr);
     tankPowA = 1.0f - std::exp (-1.0f / (0.08f * sr));
     preL.prepare ((int) (sr * 0.5f));
@@ -514,20 +555,19 @@ inline void PrismReverb::prepare (float sampleRate)
         lfoPhase[(size_t) i] = (float) i / kLines;
         lfoInc[(size_t) i] = (0.11f + 0.137f * (float) i) / sr * 8.0f; // advanced every 8 samples
     }
-    dcA = 0.0008f * 48000.0f / sr;
-    shimHpA = 1.0f - std::exp (-prism_detail::kTwoPiF * 160.0f / sr);
-    gateA = 1.0f - std::exp (-1.0f / (0.02f * sr));
-    envAtk = 1.0f - std::exp (-1.0f / (0.005f * sr));
-    envRel = 1.0f - std::exp (-1.0f / (0.3f * sr));
-    inRelA = 1.0f - std::exp (-1.0f / (2.5f * sr));
-    fadeStep = 1.0f / (0.01f * sr);
     algo = -1;
-    configured = false;
-    switchGain = 1;
     reset();
 }
 
 inline void PrismReverb::reset()
+{
+    clear();
+    switchGain = 1;
+    snapAlgo = true;    // empty: a new algorithm may start at once
+    configured = false; // the next configure() works everything out again (snapPre, snapLen)
+}
+
+inline void PrismReverb::clear()
 {
     preL.reset();
     preR.reset();
@@ -569,14 +609,14 @@ inline void PrismReverb::reset()
     inGate = 1;
     snapLen = true;
     snapPre = true;
-    preX = 1;
-    configured = false; // the next configure() works everything out again
+    preFade = 1;
     shimL = shimR = shimEnv = inEnv = shimHpL = shimHpR = shimLpL = shimLpR = 0;
     counter = 0;
 }
 
 inline void PrismReverb::configure (const Settings& s)
 {
+    // the same settings give the same coefficients (everything below depends on them and the rate only)
     if (configured && sameSettings (s, lastSettings))
         return;
     configured = true;
@@ -585,7 +625,7 @@ inline void PrismReverb::configure (const Settings& s)
     if (a != algo)
     {
         algo = a;
-        reset();
+        clear();
         // fixed per algorithm: diffuser lengths, early reflections, burst taps
         const float ms = sr * 0.001f;
         if (prism_detail::isFdn (a))
@@ -630,10 +670,9 @@ inline void PrismReverb::configure (const Settings& s)
     }
 
     preTarget = std::max (1, (int) (prism_detail::clampf (s.preMs, 0.0f, 300.0f) * sr * 0.001f));
-    if (snapPre)
+    if (snapPre) // after a reset the lines are empty: nothing to fade
     {
-        preSamples = preOld = preTarget;
-        preX = 1;
+        preSamples = preTarget;
         snapPre = false;
     }
     // DEC at its top: FREEZE (the FDN algorithms): the tail stops decaying and new input is shut out
@@ -851,18 +890,69 @@ inline void PrismReverb::burst (float inL, float inR, float& outL, float& outR)
 
 inline void PrismReverb::process (const float* inL, const float* inR, float* outL, float* outR, int n, const Settings& s)
 {
-    // a new algorithm: the old one plays on while the output fades out, then the new one starts
-    // (its buffers cleared) and fades in
-    const int want = std::clamp (s.algo, 0, (int) NumAlgos - 1);
-    if (algo >= 0 && want != algo && switchGain > 0.0f)
-    {
-        Settings held = s;
-        held.algo = algo;
-        configure (held);
-    }
+    // A NaN or an infinity would stay in the lines for good: the reverb hears silence in its place. A sum
+    // per block, so finite audio goes through untouched (bit for bit) for about one add per sample.
+    float inSum = 0.0f;
+    for (int i = 0; i < n; ++i)
+        inSum += inL[i] + inR[i];
+    if (std::isfinite (inSum))
+        processFinite (inL, inR, outL, outR, n, s);
     else
-        configure (s);
-    const bool switching = want != algo;
+    {
+        constexpr int kChunk = 64;
+        float cleanL[kChunk], cleanR[kChunk];
+        for (int done = 0; done < n; done += kChunk)
+        {
+            const int m = std::min (kChunk, n - done);
+            for (int i = 0; i < m; ++i)
+            {
+                cleanL[i] = std::isfinite (inL[done + i]) ? inL[done + i] : 0.0f;
+                cleanR[i] = std::isfinite (inR[done + i]) ? inR[done + i] : 0.0f;
+            }
+            processFinite (cleanL, cleanR, outL + done, outR + done, m, s);
+        }
+    }
+    // the state overflowed (finite input, but far too loud) or something else went wrong: start again,
+    // this block silent (reset() only clears: no allocation)
+    float outSum = 0.0f;
+    for (int i = 0; i < n; ++i)
+        outSum += outL[i] + outR[i];
+    if (! std::isfinite (outSum))
+    {
+        reset();
+        std::fill (outL, outL + n, 0.0f);
+        std::fill (outR, outR + n, 0.0f);
+    }
+}
+
+inline void PrismReverb::processFinite (const float* inL, const float* inR, float* outL, float* outR, int n, const Settings& s)
+{
+    const int want = std::clamp (s.algo, 0, (int) NumAlgos - 1);
+    for (int done = 0; done < n;)
+    {
+        // a new algorithm while a tail plays: the old one plays on (with the other settings new) while the
+        // output fades out; once silent, configure() switches (clearing the buffers) and the new one fades in
+        const bool fadingOut = algo >= 0 && want != algo && ! snapAlgo && switchGain > 0.0f;
+        if (fadingOut)
+        {
+            Settings held = s;
+            held.algo = algo;
+            configure (held);
+        }
+        else
+            configure (s);
+        snapAlgo = false;
+        // the crossfades only while something moves: still, the loop is what it always was
+        if (! fadingOut && switchGain >= 1.0f && preFade >= 1.0f && preTarget == preSamples)
+            done += run<false> (inL + done, inR + done, outL + done, outR + done, n - done, false);
+        else
+            done += run<true> (inL + done, inR + done, outL + done, outR + done, n - done, fadingOut);
+    }
+}
+
+template <bool transient>
+inline int PrismReverb::run (const float* inL, const float* inR, float* outL, float* outR, int n, bool fadingOut)
+{
     const bool shimmerOn = shimGain > 0.0f;
     if (! shimmerOn)
         shimL = shimR = 0;
@@ -873,22 +963,33 @@ inline void PrismReverb::process (const float* inL, const float* inR, float* out
         preL.push (inL[i]);
         preR.push (inR[i]);
         inGate += gateA * (gateTarget - inGate);
-        // a new pre-delay: the two read points crossfade
-        if (preX >= 1.0f && preTarget != preSamples)
+        // A moved pre-delay would jump to another place in the input (a click): 10 ms of crossfade
+        // instead, to where it is wanted when the fade starts, so a knob on the move is chased.
+        float preG = 1, preInL = 0, preInR = 0;
+        if constexpr (transient)
         {
-            preOld = preSamples;
-            preSamples = preTarget;
-            preX = 0;
+            if (preFade >= 1.0f && preTarget != preSamples)
+            {
+                preOld = preSamples;
+                preSamples = preTarget;
+                preFade = 0;
+            }
+            preInL = preL.readInt (preSamples);
+            preInR = preR.readInt (preSamples);
+            if (preFade < 1.0f)
+            {
+                preFade = std::min (1.0f, preFade + preFadeInc);
+                preG = preFade * preFade * (3.0f - 2.0f * preFade);
+                preInL = preG * preInL + (1.0f - preG) * preL.readInt (preOld);
+                preInR = preG * preInR + (1.0f - preG) * preR.readInt (preOld);
+            }
         }
-        float pL = preL.readInt (preSamples), pR = preR.readInt (preSamples);
-        const bool preFading = preX < 1.0f;
-        if (preFading)
+        else
         {
-            const float qL = preL.readInt (preOld), qR = preR.readInt (preOld);
-            pL = qL + (pL - qL) * preX;
-            pR = qR + (pR - qR) * preX;
+            preInL = preL.readInt (preSamples);
+            preInR = preR.readInt (preSamples);
         }
-        float xL = inGate * pL + shimL, xR = inGate * pR + shimR;
+        float xL = inGate * preInL + shimL, xR = inGate * preInR + shimR;
         for (int k = 0; k < 4; ++k)
         {
             xL = inDiffL[(size_t) k].process (xL, inDiffGain);
@@ -909,22 +1010,20 @@ inline void PrismReverb::process (const float* inL, const float* inR, float* out
                 eL += erGain[(size_t) k] * preL.readInt (preSamples + erTimeL[(size_t) k]);
                 eR += erGain[(size_t) k] * preR.readInt (preSamples + erTimeR[(size_t) k]);
             }
-            if (preFading)
+            if (transient && preG < 1.0f) // the pre-delay on the move: the old reflections fade out with it
             {
-                float fL = 0, fR = 0;
+                float oldL = 0, oldR = 0;
                 for (int k = 0; k < 8; ++k)
                 {
-                    fL += erGain[(size_t) k] * preL.readInt (preOld + erTimeL[(size_t) k]);
-                    fR += erGain[(size_t) k] * preR.readInt (preOld + erTimeR[(size_t) k]);
+                    oldL += erGain[(size_t) k] * preL.readInt (preOld + erTimeL[(size_t) k]);
+                    oldR += erGain[(size_t) k] * preR.readInt (preOld + erTimeR[(size_t) k]);
                 }
-                eL = fL + (eL - fL) * preX;
-                eR = fR + (eR - fR) * preX;
+                eL = preG * eL + (1.0f - preG) * oldL;
+                eR = preG * eR + (1.0f - preG) * oldR;
             }
             oL += inGate * erLevel * 0.5f * eL;
             oR += inGate * erLevel * 0.5f * eR;
         }
-        if (preFading)
-            preX = std::min (1.0f, preX + fadeStep);
         oL *= outGain;
         oR *= outGain;
 
@@ -951,9 +1050,22 @@ inline void PrismReverb::process (const float* inL, const float* inR, float* out
             oL += shimDirect * shimLpL;
             oR += shimDirect * shimLpR;
         }
-        switchGain = switching ? std::max (0.0f, switchGain - fadeStep) : std::min (1.0f, switchGain + fadeStep);
-        outL[i] = oL * switchGain;
-        outR[i] = oR * switchGain;
+        if constexpr (transient)
+        {
+            // a change of algorithm: 10 ms out, 10 ms in (smoothstep; exactly 1 when not switching)
+            switchGain = fadingOut ? std::max (0.0f, switchGain - preFadeInc) : std::min (1.0f, switchGain + preFadeInc);
+            const float g = switchGain * switchGain * (3.0f - 2.0f * switchGain);
+            outL[i] = oL * g;
+            outR[i] = oR * g;
+            if (fadingOut && switchGain <= 0.0f)
+                return i + 1; // silent: process() switches and goes on with the new algorithm
+        }
+        else
+        {
+            outL[i] = oL;
+            outR[i] = oR;
+        }
     }
+    return n;
 }
 } // namespace bidoo::dsp::reverb

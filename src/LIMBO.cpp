@@ -200,26 +200,34 @@ struct LIMBOWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/LIMBO.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		theme::addScrews(this);
 
-		addParam(createParam<BidooHugeBlueKnob>(Vec(32, 61), module, LIMBO::CUTOFF_PARAM));
-		addParam(createParam<BidooLargeBlueKnob>(Vec(12, 143), module, LIMBO::Q_PARAM));
-		addParam(createParam<BidooLargeBlueKnob>(Vec(71, 143), module, LIMBO::MUG_PARAM));
-		addParam(createParam<BidooLargeBlueKnob>(Vec(12, 208), module, LIMBO::CMOD_PARAM));
-		addParam(createParam<CKSS>(Vec(82.5f, 217), module, LIMBO::MODE_PARAM));
+		// The original hand-drawn panel: the cutoff knob, RES and GAIN either side below it, F.MOD under RES and the mode
+		// switch beside it; three boxed CV jacks; the stereo in and out. Old corners kept (specific) except where a
+		// control was off its label or box: GAIN mirrored from RES about the cutoff knob, the CV jacks on their boxes'
+		// centres, each stereo jack under its L or R label.
+		const theme::Size kCKSSSize = {14.f, 20.64111f};   // CKSS
+		const theme::Pos cutoff = theme::specificCorner(32, 61, theme::kHugeKnobSize);
+		const theme::Pos q = theme::specificCorner(12, 143, theme::kLargeKnobSize);
+		const theme::Pos mug = q.right(2.f * (cutoff.x - q.x));   // RES mirrored about the cutoff knob
+		addParam(theme::param<BidooHugeBlueKnob>(cutoff, module, LIMBO::CUTOFF_PARAM));
+		addParam(theme::param<BidooLargeBlueKnob>(q, module, LIMBO::Q_PARAM));
+		addParam(theme::param<BidooLargeBlueKnob>(mug, module, LIMBO::MUG_PARAM));
+		addParam(theme::param<BidooLargeBlueKnob>(theme::specificCorner(12, 208, theme::kLargeKnobSize), module, LIMBO::CMOD_PARAM));
+		addParam(theme::param<CKSS>(theme::specificCorner(82.5f, 217, kCKSSSize), module, LIMBO::MODE_PARAM));
 
-		addInput(createInput<PJ301MPort>(Vec(7, 283), module, LIMBO::CUTOFF_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(48, 283), module, LIMBO::Q_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(88.5f, 283), module, LIMBO::MUG_INPUT));
+		const float kBoxPitch = 40.844f;   // from one CV box's centre to the next
+		const theme::Pos cutoffCv = theme::colRow(theme::specific(19.156f, 0), theme::specificCorner(7, 283, theme::kJackSize));   // the FREQ box's centre
+		addInput(theme::input<PJ301MPort>(cutoffCv, module, LIMBO::CUTOFF_INPUT));
+		addInput(theme::input<PJ301MPort>(cutoffCv.right(kBoxPitch), module, LIMBO::Q_INPUT));
+		addInput(theme::input<PJ301MPort>(cutoffCv.right(2.f * kBoxPitch), module, LIMBO::MUG_INPUT));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(8.f, 340), module, LIMBO::IN_L));
-		addInput(createInput<TinyPJ301MPort>(Vec(8.f+22.f, 340), module, LIMBO::IN_R));
-
-		addOutput(createOutput<TinyPJ301MPort>(Vec(75.f, 340), module, LIMBO::OUT_L));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(75.f+22.f, 340), module, LIMBO::OUT_R));
+		// Each stereo jack under its L or R label (the panel spaces the IN labels 23.5 px apart and the OUT ones 21.5)
+		const theme::Pos stereoRow = theme::specificCorner(8, 340, theme::kTinyJackSize);
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(14.594f, 0), stereoRow), module, LIMBO::IN_L));
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(38.125f, 0), stereoRow), module, LIMBO::IN_R));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(82.281f, 0), stereoRow), module, LIMBO::OUT_L));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(103.812f, 0), stereoRow), module, LIMBO::OUT_R));
 	}
 };
 

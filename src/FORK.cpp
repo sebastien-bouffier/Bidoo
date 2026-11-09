@@ -279,37 +279,29 @@ void FORK::process(const ProcessArgs &args) {
 struct FORKWidget : BidooWidget {
 	FORKWidget(FORK *module) {
 		setModule(module);
-    prepareThemes(asset::plugin(pluginInstance, "res/FORK.svg"));
+		prepareThemes(asset::plugin(pluginInstance, "res/FORK.svg"));
 
-  	addParam(createParam<BidooLargeBlueKnob>(Vec(26.0f,40.0f), module, FORK::PITCH_PARAM));
-  	addParam(createParam<BlueCKD6>(Vec(30.0f,274.0f), module, FORK::PRESET_PARAM));
+		// No screws, as before. The original hand-drawn panel: the pitch knob; four formants, each an F and a G row of a
+		// trimpot, its letter and its CV jack; the presets button; V/O and OUT. Each formant row sits on its letter's
+		// middle (the old code had the first ones up to 1.1 px below it); V/O and OUT on their boxes' centres.
+		addParam(theme::param<BidooLargeBlueKnob>(theme::specificCorner(26, 40, theme::kLargeKnobSize), module, FORK::PITCH_PARAM));
+		addParam(theme::param<BlueCKD6>(theme::specificCorner(30, 274, theme::kCKD6Size), module, FORK::PRESET_PARAM));
 
-  	int xtpots = 32;
-  	int xtinyports = 67;
+		const theme::Pos trimpotCol = theme::specificCorner(32, 85, theme::kTrimpotSize);
+		const theme::Pos cvCol = theme::specificCorner(67, 87, theme::kTinyJackSize);
+		const theme::Pos letter[8] = {theme::specific(0, 93.469f), theme::specific(0, 113.688f), theme::specific(0, 142.156f), theme::specific(0, 162.406f),
+			theme::specific(0, 190.344f), theme::specific(0, 210.562f), theme::specific(0, 238.219f), theme::specific(0, 258.438f)};   // F, G, F, G...
+		for (int i = 0; i < 4; i++) {
+			addParam(theme::param<BidooBlueTrimpot>(theme::colRow(trimpotCol, letter[2 * i]), module, FORK::F_PARAM + i));
+			addInput(theme::input<TinyPJ301MPort>(theme::colRow(cvCol, letter[2 * i]), module, FORK::F_INPUT + i));
+			addParam(theme::param<BidooBlueTrimpot>(theme::colRow(trimpotCol, letter[2 * i + 1]), module, FORK::A_PARAM + i));
+			addInput(theme::input<TinyPJ301MPort>(theme::colRow(cvCol, letter[2 * i + 1]), module, FORK::A_INPUT + i));
+		}
 
-  	addParam(createParam<BidooBlueTrimpot>(Vec(xtpots,35.0f + 25.0f * 2.0f), module, FORK::F_PARAM));
-  	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35.0f + 25.0f * 2.0f + 2.0f), module, FORK::F_INPUT));
-  	addParam(createParam<BidooBlueTrimpot>(Vec(xtpots,35.0f + 25.0f * 2.0f + 20.0f), module, FORK::A_PARAM));
-  	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35.0f + 25.0f * 2.0f + 20.0f + 2.0f), module, FORK::A_INPUT));
-
-  	addParam(createParam<BidooBlueTrimpot>(Vec(xtpots,35.0f - 2.0f + 25.0f * 4.0f), module, FORK::F_PARAM + 1));
-  	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 2.0f + 25.0f * 4.0f + 2.0f), module, FORK::F_INPUT + 1));
-  	addParam(createParam<BidooBlueTrimpot>(Vec(xtpots,35.0f - 2.0f + 25.0f * 4.0f + 20.0f), module, FORK::A_PARAM + 1));
-  	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 2 + 25 * 4 + 20 + 2), module, FORK::A_INPUT + 1));
-
-  	addParam(createParam<BidooBlueTrimpot>(Vec(xtpots,35.0f - 4.0f + 25.0f * 6.0f), module, FORK::F_PARAM + 2));
-  	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 4 + 25 * 6 + 2), module, FORK::F_INPUT + 2));
-  	addParam(createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 4 + 25 * 6 + 20), module, FORK::A_PARAM + 2));
-  	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 4 + 25 * 6 + 20 + 2), module, FORK::A_INPUT + 2));
-
-  	addParam(createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 6 + 25 * 8), module, FORK::F_PARAM + 3));
-  	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 6 + 25 * 8 + 2), module, FORK::F_INPUT + 3));
-  	addParam(createParam<BidooBlueTrimpot>(Vec(xtpots,35 - 6 + 25 * 8 + 20), module, FORK::A_PARAM + 3));
-  	addInput(createInput<TinyPJ301MPort>(Vec(xtinyports,35 - 6 + 25 * 8 + 20 + 2), module, FORK::A_INPUT + 3));
-
-  	addInput(createInput<PJ301MPort>(Vec(7,330), module, FORK::PITCH_INPUT));
-  	addOutput(createOutput<PJ301MPort>(Vec(58.3f,330), module, FORK::SIGNAL_OUTPUT));
-  }
+		const theme::Pos bottomRow = theme::specificCorner(7, 330, theme::kJackSize);
+		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(19.562f, 0), bottomRow), module, FORK::PITCH_INPUT));    // the V/O box's centre
+		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(70.469f, 0), bottomRow), module, FORK::SIGNAL_OUTPUT));   // the OUT box's centre
+	}
 };
 
 Model *modelFORK = createModel<FORK, FORKWidget>("ForK");

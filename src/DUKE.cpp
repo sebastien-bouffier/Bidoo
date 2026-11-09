@@ -72,17 +72,28 @@ struct DUKEWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/DUKE.svg"));
 
-		static const float portX0[4] = {36.0f, 70.0f, 105.0f, 140.0f};
-		addParam(createParam<BlueCKD6>(Vec(portX0[0]-29.0f, 190.0f), module, DUKE::ADONF_PARAM));
-		addParam(createParam<BlueCKD6>(Vec(portX0[0]-29.0f, 230.0f), module, DUKE::NADA_PARAM));
-
+		// No screws, as before. The original hand-drawn panel: the two buttons between their arrows on the left; four
+		// columns of max and min knobs, a range switch, a slider joined by a line to its CV jack, and an OUT box. Old
+		// corners kept: each column's controls sit within 0.4 px of their OUT box's centre and label (the slider's line
+		// is drawn 0.65 px right of the jacks, hidden where it meets them).
+		const float kColumnRight[4] = {0.f, 34.f, 69.f, 104.f};   // from the first column, as the old code had them
+		const theme::Size kCKSSSize = {14.f, 20.64111f};            // CKSS
+		const theme::Size kSliderSize = {19.84258f, 76.53516f};     // LEDSliderGreen
+		const theme::Pos adonf = theme::specificCorner(7, 190, theme::kCKD6Size);
+		addParam(theme::param<BlueCKD6>(adonf, module, DUKE::ADONF_PARAM));
+		addParam(theme::param<BlueCKD6>(adonf.down(40.f), module, DUKE::NADA_PARAM));
+		const theme::Pos max = theme::specificCorner(34, 51, theme::kBlueKnobSize);
+		const theme::Pos type = theme::specificCorner(42, 139, kCKSSSize);
+		const theme::Pos slider = theme::specificCorner(39, 184, kSliderSize);
+		const theme::Pos cv = theme::specificCorner(37, 281, theme::kJackSize);
 		for (int i = 0; i < 4; i++) {
-			addParam(createParam<BidooBlueKnob>(Vec(portX0[i]-2.0f, 51.0f), module, DUKE::MAX_PARAM + i));
-			addParam(createParam<BidooBlueKnob>(Vec(portX0[i]-2.0f, 95.0f), module, DUKE::MIN_PARAM + i));
-			addParam(createParam<CKSS>(Vec(portX0[i]+6.0f, 139.0f), module, DUKE::TYPE_PARAM + i));
-			addParam(createParam<LEDSliderGreen>(Vec(portX0[i]+3.0f, 184.0f), module, DUKE::SLIDER_PARAM + i));
-			addInput(createInput<PJ301MPort>(Vec(portX0[i]+1.0f, 281.0f), module, DUKE::SLIDER_INPUT + i));
-			addOutput(createOutput<PJ301MPort>(Vec(portX0[i]+1.0f, 330.0f), module, DUKE::CV_OUTPUT + i));
+			const float dx = kColumnRight[i];
+			addParam(theme::param<BidooBlueKnob>(max.right(dx), module, DUKE::MAX_PARAM + i));
+			addParam(theme::param<BidooBlueKnob>(max.offset(dx, 44.f), module, DUKE::MIN_PARAM + i));
+			addParam(theme::param<CKSS>(type.right(dx), module, DUKE::TYPE_PARAM + i));
+			addParam(theme::param<LEDSliderGreen>(slider.right(dx), module, DUKE::SLIDER_PARAM + i));
+			addInput(theme::input<PJ301MPort>(cv.right(dx), module, DUKE::SLIDER_INPUT + i));
+			addOutput(theme::output<PJ301MPort>(cv.offset(dx, 49.f), module, DUKE::CV_OUTPUT + i));
 		}
 	}
 };

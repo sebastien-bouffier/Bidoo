@@ -61,6 +61,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelFILTRE);
 	p->addModel(modelACIDE);
 	p->addModel(modelRICOCHET);
+	p->addModel(modelDOSE);
 	p->addModel(modelRABBIT);
 	p->addModel(modelBISTROT);
 	p->addModel(modelSIGMA);

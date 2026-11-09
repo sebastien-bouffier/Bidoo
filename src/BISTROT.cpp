@@ -96,23 +96,29 @@ struct BISTROTWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/BISTROT.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
 
-    addInput(createInput<PJ301MPort>(Vec(29.0f, 46.0f), module, BISTROT::ADCCLOCK_INPUT));
-    addInput(createInput<PJ301MPort>(Vec(67.0f, 46.0f), module, BISTROT::DACCLOCK_INPUT));
-
-    for (int i = 0; i<8; i++) {
-      addChild(createLight<SmallLight<RedLight>>(Vec(18.0f, 97.5f + 26.0f * i), module, BISTROT::BIT_INPUT_LIGHTS + i));
-			addOutput(createOutput<TinyPJ301MPort>(Vec(33.5f, 93.0f + 26.0f * i), module, BISTROT::BIT_OUTPUT + i));
-			addInput(createInput<TinyPJ301MPort>(Vec(71.5f, 93.0f + 26.0f * i), module, BISTROT::BIT_INPUT + i));
-			addChild(createLight<SmallLight<BlueLight>>(Vec(95.0f, 97.5f + 26.0f * i), module, BISTROT::BIT_OUTPUT_LIGHTS + i));
-    }
-
-		addInput(createInput<PJ301MPort>(Vec(29.0f, 330.0f), module, BISTROT::INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(67.0f, 330.0f), module, BISTROT::OUTPUT));
+		// The original hand-drawn panel: the two clock jacks in their boxes, two strips of eight tiny jacks (bits out on
+		// the red one, bits in on the black one) with a light beside each, IN and OUT. Old corners kept: every jack sits
+		// within 0.3 px of its box or strip, and each light on its jack's row.
+		const float kBitBelow = 26.f;     // from one bit to the next
+		const float kRightColumn = 38.f;  // from the A/D column to the D/A column
+		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};   // SmallLight
+		const theme::Pos adcClock = theme::specificCorner(29, 46, theme::kJackSize);
+		addInput(theme::input<PJ301MPort>(adcClock, module, BISTROT::ADCCLOCK_INPUT));
+		addInput(theme::input<PJ301MPort>(adcClock.right(kRightColumn), module, BISTROT::DACCLOCK_INPUT));
+		const theme::Pos bitOut = theme::specificCorner(33.5f, 93, theme::kTinyJackSize);
+		const theme::Pos inLight = theme::specificCorner(18, 97.5f, kSmallLightSize);
+		const theme::Pos outLight = theme::specificCorner(95, 97.5f, kSmallLightSize);
+		for (int i = 0; i < 8; i++) {
+			addChild(theme::light<SmallLight<RedLight>>(inLight.down(kBitBelow * i), module, BISTROT::BIT_INPUT_LIGHTS + i));
+			addOutput(theme::output<TinyPJ301MPort>(bitOut.down(kBitBelow * i), module, BISTROT::BIT_OUTPUT + i));
+			addInput(theme::input<TinyPJ301MPort>(bitOut.offset(kRightColumn, kBitBelow * i), module, BISTROT::BIT_INPUT + i));
+			addChild(theme::light<SmallLight<BlueLight>>(outLight.down(kBitBelow * i), module, BISTROT::BIT_OUTPUT_LIGHTS + i));
+		}
+		const theme::Pos in = theme::specificCorner(29, 330, theme::kJackSize);
+		addInput(theme::input<PJ301MPort>(in, module, BISTROT::INPUT));
+		addOutput(theme::output<PJ301MPort>(in.right(kRightColumn), module, BISTROT::OUTPUT));
 	}
 };
 

@@ -1379,16 +1379,18 @@ struct LIMONADEWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/LIMONADE.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+		theme::addScrews(this);
+
+		// The original hand-drawn panel. Left: the spectrum and wave screens, the frame size screen, the index knob and
+		// the grid of edit buttons: all specific, at their old corners. Right: five columns (UNI, FREQ, FINE, FM, SCAN),
+		// each a knob over its CV jack joined by the panel's line, with the unison range and scan amount trimpots, the
+		// SYNC box, the sync switch and IN/OUT. Each column is now on its line or box (the old code had its controls
+		// 0.15 to 0.8 px left of it); rows keep their old tops.
 
   	{
   		LIMONADEBinsDisplay *display = new LIMONADEBinsDisplay();
   		display->module = module;
-  		display->box.pos = Vec(15, 33);
-  		display->box.size = Vec(500, 164);
+  		display->box = theme::specificRect(15, 33, 500, 164);
   		display->setup();
   		addChild(display);
   	}
@@ -1396,132 +1398,136 @@ struct LIMONADEWidget : BidooWidget {
   	{
   		LIMONADEWavDisplay *display = new LIMONADEWavDisplay();
   		display->module = module;
-  		display->box.pos = Vec(11, 235);
-  		display->box.size = Vec(150, 110);
+  		display->box = theme::specificRect(11, 235, 150, 110);
   		addChild(display);
   	}
 
   	{
-			LIMONADEFrameSizeDisplay* frameSizeDisplay = createWidget<LIMONADEFrameSizeDisplay>(Vec(170, 208));
-			frameSizeDisplay->box.size = Vec(45, 19);
+			LIMONADEFrameSizeDisplay* frameSizeDisplay = createWidget<LIMONADEFrameSizeDisplay>(Vec());
+			frameSizeDisplay->box = theme::specificRect(170, 208, 45, 19);
 			frameSizeDisplay->setModule(module);
 			addChild(frameSizeDisplay);
   	}
 
-		BlueBtn *loadSampleParam = createParam<LimonadeBlueBtnLoadSample>(Vec(170, 240), module, LIMONADE::LOADSAMPLE_PARAM);
+		BlueBtn *loadSampleParam = theme::atCorner(createParam<LimonadeBlueBtnLoadSample>(Vec(), module, LIMONADE::LOADSAMPLE_PARAM), 170, 240);
 		loadSampleParam->caption = "≈";
 		addParam(loadSampleParam);
 
-		BlueBtn *loadPngParam = createParam<LimonadeBlueBtnLoadPNG>(Vec(190, 240), module, LIMONADE::LOADPNG_PARAM);
+		BlueBtn *loadPngParam = theme::atCorner(createParam<LimonadeBlueBtnLoadPNG>(Vec(), module, LIMONADE::LOADPNG_PARAM), 190, 240);
 		loadPngParam->caption = "☺";
 		addParam(loadPngParam);
 
-		BlueBtn *loadFrameParam = createParam<LimonadeBlueBtnLoadFrame>(Vec(210, 240), module, LIMONADE::LOADFRAME_PARAM);
+		BlueBtn *loadFrameParam = theme::atCorner(createParam<LimonadeBlueBtnLoadFrame>(Vec(), module, LIMONADE::LOADFRAME_PARAM), 210, 240);
 		loadFrameParam->caption = "~";
 		addParam(loadFrameParam);
 
-		BlueBtn *morphWtParam = createParam<BlueBtn>(Vec(170, 260), module, LIMONADE::MORPHWT_PARAM);
+		BlueBtn *morphWtParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::MORPHWT_PARAM), 170, 260);
 		morphWtParam->caption = "≡";
 		addParam(morphWtParam);
 
-		BlueBtn *morphSpectrumParam = createParam<BlueBtn>(Vec(190, 260), module, LIMONADE::MORPHSPECTRUM_PARAM);
+		BlueBtn *morphSpectrumParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::MORPHSPECTRUM_PARAM), 190, 260);
 		morphSpectrumParam->caption = "∞";
 		addParam(morphSpectrumParam);
 
-		BlueBtn *morphSpectrumPhaseConstantParam = createParam<BlueBtn>(Vec(210, 260), module, LIMONADE::MORPHSPECTRUMCONSTANTPHASE_PARAM);
+		BlueBtn *morphSpectrumPhaseConstantParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::MORPHSPECTRUMCONSTANTPHASE_PARAM), 210, 260);
 		morphSpectrumPhaseConstantParam->caption = "Փ";
 		addParam(morphSpectrumPhaseConstantParam);
 
-		BlueBtn *removeMorphingParam = createParam<BlueBtn>(Vec(230, 260), module, LIMONADE::REMOVEMORPH_PARAM);
+		BlueBtn *removeMorphingParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::REMOVEMORPH_PARAM), 230, 260);
 		removeMorphingParam->caption = "Ø";
 		addParam(removeMorphingParam);
 
-		BlueBtn *normalizeAllFramesParam = createParam<BlueBtn>(Vec(170, 280), module, LIMONADE::NORMALIZEALLFRAMES_PARAM);
+		BlueBtn *normalizeAllFramesParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::NORMALIZEALLFRAMES_PARAM), 170, 280);
 		normalizeAllFramesParam->caption = "↕";
 		addParam(normalizeAllFramesParam);
 
-		BlueBtn *removeDCParam = createParam<BlueBtn>(Vec(190, 280), module, LIMONADE::REMOVEDC_PARAM);
+		BlueBtn *removeDCParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::REMOVEDC_PARAM), 190, 280);
 		removeDCParam->caption = "↨";
 		addParam(removeDCParam);
 
-		BlueBtn *normalizeWtParam = createParam<BlueBtn>(Vec(210, 280), module, LIMONADE::NORMALIZEWT_PARAM);
+		BlueBtn *normalizeWtParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::NORMALIZEWT_PARAM), 210, 280);
 		normalizeWtParam->caption = "↕≈";
 		addParam(normalizeWtParam);
 
-		BlueBtn *normalizeFrameParam = createParam<BlueBtn>(Vec(230, 280), module, LIMONADE::NORMALIZEFRAME_PARAM);
+		BlueBtn *normalizeFrameParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::NORMALIZEFRAME_PARAM), 230, 280);
 		normalizeFrameParam->caption = "↕~";
 		addParam(normalizeFrameParam);
 
-		BlueBtn *windowWtParam = createParam<BlueBtn>(Vec(170, 300), module, LIMONADE::WINDOWWT_PARAM);
+		BlueBtn *windowWtParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::WINDOWWT_PARAM), 170, 300);
 		windowWtParam->caption = "∩≈";
 		addParam(windowWtParam);
 
-		BlueBtn *smoothWtParam = createParam<BlueBtn>(Vec(190, 300), module, LIMONADE::SMOOTHWT_PARAM);
+		BlueBtn *smoothWtParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::SMOOTHWT_PARAM), 190, 300);
 		smoothWtParam->caption = "ƒ≈";
 		addParam(smoothWtParam);
 
-		BlueBtn *windowFrameParam = createParam<BlueBtn>(Vec(210, 300), module, LIMONADE::WINDOWFRAME_PARAM);
+		BlueBtn *windowFrameParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::WINDOWFRAME_PARAM), 210, 300);
 		windowFrameParam->caption = "∩~";
 		addParam(windowFrameParam);
 
-		BlueBtn *smoothFrameParam = createParam<BlueBtn>(Vec(230, 300), module, LIMONADE::SMOOTHFRAME_PARAM);
+		BlueBtn *smoothFrameParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::SMOOTHFRAME_PARAM), 230, 300);
 		smoothFrameParam->caption = "ƒ~";
 		addParam(smoothFrameParam);
 
-		BlueBtn *addFrameParam = createParam<BlueBtn>(Vec(170, 320), module, LIMONADE::ADDFRAME_PARAM);
+		BlueBtn *addFrameParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::ADDFRAME_PARAM), 170, 320);
 		addFrameParam->caption = "+";
 		addParam(addFrameParam);
 
-		BlueBtn *removeFrameParam = createParam<BlueBtn>(Vec(190, 320), module, LIMONADE::REMOVEFRAME_PARAM);
+		BlueBtn *removeFrameParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::REMOVEFRAME_PARAM), 190, 320);
 		removeFrameParam->caption = "-";
 		addParam(removeFrameParam);
 
-		BlueBtn *displayModeParam = createParam<BlueBtn>(Vec(355, 8), module, LIMONADE::DISPLAYMODE_PARAM);
+		BlueBtn *displayModeParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::DISPLAYMODE_PARAM), 355, 8);
 		displayModeParam->caption = "d";
 		addParam(displayModeParam);
 
-		BlueBtn *displayEditedFrameParam = createParam<BlueBtn>(Vec(375, 8), module, LIMONADE::DISPLAYEDITEDFRAME_PARAM);
+		BlueBtn *displayEditedFrameParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::DISPLAYEDITEDFRAME_PARAM), 375, 8);
 		displayEditedFrameParam->caption = "e";
 		addParam(displayEditedFrameParam);
 
-		BlueBtn *displayPlayedFrameParam = createParam<BlueBtn>(Vec(395, 8), module, LIMONADE::DISPLAYPLAYEDFRAME_PARAM);
+		BlueBtn *displayPlayedFrameParam = theme::atCorner(createParam<BlueBtn>(Vec(), module, LIMONADE::DISPLAYPLAYEDFRAME_PARAM), 395, 8);
 		displayPlayedFrameParam->caption = "p";
 		addParam(displayPlayedFrameParam);
 
-  	addParam(createParam<BidooGreenKnob>(Vec(230.0f, 208.0f), module, LIMONADE::INDEX_PARAM));
+  	addParam(theme::atCorner(createParam<BidooGreenKnob>(Vec(), module, LIMONADE::INDEX_PARAM), 230.0f, 208.0f));
 
-  	addParam(createParam<BidooBlueSnapKnob>(Vec(274.0f, 219.0f), module, LIMONADE::UNISSON_PARAM));
-  	addParam(createParam<BidooBlueTrimpot>(Vec(279.0f, 262.0f), module, LIMONADE::UNISSONRANGE_PARAM));
-  	addParam(createParam<BidooBlueKnob>(Vec(309, 219), module, LIMONADE::FREQ_PARAM));
-  	addParam(createParam<BidooBlueKnob>(Vec(344, 219), module, LIMONADE::FINE_PARAM));
-  	addParam(createParam<BidooBlueKnob>(Vec(379, 219), module, LIMONADE::FM_PARAM));
-  	addParam(createParam<BidooRedKnob>(Vec(414.0f, 219), module, LIMONADE::WTINDEX_PARAM));
-  	addParam(createParam<BidooBlueTrimpot>(Vec(420.0f, 257), module, LIMONADE::WTINDEXATT_PARAM));
+		const theme::Pos col[5] = {theme::specific(289.156f, 0), theme::specific(324.562f, 0), theme::specific(359.094f, 0), theme::specific(394.062f, 0), theme::specific(429.375f, 0)};   // the lines and boxes
+		const theme::Pos knobRow = theme::specificCorner(0, 219, theme::kBlueKnobSize);
+		const theme::Pos cvRow = theme::specificCorner(0, 283, theme::kJackSize);
+		const theme::Pos ioRow = theme::specificCorner(0, 330, theme::kJackSize);
+		const theme::Size kCKSSSize = {14.f, 20.64111f};   // CKSS
+		addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(col[0], knobRow), module, LIMONADE::UNISSON_PARAM));
+		addParam(theme::param<BidooBlueTrimpot>(theme::colRow(col[0], theme::specificCorner(0, 262, theme::kTrimpotSize)), module, LIMONADE::UNISSONRANGE_PARAM));
+		addParam(theme::param<BidooBlueKnob>(theme::colRow(col[1], knobRow), module, LIMONADE::FREQ_PARAM));
+		addParam(theme::param<BidooBlueKnob>(theme::colRow(col[2], knobRow), module, LIMONADE::FINE_PARAM));
+		addParam(theme::param<BidooBlueKnob>(theme::colRow(col[3], knobRow), module, LIMONADE::FM_PARAM));
+		addParam(theme::param<BidooRedKnob>(theme::colRow(col[4], knobRow), module, LIMONADE::WTINDEX_PARAM));
+		addParam(theme::param<BidooBlueTrimpot>(theme::colRow(col[4], theme::specificCorner(0, 257, theme::kTrimpotSize)), module, LIMONADE::WTINDEXATT_PARAM));
 
-  	addParam(createParam<CKSS>(Vec(352, 327), module, LIMONADE::SYNC_PARAM));
-  	addInput(createInput<TinyPJ301MPort>(Vec(317, 330), module, LIMONADE::SYNCMODE_INPUT));
+		addParam(theme::param<CKSS>(theme::specificCorner(352, 327, kCKSSSize), module, LIMONADE::SYNC_PARAM));   // between H and S
+		addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(317, 330, theme::kTinyJackSize), module, LIMONADE::SYNCMODE_INPUT));   // under the FREQ line, on the line to the switch
 
 
-		RedBtn *btnRecWt = createParam<RedBtn>(Vec(254.0f, 320), module, LIMONADE::RECWT_PARAM);
+		RedBtn *btnRecWt = theme::atCorner(createParam<RedBtn>(Vec(), module, LIMONADE::RECWT_PARAM), 254.0f, 320);
 		btnRecWt->caption = "≈";
 		addParam(btnRecWt);
 
-  	addChild(createLight<SmallLight<RedLight>>(Vec(244.0f, 325), module, LIMONADE::RECWT_LIGHT));
+  	addChild(theme::atCorner(createLight<SmallLight<RedLight>>(Vec(), module, LIMONADE::RECWT_LIGHT), 244.0f, 325));
 
-		RedBtn *btnRecFrame = createParam<RedBtn>(Vec(254.0f, 340), module, LIMONADE::RECFRAME_PARAM);
+		RedBtn *btnRecFrame = theme::atCorner(createParam<RedBtn>(Vec(), module, LIMONADE::RECFRAME_PARAM), 254.0f, 340);
 		btnRecFrame->caption = "~";
 		addParam(btnRecFrame);
 
-  	addChild(createLight<SmallLight<RedLight>>(Vec(244.0f, 345), module, LIMONADE::RECFRAME_LIGHT));
+  	addChild(theme::atCorner(createLight<SmallLight<RedLight>>(Vec(), module, LIMONADE::RECFRAME_LIGHT), 244.0f, 345));
 
-  	addInput(createInput<PJ301MPort>(Vec(277, 283), module, LIMONADE::UNISSONRANGE_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(312, 283), module, LIMONADE::PITCH_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(347, 283), module, LIMONADE::SYNC_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(382, 283), module, LIMONADE::FM_INPUT));
-  	addInput(createInput<PJ301MPort>(Vec(417, 283), module, LIMONADE::WTINDEX_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(col[0], cvRow), module, LIMONADE::UNISSONRANGE_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(col[1], cvRow), module, LIMONADE::PITCH_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(col[2], cvRow), module, LIMONADE::SYNC_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(col[3], cvRow), module, LIMONADE::FM_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(col[4], cvRow), module, LIMONADE::WTINDEX_INPUT));
 
-  	addInput(createInput<PJ301MPort>(Vec(277, 330), module, LIMONADE::IN));
-  	addOutput(createOutput<PJ301MPort>(Vec(417, 330), module, LIMONADE::OUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(col[0], ioRow), module, LIMONADE::IN));
+		addOutput(theme::output<PJ301MPort>(theme::colRow(col[4], ioRow), module, LIMONADE::OUT));
   }
 
 	void appendContextMenu(Menu *menu) override {

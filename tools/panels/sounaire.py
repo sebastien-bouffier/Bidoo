@@ -78,14 +78,14 @@ def build():
     for i, l in enumerate(['V/OCT', 'GATE', 'VEL', 'BEND', 'START', 'SPEED', 'CUTOFF', 'RES', 'PITCH', 'PLAY']):
         out.append(k.jack_label(l, JX0 + COL * i, UPPER_ROW, 7))
     for i, l in ((0, 'TRIG'), (1, 'SLICE'), (2, 'RESET'), (3, 'CLOCK'), (4, 'END'), (5, 'LP IN'), (6, 'LP OUT'), (7, 'REC IN')):
-        out.append(k.jack_label(l, JX0 + COL * i, k.BOTTOM_ROW, 7))
-    out.append(k.jack_label('REC', 351, k.BOTTOM_ROW, 7, k.INK))
+        out.append(k.jack_label(l, JX0 + COL * i, k.BOTTOM_ROW, 7, jack_above=UPPER_ROW))
+    out.append(k.jack_label('REC', 351, k.BOTTOM_ROW, 7, k.INK, jack_above=UPPER_ROW))   # on the bottom row's baseline
     out.append(k.box(368, top, 48, tall, k.INPUT))
     out.append(k.jack_label('IN L', 392, UPPER_ROW, 7))
-    out.append(k.jack_label('IN R', 392, k.BOTTOM_ROW, 7))
+    out.append(k.jack_label('IN R', 392, k.BOTTOM_ROW, 7, jack_above=UPPER_ROW))
     out.append(k.box(422, top, 48, tall, k.OUTPUT))
     out.append(k.jack_label('OUT L', 446, UPPER_ROW, 7))
-    out.append(k.jack_label('OUT R', 446, k.BOTTOM_ROW, 7))
+    out.append(k.jack_label('OUT R', 446, k.BOTTOM_ROW, 7, jack_above=UPPER_ROW))
     out.append(k.logo(W))
     out.append('</svg>')
     return out

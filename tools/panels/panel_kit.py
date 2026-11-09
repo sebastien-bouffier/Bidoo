@@ -37,6 +37,14 @@ def _read_theme():
         values[name] = eval(expr, {'__builtins__': {}}, values)
     for name, expr in re.findall(r'^const NVGcolor (k\w+) = ([^;]+);', src, re.M):
         values[name] = _hex(expr, plugin)
+    # the grid's functions, the same expressions as in C++: `static constexpr float name(type a, ...) { return e; }`
+    for name, args, expr in re.findall(r'^static constexpr float ([a-z]\w*)\(([^)]*)\) \{ return ([^;]+); \}', src, re.M):
+        params = [a.split()[-1] for a in args.split(',')]
+        expr = re.sub(r'(\d+\.?\d*)f\b', r'\1', expr)
+        # the namespace is the lambdas' globals, so that they see the constants and each other
+        ns = values.setdefault('_ns', {'__builtins__': {}})
+        ns.update((k, v) for k, v in values.items() if k != '_ns')
+        values[name] = ns[name] = eval('lambda ' + ', '.join(params) + ': ' + expr, ns)
     return values
 
 T = _read_theme()
@@ -46,9 +54,21 @@ SECOND_TOP, SECOND_BOTTOM = T['kSecondBoxTop'], T['kSecondBoxBottom']
 BOX_ABOVE, BOX_BELOW, LABEL_ABOVE = T['kBoxAboveJack'], T['kBoxBelowJack'], T['kBoxLabelAboveJack']
 MARGIN, SCREEN_TOP, TITLE_Y, TITLE_SIZE = T['kSideMargin'], T['kScreenTop'], T['kTitleY'], T['kTitleSize']
 KNOB_LABEL_ABOVE, KNOB_LABEL_SIZE, BOX_LABEL_SIZE = T['kKnobLabelAbove'], T['kKnobLabelSize'], T['kBoxLabelSize']
+SMALL_LABEL_ABOVE = T['kSmallLabelAbove']
 PANEL, INK, WHITE = T['kPanelGrey'], T['kPanelText'], T['kBoxText']
 INPUT, OUTPUT, FRAME, SCREEN = T['kInputBox'], T['kOutputBox'], T['kScreenFrame'], T['kScreenBlack']
 PICTURE_OPACITY = T['kPictureOpacity']
+
+# ---- The grid (docs/THEME.md): row k from the bottom, column i of n across the width between the side margins, in px
+row, col, col_pitch = T['row'], T['col'], T['colPitch']
+box_left, box_right, box_top, box_bottom = T['boxLeft'], T['boxRight'], T['boxTop'], T['boxBottom']
+jack_col = T['jackCol']
+screen_bottom, screen_above_knobs = T['screenBottom'], T['screenAboveKnobs']
+caption_under_jack = T['captionUnderJack']
+JACK_HALF = T['kJackHalf']
+CAP_HEIGHT = 1493 / 2048           # DejaVu's capitals, per unit of size
+ROW_PITCH, BOX_GAP = T['kRowPitch'], T['kBoxGap']
+assert row(0) == BOTTOM_ROW and row(1) == SECOND_ROW
 
 # ---- The font: from RACK_DIR, or next to this plugin in a Rack folder, or the usual place
 def _find_font():
@@ -66,8 +86,15 @@ def _find_font():
 _font = TTFont(_find_font())
 _glyphs, _cmap, _upm = _font.getGlyphSet(), _font.getBestCmap(), _font['head'].unitsPerEm
 
+# ---- What was drawn, for make_all.py --align: labels (centre, baseline) and boxes (edges), in px
+marks = []
+
 # ---- Drawing, in px
 def text(s, x, y, size, col):
+    marks.append(('label', s, x, y, size))
+    return _text(s, x, y, size, col)
+
+def _text(s, x, y, size, col):
     # one path per letter: Rack tells holes from solids by counting crossings with the other outlines
     # of the same path, so letters sharing a path can come out as holes (they looked heavier)
     sc = size * K / _upm
@@ -86,6 +113,7 @@ def text(s, x, y, size, col):
     return ''.join(out)
 
 def box(x, y, w, h, col):
+    marks.append(('box', x, y, x + w, y + h))
     # rounded by the stroke, like the older panels' boxes. The stroke is 2.2 units = 8.3 px wide,
     # so the visible box is the nominal x..x+w, not smaller
     return (f'<path style="fill:{col};stroke:{col};stroke-width:2.2;stroke-linejoin:round" '
@@ -96,13 +124,28 @@ def jack_box(x, jack_y, w, col, x_right=None):
     width = w if x_right is None else x_right - x + w
     return box(x - w / 2, jack_y - BOX_ABOVE, width, BOX_ABOVE + BOX_BELOW, col)
 
-def jack_label(s, x, jack_y, size=BOX_LABEL_SIZE, col=WHITE):
-    return text(s, x, jack_y - LABEL_ABOVE, size, col)
+def grid_box(i0, i1, n, k, width_px, col, k_low=None):
+    # the box around the jacks of columns i0 to i1 of n on row k, or on rows k down to k_low (theme::jackBox)
+    x0, x1 = box_left(i0, n, width_px), box_right(i1, n, width_px)
+    y0, y1 = box_top(k), box_bottom(k if k_low is None else k_low)
+    return box(x0, y0, x1 - x0, y1 - y0, col)
+
+def jack_label(s, x, jack_y, size=BOX_LABEL_SIZE, col=WHITE, jack_above=None):
+    # centred between the box's top edge and the jack's top; in the lower row of a tall box, give the upper row's y as
+    # jack_above, and the caption is centred between that jack's bottom and this one's top (theme::captionUnderJack)
+    above = LABEL_ABOVE if jack_above is None else caption_under_jack(jack_y - jack_above)
+    # the same for every size: 7 and 6.5 would sit under 0.4 px lower, and a row keeps one baseline (THEME.md)
+    return text(s, x, jack_y - above, size, col)
 
 def knob_label(s, x, knob_y):
     return text(s, x, knob_y - KNOB_LABEL_ABOVE, KNOB_LABEL_SIZE, INK)
 
+def small_label(s, x, knob_y):
+    # above a small knob or a round button
+    return text(s, x, knob_y - SMALL_LABEL_ABOVE, BOX_LABEL_SIZE, INK)
+
 def screen(x, y, w, h):
+    marks.append(('screen', x, y, x + w, y + h))
     # id="screen" keeps its black in Dark and Black (BidooWidget::prepareThemes)
     return (f'<path id="screen" style="fill:{SCREEN};stroke:{FRAME};stroke-width:0.5" '
             f'd="M{x*K:.3f},{y*K:.3f}h{w*K:.3f}v{h*K:.3f}h{-w*K:.3f}Z"/>')

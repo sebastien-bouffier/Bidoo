@@ -138,49 +138,57 @@ struct MAGMAWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/MAGMA.svg"));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		theme::addScrews(this);
 
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(56.5f, 20.0f), module, MAGMA::SAMPLE_LIGHT));
+		// The original hand-drawn panel, oAi's with four preset buttons: the sample light and channel knob under the
+		// title, two rows of three knobs, the loop and gate switches with the kill knob, three rows of boxed jacks.
+		// Knobs keep their old corners (within 0.25 px of their labels); the light goes on the panel's centre, the loop
+		// switch between LOOP and OFF, every jack on its box's centre (the old code had them 0.27 to 0.65 px left), and
+		// each preset button and light on its number's middle (they were 0.61 px above).
+		const float centre = box.size.x * 0.5f;
+		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
+		const theme::Size kMiniButtonSize = {mm2px(1.8f), mm2px(1.8f)};   // MiniLEDButton
+		const theme::Size kCKSSSize = {14.f, 20.64111f};                  // CKSS
+		addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::sameRow(theme::specificCorner(56.5f, 20, kSmallLightSize), centre), module, MAGMA::SAMPLE_LIGHT));
+		addParam(theme::param<BidooBlueSnapKnob>(theme::specificCorner(45, 35, theme::kBlueKnobSize), module, MAGMA::CHANNEL_PARAM));
 
-		addParam(createParam<BidooBlueSnapKnob>(Vec(45.0f,35.0f), module, MAGMA::CHANNEL_PARAM));
+		const float kKnobPitch = 38.f;    // across
+		const float kKnobRowBelow = 50.f;
+		const theme::Pos start = theme::specificCorner(7, 85, theme::kBlueKnobSize);
+		addParam(theme::param<BidooBlueKnob>(start, module, MAGMA::START_PARAM));
+		addParam(theme::param<BidooBlueKnob>(start.right(kKnobPitch), module, MAGMA::LEN_PARAM));
+		addParam(theme::param<BidooBlueKnob>(start.right(2.f * kKnobPitch), module, MAGMA::SPEED_PARAM));
+		addParam(theme::param<BidooBlueSnapKnob>(start.down(kKnobRowBelow), module, MAGMA::FILTERTYPE_PARAM));
+		addParam(theme::param<BidooBlueKnob>(start.offset(kKnobPitch, kKnobRowBelow), module, MAGMA::FREQ_PARAM));
+		addParam(theme::param<BidooBlueKnob>(start.offset(2.f * kKnobPitch, kKnobRowBelow), module, MAGMA::Q_PARAM));
+		addParam(theme::param<CKSS>(theme::colRow(theme::specific(22.f, 0), theme::specificCorner(14.5f, 190, kCKSSSize)), module, MAGMA::LOOP_PARAM));   // between LOOP and OFF
+		addParam(theme::param<CKSS>(theme::specificCorner(53, 190, kCKSSSize), module, MAGMA::GATE_PARAM));
+		addParam(theme::param<BidooBlueSnapKnob>(start.offset(2.f * kKnobPitch, 2.f * kKnobRowBelow), module, MAGMA::KILL_PARAM));
 
-		addParam(createParam<BidooBlueKnob>(Vec(7.0f,85.0f), module, MAGMA::START_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(45.0f,85.0f), module, MAGMA::LEN_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(83.0f,85.0f), module, MAGMA::SPEED_PARAM));
+		const float kRowBelow = 47.f;
+		const theme::Pos cvRow = theme::specificCorner(4, 236, theme::kJackSize);
+		const theme::Pos boxCol[4] = {theme::specific(16.156f, 0), theme::specific(45.406f, 0), theme::specific(74.594f, 0), theme::specific(103.844f, 0)};   // the boxes' centres
+		const int topIds[4] = {MAGMA::START_INPUT, MAGMA::LEN_INPUT, MAGMA::SPEED_INPUT, MAGMA::LOOP_INPUT};
+		const int midIds[4] = {MAGMA::FILTERTYPE_INPUT, MAGMA::FREQ_INPUT, MAGMA::Q_INPUT, MAGMA::GATE_INPUT};
+		for (int i = 0; i < 4; i++)
+			addInput(theme::input<PJ301MPort>(theme::colRow(boxCol[i], cvRow), module, topIds[i]));
+		for (int i = 0; i < 4; i++)
+			addInput(theme::input<PJ301MPort>(theme::colRow(boxCol[i], cvRow).down(kRowBelow), module, midIds[i]));
 
-		addParam(createParam<BidooBlueSnapKnob>(Vec(7.0f,135.0f), module, MAGMA::FILTERTYPE_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(45.0f,135.0f), module, MAGMA::FREQ_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(83.0f,135.0f), module, MAGMA::Q_PARAM));
+		const theme::Pos bottomRow = cvRow.down(2.f * kRowBelow);
+		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(19.156f, 0), bottomRow), module, MAGMA::TRIG_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(centre, 0), bottomRow), module, MAGMA::KILL_INPUT));
+		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(100.844f, 0), bottomRow), module, MAGMA::POLY_OUTPUT));
 
-		addParam(createParam<CKSS>(Vec(14.5f,190.f), module, MAGMA::LOOP_PARAM));
-		addParam(createParam<CKSS>(Vec(53.0f,190.f), module, MAGMA::GATE_PARAM));
-		addParam(createParam<BidooBlueSnapKnob>(Vec(83.0f,185.0f), module, MAGMA::KILL_PARAM));
-
-		addInput(createInput<PJ301MPort>(Vec(4.0f, 236.0f), module, MAGMA::START_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(33.0f, 236.0f), module, MAGMA::LEN_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(62.5f, 236.0f), module, MAGMA::SPEED_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(91.5f, 236.0f), module, MAGMA::LOOP_INPUT));
-
-		addInput(createInput<PJ301MPort>(Vec(4.0f, 283.0f), module, MAGMA::FILTERTYPE_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(33.0f, 283.0f), module, MAGMA::FREQ_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(62.5f, 283.0f), module, MAGMA::Q_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(91.5f, 283.0f), module, MAGMA::GATE_INPUT));
-
-		addInput(createInput<PJ301MPort>(Vec(7.0f, 330.0f), module, MAGMA::TRIG_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(47.5f, 330.0f), module, MAGMA::KILL_INPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(88.5f, 330.0f), module, MAGMA::POLY_OUTPUT));
-
-		addParam(createParam<MiniLEDButton>(Vec(109.0f, 20.0f), module, MAGMA::PRESET_PARAM));
-		addParam(createParam<MiniLEDButton>(Vec(109.0f, 30.0f), module, MAGMA::PRESET_PARAM+1));
-		addParam(createParam<MiniLEDButton>(Vec(109.0f, 40.0f), module, MAGMA::PRESET_PARAM+2));
-		addParam(createParam<MiniLEDButton>(Vec(109.0f, 50.0f), module, MAGMA::PRESET_PARAM+3));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(109.0f, 20.0f), module, MAGMA::PRESET_LIGHT));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(109.0f, 30.0f), module, MAGMA::PRESET_LIGHT+1));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(109.0f, 40.0f), module, MAGMA::PRESET_LIGHT+2));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(109.0f, 50.0f), module, MAGMA::PRESET_LIGHT+3));
+		// Preset buttons, 10 px apart, each light centred on its number (8, 16, 32, 64); the button keeps its old
+		// corner relative to its light
+		const float kPresetBelow = 10.f;
+		const theme::Pos firstLight = theme::colRow(theme::specificCorner(109, 20, kSmallLightSize), theme::specific(0, 23.562f));   // on the 8
+		const float lightTop = firstLight.y - kSmallLightSize.h * 0.5f;
+		for (int i = 0; i < 4; i++)
+			addParam(theme::param<MiniLEDButton>(theme::specificCorner(109, lightTop + kPresetBelow * i, kMiniButtonSize), module, MAGMA::PRESET_PARAM + i));
+		for (int i = 0; i < 4; i++)
+			addChild(theme::light<SmallLight<BlueLight>>(theme::specificCorner(109, lightTop + kPresetBelow * i, kSmallLightSize), module, MAGMA::PRESET_LIGHT + i));
 	}
 
 	struct MAGMAItem : MenuItem {

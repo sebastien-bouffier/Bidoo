@@ -77,15 +77,22 @@ struct LAMBDAWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/LAMBDA.svg"));
 
-		addInput(createInput<PJ301MPort>(Vec(10.5f, 31), module, LAMBDA::CLOCK_INPUT));
-		addInput(createInput<PJ301MPort>(Vec(10.5f, 74), module, LAMBDA::CV_INPUT));
+		// No screws, as before. The original hand-drawn panel: eight boxes down the middle, 43.875 px apart. Each jack sits
+		// at the same height in its box, under its label (the old code had them 1.5 px up to 1.25 px down from that).
+		// The column keeps its old x: between the black boxes' labels (21.75) and the red ones' (22.5), which the panel
+		// draws 0.75 px apart.
+		const float kBoxPitch = 43.875f;
+		const theme::Pos first = theme::specificCorner(10.5f, 29.5f, theme::kJackSize);
+		auto jack = [&](int i) { return first.down(kBoxPitch * i); };
+		addInput(theme::input<PJ301MPort>(jack(0), module, LAMBDA::CLOCK_INPUT));
+		addInput(theme::input<PJ301MPort>(jack(1), module, LAMBDA::CV_INPUT));
 
-		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 116.0f), module, LAMBDA::ONE_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 161.0f), module, LAMBDA::TWO_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 205.0f), module, LAMBDA::THREE_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 249.0f), module, LAMBDA::FOUR_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 293.0f), module, LAMBDA::FIVE_OUTPUT));
-		addOutput(createOutput<PJ301MPort>(Vec(10.5f, 336.0f), module, LAMBDA::SIX_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(jack(2), module, LAMBDA::ONE_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(jack(3), module, LAMBDA::TWO_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(jack(4), module, LAMBDA::THREE_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(jack(5), module, LAMBDA::FOUR_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(jack(6), module, LAMBDA::FIVE_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(jack(7), module, LAMBDA::SIX_OUTPUT));
 	}
 };
 

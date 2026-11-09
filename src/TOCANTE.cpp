@@ -249,49 +249,56 @@ struct TOCANTEWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/TOCANTE.svg"));
 
+		// No screws, as before. The original hand-drawn panel: the screen and the measure screen; three columns, each a
+		// knob or button joined by the panel's line to its jack(s) below, under BPM / BEATS / BAR and FINE / RESET / RUN;
+		// nine outputs in their boxes. The BEATS and BAR knobs and the RESET and RUN buttons now sit on their lines and
+		// labels (the old code had them 0.9 to 1 px left); the rest keeps its old corners.
+		const theme::Size kBezelSize = {21.26028f, 21.25987f};   // LEDBezel
+		const theme::Size kLightSize = {mm2px(6.f), mm2px(6.f)};  // TocanteLight
+		const float kLightIn = 1.8f;                             // from a bezel's corner to its light's
+		const theme::Pos topLine[3] = {theme::specific(17.688f, 0), theme::specific(52.656f, 0), theme::specific(87.656f, 0)};   // the lines under BPM, BEATS, BAR
+		const theme::Pos lowLine[3] = {theme::specific(17.531f, 0), theme::specific(52.531f, 0), theme::specific(87.5f, 0)};     // under FINE, RESET, RUN
+
 		TOCANTEDisplay *display = new TOCANTEDisplay();
 		display->module = module;
-		display->box.pos = Vec(11.0f, 53.0f);
-		display->box.size = Vec(50.0f, 85.0f);
+		display->box = theme::specificRect(11, 53, 50, 85);
 		addChild(display);
 
 		TOCANTEMeasureDisplay *mDisplay = new TOCANTEMeasureDisplay();
 		mDisplay->module = module;
-		mDisplay->box.pos = Vec(92.0f, 68.0f);
-		mDisplay->box.size = Vec(25.0f, 25.0f);
+		mDisplay->box = theme::specificRect(92, 68, 25, 25);
 		addChild(mDisplay);
 
-		addParam(createParam<LEDBezel>(Vec(41, 160), module, TOCANTE::RESET_PARAM));
-		addChild(createLight<TocanteLight<BlueLight>>(Vec(42.8f, 161.8f), module, TOCANTE::RESET_LIGHT));
-		addInput(createInput<TinyPJ301MPort>(Vec(36.3f, 190), module, TOCANTE::RESET_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(52.3f, 190), module, TOCANTE::OUT_RESET));
+		const theme::Pos reset = theme::colRow(lowLine[1], theme::specificCorner(0, 160, kBezelSize));
+		const theme::Pos run = theme::colRow(lowLine[2], theme::specificCorner(0, 160, kBezelSize));
+		addParam(theme::param<LEDBezel>(reset, module, TOCANTE::RESET_PARAM));
+		addChild(theme::light<TocanteLight<BlueLight>>(theme::specificCorner(reset.x - kBezelSize.w * 0.5f + kLightIn, 160 + kLightIn, kLightSize), module, TOCANTE::RESET_LIGHT));
+		addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(36.3f, 190, theme::kTinyJackSize), module, TOCANTE::RESET_INPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::specificCorner(52.3f, 190, theme::kTinyJackSize), module, TOCANTE::OUT_RESET));
 
-		addParam(createParam<LEDBezel>(Vec(76, 160), module, TOCANTE::RUN_PARAM));
-		addChild(createLight<TocanteLight<BlueLight>>(Vec(77.8f, 161.8f), module, TOCANTE::RUNNING_LIGHT));
-		addInput(createInput<TinyPJ301MPort>(Vec(71.3f, 190), module, TOCANTE::RUN_INPUT));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(87.3f, 190), module, TOCANTE::OUT_RUN));
+		addParam(theme::param<LEDBezel>(run, module, TOCANTE::RUN_PARAM));
+		addChild(theme::light<TocanteLight<BlueLight>>(theme::specificCorner(run.x - kBezelSize.w * 0.5f + kLightIn, 160 + kLightIn, kLightSize), module, TOCANTE::RUNNING_LIGHT));
+		addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(71.3f, 190, theme::kTinyJackSize), module, TOCANTE::RUN_INPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::specificCorner(87.3f, 190, theme::kTinyJackSize), module, TOCANTE::OUT_RUN));
 
-		addParam(createParam<BidooBlueKnob>(Vec(3.0f,90.0f), module, TOCANTE::BPM_PARAM));
-		addParam(createParam<BidooBlueKnob>(Vec(3.0f,155.0f), module, TOCANTE::BPMFINE_PARAM));
-		addParam(createParam<BidooBlueSnapKnob>(Vec(37.0f,90.0f), module, TOCANTE::BEATS_PARAM));
-		addParam(createParam<BidooBlueSnapKnob>(Vec(72.0f,90.0f), module, TOCANTE::REF_PARAM));
+		addParam(theme::param<BidooBlueKnob>(theme::specificCorner(3, 90, theme::kBlueKnobSize), module, TOCANTE::BPM_PARAM));
+		addParam(theme::param<BidooBlueKnob>(theme::specificCorner(3, 155, theme::kBlueKnobSize), module, TOCANTE::BPMFINE_PARAM));
+		addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(topLine[1], theme::specificCorner(0, 90, theme::kBlueKnobSize)), module, TOCANTE::BEATS_PARAM));
+		addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(topLine[2], theme::specificCorner(0, 90, theme::kBlueKnobSize)), module, TOCANTE::REF_PARAM));
 
-		addInput(createInput<TinyPJ301MPort>(Vec(10, 125), module, TOCANTE::BPM_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(10, 190), module, TOCANTE::BPMFINE_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(45, 125), module, TOCANTE::BEATS_INPUT));
-		addInput(createInput<TinyPJ301MPort>(Vec(80, 125), module, TOCANTE::REF_INPUT));
+		const float kColumnRight = 35.f;
+		const theme::Pos bpmCv = theme::specificCorner(10, 125, theme::kTinyJackSize);
+		addInput(theme::input<TinyPJ301MPort>(bpmCv, module, TOCANTE::BPM_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(10, 190, theme::kTinyJackSize), module, TOCANTE::BPMFINE_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(bpmCv.right(kColumnRight), module, TOCANTE::BEATS_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(bpmCv.right(2 * kColumnRight), module, TOCANTE::REF_INPUT));
 
-		addOutput(createOutput<PJ301MPort>(Vec(7.0f, 236.0f), module, TOCANTE::OUT_MEASURE));
-		addOutput(createOutput<PJ301MPort>(Vec(7.0f, 283.0f), module, TOCANTE::OUT_QUARTER));
-		addOutput(createOutput<PJ301MPort>(Vec(7.0f, 330.0f), module, TOCANTE::OUT_EIGHTH));
-
-		addOutput(createOutput<PJ301MPort>(Vec(40.5f, 236.0f), module, TOCANTE::OUT_BEAT));
-		addOutput(createOutput<PJ301MPort>(Vec(40.5f, 283.0f), module, TOCANTE::OUT_TRIPLET));
-		addOutput(createOutput<PJ301MPort>(Vec(40.5f, 330.0f), module, TOCANTE::OUT_SIXTEENTH));
-
-		addOutput(createOutput<PJ301MPort>(Vec(74.0f, 236.0f), module, TOCANTE::OUT_THIRTYSECOND));
-		addOutput(createOutput<PJ301MPort>(Vec(74.0f, 283.0f), module, TOCANTE::OUT_SIXTYFOURTH));
-		addOutput(createOutput<PJ301MPort>(Vec(74.0f, 330.0f), module, TOCANTE::OUT_ONEHUNDREDTWENTYEIGHTH));
+		const float kBoxBelow = 47.f;
+		const float outLeft[3] = {7, 40.5f, 74};   // the three columns of boxed outputs, within 0.3 px of their boxes
+		const int outIds[9] = {TOCANTE::OUT_MEASURE, TOCANTE::OUT_QUARTER, TOCANTE::OUT_EIGHTH, TOCANTE::OUT_BEAT, TOCANTE::OUT_TRIPLET,
+			TOCANTE::OUT_SIXTEENTH, TOCANTE::OUT_THIRTYSECOND, TOCANTE::OUT_SIXTYFOURTH, TOCANTE::OUT_ONEHUNDREDTWENTYEIGHTH};
+		for (int i = 0; i < 9; i++)
+			addOutput(theme::output<PJ301MPort>(theme::specificCorner(outLeft[i / 3], 236 + kBoxBelow * (i % 3), theme::kJackSize), module, outIds[i]));
 	}
 };
 

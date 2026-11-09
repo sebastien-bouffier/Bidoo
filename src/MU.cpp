@@ -448,212 +448,222 @@ struct MUWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/MU.svg"));
 
+		// No screws, as before. The original hand-drawn panel, made of icons: start and mute buttons around the gate
+		// light, the value screen, two columns of trimpots (BPM and step length joined by lines to their fine
+		// trimpots), the CV trimpot between them, then rows of icon boxes with a tiny jack each, and the lights and
+		// stack buttons between the columns. Old corners kept, except the two trimpot columns, now on the lines the
+		// panel draws (the old code had them 0.54 px right). The icon boxes place their jacks on purpose: specific.
 		LabelMICROWidget *display = new LabelMICROWidget();
-		display->box.pos = Vec(4,37);
+		display->box.pos = theme::specific(4, 37);   // where the screen writes the value being edited
 		addChild(display);
+		const theme::Size kButtonSize = {17.9996f, 18.f};                 // LEDButton
+		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
+		const theme::Size kMiniButtonSize = {mm2px(1.8f), mm2px(1.8f)};   // MiniLEDButton
+		const float kLightIn = 6.f;   // from a button's corner to its light's
+		const theme::Pos start = theme::specificCorner(5, 5, kButtonSize);
+		const theme::Pos mute = start.right(47.f);
+		addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::specificCorner(34, 15, kSmallLightSize), module, MU::GATE_LIGHT));
+		addParam(theme::param<LEDButton>(start, module, MU::START_PARAM));
+		addChild(theme::light<SmallLight<BlueLight>>(theme::specificCorner(start.left + kLightIn, start.top + kLightIn, kSmallLightSize), module, MU::START_LIGHT));
+		addParam(theme::param<LEDButton>(mute, module, MU::MUTE_PARAM));
+		addChild(theme::light<SmallLight<RedLight>>(theme::specificCorner(mute.left + kLightIn, mute.top + kLightIn, kSmallLightSize), module, MU::MUTE_LIGHT));
 
-		addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(34, 15), module, MU::GATE_LIGHT));
-
-		addParam(createParam<LEDButton>(Vec(5, 5), module, MU::START_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(11, 11), module, MU::START_LIGHT));
-
-		addParam(createParam<LEDButton>(Vec(52, 5), module, MU::MUTE_PARAM));
-		addChild(createLight<SmallLight<RedLight>>(Vec(58, 11), module, MU::MUTE_LIGHT));
-
-		static const float portX0[2] = {14.0f, 41.0f};
-		static const float portY0[5] = {60.0f, 83.0f, 106.0f, 145.0f, 166.0f};
-
-		static const float portX1[2] = {15.0f, 45.0f};
-		static const float portY1[8] = {191.0f, 215.0f, 239.0f, 263.0f, 287.0f, 311.0f, 335.0f, 359.0f};
+		const theme::Pos trimpotLine[2] = {theme::specific(23.062f, 0), theme::specific(50.062f, 0)};   // the lines from BPM and step length to their fine trimpots
+		const float trimpotTop[5] = {60, 83, 106, 145, 166};
+		auto trimpot = [&](int c, int r) { return theme::colRow(trimpotLine[c], theme::specificCorner(0, trimpotTop[r], theme::kTrimpotSize)); };
+		const float jackLeft[2] = {15, 45};
+		const float jackTop[8] = {191, 215, 239, 263, 287, 311, 335, 359};
+		auto jack = [&](int c, int r) { return theme::specificCorner(jackLeft[c], jackTop[r], theme::kTinyJackSize); };
+		const float kBetweenLeft = 34.f;   // the lights and stack buttons between the columns (left edge)
 
 
-		BidooBlueTrimpotWithDisplay* bpm = createParam<BidooBlueTrimpotWithDisplay>(Vec(portX0[0], portY0[0]), module, MU::BPM_PARAM);
+		BidooBlueTrimpotWithDisplay* bpm = theme::param<BidooBlueTrimpotWithDisplay>(trimpot(0, 0), module, MU::BPM_PARAM);
 		bpm->lblDisplay = display;
 		bpm->valueForDisplay = module ? &module->bpm : NULL;
 		bpm->format = "%2.2f";
 		bpm->header = "BPM";
 		addParam(bpm);
-		BidooBlueTrimpotWithDisplay* bpmFine =  createParam<BidooBlueTrimpotWithDisplay>(Vec(portX0[0], portY0[1]), module, MU::BPMFINE_PARAM);
+		BidooBlueTrimpotWithDisplay* bpmFine =  theme::param<BidooBlueTrimpotWithDisplay>(trimpot(0, 1), module, MU::BPMFINE_PARAM);
 		bpmFine->lblDisplay = display;
 		bpmFine->valueForDisplay = module ? &module->bpm : NULL;
 		bpmFine->format = "%2.2f";
 		bpmFine->header = "BPM";
 		addParam(bpmFine);
 
-		BidooBlueTrimpotWithDisplay* stepLength =  createParam<BidooBlueTrimpotWithDisplay>(Vec(portX0[1], portY0[0]), module, MU::STEPLENGTH_PARAM);
+		BidooBlueTrimpotWithDisplay* stepLength =  theme::param<BidooBlueTrimpotWithDisplay>(trimpot(1, 0), module, MU::STEPLENGTH_PARAM);
 		stepLength->lblDisplay = display;
 		stepLength->valueForDisplay = module ? &module->displayLength : NULL;
 		stepLength->format = "%2.2f %%";
 		stepLength->header = "Step len.";
 		addParam(stepLength);
-		BidooBlueTrimpotWithDisplay* stepLengthFine =  createParam<BidooBlueTrimpotWithDisplay>(Vec(portX0[1], portY0[1]), module, MU::STEPLENGTHFINE_PARAM);
+		BidooBlueTrimpotWithDisplay* stepLengthFine =  theme::param<BidooBlueTrimpotWithDisplay>(trimpot(1, 1), module, MU::STEPLENGTHFINE_PARAM);
 		stepLengthFine->lblDisplay = display;
 		stepLengthFine->valueForDisplay = module ? &module->displayLength : NULL;
 		stepLengthFine->format = "%2.2f %%";
 		stepLengthFine->header = "Step len.";
 		addParam(stepLengthFine);
 
-		BidooBlueTrimpotWithDisplay* noteLength =  createParam<BidooBlueTrimpotWithDisplay>(Vec(portX0[0], portY0[2]), module, MU::NOTELENGTH_PARAM);
+		BidooBlueTrimpotWithDisplay* noteLength =  theme::param<BidooBlueTrimpotWithDisplay>(trimpot(0, 2), module, MU::NOTELENGTH_PARAM);
 		noteLength->lblDisplay = display;
 		noteLength->valueForDisplay = module ? &module->displayNoteLength : NULL;
 		noteLength->format = "%2.2f %%";
 		noteLength->header = "Trigs len.";
 		addParam(noteLength);
 
-		BidooBlueTrimpotWithDisplay* offset =  createParam<BidooBlueTrimpotWithDisplay>(Vec(portX0[1], portY0[2]), module, MU::OFFSET_PARAM);
+		BidooBlueTrimpotWithDisplay* offset =  theme::param<BidooBlueTrimpotWithDisplay>(trimpot(1, 2), module, MU::OFFSET_PARAM);
 		offset->lblDisplay = display;
 		offset->valueForDisplay = module ? &module->displayOffset : NULL;
 		offset->format = "%2.2f %%";
 		offset->header = "Trigs offset";
 		addParam(offset);
 
-		BidooBlueTrimpotWithDisplay* cv =  createParam<BidooBlueTrimpotWithDisplay>(Vec(portX0[0]+14, portY0[2]+19), module, MU::CV_PARAM);
+		BidooBlueTrimpotWithDisplay* cv =  theme::param<BidooBlueTrimpotWithDisplay>(theme::specificCorner(28, 125, theme::kTrimpotSize), module, MU::CV_PARAM);
 		cv->lblDisplay = display;
 		cv->valueForDisplay = module ? &module->displayCV : NULL;
 		cv->format = "%2.2f V";
 		cv->header = "CV";
 		addParam(cv);
 
-		BidooBlueTrimpotWithDisplay* stepProb =  createParam<BidooBlueTrimpotWithDisplay>(Vec(portX0[0], portY0[3]), module, MU::STEPPROBA_PARAM);
+		BidooBlueTrimpotWithDisplay* stepProb =  theme::param<BidooBlueTrimpotWithDisplay>(trimpot(0, 3), module, MU::STEPPROBA_PARAM);
 		stepProb->lblDisplay = display;
 		stepProb->valueForDisplay = module ? &module->displayStepProba : NULL;
 		stepProb->format = "%2.2f %%";
 		stepProb->header = "Step prob.";
 		addParam(stepProb);
 
-		BidooBlueTrimpotWithDisplay* altOutProb =  createParam<BidooBlueTrimpotWithDisplay>(Vec(portX0[1], portY0[3]), module, MU::ALTEOSTEPPROBA_PARAM);
+		BidooBlueTrimpotWithDisplay* altOutProb =  theme::param<BidooBlueTrimpotWithDisplay>(trimpot(1, 3), module, MU::ALTEOSTEPPROBA_PARAM);
 		altOutProb->lblDisplay = display;
 		altOutProb->valueForDisplay = module ? &module->displayAltProba : NULL;
 		altOutProb->format = "%2.2f %%";
 		altOutProb->header = "Alt out prob.";
 		addParam(altOutProb);
 
-		BidooBlueTrimpotWithDisplay* numTrig =  createParam<BidooBlueTrimpotWithDisplay>(Vec(portX0[0], portY0[4]), module, MU::NUMTRIGS_PARAM);
+		BidooBlueTrimpotWithDisplay* numTrig =  theme::param<BidooBlueTrimpotWithDisplay>(trimpot(0, 4), module, MU::NUMTRIGS_PARAM);
 		numTrig->lblDisplay = display;
 		numTrig->valueForDisplay = module ? &module->displayNumTrigs : NULL;
 		numTrig->format = "%2.0f";
 		numTrig->header = "Trigs count";
 		addParam(numTrig);
 
-		BidooBlueTrimpotWithDisplay* distTrig =  createParam<BidooBlueTrimpotWithDisplay>(Vec(portX0[1], portY0[4]), module, MU::DISTTRIGS_PARAM);
+		BidooBlueTrimpotWithDisplay* distTrig =  theme::param<BidooBlueTrimpotWithDisplay>(trimpot(1, 4), module, MU::DISTTRIGS_PARAM);
 		distTrig->lblDisplay = display;
 		distTrig->valueForDisplay = module ? &module->displayDistTrigs : NULL;
 		distTrig->format = "%2.2f %%";
 		distTrig->header = "Trigs Dist.";
 		addParam(distTrig);
 
-		TinyPJ301MPortWithDisplay* bpmIn = createInput<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[0]), module, MU::BPM_INPUT);
+		TinyPJ301MPortWithDisplay* bpmIn = theme::input<TinyPJ301MPortWithDisplay>(jack(0, 0), module, MU::BPM_INPUT);
 		bpmIn->lblDisplay = display;
 		bpmIn->valueForDisplay = module ? &module->inputs[MU::BPM_INPUT].value : NULL;
 		bpmIn->format = "%2.2f V";
 		bpmIn->header = "BPM";
 		addInput(bpmIn);
-		TinyPJ301MPortWithDisplay* bpmOut = createOutput<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[0]), module, MU::BPM_OUTPUT);
+		TinyPJ301MPortWithDisplay* bpmOut = theme::output<TinyPJ301MPortWithDisplay>(jack(1, 0), module, MU::BPM_OUTPUT);
 		bpmOut->lblDisplay = display;
 		bpmOut->valueForDisplay = module ? &module->outputs[MU::BPM_OUTPUT].value : NULL;
 		bpmOut->format = "%2.2f V";
 		bpmOut->header = "BPM";
 		addOutput(bpmOut);
 
-		TinyPJ301MPortWithDisplay* activateIn = createInput<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[1]), module, MU::ACTIVATE_INPUT);
+		TinyPJ301MPortWithDisplay* activateIn = theme::input<TinyPJ301MPortWithDisplay>(jack(0, 1), module, MU::ACTIVATE_INPUT);
 		activateIn->lblDisplay = display;
 		activateIn->valueForDisplay = module ? &module->inputs[MU::ACTIVATE_INPUT].value : NULL;
 		activateIn->format = "%2.2f V";
 		activateIn->header = "Step start";
 		addInput(activateIn);
-		TinyPJ301MPortWithDisplay* activateOUT = createOutput<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[1]), module, MU::EOSTEP_OUTPUT);
+		TinyPJ301MPortWithDisplay* activateOUT = theme::output<TinyPJ301MPortWithDisplay>(jack(1, 1), module, MU::EOSTEP_OUTPUT);
 		activateOUT->lblDisplay = display;
 		activateOUT->valueForDisplay = module ? &module->outputs[MU::EOSTEP_OUTPUT].value : NULL;
 		activateOUT->format = "%2.2f V";
 		activateOUT->header = "Step end";
 		addOutput(activateOUT);
 
-		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[1]-11, portY1[1]+5), module, MU::NORMEOS_LIGHT));
+		addChild(theme::light<SmallLight<GreenLight>>(theme::specificCorner(kBetweenLeft, jackTop[1] + 5, kSmallLightSize), module, MU::NORMEOS_LIGHT));
 
-		TinyPJ301MPortWithDisplay* activateAltOUT = createOutput<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[2]), module, MU::ALTEOSTEP_OUTPUT);
+		TinyPJ301MPortWithDisplay* activateAltOUT = theme::output<TinyPJ301MPortWithDisplay>(jack(1, 2), module, MU::ALTEOSTEP_OUTPUT);
 		activateAltOUT->lblDisplay = display;
 		activateAltOUT->valueForDisplay = module ? &module->outputs[MU::ALTEOSTEP_OUTPUT].value : NULL;
 		activateAltOUT->format = "%2.2f V";
 		activateAltOUT->header = "Alt step end";
 		addOutput(activateAltOUT);
 
-		addChild(createLight<SmallLight<GreenLight>>(Vec(portX1[1]-11, portY1[2]+5), module, MU::ALTEOS_LIGHT));
+		addChild(theme::light<SmallLight<GreenLight>>(theme::specificCorner(kBetweenLeft, jackTop[2] + 5, kSmallLightSize), module, MU::ALTEOS_LIGHT));
 
-		TinyPJ301MPortWithDisplay* inhibitIn = createInput<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[2]), module, MU::INHIBIT_INPUT);
+		TinyPJ301MPortWithDisplay* inhibitIn = theme::input<TinyPJ301MPortWithDisplay>(jack(0, 2), module, MU::INHIBIT_INPUT);
 		inhibitIn->lblDisplay = display;
 		inhibitIn->valueForDisplay = module ? &module->inputs[MU::INHIBIT_INPUT].value : NULL;
 		inhibitIn->format = "%2.2f V";
 		inhibitIn->header = "Inhibit step";
 		addInput(inhibitIn);
 
-		TinyPJ301MPortWithDisplay* noteLengthIn = createInput<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[3]), module, MU::NOTELENGTH_INPUT);
+		TinyPJ301MPortWithDisplay* noteLengthIn = theme::input<TinyPJ301MPortWithDisplay>(jack(0, 3), module, MU::NOTELENGTH_INPUT);
 		noteLengthIn->lblDisplay = display;
 		noteLengthIn->valueForDisplay = module ? &module->inputs[MU::NOTELENGTH_INPUT].value : NULL;
 		noteLengthIn->format = "%2.2f V";
 		noteLengthIn->header = "Trigs len.";
 		addInput(noteLengthIn);
 
-		TinyPJ301MPortWithDisplay* offsetIn = createInput<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[3]), module, MU::OFFSET_INPUT);
+		TinyPJ301MPortWithDisplay* offsetIn = theme::input<TinyPJ301MPortWithDisplay>(jack(1, 3), module, MU::OFFSET_INPUT);
 		offsetIn->lblDisplay = display;
 		offsetIn->valueForDisplay = module ? &module->inputs[MU::OFFSET_INPUT].value : NULL;
 		offsetIn->format = "%2.2f V";
 		offsetIn->header = "Offset mod";
 		addInput(offsetIn);
 
-		TinyPJ301MPortWithDisplay* cvIn = createInput<TinyPJ301MPortWithDisplay>(Vec(portX1[0]+14, portY1[4]), module, MU::CV_INPUT);
+		TinyPJ301MPortWithDisplay* cvIn = theme::input<TinyPJ301MPortWithDisplay>(theme::specificCorner(29, 287, theme::kTinyJackSize), module, MU::CV_INPUT);
 		cvIn->lblDisplay = display;
 		cvIn->valueForDisplay = module ? &module->inputs[MU::CV_INPUT].value : NULL;
 		cvIn->format = "%2.2f V";
 		cvIn->header = "CV mod";
 		addInput(cvIn);
 
-		TinyPJ301MPortWithDisplay* numTrigsIn = createInput<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[5]), module, MU::NUMTRIGS_INPUT);
+		TinyPJ301MPortWithDisplay* numTrigsIn = theme::input<TinyPJ301MPortWithDisplay>(jack(0, 5), module, MU::NUMTRIGS_INPUT);
 		numTrigsIn->lblDisplay = display;
 		numTrigsIn->valueForDisplay = module ? &module->inputs[MU::NUMTRIGS_INPUT].value : NULL;
 		numTrigsIn->format = "%2.2f V";
 		numTrigsIn->header = "Trigs count";
 		addInput(numTrigsIn);
 
-		TinyPJ301MPortWithDisplay* distTrigsIn = createInput<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[5]), module, MU::DISTTRIGS_INPUT);
+		TinyPJ301MPortWithDisplay* distTrigsIn = theme::input<TinyPJ301MPortWithDisplay>(jack(1, 5), module, MU::DISTTRIGS_INPUT);
 		distTrigsIn->lblDisplay = display;
 		distTrigsIn->valueForDisplay = module ? &module->inputs[MU::DISTTRIGS_INPUT].value : NULL;
 		distTrigsIn->format = "%2.2f V";
 		distTrigsIn->header = "Trigs Dist.";
 		addInput(distTrigsIn);
 
-		TinyPJ301MPortWithDisplay* gateBridgeIn = createInput<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[6]), module, MU::GATEBRIDGE_INPUT);
+		TinyPJ301MPortWithDisplay* gateBridgeIn = theme::input<TinyPJ301MPortWithDisplay>(jack(0, 6), module, MU::GATEBRIDGE_INPUT);
 		gateBridgeIn->lblDisplay = display;
 		gateBridgeIn->valueForDisplay = module ? &module->inputs[MU::GATEBRIDGE_INPUT].value : NULL;
 		gateBridgeIn->format = "%2.2f V";
 		gateBridgeIn->header = "Gate";
 		addInput(gateBridgeIn);
 
-		TinyPJ301MPortWithDisplay* gateBridgeOut = createOutput<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[6]), module, MU::GATEBRIDGE_OUTPUT);
+		TinyPJ301MPortWithDisplay* gateBridgeOut = theme::output<TinyPJ301MPortWithDisplay>(jack(1, 6), module, MU::GATEBRIDGE_OUTPUT);
 		gateBridgeOut->lblDisplay = display;
 		gateBridgeOut->valueForDisplay = module ? &module->outputs[MU::GATEBRIDGE_OUTPUT].value : NULL;
 		gateBridgeOut->format = "%2.2f V";
 		gateBridgeOut->header = "Gate";
 		addOutput(gateBridgeOut);
 
-		addParam(createParam<MiniLEDButton>(Vec(portX1[1]-11, portY1[6]+5), module, MU::TRIGSTACK_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[1]-11, portY1[6]+5), module, MU::TRIGSTACK_LIGHT));
+		addParam(theme::param<MiniLEDButton>(theme::specificCorner(kBetweenLeft, jackTop[6] + 5, kMiniButtonSize), module, MU::TRIGSTACK_PARAM));
+		addChild(theme::light<SmallLight<BlueLight>>(theme::specificCorner(kBetweenLeft, jackTop[6] + 5, kSmallLightSize), module, MU::TRIGSTACK_LIGHT));
 
-		TinyPJ301MPortWithDisplay* cvBridgeIn = createInput<TinyPJ301MPortWithDisplay>(Vec(portX1[0], portY1[7]), module, MU::CVBRIDGE_INPUT);
+		TinyPJ301MPortWithDisplay* cvBridgeIn = theme::input<TinyPJ301MPortWithDisplay>(jack(0, 7), module, MU::CVBRIDGE_INPUT);
 		cvBridgeIn->lblDisplay = display;
 		cvBridgeIn->valueForDisplay = module ? &module->inputs[MU::CVBRIDGE_INPUT].value : NULL;
 		cvBridgeIn->format = "%2.2f V";
 		cvBridgeIn->header = "CV";
 		addInput(cvBridgeIn);
 
-		TinyPJ301MPortWithDisplay* cvBridgeOut = createOutput<TinyPJ301MPortWithDisplay>(Vec(portX1[1], portY1[7]), module, MU::CVBRIDGE_OUTPUT);
+		TinyPJ301MPortWithDisplay* cvBridgeOut = theme::output<TinyPJ301MPortWithDisplay>(jack(1, 7), module, MU::CVBRIDGE_OUTPUT);
 		cvBridgeOut->lblDisplay = display;
 		cvBridgeOut->valueForDisplay = module ? &module->outputs[MU::CVBRIDGE_OUTPUT].value : NULL;
 		cvBridgeOut->format = "%2.2f V";
 		cvBridgeOut->header = "CV";
 		addOutput(cvBridgeOut);
 
-		addParam(createParam<MiniLEDButton>(Vec(portX1[1]-11, portY1[7]+5), module, MU::CVSTACK_PARAM));
-		addChild(createLight<SmallLight<BlueLight>>(Vec(portX1[1]-11, portY1[7]+5), module, MU::CVSTACK_LIGHT));
+		addParam(theme::param<MiniLEDButton>(theme::specificCorner(kBetweenLeft, jackTop[7] + 5, kMiniButtonSize), module, MU::CVSTACK_PARAM));
+		addChild(theme::light<SmallLight<BlueLight>>(theme::specificCorner(kBetweenLeft, jackTop[7] + 5, kSmallLightSize), module, MU::CVSTACK_LIGHT));
   }
 
 	void appendContextMenu(Menu *menu) override {

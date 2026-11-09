@@ -157,26 +157,40 @@ HUITREWidget::HUITREWidget(HUITRE *module) {
 	setModule(module);
 	prepareThemes(asset::plugin(pluginInstance, "res/HUITRE.svg"));
 
-	addChild(createWidget<ScrewSilver>(Vec(15, 0)));
-	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 0)));
-	addChild(createWidget<ScrewSilver>(Vec(15, 365)));
-	addChild(createWidget<ScrewSilver>(Vec(box.size.x-30, 365)));
+	theme::addScrews(this);
 
-	addParam(createParam<LEDButton>(Vec(13.0f, 24.f), module, HUITRE::MODE_PARAM));
-	addChild(createLight<SmallLight<RedGreenBlueLight>>(Vec(13.0f+6.0f, 24.f+6.0f), module, HUITRE::MODE_LIGHT));
+	// The original hand-drawn panel: the mode button under GATE/TRIG; eight rows of a step button, the PTN, CV1 and CV2
+	// trimpots under their labels and a gate jack in the GATE column; STEP and the three outputs in their boxes. Each
+	// row now shares the trimpots' row (the old code had the button 1 px above it and the jack 0.9 px below), and the
+	// bottom jacks sit on their boxes' centres (up to 0.6 px off). Columns keep their old corners.
+	const theme::Size kButtonSize = {17.9996f, 18.f};                 // LEDButton
+	const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
+	const theme::Size kBezelSize = {21.26028f, 21.25987f};            // LEDBezel
+	const theme::Size kStepLightSize = {mm2px(6.f), mm2px(6.f)};      // HUITRELight
+	const float kLightIn = 6.f;      // from the mode button's corner to its light's
+	const float kBezelLightIn = 1.8f;
+	const float kRowBelow = 33.f;
+	addParam(theme::param<LEDButton>(theme::specificCorner(13, 24, kButtonSize), module, HUITRE::MODE_PARAM));
+	addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::specificCorner(13 + kLightIn, 24 + kLightIn, kSmallLightSize), module, HUITRE::MODE_LIGHT));
 
-	addInput(createInput<PJ301MPort>(Vec(7, 330), module, HUITRE::MEASURE_INPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(44.0f, 330), module, HUITRE::PATTERN_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(81.5f, 330), module, HUITRE::CV1_OUTPUT));
-	addOutput(createOutput<PJ301MPort>(Vec(118.5f, 330), module, HUITRE::CV2_OUTPUT));
+	const theme::Pos boxCol[4] = {theme::specific(19.156f, 0), theme::specific(56.438f, 0), theme::specific(93.719f, 0), theme::specific(130.969f, 0)};   // the boxes' centres
+	const theme::Pos ioRow = theme::specificCorner(7, 330, theme::kJackSize);
+	addInput(theme::input<PJ301MPort>(theme::colRow(boxCol[0], ioRow), module, HUITRE::MEASURE_INPUT));
+	addOutput(theme::output<PJ301MPort>(theme::colRow(boxCol[1], ioRow), module, HUITRE::PATTERN_OUTPUT));
+	addOutput(theme::output<PJ301MPort>(theme::colRow(boxCol[2], ioRow), module, HUITRE::CV1_OUTPUT));
+	addOutput(theme::output<PJ301MPort>(theme::colRow(boxCol[3], ioRow), module, HUITRE::CV2_OUTPUT));
 
+	const theme::Pos ptn = theme::specificCorner(45, 52, theme::kTrimpotSize);
+	const float kTrimpotRight = 27.f;
 	for (int i = 0; i < 8; i++) {
-		addParam(createParam<LEDBezel>(Vec(11.0f, 50 + i*33), module, HUITRE::TRIG_PARAM + i));
-		addChild(createLight<HUITRELight<RedGreenBlueLight>>(Vec(12.8f, 51.8f + i*33), module, HUITRE::PATTERN_LIGHT + i*3));
-		addParam(createParam<BidooBlueTrimpot>(Vec(45,52 + i*33), module, HUITRE::PATTERN_PARAM+i));
-		addParam(createParam<BidooBlueTrimpot>(Vec(72,52 + i*33), module, HUITRE::CV1_PARAM+i));
-		addParam(createParam<BidooBlueTrimpot>(Vec(99,52 + i*33), module, HUITRE::CV2_PARAM+i));
-		addOutput(createOutput<TinyPJ301MPort>(Vec(130, 55 + i*33), module, HUITRE::PATTERNTRIG_OUTPUT+i));
+		const theme::Pos row = ptn.down(kRowBelow * i);
+		const theme::Pos step = theme::colRow(theme::specificCorner(11, 0, kBezelSize), theme::specific(0, row.y));
+		addParam(theme::param<LEDBezel>(step, module, HUITRE::TRIG_PARAM + i));
+		addChild(theme::light<HUITRELight<RedGreenBlueLight>>(theme::specificCorner(11 + kBezelLightIn, step.y - kBezelSize.h * 0.5f + kBezelLightIn, kStepLightSize), module, HUITRE::PATTERN_LIGHT + i*3));
+		addParam(theme::param<BidooBlueTrimpot>(row, module, HUITRE::PATTERN_PARAM+i));
+		addParam(theme::param<BidooBlueTrimpot>(row.right(kTrimpotRight), module, HUITRE::CV1_PARAM+i));
+		addParam(theme::param<BidooBlueTrimpot>(row.right(2.f * kTrimpotRight), module, HUITRE::CV2_PARAM+i));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specificCorner(130, 0, theme::kTinyJackSize), theme::specific(0, row.y)), module, HUITRE::PATTERNTRIG_OUTPUT+i));
 	}
 }
 
