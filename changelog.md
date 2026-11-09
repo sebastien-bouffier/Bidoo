@@ -4,8 +4,9 @@ New module
 - aCiDe: a mono acid bass voice (10 HP): saw or square, a diode ladder modelled from published analyses of the circuit, filter and volume envelopes, accent with its build-up, slide and VCA. V/OCT, GATE, ACCENT, SLIDE, CV on CUTOFF, RES, ENV MOD and DECAY. Plays directly from zOù MAï: GATE and V/O, CV1 for accent, CV2 for slide
 - sAiSOn: a pattern launcher with 16 slots (20 HP), HUITre in two columns; slot n selects pattern n on zOù MAï, enCORE, dTrOY, bordL and ratEaU
 Improvements
-- sOUNAiRe, cOPIA: new panels in the look of the other modules, with the Light, Dark and Black themes; the loop of cOPIA is drawn in orange
-- sOUNAiRe: the waveform is orange, blue is a choice in the menu (Waveform colour)
+- sOUNAiRe, cOPIA: new panels in the look of the other modules, with the Light, Dark and Black themes; cOPIA draws its loop in pink and its lanes in yellow
+- sOUNAiRe: the waveform is pink, blue is a choice in the menu (Waveform colour); grey keys and pads, the root, the played keys, the selected pad and the loop lines in yellow
+- OUAIve, cANARd: the waveform is filled, no longer only its outline
 - zOù MAï, enCORE: a row of 4 polyphonic outputs under the track outputs (GATE, V/O, CV1, CV2): 8 channels each, channel n = track n
 - zOù MAï, enCORE: undo (Ctrl+Z) for erase, paste, random, up/down/left/right, notes, octaves, step and track on/off, solo, slide mode, labels, at trig, page, track and pattern level, each named in the Undo menu; undoing a knob puts the value back on the trig or track it was moved on, whatever is selected by then
 - dTrOY, bordL: undo for paste, the slide, skip, play mode and count mode buttons, transpose, rotate and the Randomize menu lines; undoing a knob puts the value back on its pattern

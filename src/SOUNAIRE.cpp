@@ -192,7 +192,7 @@ struct SOUNAIRE : BidooModule {
 
 	// ---- options (context menu), saved
 	bool autoNormalize = true;
-	bool waveBlue = false; // the waveform's colour on the display: orange, or blue
+	bool waveBlue = false; // the waveform's colour on the display: pink, or blue
 	bool autoRoot = true;
 	bool polyOut = true;
 	int bendRange = 2;

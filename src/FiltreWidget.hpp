@@ -9,7 +9,6 @@
 namespace filtre_ui {
 static const NVGcolor INK = nvgRGB(0, 0, 0);
 static const NVGcolor PAPER = nvgRGB(255, 233, 0); // the screens' yellow
-static const NVGcolor ORANGE = nvgRGB(0xF0, 0x62, 0x2F);
 using filtre::kPoints;
 
 // The curve's measures run on their own thread: a reverb or a long comb takes a few milliseconds, and the UI must not
@@ -175,7 +174,7 @@ struct Screen : TransparentWidget {
 			nvgStroke(vg);
 			if (db > -48 && db < 24) {
 				label(vg, 3.f, y - 1.f, db ? rack::string::f("%+d", db) : "0", NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM, dimPaper);
-				label(vg, w - 3.f, y - 1.f, std::to_string(db - 24), NVG_ALIGN_RIGHT | NVG_ALIGN_BOTTOM, nvgRGBA(0xF0, 0x62, 0x2F, 170));
+				label(vg, w - 3.f, y - 1.f, std::to_string(db - 24), NVG_ALIGN_RIGHT | NVG_ALIGN_BOTTOM, nvgTransRGBA(PINK_BIDOO, 170));
 			}
 		}
 
@@ -186,11 +185,11 @@ struct Screen : TransparentWidget {
 			nvgLineTo(vg, xOfPoint(p), yOfSpectrum(out[p]));
 		nvgLineTo(vg, w, ph);
 		nvgClosePath(vg);
-		nvgFillColor(vg, nvgRGBA(0xF0, 0x62, 0x2F, 150));
+		nvgFillColor(vg, nvgTransRGBA(PINK_BIDOO, 150));
 		nvgFill(vg);
 		nvgBeginPath(vg);
 		line(vg, out, false);
-		nvgStrokeColor(vg, ORANGE);
+		nvgStrokeColor(vg, PINK_BIDOO);
 		nvgStrokeWidth(vg, 1.f);
 		nvgStroke(vg);
 		nvgBeginPath(vg);

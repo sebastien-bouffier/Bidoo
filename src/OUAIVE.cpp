@@ -472,23 +472,20 @@ struct OUAIVEDisplay : OpaqueWidget {
 	void drawWave(const DrawArgs& args, const OuaiveSample &s, int c, float top) {
 		Rect b = Rect(Vec(zoomLeftAnchor, top), Vec(zoomWidth, height));
 		nvgScissor(args.vg, 0, b.pos.y, width, height);
+		// filled: one bar per overview bin, from its lowest to its highest value
+		const float binW = b.size.x / OuaiveSample::OVERVIEW;
 		nvgBeginPath(args.vg);
 		for (int i = 0; i < OuaiveSample::OVERVIEW; i++) {
-			float x = b.pos.x + b.size.x * (i + 0.5f) / OuaiveSample::OVERVIEW;
-			float y = b.pos.y + b.size.y * (0.5f - 0.5f * s.overviewMax[c][i]);
-			if (i == 0)
-				nvgMoveTo(args.vg, x, y);
-			else
-				nvgLineTo(args.vg, x, y);
+			const float x = b.pos.x + binW * i;
+			if (x + binW < 0.f || x > width)
+				continue;
+			const float yHi = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(s.overviewMax[c][i], -1.f, 1.f));
+			const float yLo = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(s.overviewMin[c][i], -1.f, 1.f));
+			nvgRect(args.vg, x, yHi, std::max(binW, 1.f), std::max(yLo - yHi, 1.f));
 		}
-		for (int i = OuaiveSample::OVERVIEW - 1; i >= 0; i--) {
-			float x = b.pos.x + b.size.x * (i + 0.5f) / OuaiveSample::OVERVIEW;
-			nvgLineTo(args.vg, x, b.pos.y + b.size.y * (0.5f - 0.5f * s.overviewMin[c][i]));
-		}
-		nvgLineCap(args.vg, NVG_MITER);
-		nvgStrokeWidth(args.vg, 1);
 		nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-		nvgStroke(args.vg);
+		nvgFillColor(args.vg, PINK_BIDOO);
+		nvgFill(args.vg);
 	}
 
 	void drawLayer(const DrawArgs& args, int layer) override {

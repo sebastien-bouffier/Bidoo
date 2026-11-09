@@ -9,7 +9,7 @@ namespace g = copia::g;
 static const NVGcolor INK = nvgRGB(0, 0, 0);
 static const NVGcolor PAPER = nvgRGB(255, 233, 0); // the screens' yellow
 static const NVGcolor ACCENT = nvgRGB(0xF0, 0x62, 0x2F);
-static const NVGcolor PALE = nvgRGB(255, 233, 0);
+static const NVGcolor PALE = nvgRGB(0x9A, 0x8C, 0x00); // a dim yellow: the chance lane
 static const NVGcolor BUTTON = nvgRGB(0xF6, 0xF4, 0xF8); // the white of the panel buttons
 static const NVGcolor PAD_USED = nvgRGB(0xBE, 0xBE, 0xBE);
 
@@ -411,7 +411,7 @@ struct CopiaDisplay : OpaqueWidget {
 				const float h = std::min(1.f, lp.peaks[i]) * (WAVE / 2 - 2);
 				nvgRect(args.vg, x, WAVE / 2 - h, std::max(1.f, ww / copia::kPeaks), 2 * h + 0.5f);
 			}
-			nvgFillColor(args.vg, ACCENT);
+			nvgFillColor(args.vg, PINK_BIDOO);
 			nvgFill(args.vg);
 			// the bars
 			const int bars = std::max(1, (int)std::round(lp.beats / std::max(1, module->beatsPerBar)));
@@ -455,7 +455,14 @@ struct CopiaDisplay : OpaqueWidget {
 		if (morph > 0.005f)
 			right += rack::string::f(" > %d %.0f%%", module->morphB.load() + 1, clamp(morph, 0.f, 1.f) * 100.f);
 		right += e.isIn.load() ? "  IN" : "  OUT";
-		text(args, W - 4, 3, right, NVG_ALIGN_RIGHT | NVG_ALIGN_TOP, e.isIn.load() ? ACCENT : PAPER, 9.f);
+		// on a black patch, so that it reads over the waveform
+		nvgFontSize(args.vg, 9.f);
+		const float rightW = nvgTextBounds(args.vg, 0.f, 0.f, right.c_str(), nullptr, nullptr);
+		nvgBeginPath(args.vg);
+		nvgRect(args.vg, W - rightW - 7.f, 1.f, rightW + 7.f, 12.f);
+		nvgFillColor(args.vg, INK);
+		nvgFill(args.vg);
+		text(args, W - 4, 3, right, NVG_ALIGN_RIGHT | NVG_ALIGN_TOP, PAPER, 9.f);
 
 		// ---- the lanes
 		copia::Scene &sc = scene();
@@ -500,7 +507,7 @@ struct CopiaDisplay : OpaqueWidget {
 				const float h = (lh - 3) * std::max(0.2f, level);
 				nvgBeginPath(args.vg);
 				nvgRect(args.vg, x0, y + lh - 1.5f - h, x1 - x0, h);
-				NVGcolor c = muted ? dim : chance ? PALE : ACCENT;
+				NVGcolor c = muted ? dim : chance ? PALE : PAPER;
 				if (prob < 1.f)
 					c = nvgTransRGBAf(c, 0.45f);
 				nvgFillColor(args.vg, c);

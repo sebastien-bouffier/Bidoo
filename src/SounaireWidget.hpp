@@ -7,6 +7,8 @@ namespace sounaire_ui {
 static const NVGcolor INK = nvgRGB(0, 0, 0);
 static const NVGcolor PAPER = nvgRGB(255, 233, 0); // the screens' yellow
 static const NVGcolor TRACK = nvgRGB(0x4A, 0x4A, 0x4A);
+static const NVGcolor KEY = nvgRGB(0x9A, 0x9A, 0x9A);
+static const NVGcolor KEY_BLACK = nvgRGB(0x62, 0x62, 0x62);
 static const NVGcolor BLUE = nvgRGB(0x2F, 0x55, 0xD4);
 static const NVGcolor ORANGE = nvgRGB(0xF0, 0x62, 0x2F);
 
@@ -362,7 +364,7 @@ struct SounaireDisplay : OpaqueWidget {
 			float x0 = posToX(std::min(ls, le)), x1 = posToX(std::max(ls, le));
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, x0, 14, x1 - x0, B - 14);
-			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? BLUE : ORANGE, 0x40));
+			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? BLUE : PINK_BIDOO, 0x40));
 			nvgFill(args.vg);
 		}
 		// waveform, normalized as it plays: from the overview when a pixel
@@ -404,7 +406,7 @@ struct SounaireDisplay : OpaqueWidget {
 				hi = clamp(hi * norm, -1.f, 1.f);
 				nvgRect(args.vg, i, mid - hi * amp, 1.f, std::max(1.f, (hi - lo) * amp));
 			}
-			NVGcolor waveColor = module->waveBlue ? BLUE : ORANGE;
+			NVGcolor waveColor = module->waveBlue ? BLUE : PINK_BIDOO;
 			nvgFillColor(args.vg, pass == 0 ? waveColor : nvgTransRGBA(waveColor, 0x55));
 			nvgFill(args.vg);
 		}
@@ -471,7 +473,7 @@ struct SounaireDisplay : OpaqueWidget {
 					nvgMoveTo(args.vg, x, 14);
 					nvgLineTo(args.vg, x, B);
 				}
-				nvgStrokeColor(args.vg, ORANGE);
+				nvgStrokeColor(args.vg, PAPER);
 				nvgStrokeWidth(args.vg, 1.f);
 				nvgStroke(args.vg);
 			}
@@ -724,7 +726,7 @@ struct SounaireKeys : OpaqueWidget {
 			if (isBlack(k))
 				continue;
 			bool in = k >= a && k <= b, played = keyPlayed(k);
-			NVGcolor c = played ? PAPER : (k == root ? ORANGE : (in ? BLUE : TRACK));
+			NVGcolor c = played || k == root ? PAPER : (in ? KEY : TRACK);
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, wi * ww + 0.5f, 0, ww - 1.f, H);
 			nvgFillColor(args.vg, c);
@@ -739,7 +741,7 @@ struct SounaireKeys : OpaqueWidget {
 				nvgFontFaceId(args.vg, f->handle);
 				nvgFontSize(args.vg, 8.f);
 				nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_BOTTOM);
-				nvgFillColor(args.vg, (in && !played && k != root) ? PAPER : INK);
+				nvgFillColor(args.vg, (!in && !played && k != root) ? PAPER : INK);
 				nvgText(args.vg, wi * ww + ww / 2, H - 3, sounaire_ui::noteName((float)k).c_str(), nullptr);
 			}
 			wi++;
@@ -751,7 +753,7 @@ struct SounaireKeys : OpaqueWidget {
 				continue;
 			}
 			bool in = k >= a && k <= b, played = keyPlayed(k);
-			NVGcolor c = played ? PAPER : (k == root ? ORANGE : (in ? nvgRGB(0x1F, 0x3F, 0xAF) : INK));
+			NVGcolor c = played || k == root ? PAPER : (in ? KEY_BLACK : INK);
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, wi * ww - ww * 0.3f, 0, ww * 0.6f, H * 0.6f);
 			nvgFillColor(args.vg, c);
@@ -790,7 +792,7 @@ struct SounaireKeys : OpaqueWidget {
 			float x0 = display->posToX(u.start[i] / F) + 0.5f, x1 = display->posToX(u.end(i, s->frames) / F) - 0.5f;
 			if (x1 < 0.f || x0 > W || x1 - x0 < 0.5f)
 				continue;
-			NVGcolor c = i == sel ? ORANGE : BLUE;
+			NVGcolor c = i == sel ? PAPER : KEY;
 			if (lit[i] > 0.f)
 				c = nvgLerpRGBA(c, PAPER, std::min(1.f, 0.3f + lit[i]));
 			nvgBeginPath(args.vg);
@@ -806,7 +808,7 @@ struct SounaireKeys : OpaqueWidget {
 				float cx = (std::max(x0, 0.f) + std::min(x1, W)) / 2;
 				nvgFontFaceId(args.vg, f->handle);
 				nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-				nvgFillColor(args.vg, lit[i] > 0.f ? INK : PAPER);
+				nvgFillColor(args.vg, INK);
 				nvgFontSize(args.vg, 10.f);
 				bool both = x1 - x0 > 30.f;
 				nvgText(args.vg, cx, both ? H * 0.32f : H * 0.5f, std::to_string(i + 1).c_str(), nullptr);
@@ -913,7 +915,7 @@ struct SOUNAIREWidget : BidooWidget {
 		addChild(keys);
 
 		// three rows of eight columns
-		auto cx = [](int col) { return 40.f + 57.f * col; };
+		auto cx = [](int col) { return 28.f + 418.f / 7.f * col; }; // from the first input to the outputs
 		const float rows[3] = {169.f, 215.f, 261.f};
 		auto knob = [&](int col, int row, int param, bool snapped) {
 			if (snapped)
@@ -1027,7 +1029,7 @@ struct SOUNAIREWidget : BidooWidget {
 		}));
 		menu->addChild(createMenuItem("Find the root note again (whole sample)", "", [=]() { m->requestRootAnalysis(0.0, 1.0); }));
 		menu->addChild(createBoolPtrMenuItem("Normalize the sample", "", &m->autoNormalize));
-		menu->addChild(createIndexSubmenuItem("Waveform colour", {"Orange", "Blue"},
+		menu->addChild(createIndexSubmenuItem("Waveform colour", {"Pink", "Blue"},
 			[=]() { return m->waveBlue ? 1 : 0; },
 			[=](int i) { m->waveBlue = i == 1; }));
 		menu->addChild(createBoolPtrMenuItem("Find the root note when loading", "", &m->autoRoot));
