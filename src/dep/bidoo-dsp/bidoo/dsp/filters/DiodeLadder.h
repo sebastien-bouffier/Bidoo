@@ -153,6 +153,11 @@ public:
         double out = 1.06 * y;
         for (auto& q : post)
             out = q.step (out);
+        // A NaN or an infinity (in the input, or in g / K) would stay in every node: the ladder goes
+        // back to silence by itself and plays on from there, as a reset one. Every state feeds the
+        // output, so checking it is enough; finite audio is untouched.
+        if (! std::isfinite (out))
+            return resetToSilence();
         return out;
     }
 
@@ -165,9 +170,16 @@ public:
         return (135135.0 + x2 * (17325.0 + x2 * (378.0 + x2))) / (135135.0 + x2 * (62370.0 + x2 * (3150.0 + 28.0 * x2)));
     }
 
+    // Always true since process() recovers by itself; kept for the callers that still check.
     bool isFinite() const noexcept { return std::isfinite (v[3]) && std::isfinite (s[0]) && std::isfinite (post[2].z); }
 
 private:
+    BIDOO_DSP_NOINLINE double resetToSilence() noexcept
+    {
+        reset();
+        return 0.0;
+    }
+
     // first order, y = b0 x + z, z' = b1 x - a1 y; double, the corners are thousands of times below the rate
     struct Section
     {

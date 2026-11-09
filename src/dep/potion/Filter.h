@@ -58,6 +58,7 @@
 #include <array>
 #include <cmath>
 #include <complex>
+#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -165,6 +166,7 @@ public:
         }
         prepareLib();
         reset();
+        setupDone = false; // the coefficients depend on the rate: the next setup computes them whatever it gets
     }
 
     void reset()
@@ -194,6 +196,17 @@ public:
 
     void setup (FilterType t, float cutoffHz, float res, float driveAmount, float morphAmount = 0.0f)
     {
+        // Nothing changed since the last call (exact compare): the coefficients are already these, so skip the
+        // work (the kernel choice, the tans, a family's design), run every control block for every voice. The
+        // only state setup touches (the drive's memory, a family's state on a new family) is touched on a change.
+        if (setupDone && t == setT && cutoffHz == setCut && res == setRes && driveAmount == setDrive && morphAmount == setMorph)
+            return;
+        setupDone = true;
+        setT = t;
+        setCut = cutoffHz;
+        setRes = res;
+        setDrive = driveAmount;
+        setMorph = morphAmount;
         type = t;
         morph = std::clamp (morphAmount, 0.0f, 1.0f);
         cutoffHz = std::clamp (cutoffHz, 15.0f, (float) (fs * 0.45));
@@ -963,6 +976,10 @@ private:
 
     double fs = 48000.0;
     FilterType type = FilterType::Low24;
+    // what the last setup got, as it got it (setup returns at once when it gets the same again)
+    bool setupDone = false;
+    FilterType setT = FilterType::Low24;
+    float setCut = 0.0f, setRes = 0.0f, setDrive = 0.0f, setMorph = 0.0f;
     float g = 0.1f, k = 1.0f, a1 = 0, a2 = 0, a3 = 0, b1 = 0, b2 = 0, b3 = 0;
     float G = 0.1f, G4 = 1.0e-4f, ladderK = 0.0f;
     float drive = 1.0f, driveOut = 1.0f;
@@ -1007,5 +1024,106 @@ private:
     vfl::Slots lib;
     std::vector<float> libMem[2];
     int libType = -1;
+};
+
+// The voice filter as the voices and the FX filter play it: a type changed while it sounds crossfades over
+// 8 ms to a second VoiceFilter set to the new type and started from silence, while the old type plays on and
+// fades out (as FiLTRe's voice in VCV), instead of the new kernel jumping in on the old one's state. One
+// change per crossfade: a type that changes again during one is taken when it ends. Only during the
+// crossfade does it run (and set up) two filters. With a steady type, and after a reset (both silent, so
+// nothing to fade), it is exactly the one VoiceFilter, bit for bit.
+class FadingFilter
+{
+public:
+    void prepare (double sampleRate)
+    {
+        fadeLength = std::max (1, (int) (sampleRate * 0.008));
+        if (spare == nullptr)
+            spare = std::make_unique<VoiceFilter>();
+        first.prepare (sampleRate);
+        spare->prepare (sampleRate);
+        active = 0;
+        fade = 0;
+        fresh = true;
+    }
+
+    // to silence (a new note, or the FX filter switched on): the next setup takes its type at once
+    void reset()
+    {
+        f (active).reset();
+        if (fade > 0)
+            f (1 - active).reset();
+        fade = 0;
+        fresh = true;
+    }
+
+    void setup (FilterType t, float cutoffHz, float res, float driveAmount, float morphAmount = 0.0f)
+    {
+        if (fresh)
+        {
+            fresh = false;
+            type = t;
+        }
+        else if (t != type && fade == 0 && spare != nullptr)
+        {
+            oldType = type;
+            type = t;
+            active = 1 - active;
+            // set up first, so the reset clears the new type's own state (a family's state and memory)
+            f (active).setup (type, cutoffHz, res, driveAmount, morphAmount);
+            f (active).reset();
+            fade = fadeLength;
+        }
+        f (active).setup (type, cutoffHz, res, driveAmount, morphAmount);
+        if (fade > 0)
+            f (1 - active).setup (oldType, cutoffHz, res, driveAmount, morphAmount);
+    }
+
+    void process (float& l, float& r)
+    {
+        if (fade > 0)
+            crossfade (l, r);
+        else
+            f (active).process (l, r);
+    }
+
+    // x += mix * (filtered - x) over a run, in place: the same numbers as process() per sample
+    void processMix (float* l, float* r, int n, float mix)
+    {
+        int i = 0;
+        for (; i < n && fade > 0; ++i)
+        {
+            float a = l[i], b = r[i];
+            crossfade (a, b);
+            l[i] += mix * (a - l[i]);
+            r[i] += mix * (b - r[i]);
+        }
+        if (i < n)
+            f (active).processMix (l + i, r + i, n - i, mix);
+    }
+
+    bool fading() const { return fade > 0; }
+
+private:
+    void crossfade (float& l, float& r)
+    {
+        float ol = l, oR = r;
+        f (1 - active).process (ol, oR);
+        f (active).process (l, r);
+        const float a = (float) fade / (float) fadeLength; // 1 -> 0: how much of the old type
+        l += a * (ol - l);
+        r += a * (oR - r);
+        --fade;
+    }
+
+    // The filter playing is f (active). The second lives on the heap (made in prepare): the voices are in
+    // the Engine, which the tests and tools put on the stack, and 32 voices x 2 filters of 5 KB more each
+    // would grow it by a third.
+    VoiceFilter& f (int i) { return i == 0 ? first : *spare; }
+    VoiceFilter first;
+    std::unique_ptr<VoiceFilter> spare;
+    FilterType type = FilterType::Low24, oldType = FilterType::Low24;
+    int active = 0, fade = 0, fadeLength = 384;
+    bool fresh = true;
 };
 } // namespace potion

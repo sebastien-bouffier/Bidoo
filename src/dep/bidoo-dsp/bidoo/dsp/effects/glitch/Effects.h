@@ -184,6 +184,24 @@ public:
         tapLive = false;
     }
 
+    // After the slot's output went non-finite (Slot::process): every state back to silence, as a
+    // start from silence does, and every big buffer too (cleared before its next use: the one that
+    // plays now on the next piece). Never called while the output is finite, so it changes nothing
+    // there; allocates nothing.
+    void recover()
+    {
+        reset();
+        clearTails();
+        tailsDue |= kDelayTail | kTonalTail | kReverbTail;
+#ifndef BIDOO_DSP_GLITCH_LITE
+        spectral.clear();
+        texture.reset();
+        crossMod.reset();
+        resonator.reset();
+        modal.reset();
+#endif
+    }
+
     // A block starts at the sub-block's first sample. `continuing`: the slot was sounding, so the
     // read head crossfades from where it was.
     void trigger (Fx fx, const float* p, const Clock& c, bool continuing)

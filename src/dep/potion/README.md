@@ -1,6 +1,6 @@
 # Potion's voice filter (excerpt)
 
-`Filter.h` is copied unchanged from the author's Potion synth, commit 74f83d5 (0.66.0), `src/dsp/Filter.h`:
+`Filter.h` is copied unchanged from the author's Potion synth, commit a34b6a2 (0.66.4), `src/dsp/Filter.h`:
 the class `potion::VoiceFilter` that plays FiLTRe's 71 types. `Params.h` here is not Potion's: it is a
 stand-in with only what `Filter.h` reads (the `FilterType` enum, `kNumFilterTypes`, `usesMorph`).
 

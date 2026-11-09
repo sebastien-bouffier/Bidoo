@@ -13,6 +13,7 @@
 #include "Effects.h"
 #include "Pattern.h"
 #include "Macros.h"
+#include "../../core/Math.h"
 #include "../../core/Smoothing.h"
 #include "../../synth/ModPolarity.h"
 #include <algorithm>
@@ -61,6 +62,27 @@ inline void lawGains (int law, float m, float& dry, float& wet)
         default: dry = std::cos (m * Pi<float>::halfPi);
                  wet = std::sin (m * Pi<float>::halfPi); break; // Equal power
     }
+}
+
+// The engine protects itself from NaN and infinity (core/Math.h's zeroNonFinite, the plugins' block
+// guard): what comes in (the input, the sidechain, cOPIA's live history: HistoryBuffer::write) is
+// heard as silence where it is not finite, and a slot whose output goes non-finite starts again from
+// silence. Each check is a block's sum, the samples scanned only when it is not finite, so finite
+// audio goes through bit for bit and the cost is one add per sample.
+inline bool blockIsFinite (const float* x, int n)
+{
+    float sum = 0.0f;
+    for (int i = 0; i < n; ++i)
+        sum += x[i];
+    return std::isfinite (sum);
+}
+
+inline bool blockIsFinite (const float* l, const float* r, int n)
+{
+    float sum = 0.0f;
+    for (int i = 0; i < n; ++i)
+        sum += l[i] + r[i];
+    return std::isfinite (sum);
 }
 
 // A gain that glides towards its target sample by sample (about 15 ms). Targets change only at
@@ -282,6 +304,19 @@ public:
             r[i] += (outR - r[i]) * fade;
         }
         sinceTrigger += n;
+
+        // A non-finite output (an overflow: the slot's input is always finite) would stay in the
+        // effect's loops and reach every slot after this one: the bad samples go silent and the slot
+        // starts again from silence. The check is the piece's sum, so finite audio is untouched.
+        if (! blockIsFinite (l, r, n))
+        {
+            float* ch[2] = { l, r };
+            bidoo::dsp::zeroNonFinite (ch, 2, n);
+            effect.recover();
+            filter.reset();
+            freqLog = -1.0f;
+            env = 0.0f;
+        }
     }
 
 private:
@@ -674,6 +709,11 @@ private:
     void processChunk (float* l, float* r, int n, double origin, int64_t offset, double beatsPerSample, bool running,
                        const EngineSettings& set, const Pattern& pattern, const float* scL, const float* scR)
     {
+        // a NaN or an infinity in comes in as silence (the processor's own guard, if any, makes this a no-op)
+        {
+            float* ch[2] = { l, r };
+            bidoo::dsp::zeroNonFinite (ch, 2, n);
+        }
         std::copy (l, l + n, dryL);
         std::copy (r, r + n, dryR);
         if (set.dynamicFlow != flowWasDynamic)
@@ -684,6 +724,21 @@ private:
         }
         const float* sideL = scL != nullptr ? scL : dryL; // no sidechain: the input
         const float* sideR = scR != nullptr ? scR : dryR;
+        // the sidechain is the caller's (const): a copy with the bad samples silent, only when it has any
+        if (scL != nullptr && ! blockIsFinite (scL, n))
+        {
+            std::copy (scL, scL + n, sideSafeL);
+            float* ch[1] = { sideSafeL };
+            bidoo::dsp::zeroNonFinite (ch, 1, n);
+            sideL = sideSafeL;
+        }
+        if (scR != nullptr && ! blockIsFinite (scR, n))
+        {
+            std::copy (scR, scR + n, sideSafeR);
+            float* ch[1] = { sideSafeR };
+            bidoo::dsp::zeroNonFinite (ch, 1, n);
+            sideR = sideSafeR;
+        }
 
         const int beats = set.beats, div = set.divisions;
         const int steps = jmin (Pattern::kMaxSteps, beats * div);
@@ -811,6 +866,14 @@ private:
                 limiterGain += limiterRelease * (1.0f - limiterGain);
             l[i] = ol * limiterGain;
             r[i] = orr * limiterGain;
+        }
+        // the slots' outputs are finite; only an overflow in the mix can get here (a huge finite input)
+        if (! blockIsFinite (l, r, n))
+        {
+            float* ch[2] = { l, r };
+            bidoo::dsp::zeroNonFinite (ch, 2, n);
+            if (! std::isfinite (limiterGain))
+                limiterGain = 1.0f;
         }
 
         const Clock end { 0, origin, offset, beatsPerSample, samplesPerBeat, beats, playStart };
@@ -972,6 +1035,7 @@ private:
     float globalMods[3] {}, globalScales[3] {}, scEnv = 0.0f, randomValue = 0.0f;
     int64_t lastGlobalControl = 0;
     float dryL[kChunk] {}, dryR[kChunk] {};
+    float sideSafeL[kChunk] {}, sideSafeR[kChunk] {}; // a sidechain block that had NaN or inf in it, cleaned
     float limiterGain = 1.0f, limiterRelease = 0.001f;
     Smooth mDry, mWet, mPanL, mPanR;
 

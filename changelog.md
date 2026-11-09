@@ -1,3 +1,11 @@
+### v2.5.1 (10/11/2026)
+Improvements
+- cOPIA: the engine guards its inputs and its recorded history itself, and a slot whose output overflows restarts from silence
+- aCiDe and FiLTRe: the voice and the filters recover by themselves from a NaN or an infinity
+- FiLTRe: the same filter code as Potion 0.66.4 (its setup is skipped when nothing changed)
+- rICOcHEt: costs almost nothing once silent and fully decayed (about 1.5 ns a sample instead of 30 to 84); on waking the wow, flutter and noise start again from their beginning
+- The shared DSP code is the same as the Bidoo VST plugins' again (bidoo-dsp 4e6f6e2)
+
 ### v2.5.0 (09/11/2026)
 New module
 - FiLTRe: all 71 filter types of the Potion synth (28 HP), the same code as Potion: low, high, band, notch, shelves, morphing, dual, combs, phasers, formants, ring mod, downsample, diffuser, reverb. TYPE, CUTOFF, RES, DRIVE, MORPH and MIX with attenuverters and CV; stereo, up to 16 voices. The screen shows the spectrum of the output, the input behind it, and the measured curve of the selected filter with the current settings

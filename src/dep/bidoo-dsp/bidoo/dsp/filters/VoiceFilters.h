@@ -10,7 +10,8 @@
 //   process (state, c, x)   one sample, inlined into the caller's loop
 // Families with delay lines take their memory from the caller (memoryNeeded (fs) floats per channel,
 // attach (state, memory, fs) once after allocating it), so a plugin can share one buffer between
-// families it never runs at once. Nothing allocates and nothing throws.
+// families it never runs at once. Nothing allocates and nothing throws. A NaN or an infinity puts the
+// state back to silence by itself (settle(), below): no reset from outside is needed.
 //
 // Every resonant loop here is stable whatever the cutoff does (moved every sample, at audio rate):
 // linear loops keep their gain under 1 at every frequency, nonlinear ones are limited by a bounded
@@ -52,9 +53,11 @@
 #include "../shaping/TanhPade.h"
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <complex>
 #include <cstddef>
+#include <cstdint>
 
 namespace bidoo::dsp::voicefilters
 {
@@ -156,6 +159,28 @@ struct Ring
     }
 };
 
+// Every family's process() ends here: a NaN or an infinity (in the input, or grown in a loop) would
+// stay in the state forever, so the state goes back to silence (its reset(), memory included) and the
+// sample is 0; from the next sample on the family plays as a freshly reset one. Every state reaches
+// the output on the sample it goes bad, so the output is all there is to check: one compare per
+// sample, and finite audio is untouched.
+template <typename State>
+BIDOO_DSP_NOINLINE float resetToSilence (State& st)
+{
+    st.reset();
+    return 0.0f;
+}
+
+template <typename State>
+BIDOO_DSP_INLINE float settle (State& st, float y)
+{
+    // NaN or infinity: false for NaN, so the test is written the way round that NaN fails it (one
+    // compare, cheaper than std::isfinite in MSVC's loops)
+    if (! (std::fabs (y) <= 3.40282347e38f))
+        return resetToSilence (st);
+    return y;
+}
+
 // The longest comb any family here tunes: 20 Hz.
 inline int combLength (double fs) { return (int) (fs / 20.0) + 4; }
 
@@ -195,15 +220,15 @@ struct Slope
     BIDOO_DSP_INLINE static float process (State& st, const Coeffs& c, float x)
     {
         if constexpr (K == SlopeKind::Low6)
-            return st.p.lowPass (x, c.G);
+            return settle (st, st.p.lowPass (x, c.G));
         else if constexpr (K == SlopeKind::High6)
-            return st.p.highPass (x, c.G);
+            return settle (st, st.p.highPass (x, c.G));
         else if constexpr (K == SlopeKind::Low18)
-            return st.p.lowPass (st.s1.tick (x, c.svf).lp, c.G);
+            return settle (st, st.p.lowPass (st.s1.tick (x, c.svf).lp, c.G));
         else if constexpr (K == SlopeKind::High18)
-            return st.p.highPass (st.s1.tick (x, c.svf).hp, c.G);
+            return settle (st, st.p.highPass (st.s1.tick (x, c.svf).hp, c.G));
         else
-            return pick<Resp::Peak> (st.s2.tick (pick<Resp::Peak> (st.s1.tick (x, c.svf), c.svf.k), c.svf), c.svf.k);
+            return settle (st, pick<Resp::Peak> (st.s2.tick (pick<Resp::Peak> (st.s1.tick (x, c.svf), c.svf.k), c.svf), c.svf.k));
     }
 };
 
@@ -241,9 +266,9 @@ struct Dual
     BIDOO_DSP_INLINE static float process (State& st, const Coeffs& c, float x)
     {
         if constexpr (kSeries)
-            return pick<B> (st.b.tick (pick<A> (st.a.tick (x, c.a), c.a.k), c.b), c.b.k);
+            return settle (st, pick<B> (st.b.tick (pick<A> (st.a.tick (x, c.a), c.a.k), c.b), c.b.k));
         else
-            return (pick<A> (st.a.tick (x, c.a), c.a.k) + pick<B> (st.b.tick (x, c.b), c.b.k)) * kGain;
+            return settle (st, (pick<A> (st.a.tick (x, c.a), c.a.k) + pick<B> (st.b.tick (x, c.b), c.b.k)) * kGain);
     }
 };
 
@@ -284,9 +309,9 @@ struct Morph3
     {
         const float y = blend (st.a.tick (x, c.first), c.first.k, c.m);
         if constexpr (! Two)
-            return y;
+            return settle (st, y);
         else
-            return blend (st.b.tick (y, c.second), c.second.k, c.m);
+            return settle (st, blend (st.b.tick (y, c.second), c.second.k, c.m));
     }
 };
 
@@ -381,7 +406,7 @@ struct FilteredComb
         // when the delay moves every sample, and this keeps the loop bounded whatever the sweep
         const float y = x + c.fb * 2.0f * tanhPade (0.5f * d);
         st.ring.push (y);
-        return y * c.out;
+        return settle (st, y * c.out);
     }
 };
 
@@ -425,7 +450,7 @@ struct Phaser
         for (int i = 0; i < N; ++i)
             u = st.ap[i].allPass (u, c.G[i]);
         st.last = tanhPade (u); // the feedback soft-limited
-        return 0.5f * (x + u);
+        return settle (st, 0.5f * (x + u));
     }
 };
 
@@ -452,7 +477,7 @@ struct BandEq
         c.m1 = k * (A * A - 1.0f);
     }
 
-    BIDOO_DSP_INLINE static float process (State& st, const Coeffs& c, float x) { return x + c.m1 * st.s.tick (x, c.svf).bp; }
+    BIDOO_DSP_INLINE static float process (State& st, const Coeffs& c, float x) { return settle (st, x + c.m1 * st.s.tick (x, c.svf).bp); }
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -484,7 +509,7 @@ struct RingMod
         const float carrier = tanhPade (c.beta * std::sin (2.0f * kPi * st.phase)) * c.norm;
         const float y = (x + c.fb * tanhPade (st.last)) * carrier;
         st.last = y;
-        return y;
+        return settle (st, y);
     }
 };
 
@@ -538,7 +563,7 @@ struct ChordComb
             st.ring[i].push (y);
             sum += y;
         }
-        return sum * c.out;
+        return settle (st, sum * c.out);
     }
 };
 
@@ -610,7 +635,7 @@ struct SmallReverb
         const float h[kLines] { 0.5f * (a + e), 0.5f * (b + f), 0.5f * (a - e), 0.5f * (b - f) };
         for (int i = 0; i < kLines; ++i)
             st.ring[i].push (c.in * x + c.fb * h[i]);
-        return x + 0.6f * (d[0] - d[1] + d[2] - d[3]) * 0.5f;
+        return settle (st, x + 0.6f * (d[0] - d[1] + d[2] - d[3]) * 0.5f);
     }
 };
 
@@ -648,7 +673,7 @@ struct AddBass
     {
         const float low = st.b.tick (st.a.tick (x, c.first).lp, c.second).lp;
         const float bass = st.low.lowPass (x, c.gBass);
-        return low + c.bass * 0.5f * tanhPade (2.0f * bass); // the bass rounded as it grows
+        return settle (st, low + c.bass * 0.5f * tanhPade (2.0f * bass)); // the bass rounded as it grows
     }
 };
 
@@ -686,9 +711,9 @@ struct Scream
         const auto o = st.s.tick (u, c.svf);
         st.last = o.bp * c.svf.k;
         if constexpr (Band)
-            return st.last;
+            return settle (st, st.last);
         else
-            return o.lp;
+            return settle (st, o.lp);
     }
 };
 
@@ -728,7 +753,7 @@ struct Cmos12
         const float v = c.a * o.hp;
         st.t = secant (tanhPade (v), v);
         const float band = o.bp * c.k;
-        return c.m < 1.0f ? o.lp + c.m * (band - o.lp) : band + (c.m - 1.0f) * (o.hp - band);
+        return settle (st, c.m < 1.0f ? o.lp + c.m * (band - o.lp) : band + (c.m - 1.0f) * (o.hp - band));
     }
 };
 
@@ -767,7 +792,7 @@ struct DjFilter
         c.high = SvfC::make (prewarp (s.fs, highHz), kSqrt2 - 1.3f * res * std::min (1.0f, 10.0f * highTravel));
     }
 
-    BIDOO_DSP_INLINE static float process (State& st, const Coeffs& c, float x) { return st.b.tick (st.a.tick (x, c.low).lp, c.high).hp; }
+    BIDOO_DSP_INLINE static float process (State& st, const Coeffs& c, float x) { return settle (st, st.b.tick (st.a.tick (x, c.low).lp, c.high).hp); }
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -824,7 +849,7 @@ struct FormantBank
         float y = 0.0f;
         for (int b = 0; b < 3; ++b)
             y += st.s[b].tick (x, c.band[b]).bp * c.band[b].k * c.gain[b];
-        return y;
+        return settle (st, y);
     }
 };
 } // namespace bidoo::dsp::voicefilters

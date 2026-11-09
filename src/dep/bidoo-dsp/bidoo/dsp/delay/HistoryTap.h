@@ -101,15 +101,28 @@ public:
             d = Decimator {};
     }
 
+    // A NaN or an infinity is written as 0: one would stay in the history (and in every read and
+    // decimated copy that reaches it) for as long as the buffer holds. The check is the block's sum;
+    // the samples are scanned only when it is not finite, so finite audio is written as it comes.
     void write (const float* l, const float* r, int n)
     {
         auto& lv = levels[0];
+        float sum = 0.0f;
         for (int i = 0; i < n; ++i)
         {
             const auto at = (size_t) ((lv.written + i) & lv.mask);
             lv.data[0][at] = l[i];
             lv.data[1][at] = r[i];
+            sum += l[i] + r[i];
         }
+        if (! std::isfinite (sum))
+            for (int i = 0; i < n; ++i)
+            {
+                const auto at = (size_t) ((lv.written + i) & lv.mask);
+                for (auto& c : lv.data)
+                    if (! std::isfinite (c[at]))
+                        c[at] = 0.0f;
+            }
         if (levelCount == 1)
         {
             lv.written += n;

@@ -244,15 +244,29 @@ public:
 
         const double gain = veg * rel + Cfg::kAccentVcaGain * vcaAccent;
         outGain += outStep;
-        return (float) (outGain * y * gain);
+        const float out = (float) (outGain * y * gain);
+        // A NaN or an infinite pitch stays in the slide's RC and the phase (and NaN settings in the
+        // ladder): the voice goes back to silence by itself, as reset() leaves it, and plays on from
+        // the next sample. The output carries every other state; the pitch and phase are added because
+        // an infinite pitch is first clamped by the oscillator. Finite audio is untouched.
+        if (! std::isfinite ((double) out + slewVolts + phase))
+            return resetToSilence();
+        return out;
     }
 
+    // Always true since process() recovers by itself; kept for the callers that still check.
     bool isFinite() const noexcept { return ladder.isFinite() && std::isfinite (meg) && std::isfinite (phase); }
 
 private:
     using Coefs8 = IirHalfBandCoefs<8, 40>;
     using Coefs4 = IirHalfBandCoefs<4, 130>;
     enum VegStage { VegOff, VegDelay, VegAttack, VegDecay };
+
+    BIDOO_DSP_NOINLINE float resetToSilence() noexcept
+    {
+        reset();
+        return 0.f;
+    }
 
     static double clamp01 (double x) noexcept { return x < 0.0 ? 0.0 : (x > 1.0 ? 1.0 : x); }
     double decayCoef (double seconds) const noexcept { return std::exp (-1.0 / (seconds * Cfg::kTimeToTau * fs)); }

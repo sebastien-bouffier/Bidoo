@@ -26,6 +26,9 @@
 //
 // Type changes crossfade the two types' outputs and record sides over kTypeFadeMs. All the audio is
 // float, times are double. Allocation only in prepare(). About 12 MB per instance at 48 kHz.
+//
+// Idle skip (on by default, setIdleSkip): silent in and decayed (nothing over -100 dB for as long as
+// the line can be read back), process() writes zeros and costs nearly nothing; see setIdleSkip.
 
 #include "FractionalReads.h"
 #include "ModDelayLine.h"
@@ -91,6 +94,8 @@ public:
         freezeStep = 1.0f / (0.03f * (float) sr);
         pingStep = 1.0f / (0.02f * (float) sr);
         envRelease = std::exp (-1.0f / (1.5f * (float) sr));
+        lineHold = chans[0].line.maxDelay() + 8;
+        inputHold = chans[0].input.maxDelay() + 8;
         reset();
     }
 
@@ -100,6 +105,73 @@ public:
         {
             c.line.clear();
             c.input.clear();
+        }
+        // counted again from here, although the lines are empty: the first seconds after a reset
+        // play as they always did (the Reverse slice clock runs from the reset)
+        lineQuiet = inputQuiet = 0;
+        idle = false;
+        resetState();
+    }
+
+    // The idle skip (on by default): with the input silent (under 1e-9) and everything the delay
+    // still holds under -100 dB (the wet output and what went into the line, for as long as the line
+    // is; for as long as the input buffer too when Reverse may read it), and no freeze, process()
+    // stops working: it writes zeros and leaves its state alone. The first sample that is not silent
+    // wakes it as reset() would leave it, except that the big lines are not cleared (they hold
+    // nothing above -100 dB): so a delay whose tail had decayed to zeros wakes bit for bit as a reset
+    // one, and before it sleeps nothing changes at all. The free-running parts (wow and flutter, the
+    // noise, the Diffuse LFO, the slice clock) start again from where reset() puts them.
+    void setIdleSkip (bool on) noexcept
+    {
+        idleSkip = on;
+        if (! on && idle)
+            wake();
+    }
+    bool isIdle() const noexcept { return idle; }
+
+    // One stereo sample.
+    BIDOO_DSP_INLINE void process (float inL, float inR, float& outL, float& outR) noexcept
+    {
+        if (idleSkip)
+        {
+            const bool silentIn = std::fabs (inL) < kIdleIn && std::fabs (inR) < kIdleIn; // false for NaN
+            if (silentIn && canSleep())
+            {
+                idle = true;
+                wet = {};
+                outL = outR = 0.0f;
+                return;
+            }
+            if (idle)
+                wake();
+        }
+        processAwake (inL, inR, outL, outR);
+    }
+
+    float getWet (int ch) const noexcept { return wet[(size_t) ch]; }
+
+private:
+    static constexpr float kIdleIn = 1.0e-9f, kIdleOut = 1.0e-5f; // -180 dB in, -100 dB held
+
+    bool canSleep() const noexcept
+    {
+        if (lineQuiet < lineHold || settings.freeze || freezeMix > 0.0f)
+            return false;
+        const bool reverse = settings.type == Reverse || typeNew == Reverse || typeOld == Reverse;
+        return ! reverse || inputQuiet >= inputHold;
+    }
+
+    void wake() noexcept
+    {
+        idle = false;
+        resetState();
+    }
+
+    // Everything reset() does but clearing the line and the input buffer.
+    void resetState() noexcept
+    {
+        for (auto& c : chans)
+        {
             for (auto& a : c.ap)
                 a.clear();
             for (auto& v : c.v)
@@ -138,6 +210,7 @@ public:
         control();
     }
 
+public:
     void setSettings (const Settings& s) noexcept
     {
         settings = s;
@@ -159,8 +232,8 @@ public:
         chans[1].sliceLeft = 0;
     }
 
-    // One stereo sample.
-    BIDOO_DSP_INLINE void process (float inL, float inR, float& outL, float& outR) noexcept
+private:
+    BIDOO_DSP_INLINE void processAwake (float inL, float inR, float& outL, float& outR) noexcept
     {
         if (--tick <= 0)
         {
@@ -205,6 +278,7 @@ public:
             runType (typeOld, routed);
 
         const float fadeIn = typeFade;
+        bool loud = false; // anything above -100 dB going out or into the line (the idle skip)
         for (int ch = 0; ch < 2; ++ch)
         {
             auto& c = chans[(size_t) ch];
@@ -227,14 +301,17 @@ public:
                 rec += freezeMix * (c.line.at (c.freezeLength - 1) - rec);
             c.line.push (rec);
             wet[(size_t) ch] = w;
+            loud = loud || std::fabs (w) > kIdleOut || std::fabs (rec) > kIdleOut;
         }
         outL = drySmoothed * inL + wetSmoothed * wet[0];
         outR = drySmoothed * inR + wetSmoothed * wet[1];
+
+        // how long the line and the input buffer have been taking in nothing (up to their length)
+        lineQuiet = loud ? 0 : std::min (lineQuiet + 1, lineHold);
+        const bool silentIn = std::fabs (inL) < kIdleIn && std::fabs (inR) < kIdleIn;
+        inputQuiet = silentIn ? std::min (inputQuiet + 1, inputHold) : 0;
     }
 
-    float getWet (int ch) const noexcept { return wet[(size_t) ch]; }
-
-private:
     static constexpr int kControl = 16, kAllpasses = 4, kGrains = 3;
     static constexpr float kHalfPi = 1.5707963268f;
     static constexpr double kSliceFadeSeconds = 0.02;
@@ -738,5 +815,10 @@ private:
     float diffuseBlend = 0.0f, diffuseG = 0.35f, diffuseK = 1.0f, diffuseCross = 0.0f;
     float reverseForward = 0.0f;
     float wowSet = -1.0f, wowHzSet = -1.0f, flutterSet = -1.0f;
+
+    // the idle skip
+    bool idleSkip = true, idle = false;
+    int lineQuiet = 0, inputQuiet = 0;
+    int lineHold = 1, inputHold = 1; // more samples than the line / the input buffer can be read back
 };
 } // namespace bidoo::dsp
