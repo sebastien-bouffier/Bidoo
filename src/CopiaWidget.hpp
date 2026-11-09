@@ -711,7 +711,7 @@ struct COPIAWidget : BidooWidget {
 		}
 
 		// jacks: inputs on the black box, outputs on the red one
-		auto jx = [](int i) { return 28.f + 36.f * i; };
+		auto jx = [](int i) { return 28.f + 37.6f * i; };
 		const int rowA[9] = {COPIA::INL_INPUT, COPIA::INR_INPUT, COPIA::CLOCK_INPUT, COPIA::RESET_INPUT, COPIA::CAPTURE_INPUT,
 		                     COPIA::INOUT_INPUT, COPIA::SCENE_INPUT, COPIA::MORPH_INPUT, COPIA::MIX_INPUT};
 		for (int i = 0; i < 9; i++)
@@ -721,9 +721,9 @@ struct COPIAWidget : BidooWidget {
 		const int outA[4] = {COPIA::OUTL_OUTPUT, COPIA::OUTR_OUTPUT, COPIA::BAR_OUTPUT, COPIA::REC_OUTPUT};
 		const int outB[3] = {COPIA::WETL_OUTPUT, COPIA::WETR_OUTPUT, COPIA::LANES_OUTPUT};
 		for (int i = 0; i < 4; i++)
-			addOutput(createOutputCentered<PJ301MPort>(Vec(374.f + 36.f * i, 283.f), module, outA[i]));
+			addOutput(createOutputCentered<PJ301MPort>(Vec(369.2f + 37.6f * i, 283.f), module, outA[i]));
 		for (int i = 0; i < 3; i++)
-			addOutput(createOutputCentered<PJ301MPort>(Vec(374.f + 36.f * i, 327.f), module, outB[i]));
+			addOutput(createOutputCentered<PJ301MPort>(Vec(369.2f + 37.6f * i, 327.f), module, outB[i]));
 	}
 
 	void appendContextMenu(Menu *menu) override {
