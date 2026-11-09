@@ -1003,22 +1003,20 @@ struct SOUNAIREWidget : BidooWidget {
 
 		// two rows of jacks (centres 28 + 38 i): playing, then slices, clock and
 		// recording; the outputs on the red box, one on each row
-		auto jx = [](int i) { return 28.f + 38.f * i; };
+		auto jx = [](int i) { return 28.f + 32.f * i; };
 		int row1[10] = {SOUNAIRE::VOCT_INPUT, SOUNAIRE::GATE_INPUT, SOUNAIRE::VEL_INPUT, SOUNAIRE::BEND_INPUT,
 		                SOUNAIRE::START_INPUT, SOUNAIRE::SPEED_INPUT, SOUNAIRE::CUTOFF_INPUT, SOUNAIRE::RES_INPUT,
 		                SOUNAIRE::PITCH_INPUT, SOUNAIRE::PLAY_INPUT};
 		for (int i = 0; i < 10; i++)
 			addInput(createInputCentered<PJ301MPort>(Vec(jx(i), 305.f), module, row1[i]));
-		const int row2Col[6] = {0, 1, 2, 3, 5, 6};
-		int row2[6] = {SOUNAIRE::TRIG_INPUT, SOUNAIRE::SLICE_INPUT, SOUNAIRE::RESET_INPUT, SOUNAIRE::CLOCK_INPUT,
-		               SOUNAIRE::INL_INPUT, SOUNAIRE::INR_INPUT};
-		for (int i = 0; i < 6; i++)
-			addInput(createInputCentered<PJ301MPort>(Vec(jx(row2Col[i]), 341.f), module, row2[i]));
-		addParam(createParamCentered<BidooRoundButton>(Vec(405.f, 341.f), module, SOUNAIRE::REC_PARAM));
-		addInput(createInputCentered<PJ301MPort>(Vec(jx(8), 341.f), module, SOUNAIRE::REC_INPUT));
-		addInput(createInputCentered<PJ301MPort>(Vec(jx(4), 341.f), module, SOUNAIRE::END_INPUT));
-		addInput(createInputCentered<PJ301MPort>(Vec(jx(7), 341.f), module, SOUNAIRE::LOOP_IN_INPUT));
-		addInput(createInputCentered<PJ301MPort>(Vec(jx(9), 341.f), module, SOUNAIRE::LOOP_OUT_INPUT));
+		const int row2[8] = {SOUNAIRE::TRIG_INPUT, SOUNAIRE::SLICE_INPUT, SOUNAIRE::RESET_INPUT, SOUNAIRE::CLOCK_INPUT,
+		                     SOUNAIRE::END_INPUT, SOUNAIRE::LOOP_IN_INPUT, SOUNAIRE::LOOP_OUT_INPUT, SOUNAIRE::REC_INPUT};
+		for (int i = 0; i < 8; i++)
+			addInput(createInputCentered<PJ301MPort>(Vec(jx(i), 341.f), module, row2[i]));
+		addParam(createParamCentered<BidooRoundButton>(Vec(351.f, 341.f), module, SOUNAIRE::REC_PARAM));
+		// the audio inputs have their own box, before the outputs
+		addInput(createInputCentered<PJ301MPort>(Vec(392.f, 305.f), module, SOUNAIRE::INL_INPUT));
+		addInput(createInputCentered<PJ301MPort>(Vec(392.f, 341.f), module, SOUNAIRE::INR_INPUT));
 		addOutput(createOutputCentered<PJ301MPort>(Vec(446.f, 305.f), module, SOUNAIRE::L_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(Vec(446.f, 341.f), module, SOUNAIRE::R_OUTPUT));
 	}
