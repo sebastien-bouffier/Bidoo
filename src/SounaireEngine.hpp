@@ -732,10 +732,22 @@ struct PlayHead {
 		bool equalPower = true;
 	};
 
-	static Region region(const Sample &s, const PlaySettings &p, float engineRate) {
+	// the shortest loop while its points move: IN and OUT cross without it ever
+	// falling to nothing (2 ms, a buzz around 500 Hz at the sample's own pitch)
+	static double minLiveLoop(const Sample &s) {
+		return std::min((double)s.frames, std::max(16.0, 0.002 * (double)s.rate));
+	}
+
+	// minLoop: a loop under this length grows around its centre instead of
+	// switching off (moving points, see nextLive); 0 when the points stay put
+	static Region region(const Sample &s, const PlaySettings &p, float engineRate, double minLoop = 0.0) {
 		double F = (double)s.frames;
 		double a = std::min(p.start, p.end) * F, b = std::max(p.start, p.end) * F;
 		double la = std::min(p.loopStart, p.loopEnd) * F, lb = std::max(p.loopStart, p.loopEnd) * F;
+		if (lb - la < minLoop) {
+			la = std::max(0.0, std::min(F - minLoop, 0.5 * (la + lb) - 0.5 * minLoop));
+			lb = la + minLoop;
+		}
 		Region r;
 		r.reverse = p.reverse;
 		r.equalPower = p.equalPower;
@@ -891,6 +903,156 @@ struct PlayHead {
 			done = true;
 		}
 	}
+
+	// ---- when the points move (the END, LOOP IN and LOOP OUT inputs). next()
+	// works out its crossfade from where the seam is now, so a seam that moves
+	// would move the reading position (pitch) and the fade (click). Here a
+	// crossfade is decided once: the old position goes on as `ghost` while the
+	// head jumps to the new one, both at the speed of the note, and the fade runs
+	// to its end whatever the points do meanwhile. A point that moved only decides
+	// when the next jump happens and where to. With points that stay put it plays
+	// what next() plays.
+	double ghost = 0;       // the old position, fading out
+	int ghostDir = 1;
+	double fadePos = 0, fadeLen = 0;   // play-space frames, fadeLen 0: no fade
+	float endGain = 1.f;    // the fade before END, also when END jumps behind the head
+	bool underLoop = false; // it was under LOOP IN at some point before reaching the loop
+
+	void beginFade(double to, double pos, double len, int newDir) {
+		ghost = v;
+		ghostDir = dir;
+		v = to;
+		dir = newDir;
+		fadePos = pos;
+		fadeLen = len;
+		xaa = xbb = xab = 0;
+	}
+
+	// what the loop asks of a head inside it. A head that the points left behind
+	// on the side it is walking towards just walks on (a forward loop's LOOP IN
+	// passed it); on the other side it jumps, modulo the length like next().
+	void followLoop(const Region &r, double L, double step, float rate) {
+		const double moved = step * 1.0001;   // further than one step: a point moved, not the head
+		const double seamFade = 0.001 * rate * step, jumpFade = 0.003 * rate * step;
+		switch (r.mode) {
+			case LOOP_FORWARD:
+				dir = 1;
+				if (fadeLen > 0)
+					break;
+				if (v >= r.le) {
+					bool own = v - r.le <= moved;
+					double to = r.ls + std::fmod(v - r.ls, L);
+					beginFade(to, own ? to - r.ls : 0.0, std::max(r.x, own ? seamFade : jumpFade), 1);
+				}
+				else if (!r.tail && r.x > 0 && v > r.le - r.x) {
+					double in = v - (r.le - r.x);
+					if (in <= moved)
+						beginFade(v - L, in, std::max(r.x, seamFade), 1);
+					else
+						beginFade(v - L, 0.0, std::max(r.le - v, jumpFade), 1);
+				}
+				break;
+			case LOOP_REVERSE:
+				dir = -1;
+				if (fadeLen > 0)
+					break;
+				if (v <= r.ls) {
+					bool own = r.ls - v <= moved;
+					double to = r.le - std::fmod(r.le - v, L);
+					beginFade(to, own ? r.le - to : 0.0, std::max(r.x, own ? seamFade : jumpFade), -1);
+				}
+				else if (!r.tail && r.x > 0 && v < r.ls + r.x) {
+					double in = (r.ls + r.x) - v;
+					if (in <= moved)
+						beginFade(v + L, in, std::max(r.x, seamFade), -1);
+					else
+						beginFade(v + L, 0.0, std::max(v - r.ls, jumpFade), -1);
+				}
+				break;
+			case LOOP_PINGPONG:
+				// turning needs no fade: a little outside it just turns; far outside it jumps to the point
+				if (v >= r.le) {
+					double d = v - r.le;
+					if (d <= moved && dir > 0) {
+						v = 2 * r.le - v;
+						dir = -1;
+					}
+					else if (d <= jumpFade || fadeLen > 0)
+						dir = -1;
+					else
+						beginFade(r.le, 0.0, std::max(r.x, jumpFade), -1);
+				}
+				else if (v <= r.ls) {
+					double d = r.ls - v;
+					if (d <= moved && dir < 0) {
+						v = 2 * r.ls - v;
+						dir = 1;
+					}
+					else if (d <= jumpFade || fadeLen > 0)
+						dir = 1;
+					else
+						beginFade(r.ls, 0.0, std::max(r.x, jumpFade), 1);
+				}
+				break;
+		}
+	}
+
+	// one output frame with moving points: `rate` is the output's
+	void nextLive(const Region &r, double step, float rate, float &l, float &rr) {
+		if (done) {
+			l = rr = 0.f;
+			return;
+		}
+		setStep(step);
+		const double L = r.le - r.ls;
+		const bool looping = inLoop && r.mode != LOOP_OFF && L > 0;
+		if (looping)
+			followLoop(r, L, step, rate);
+		if (fadeLen > 0) {
+			float bl, br;
+			read(ghost, r.reverse, l, rr);
+			read(v, r.reverse, bl, br);
+			blend(r, (float)(fadePos / fadeLen), bl, br, l, rr);
+		}
+		else {
+			read(v, r.reverse, l, rr);
+		}
+		// 2 ms before END; when END jumps closer than that the gain still takes 2 ms
+		const float slew = 1.f / (0.002f * rate);
+		float want = 1.f;
+		if (!looping && step > 0) {
+			double left = (dir > 0 ? r.end - v : v) / step;
+			want = (float)std::max(0.0, std::min(1.0, left * slew));
+		}
+		endGain = want < endGain ? std::max(want, endGain - slew) : std::min(want, endGain + slew);
+		l *= endGain;
+		rr *= endGain;
+		const double before = v, last = (double)s->frames - 1.0;
+		v += step * dir;
+		if (fadeLen > 0) {
+			// neither side of a fade leaves the sample: it would drop to nothing at once
+			ghost += step * ghostDir;
+			if (ghost > last || ghost < 0) {
+				ghost = std::max(0.0, std::min(last, ghost > last ? 2 * last - ghost : -ghost));
+				ghostDir = -ghostDir;
+			}
+			if (v > last || v < 0) {
+				v = std::max(0.0, std::min(last, v > last ? 2 * last - v : -v));
+				dir = -dir;
+			}
+			fadePos += step;
+			if (fadePos >= fadeLen)
+				fadeLen = 0;
+		}
+		// in once it reaches the loop, also when a fast sweep carries the loop over it
+		if (r.mode != LOOP_OFF && !inLoop) {
+			if (v >= r.ls && (v < r.le || before < r.le || underLoop))
+				inLoop = true;
+			underLoop |= v < r.ls;
+		}
+		if (!(inLoop && r.mode != LOOP_OFF && L > 0) && (v >= r.end || v < 0) && endGain <= 0.f)
+			done = true;
+	}
 };
 
 // Signalsmith Stretch fed a "tape": the sample as it plays at its own speed
@@ -982,6 +1144,31 @@ struct Voice {
 	float gainL = 1.f, gainR = 1.f;   // the slice's level and pan
 	float attackMs = -1.f, releaseMs = -1.f;   // the slice's envelope, below 0: the knobs
 	PlayHead::Region region {};
+	// its END, LOOP IN and LOOP OUT follow voltages while it plays: `liveTo` from
+	// the module, `liveNow` smoothed; `region` is worked out from them every
+	// LIVE_BLOCK frames and the head uses nextLive(). Off: the head uses next().
+	enum { LIVE_END, LIVE_LOOP_IN, LIVE_LOOP_OUT, LIVE_POINTS };
+	bool live = false;
+	int liveCount = 0;
+	float liveTo[LIVE_POINTS] = {};
+	float liveNow[LIVE_POINTS] = {};
+	// SLICES mode: the slice (0..1 of the sample), how it plays
+	double sliceFrom = 0, sliceTo = 1;
+	int ownLoopMode = LOOP_OFF;
+	bool ownReverse = false;
+
+	void setLivePoints(float end, float loopIn, float loopOut) {
+		liveTo[LIVE_END] = end;
+		liveTo[LIVE_LOOP_IN] = loopIn;
+		liveTo[LIVE_LOOP_OUT] = loopOut;
+		if (!live) {
+			// a new note or a new cable starts where the voltage is, no glide from the knob
+			for (int k = 0; k < LIVE_POINTS; k++)
+				liveNow[k] = liveTo[k];
+			live = true;
+			liveCount = 0;
+		}
+	}
 };
 
 // Everything that plays: 16 channels, each with a spare slot for the fade-out of
@@ -992,12 +1179,15 @@ struct Engine {
 	static constexpr int TRIGGER = SLOTS - 3;   // a slice from the TRIG input
 	static constexpr int MOUSE = SLOTS - 2;     // a key clicked on the keyboard strip
 	static constexpr int PREVIEW = SLOTS - 1;
+	static constexpr int LIVE_BLOCK = 16;       // frames between two looks at the moving points
+	static constexpr float LIVE_SMOOTH = 0.005f;   // their smoothing: a 5 ms one-pole
 	Voice voices[SLOTS];
 	Stretcher *pool = nullptr;   // STRETCH_POOL stretchers, built by the worker
 	Stretcher *oldPool = nullptr;   // the one replaced, until its voices have faded
 	float rate = 48000.f;
 	int poolMode = -1;           // the preset the pool runs, -1: none yet
 	float poolRate = 0.f;
+	float liveCoef = 1.f;
 
 	const Sample *current = nullptr;
 	// samples replaced while voices still played them (hot-swap)
@@ -1006,6 +1196,7 @@ struct Engine {
 	// a new rate: what plays fades out (its stretchers keep their old rate meanwhile)
 	void prepare(float sampleRate) {
 		rate = sampleRate;
+		liveCoef = 1.f - std::exp(-(float)LIVE_BLOCK / (LIVE_SMOOTH * sampleRate));
 		for (Voice &v : voices)
 			if (v.active)
 				v.fadingOut = true;
@@ -1249,6 +1440,30 @@ struct Engine {
 		return (float)std::max(0.0, std::min(1.0, left / (0.002 * rate)));
 	}
 
+	// a voice's moving points: every LIVE_BLOCK frames they glide on and give it a new region
+	void updateLive(Voice &v, const Sample &s, const PlaySettings &p) {
+		if (--v.liveCount > 0)
+			return;
+		v.liveCount = LIVE_BLOCK;
+		for (int k = 0; k < Voice::LIVE_POINTS; k++)
+			v.liveNow[k] += liveCoef * (v.liveTo[k] - v.liveNow[k]);
+		PlaySettings q = p;
+		if (v.ownRegion) {
+			// a slice: END trims inside it, and its loop is its trimmed length
+			double t0 = p.start, t1 = v.liveNow[Voice::LIVE_END], n = v.sliceTo - v.sliceFrom;
+			q.start = q.loopStart = v.sliceFrom + std::min(t0, t1) * n;
+			q.end = q.loopEnd = v.sliceFrom + std::max(t0, t1) * n;
+			q.loopMode = v.ownLoopMode;
+			q.reverse = v.ownReverse;
+		}
+		else {
+			q.end = v.liveNow[Voice::LIVE_END];
+			q.loopStart = v.liveNow[Voice::LIVE_LOOP_IN];
+			q.loopEnd = v.liveNow[Voice::LIVE_LOOP_OUT];
+		}
+		v.region = PlayHead::region(s, q, rate, PlayHead::minLiveLoop(s));
+	}
+
 	// one frame of every voice, added into outL/outR by output channel
 	void process(const PlaySettings &p, float *outL, float *outR) {
 		// one stretcher start per frame: a chord's start-ups spread over a few samples
@@ -1284,7 +1499,9 @@ struct Engine {
 				v.goodSemis = semis;
 			else
 				semis = v.goodSemis;
-			PlayHead::Region r = v.ownRegion ? v.region : ((!preview && v.sample == current) ? mainRegion : PlayHead::region(s, ps, rate));
+			if (v.live)
+				updateLive(v, s, ps);
+			PlayHead::Region r = (v.ownRegion || v.live) ? v.region : ((!preview && v.sample == current) ? mainRegion : PlayHead::region(s, ps, rate));
 			const double srcRatio = s.rate / rate;
 			float l = 0.f, rr = 0.f;
 			double step = srcRatio;
@@ -1300,7 +1517,10 @@ struct Engine {
 						int seekLen = st.st.outputSeekLength(std::min(std::max(ps.speed, 0.25f), 4.f));
 						while (st.written < seekLen) {
 							float a, b;
-							v.head.next(r, srcRatio, a, b);
+							if (v.live)
+								v.head.nextLive(r, srcRatio, rate, a, b);
+							else
+								v.head.next(r, srcRatio, a, b);
 							st.tape[0][st.written & st.tapeMask] = a;
 							st.tape[1][st.written & st.tapeMask] = b;
 							st.written++;
@@ -1317,7 +1537,10 @@ struct Engine {
 					st.acc += ps.speed * STRETCH_BLOCK - count;
 					while (st.written < st.consumed + count) {
 						float a, b;
-						v.head.next(r, srcRatio, a, b);
+						if (v.live)
+							v.head.nextLive(r, srcRatio, rate, a, b);
+						else
+							v.head.next(r, srcRatio, a, b);
 						st.tape[0][st.written & st.tapeMask] = a;
 						st.tape[1][st.written & st.tapeMask] = b;
 						st.written++;
@@ -1347,10 +1570,15 @@ struct Engine {
 					release(v);
 					continue;
 				}
-				float fade = endFade(v, r, step);
-				v.head.next(r, step, l, rr);
-				l *= fade;
-				rr *= fade;
+				if (v.live) {
+					v.head.nextLive(r, step, rate, l, rr);
+				}
+				else {
+					float fade = endFade(v, r, step);
+					v.head.next(r, step, l, rr);
+					l *= fade;
+					rr *= fade;
+				}
 				if (v.head.done && !v.fadingOut)
 					v.gate = false, v.env = 0.f;
 			}

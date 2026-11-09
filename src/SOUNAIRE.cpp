@@ -134,6 +134,9 @@ struct SOUNAIRE : BidooModule {
 		INL_INPUT,
 		INR_INPUT,
 		REC_INPUT,
+		END_INPUT,
+		LOOP_IN_INPUT,
+		LOOP_OUT_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -269,6 +272,8 @@ struct SOUNAIRE : BidooModule {
 	float syncFactor = 1.f;        // the clock's speed factor for the loop
 	bool held[MAX_VOICES] = {};
 	int legatoChannel = 0;
+	int cvCount = 0;           // frames to the next look at END, LOOP IN and LOOP OUT
+	bool liveVoices = false;   // a voice may be following them
 	float outL[MAX_VOICES] = {}, outR[MAX_VOICES] = {};
 	// per channel speed: exp2 worked out again only when knob + CV move
 	float speedX[MAX_VOICES], speedOut[MAX_VOICES];
@@ -331,6 +336,9 @@ struct SOUNAIRE : BidooModule {
 		configInput(INL_INPUT, "Record left (5 V = full scale)");
 		configInput(INR_INPUT, "Record right (left when unpatched: a mono recording)");
 		configInput(REC_INPUT, "Record gate (records while high)");
+		configInput(END_INPUT, "End CV (added to END, 10 V = the whole sample; live while notes play, polyphonic)");
+		configInput(LOOP_IN_INPUT, "Loop in CV (added to LOOP IN, 10 V = the whole sample; live while notes play, polyphonic). Not used in SLICES mode");
+		configInput(LOOP_OUT_INPUT, "Loop out CV (added to LOOP OUT, 10 V = the whole sample; live while notes play, polyphonic). Not used in SLICES mode");
 		configOutput(L_OUTPUT, "Left");
 		configOutput(R_OUTPUT, "Right");
 		engine.prepare(48000.f);
@@ -1008,6 +1016,57 @@ struct SOUNAIRE : BidooModule {
 		return params[MODE_PARAM].getValue() > 0.5f;
 	}
 
+	// a marker for channel c: the knob plus the voltage (10 V = the whole sample),
+	// the knob alone when unpatched
+	float cvPoint(int param, int input, int c) {
+		float k = params[param].getValue();
+		if (!inputs[input].isConnected())
+			return k;
+		float x = k + inputs[input].getPolyVoltage(c) * 0.1f;
+		return std::isfinite(x) ? clamp(x, 0.f, 1.f) : k;
+	}
+	float cvEnd(int c) { return cvPoint(END_PARAM, END_INPUT, c); }
+	float cvLoopIn(int c) { return cvPoint(LOOP_START_PARAM, LOOP_IN_INPUT, c); }
+	float cvLoopOut(int c) { return cvPoint(LOOP_END_PARAM, LOOP_OUT_INPUT, c); }
+
+	bool loopCvPatched() {
+		return inputs[LOOP_IN_INPUT].isConnected() || inputs[LOOP_OUT_INPUT].isConnected();
+	}
+
+	// the settings a note of channel c starts with
+	PlaySettings noteSettings(PlaySettings p, int c) {
+		p.end = cvEnd(c);
+		p.loopStart = cvLoopIn(c);
+		p.loopEnd = cvLoopOut(c);
+		return p;
+	}
+
+	// The voice on `slot` follows channel c's END, LOOP IN and LOOP OUT. A voice
+	// goes live with its note or with a new cable (at once), then its points are
+	// read at `tick`. A slice has no use for the loop inputs. Once live it stays
+	// live until the note ends: a cable pulled out glides back to the knob.
+	void followCv(int slot, int c, bool tick) {
+		Voice &v = engine.voices[slot];
+		if (!v.active || v.fadingOut || (v.live && !tick))
+			return;
+		if (!v.live && !(inputs[END_INPUT].isConnected() || (!v.ownRegion && loopCvPatched())))
+			return;
+		v.setLivePoints(cvEnd(c), cvLoopIn(c), cvLoopOut(c));
+		liveVoices = true;
+	}
+
+	void followCvs(bool legato, int channels, bool tick) {
+		if (legato) {
+			followCv(0, legatoChannel, tick);
+		}
+		else {
+			for (int c = 0; c < channels; c++)
+				followCv(c, c, tick);
+		}
+		followCv(sounaire::Engine::TRIGGER, 0, tick);
+		followCv(sounaire::Engine::MOUSE, 0, tick);
+	}
+
 	// semitones from the root for channel c; in SLICES mode the key picks the
 	// slice, so only PITCH, tune and bend move it
 	float semitones(int c) {
@@ -1054,7 +1113,7 @@ struct SOUNAIRE : BidooModule {
 		int64_t F = smp->originFrames > 0 ? smp->originFrames : smp->frames;   // the slices' frames
 		int64_t a = clamp(slices->start[i], (int64_t)0, F - 2);
 		int64_t b = clamp(slices->end(i, F), a + 2, F);
-		double t0 = params[START_PARAM].getValue(), t1 = params[END_PARAM].getValue();
+		double t0 = params[START_PARAM].getValue(), t1 = cvEnd(c);
 		double sa = a + std::min(t0, t1) * (b - a), sb = a + std::max(t0, t1) * (b - a);
 		int type = playOverride(c);
 		if (type < 0)
@@ -1067,6 +1126,10 @@ struct SOUNAIRE : BidooModule {
 		bool oneShot = type == PLAY_ONE_SHOT || type == PLAY_REVERSE;
 		engine.noteOn(slot, slot >= MAX_VOICES ? 0 : c, semitones(c), vel, p, startOffset, cutoffNote(c), &own, oneShot);
 		sounaire::Voice &v = engine.voices[slot];
+		v.sliceFrom = (double)a / F;
+		v.sliceTo = (double)b / F;
+		v.ownLoopMode = own.loopMode;
+		v.ownReverse = own.reverse;
 		v.choke = group;
 		v.slice = i;
 		v.pitchOffset = slices->tune[i];
@@ -1313,7 +1376,7 @@ struct SOUNAIRE : BidooModule {
 						other |= o != c && held[o];
 					legatoChannel = c;
 					if (!(other && engine.voices[0].active && engine.voices[0].gate))
-						engine.noteOn(0, 0, semitones(c), velocity(c), p, startOffset(c), cutoffNote(c));
+						engine.noteOn(0, 0, semitones(c), velocity(c), noteSettings(p, c), startOffset(c), cutoffNote(c));
 				}
 				anyHeld |= held[c];
 			}
@@ -1339,7 +1402,7 @@ struct SOUNAIRE : BidooModule {
 				if (g && !held[c] && slicing)
 					sliceNoteOn(c, c, (int)std::round(inputs[VOCT_INPUT].getPolyVoltage(c) * 12.f + 60.f), p, startOffset(c), velocity(c));
 				else if (g && !held[c] && inRange(c))
-					engine.noteOn(c, c, semitones(c), velocity(c), p, startOffset(c), cutoffNote(c));
+					engine.noteOn(c, c, semitones(c), velocity(c), noteSettings(p, c), startOffset(c), cutoffNote(c));
 				else if (!g && held[c])
 					engine.noteOff(c);
 				held[c] = g;
@@ -1374,7 +1437,7 @@ struct SOUNAIRE : BidooModule {
 			if (slicing)
 				sliceNoteOn(sounaire::Engine::MOUSE, 0, mk, p, 0.0, 1.f);
 			else if (noteInRange(mk))
-				engine.noteOn(sounaire::Engine::MOUSE, 0, semitonesFor((float)mk, 0), 1.f, p, 0.0, cutoffNote(0));
+				engine.noteOn(sounaire::Engine::MOUSE, 0, semitonesFor((float)mk, 0), 1.f, noteSettings(p, 0), 0.0, cutoffNote(0));
 			mouseOn = true;
 			mouseShown = mk;
 		}
@@ -1382,6 +1445,22 @@ struct SOUNAIRE : BidooModule {
 			engine.noteOff(sounaire::Engine::MOUSE);
 			mouseOn = false;
 			mouseShown = -1;
+		}
+
+		// END, LOOP IN and LOOP OUT while notes play: new notes and new cables at
+		// once, the voltages every 16 frames; each voice smooths its own. Nothing
+		// here when nothing is patched and no voice was following anything.
+		bool cvPatched = inputs[END_INPUT].isConnected() || loopCvPatched();
+		if (cvPatched || liveVoices) {
+			bool tick = --cvCount <= 0;
+			if (tick)
+				cvCount = sounaire::Engine::LIVE_BLOCK;
+			followCvs(legato, channels, tick);
+			if (tick && !cvPatched) {
+				liveVoices = false;
+				for (const Voice &v : engine.voices)
+					liveVoices |= v.active && v.live;
+			}
 		}
 
 		// preview from the display

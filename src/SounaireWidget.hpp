@@ -286,7 +286,13 @@ struct SounaireDisplay : OpaqueWidget {
 
 	// ---- drawing. The waveform, regions, markers and cuts change only with the
 	// sample, the view or an edit: drawn into a framebuffer then. The playheads
-	// and the text lines go on top of it every frame.
+	// and the text lines go on top of it every frame. With a cable on END, LOOP IN
+	// or LOOP OUT the markers and regions move with channel 1's voltage: they go on
+	// top as well, and the framebuffer keeps the bare waveform.
+	bool liveMarkers() {
+		return module && !module->sliceMode() && (module->inputs[SOUNAIRE::END_INPUT].isConnected() || module->loopCvPatched());
+	}
+
 	struct Wave : Widget {
 		SounaireDisplay *d = nullptr;
 		void draw(const DrawArgs &args) override {
@@ -311,12 +317,13 @@ struct SounaireDisplay : OpaqueWidget {
 		if (module) {
 			// what the framebuffer shows: drawn again when any of it moves
 			std::shared_ptr<sounaire::Sample> s = module->displaySample();
+			bool live = liveMarkers();
 			double k[16] = {(double)(uintptr_t)s.get(), v0, v1,
-			                module->params[SOUNAIRE::START_PARAM].getValue(), module->params[SOUNAIRE::END_PARAM].getValue(),
-			                module->params[SOUNAIRE::LOOP_START_PARAM].getValue(), module->params[SOUNAIRE::LOOP_END_PARAM].getValue(),
+			                live ? 0.0 : module->params[SOUNAIRE::START_PARAM].getValue(), live ? 0.0 : module->params[SOUNAIRE::END_PARAM].getValue(),
+			                live ? 0.0 : module->params[SOUNAIRE::LOOP_START_PARAM].getValue(), live ? 0.0 : module->params[SOUNAIRE::LOOP_END_PARAM].getValue(),
 			                module->params[SOUNAIRE::LOOP_MODE_PARAM].getValue() > 0.5f ? 1.0 : 0.0, module->sliceMode() ? 1.0 : 0.0,
 			                (double)module->sliceVersion.load(), (double)module->selectedSlice.load(), module->autoNormalize ? 1.0 : 0.0,
-			                box.size.x, box.size.y, module->waveBlue ? 1.0 : 0.0, 0.0};
+			                box.size.x, box.size.y, module->waveBlue ? 1.0 : 0.0, live ? 1.0 : 0.0};
 			if (std::memcmp(k, waveKey, sizeof(k)) != 0) {
 				std::memcpy(waveKey, k, sizeof(k));
 				fb->setDirty();
@@ -347,6 +354,12 @@ struct SounaireDisplay : OpaqueWidget {
 		double F = (double)s->frames;
 		float st = module->params[SOUNAIRE::START_PARAM].getValue(), en = module->params[SOUNAIRE::END_PARAM].getValue();
 		float a = posToX(std::min(st, en)), b = posToX(std::max(st, en));
+		const bool live = liveMarkers();
+		if (live) {
+			// all of it bright: drawLayer() dims the part that does not play
+			a = -1.f;
+			b = W + 1.f;
+		}
 		if (slicing) {
 			// the whole sample plays; the selected slice is shaded
 			a = -1.f;
@@ -354,12 +367,12 @@ struct SounaireDisplay : OpaqueWidget {
 			float sx0 = posToX(cuts.start[sel] / F), sx1 = posToX(cuts.end(sel, s->frames) / F);
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, sx0, 14, sx1 - sx0, B - 14);
-			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? ORANGE : BLUE, 0x38));
+			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? ORANGE : PAPER, 0x38));
 			nvgFill(args.vg);
 		}
 		// loop region
 		bool looping = !slicing && module->params[SOUNAIRE::LOOP_MODE_PARAM].getValue() > 0.5f;
-		if (looping) {
+		if (looping && !live) {
 			float ls = module->params[SOUNAIRE::LOOP_START_PARAM].getValue(), le = module->params[SOUNAIRE::LOOP_END_PARAM].getValue();
 			float x0 = posToX(std::min(ls, le)), x1 = posToX(std::max(ls, le));
 			nvgBeginPath(args.vg);
@@ -428,7 +441,7 @@ struct SounaireDisplay : OpaqueWidget {
 			nvgBeginPath(args.vg);
 			nvgMoveTo(args.vg, xs, 14);
 			nvgLineTo(args.vg, xs, B);
-			nvgStrokeColor(args.vg, module->waveBlue ? ORANGE : BLUE);
+			nvgStrokeColor(args.vg, module->waveBlue ? ORANGE : PAPER);
 			nvgStroke(args.vg);
 			if (f && f->handle >= 0) {
 				nvgFontFaceId(args.vg, f->handle);
@@ -439,44 +452,13 @@ struct SounaireDisplay : OpaqueWidget {
 					float next = posToX(cuts.end(i, s->frames) / F);
 					if (next < 0.f || x > W || next - x <= 9.f)
 						continue;
-					nvgFillColor(args.vg, i == sel ? (module->waveBlue ? ORANGE : BLUE) : PAPER);
+					nvgFillColor(args.vg, i == sel ? (module->waveBlue ? ORANGE : PAPER) : PAPER);
 					nvgText(args.vg, std::max(x, 0.f) + 2, 15, std::to_string(i + 1).c_str(), nullptr);
 				}
 			}
 		}
-		else {
-			// start and end
-			nvgBeginPath(args.vg);
-			for (int id : {SOUNAIRE::START_PARAM, SOUNAIRE::END_PARAM}) {
-				float x = posToX(module->params[id].getValue());
-				nvgMoveTo(args.vg, x, 14);
-				nvgLineTo(args.vg, x, B);
-			}
-			nvgStrokeColor(args.vg, PAPER);
-			nvgStrokeWidth(args.vg, 1.f);
-			nvgStroke(args.vg);
-			nvgBeginPath(args.vg);
-			for (int id : {SOUNAIRE::START_PARAM, SOUNAIRE::END_PARAM}) {
-				float x = posToX(module->params[id].getValue());
-				float dir = id == SOUNAIRE::START_PARAM ? 1.f : -1.f;
-				nvgMoveTo(args.vg, x, 14);
-				nvgLineTo(args.vg, x + 5 * dir, 14);
-				nvgLineTo(args.vg, x, 20);
-				nvgClosePath(args.vg);
-			}
-			nvgFillColor(args.vg, PAPER);
-			nvgFill(args.vg);
-			if (looping) {
-				nvgBeginPath(args.vg);
-				for (int id : {SOUNAIRE::LOOP_START_PARAM, SOUNAIRE::LOOP_END_PARAM}) {
-					float x = posToX(module->params[id].getValue());
-					nvgMoveTo(args.vg, x, 14);
-					nvgLineTo(args.vg, x, B);
-				}
-				nvgStrokeColor(args.vg, PAPER);
-				nvgStrokeWidth(args.vg, 1.f);
-				nvgStroke(args.vg);
-			}
+		else if (!live) {
+			drawMarkers(args, st, en, module->params[SOUNAIRE::LOOP_START_PARAM].getValue(), module->params[SOUNAIRE::LOOP_END_PARAM].getValue(), looping, B);
 		}
 		// zoomed: where the view is in the sample
 		if (v1 - v0 < 0.999) {
@@ -485,6 +467,69 @@ struct SounaireDisplay : OpaqueWidget {
 			nvgFillColor(args.vg, ORANGE);
 			nvgFill(args.vg);
 		}
+	}
+
+	// start, end and, looping, the loop's two lines
+	void drawMarkers(const DrawArgs &args, float st, float en, float ls, float le, bool looping, float B) {
+		using namespace sounaire_ui;
+		const float se[2] = {st, en};
+		nvgBeginPath(args.vg);
+		for (float m : se) {
+			float x = posToX(m);
+			nvgMoveTo(args.vg, x, 14);
+			nvgLineTo(args.vg, x, B);
+		}
+		nvgStrokeColor(args.vg, PAPER);
+		nvgStrokeWidth(args.vg, 1.f);
+		nvgStroke(args.vg);
+		nvgBeginPath(args.vg);
+		for (int i = 0; i < 2; i++) {
+			float x = posToX(se[i]);
+			float dir = i == 0 ? 1.f : -1.f;
+			nvgMoveTo(args.vg, x, 14);
+			nvgLineTo(args.vg, x + 5 * dir, 14);
+			nvgLineTo(args.vg, x, 20);
+			nvgClosePath(args.vg);
+		}
+		nvgFillColor(args.vg, PAPER);
+		nvgFill(args.vg);
+		if (looping) {
+			nvgBeginPath(args.vg);
+			for (float m : {ls, le}) {
+				float x = posToX(m);
+				nvgMoveTo(args.vg, x, 14);
+				nvgLineTo(args.vg, x, B);
+			}
+			nvgStrokeColor(args.vg, PAPER);
+			nvgStrokeWidth(args.vg, 1.f);
+			nvgStroke(args.vg);
+		}
+	}
+
+	// the regions and markers where channel 1's voltages put them, every frame:
+	// a few rectangles and lines over the bare waveform of the framebuffer
+	void drawLiveMarkers(const DrawArgs &args, float W, float B) {
+		using namespace sounaire_ui;
+		float st = module->params[SOUNAIRE::START_PARAM].getValue(), en = module->cvEnd(0);
+		float ls = module->cvLoopIn(0), le = module->cvLoopOut(0);
+		bool looping = module->params[SOUNAIRE::LOOP_MODE_PARAM].getValue() > 0.5f;
+		if (looping) {
+			float x0 = posToX(std::min(ls, le)), x1 = posToX(std::max(ls, le));
+			nvgBeginPath(args.vg);
+			nvgRect(args.vg, x0, 14, x1 - x0, B - 14);
+			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? BLUE : PINK_BIDOO, 0x40));
+			nvgFill(args.vg);
+		}
+		// the part that does not play, dimmed as the framebuffer does it without a cable
+		float a = posToX(std::min(st, en)), b = posToX(std::max(st, en));
+		nvgBeginPath(args.vg);
+		if (a > 0.f)
+			nvgRect(args.vg, 0, 14, a, B - 14);
+		if (b < W)
+			nvgRect(args.vg, b, 14, W - b, B - 14);
+		nvgFillColor(args.vg, nvgTransRGBA(INK, 0xaa));
+		nvgFill(args.vg);
+		drawMarkers(args, st, en, ls, le, looping, B);
 	}
 
 	void drawLayer(const DrawArgs &args, int layer) override {
@@ -507,6 +552,8 @@ struct SounaireDisplay : OpaqueWidget {
 		nvgSave(args.vg);
 		nvgScissor(args.vg, 0, 0, W, H);
 		drawChild(fb, args);
+		if (s && s->frames > 1 && liveMarkers())
+			drawLiveMarkers(args, W, H - 13.f);
 		// the sample on the top line, the playing information on a line under
 		// the waveform, so a long name never runs into it
 		float B = H - 13.f;
@@ -535,7 +582,7 @@ struct SounaireDisplay : OpaqueWidget {
 			float x0 = posToX(std::min(selFrom, selTo)), x1 = posToX(std::max(selFrom, selTo));
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, x0, 14, x1 - x0, B - 14);
-			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? ORANGE : BLUE, 0x60));
+			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? ORANGE : PAPER, 0x60));
 			nvgFill(args.vg);
 		}
 		// header line: sample, rate, length; under the waveform: what plays
@@ -969,6 +1016,9 @@ struct SOUNAIREWidget : BidooWidget {
 			addInput(createInputCentered<PJ301MPort>(Vec(jx(row2Col[i]), 341.f), module, row2[i]));
 		addParam(createParamCentered<BidooRoundButton>(Vec(405.f, 341.f), module, SOUNAIRE::REC_PARAM));
 		addInput(createInputCentered<PJ301MPort>(Vec(jx(8), 341.f), module, SOUNAIRE::REC_INPUT));
+		addInput(createInputCentered<PJ301MPort>(Vec(jx(4), 341.f), module, SOUNAIRE::END_INPUT));
+		addInput(createInputCentered<PJ301MPort>(Vec(jx(7), 341.f), module, SOUNAIRE::LOOP_IN_INPUT));
+		addInput(createInputCentered<PJ301MPort>(Vec(jx(9), 341.f), module, SOUNAIRE::LOOP_OUT_INPUT));
 		addOutput(createOutputCentered<PJ301MPort>(Vec(446.f, 305.f), module, SOUNAIRE::L_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(Vec(446.f, 341.f), module, SOUNAIRE::R_OUTPUT));
 	}
