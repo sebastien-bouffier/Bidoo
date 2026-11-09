@@ -379,6 +379,17 @@
       ]
     },
     {
+      "slug": "RICOCHET",
+      "name": "rICOcHEt",
+      "description": "Stereo delay with character: digital, tape, BBD, lo-fi, diffuse and reverse, clock sync, ping-pong, freeze",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#ricochet",
+      "tags": [
+        "Delay",
+        "Effect",
+        "Stereo"
+      ]
+    },
+    {
       "slug": "HCTIP",
       "name": "HCTIP",
       "description": "Pitch shifter",

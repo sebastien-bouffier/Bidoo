@@ -62,6 +62,7 @@ extern Model *modelSOUNAIRE;
 extern Model *modelCOPIA;
 extern Model *modelFILTRE;
 extern Model *modelACIDE;
+extern Model *modelRICOCHET;
 extern Model *modelMU;
 extern Model *modelSIGMA;
 extern Model *modelRABBIT;

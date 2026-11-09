@@ -24,3 +24,6 @@ CXXFLAGS := $(filter-out -std=c++11,$(CXXFLAGS)) -std=c++17
 
 # FiLTRe: Potion's Filter.h, kept unchanged, needs C++20; only this file sees it
 build/src/FiltreEngine.cpp.o: CXXFLAGS += -std=c++20 -Isrc/dep/bidoo-dsp
+
+# rICOcHEt: bidoo-dsp headers (delay/WowFlutter.h) include from the library root
+build/src/RICOCHET.cpp.o: CXXFLAGS += -Isrc/dep/bidoo-dsp

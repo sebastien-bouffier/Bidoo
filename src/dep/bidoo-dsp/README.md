@@ -13,6 +13,8 @@ Headers copied unchanged from the author's bidoo-dsp library:
 - commit 8646ec3, for aCiDe:
   `bidoo/dsp/filters/DiodeLadder.h` (the diode ladder model) and `bidoo/dsp/synth/AcidVoice.h` (the voice), which also
   use `bidoo/dsp/synth/KaiserBlep.h`, `bidoo/dsp/oversampling/IirHalfBand.h` and `bidoo/dsp/shaping/TanhPade.h` above
+- for rICOcHEt: `bidoo/dsp/delay/CharacterDelay.h` (the delay) and `bidoo/dsp/delay/WowFlutter.h`, with the core, delay
+  and shaping headers above
 
 Copyright (c) 2026 Sebastien Bouffier (Bidoo). Distributed here under the GPL-3.0-or-later, as the
 rest of this plugin.
