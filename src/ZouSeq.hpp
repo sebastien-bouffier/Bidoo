@@ -3129,84 +3129,168 @@ struct ZouSeqDisplay : TransparentWidget {
 		return title;
 	}
 
+	// The two screens, drawn here and not in the panel: the track screen at the top, the trig screen below it.
+	// Each is a table, one column per knob of the row under it, a label cell over a value cell.
+	// The grey border lies outside the black (stroked, then filled over); the header band holds the P2 button.
+	static constexpr float W = 225.0f, BORDER = 2.0f;
+	static constexpr float TRACK_TOP = 0.0f, TRACK_BOTTOM = 37.0f, TRIG_TOP = 77.0f, TRIG_BOTTOM = 140.0f;
+	static constexpr float HEADER = 17.0f, LABEL = 9.0f;	// the P2 button spans 2..14, the rule stays clear of it
+
+	// Column centres: the knobs' centres (ZouSeqWidget: corner - 140 + half the knob), the CV1 switch's for the last track column.
+	static constexpr float TRACK_X[6] = {16.76f, 49.76f, 82.76f, 115.76f, 158.76f, 209.0f};
+	static constexpr float TRIG_X[6] = {21.76f, 58.76f, 95.76f, 132.76f, 169.76f, 206.76f};
+	// Column edges: half-way between knobs, the scale's column wider for its long names.
+	static constexpr float TRACK_EDGES[7] = {0.0f, 33.26f, 66.26f, 99.26f, 130.0f, 190.0f, W};
+	static constexpr float TRIG_EDGES[7] = {0.0f, 40.26f, 77.26f, 114.26f, 151.26f, 188.26f, W};
+
+	struct Cell {
+		const char *label = nullptr;	// nullptr: no knob under this column on this page, the cell stays empty
+		std::string value;
+	};
+
+	// The size that fits the cell, down to minSize; then the end goes.
+	static std::string fitText(NVGcontext *vg, const std::string &text, const float width, const float size, const float minSize) {
+		float s = size;
+		nvgFontSize(vg, s);
+		while (s > minSize && nvgTextBounds(vg, 0.0f, 0.0f, text.c_str(), NULL, NULL) > width) {
+			s -= 0.5f;
+			nvgFontSize(vg, s);
+		}
+		std::string shown = text;
+		while (shown.size() > 1 && nvgTextBounds(vg, 0.0f, 0.0f, (shown + ".").c_str(), NULL, NULL) > width) {
+			char c;
+			do {
+				c = shown.back();
+				shown.pop_back();
+			} while (!shown.empty() && (c & 0xC0) == 0x80);
+			if (nvgTextBounds(vg, 0.0f, 0.0f, (shown + ".").c_str(), NULL, NULL) <= width)
+				return shown + ".";
+		}
+		return shown;
+	}
+
+	// Over its knob, moved into its cell when it is wider than the knob's side of the cell.
+	static void cellText(NVGcontext *vg, const std::string &text, const float centre, const float left, const float right, const float y, const float size, const float minSize) {
+		static const float PAD = 1.5f;
+		const std::string shown = fitText(vg, text, right - left - 2.0f * PAD, size, minSize);
+		const float half = nvgTextBounds(vg, 0.0f, 0.0f, shown.c_str(), NULL, NULL) * 0.5f;
+		const float x = clamp(centre, left + PAD + half, right - PAD - half);
+		nvgText(vg, x, y, shown.c_str(), NULL);
+	}
+
+	static void screen(NVGcontext *vg, const float top, const float bottom) {
+		nvgBeginPath(vg);
+		nvgRect(vg, 0.0f, top, W, bottom - top);
+		nvgLineJoin(vg, NVG_MITER);
+		nvgStrokeWidth(vg, 2.0f * BORDER);
+		nvgStrokeColor(vg, nvgRGBA(180, 180, 180, 255));
+		nvgStroke(vg);
+		nvgFillColor(vg, nvgRGBA(0, 0, 0, 255));
+		nvgFill(vg);
+	}
+
+	static void hRule(NVGcontext *vg, const float y, const float alpha) {
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, 0.0f, y);
+		nvgLineTo(vg, W, y);
+		nvgStrokeWidth(vg, 1.0f);
+		nvgStrokeColor(vg, nvgRGBA(255, 233, 0, alpha));
+		nvgStroke(vg);
+	}
+
+	// A table row from top to bottom: the label band, the column rules, then the six cells.
+	static void tableRow(NVGcontext *vg, const float *edges, const float *centres, const float top, const float bottom, const Cell *cells) {
+		nvgBeginPath(vg);
+		nvgRect(vg, 0.0f, top, W, LABEL);
+		nvgFillColor(vg, nvgRGBA(255, 233, 0, 30));
+		nvgFill(vg);
+		hRule(vg, top, 110);
+		nvgBeginPath(vg);
+		for (int i = 1; i < 6; i++) {
+			nvgMoveTo(vg, edges[i], top);
+			nvgLineTo(vg, edges[i], bottom);
+		}
+		nvgStrokeWidth(vg, 1.0f);
+		nvgStrokeColor(vg, nvgRGBA(255, 233, 0, 70));
+		nvgStroke(vg);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+		const float valueY = (top + LABEL + bottom) * 0.5f + 0.5f;
+		for (int i = 0; i < 6; i++) {
+			if (!cells[i].label)
+				continue;
+			nvgFillColor(vg, nvgRGBA(255, 233, 0, 175));
+			cellText(vg, cells[i].label, centres[i], edges[i], edges[i + 1], top + LABEL * 0.5f + 0.5f, 8.5f, 7.0f);
+			nvgFillColor(vg, YELLOW_BIDOO);
+			cellText(vg, cells[i].value, centres[i], edges[i], edges[i + 1], valueY, 10.0f, 7.0f);
+		}
+	}
+
+	static void header(NVGcontext *vg, const float top, const std::string &title) {
+		nvgFontSize(vg, 12.0f);
+		nvgFillColor(vg, YELLOW_BIDOO);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+		nvgText(vg, W * 0.5f, top + 8.5f, title.c_str(), NULL);	// level with the P2 button
+	}
+
+	static std::string fixed2(const float v) {
+		char s[16];
+		snprintf(s, sizeof(s), "%.2f", v);
+		return s;
+	}
+
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
-			stringstream sPatternHeader, sSteps, sSpeed, sRead, sRootNote, sScale, sQuantizeCV1;
-			stringstream sTrigHeader, sLen, sPuls, sDist, sType, sTrim, sSlide, sVO, sCV1, sCV2, sProb, sProbBase,sSlideType;
-			nvgBeginPath(args.vg);
-			nvgRect(args.vg, 0.0f, 0.0f, 225.0f, 37.0f);
-			nvgRect(args.vg, 0.0f, 77.0f, 225.0f, 63.0f);
-			nvgClosePath(args.vg);
-			nvgLineCap(args.vg, NVG_MITER);
-			nvgStrokeWidth(args.vg, 4.0f);
-			nvgStrokeColor(args.vg, nvgRGBA(180, 180, 180, 255));
-			nvgStroke(args.vg);
-			nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 255));
-			nvgFill(args.vg);
-			static const float portX0[6] = {16.0f, 51.0f, 84.0f, 116.0f, 159.0f, 210.0f};
-			static const float portX1[6] = {20.0f, 57.0f, 94.0f, 131.0F, 168.0f, 205.0f};
-			static const float portY0[8] = {11.0f, 22.0f, 32.0f, 89.0f, 100.0f, 110.0f, 122.0f, 134.0f};
-			nvgFillColor(args.vg, YELLOW_BIDOO);
-			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+			NVGcontext *vg = args.vg;
+			Cell track[6], trigA[6], trigB[6];
+			std::string trackTitle, trigTitle;
+			bool trigRowB = true;
 
 			if (module) {
-				sSteps << module->nTracksAttibutes[module->currentPattern][module->currentTrack].getTrackLength();
-				sSpeed << zouSpeedLabels[module->nTracksAttibutes[module->currentPattern][module->currentTrack].getTrackSpeed()];
-				sRead << displayReadMode(module->nTracksAttibutes[module->currentPattern][module->currentTrack].getTrackReadMode());
-				sRootNote << quantizer::rootNotes[module->rootNote[module->currentPattern][module->currentTrack]+1].label.c_str();
-				sScale << quantizer::scales[module->scale[module->currentPattern][module->currentTrack]].label.c_str();
-				sQuantizeCV1 << (module->quantizeCV1[module->currentPattern][module->currentTrack] == 0 ? "Free" : M::Traits::QUANTIZED_LABEL);
+				const int p = module->currentPattern, t = module->currentTrack, g = module->currentTrig;
+				TrigAttibutes &trig = module->nTrigsAttibutes[p][t][g];
 
-				sTrigHeader << "Trig " + to_string(module->currentTrig + 1);
-				sLen << fixed << setprecision(2) << module->trigLength[module->currentPattern][module->currentTrack][module->currentTrig] / (float)M::TICKS;
-				sPuls << to_string(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigPulseCount()).c_str();
-				sDist << fixed << setprecision(2) << module->trigPulseDistance[module->currentPattern][module->currentTrack][module->currentTrig] / (float)M::TICKS;
-				sType << displayTrigType(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigType()).c_str();
-				sTrim << fixed << setprecision(2) << module->trigTrim[module->currentPattern][module->currentTrack][module->currentTrig] / (float)M::TICKS;
-				sSlide << fixed << setprecision(2) << module->trigSlide[module->currentPattern][module->currentTrack][module->currentTrig];
-				//sVO << displayNote(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigSemiTones(), module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigOctave());
-				sCV1 << fixed << setprecision(2) << module->trigCV1[module->currentPattern][module->currentTrack][module->currentTrig];
-				sCV2 << fixed << setprecision(2) << module->trigCV2[module->currentPattern][module->currentTrack][module->currentTrig];
-				sProb << displayProba(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigProba());
-        sSlideType << (module->trigSlideType[module->currentPattern][module->currentTrack][module->currentTrig] ? "1" : "FULL");
-
-				nvgFontSize(args.vg, 10.0f);
-				if (!module->trigPage2 && module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigProba() < 2)
-				{
-					nvgText(args.vg, portX1[3], portY0[6], "Val.", NULL);
-					nvgText(args.vg, portX1[3], portY0[7], to_string(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigCount()).c_str(), NULL);
+				if (module->trackPage2) {
+					char value[16];
+					snprintf(value, sizeof(value), "%.4g%%", module->trackSwing[p][t] / 100.0);
+					track[0] = {"Swing", value};
 				}
-				if (!module->trigPage2 && module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigProba() == 1)
-				{
-					nvgText(args.vg, portX1[4], portY0[6], "Base", NULL);
-					nvgText(args.vg, portX1[4], portY0[7], to_string(module->nTrigsAttibutes[module->currentPattern][module->currentTrack][module->currentTrig].getTrigCountReset()).c_str(), NULL);
+				else {
+					track[0] = {"Steps", to_string(module->nTracksAttibutes[p][t].getTrackLength())};
+					track[1] = {"Speed", zouSpeedLabels[module->nTracksAttibutes[p][t].getTrackSpeed()]};
+					track[2] = {"Read", displayReadMode(module->nTracksAttibutes[p][t].getTrackReadMode())};
+					track[3] = {"Root", quantizer::rootNotes[module->rootNote[p][t]+1].label};
+					track[4] = {"Scale", quantizer::scales[module->scale[p][t]].label};
+					track[5] = {"CV1", module->quantizeCV1[p][t] == 0 ? "Free" : M::Traits::QUANTIZED_LABEL};
 				}
-			}
-			else {
-				sPatternHeader << "Pattern 0 : Track 0";
-				sSteps << 16;
-				sSpeed << "x1";
-				sRead << "►";
-				sRootNote << "None";
-				sScale << "None";
-				sQuantizeCV1 << "Free";
-				sTrigHeader << "Trig " + to_string(1);
-				sLen << fixed << setprecision(2) << M::Traits::PREVIEW_LENGTH;
-				sPuls << to_string(1).c_str();
-				sDist << fixed << setprecision(2) << M::Traits::PREVIEW_DISTANCE;
-				sType << "INT.";
-				sTrim << 0;
-				sSlide << fixed << setprecision(2) << 0.0f;
-				//sVO << "C4";
-				sCV1 << fixed << setprecision(2) << 0.0f;
-				sCV2 << fixed << setprecision(2) << 0.0f;
-				sProb << "DICE";
-        sSlideType << "1";
-			}
 
-			nvgFontSize(args.vg, 12.0f);
-			if (module) {
-				const int swingNow = module->trackSwing[module->currentPattern][module->currentTrack];
+				if (module->trigPage2) {
+					char value[16];
+					trigA[0] = {"CV1 End", fixed2(module->trigCV1End[p][t][g])};
+					trigA[1] = {"CV2 End", fixed2(module->trigCV2End[p][t][g])};
+					snprintf(value, sizeof(value), "%+d", module->trigPitchRamp[p][t][g]);
+					trigA[2] = {"Pitch", value};
+					snprintf(value, sizeof(value), "%.3g%%", module->trigDistRamp[p][t][g] / 100.0);
+					trigA[3] = {"Dist.", value};
+					trigRowB = false;
+				}
+				else {
+					trigA[0] = {"Len.", fixed2(module->trigLength[p][t][g] / (float)M::TICKS)};
+					trigA[1] = {"Puls.", to_string(trig.getTrigPulseCount())};
+					trigA[2] = {"Dist.", fixed2(module->trigPulseDistance[p][t][g] / (float)M::TICKS)};
+					trigA[3] = {"Type", displayTrigType(trig.getTrigType())};
+					trigA[4] = {"Trim", fixed2(module->trigTrim[p][t][g] / (float)M::TICKS)};
+					trigA[5] = {"Slide", fixed2(module->trigSlide[p][t][g])};
+					trigB[0] = {"CV1", fixed2(module->trigCV1[p][t][g])};
+					trigB[1] = {"CV2", fixed2(module->trigCV2[p][t][g])};
+					trigB[2] = {"Prob.", displayProba(trig.getTrigProba())};
+					if (trig.getTrigProba() < 2)
+						trigB[3] = {"Val.", to_string(trig.getTrigCount())};
+					if (trig.getTrigProba() == 1)
+						trigB[4] = {"Base", to_string(trig.getTrigCountReset())};
+					trigB[5] = {"Type", module->trigSlideType[p][t][g] ? "1" : "FULL"};
+				}
+
+				const int swingNow = module->trackSwing[p][t];
 				std::string after;
 				if (module->trackPage2)
 					after = " - page 2";
@@ -3215,82 +3299,43 @@ struct ZouSeqDisplay : TransparentWidget {
 					snprintf(swing, sizeof(swing), "  swing %.4g%%", swingNow / 100.0);
 					after = swing;
 				}
-				nvgText(args.vg, 112.5f, portY0[0], fitTitle(args.vg, "Pattern " + to_string(module->currentPattern + 1) + " : ", module->labels[module->currentTrack], after).c_str(), NULL);
-			}
-			else
-				nvgText(args.vg, 112.5f, portY0[0], sPatternHeader.str().c_str(), NULL);
-			nvgFontSize(args.vg, 10.0f);
-			if (module && module->trackPage2) {
-				char value[16];
-				snprintf(value, sizeof(value), "%.4g%%", module->trackSwing[module->currentPattern][module->currentTrack] / 100.0);
-				nvgText(args.vg, portX0[0], portY0[1], "Swing", NULL);
-				nvgText(args.vg, portX0[0], portY0[2], value, NULL);
+				nvgFontSize(vg, 12.0f);
+				trackTitle = fitTitle(vg, "Pattern " + to_string(p + 1) + " : ", module->labels[t], after);
+				trigTitle = "Trig " + to_string(g + 1) + (module->trigPage2 ? " - page 2" : "");
 			}
 			else {
-				nvgText(args.vg, portX0[0], portY0[1], "Steps", NULL);
-				nvgText(args.vg, portX0[0], portY0[2], sSteps.str().c_str(), NULL);
-				nvgText(args.vg, portX0[1], portY0[1], "Speed", NULL);
-				nvgText(args.vg, portX0[1], portY0[2], sSpeed.str().c_str(), NULL);
-				nvgText(args.vg, portX0[2], portY0[1], "Read", NULL);
-				nvgText(args.vg, portX0[2], portY0[2], sRead.str().c_str(), NULL);
-				nvgText(args.vg, portX0[3], portY0[1], "Root", NULL);
-				nvgText(args.vg, portX0[3], portY0[2], sRootNote.str().c_str(), NULL);
-				nvgText(args.vg, portX0[4], portY0[1], "Scale", NULL);
-				nvgText(args.vg, portX0[4], portY0[2], sScale.str().c_str(), NULL);
-				nvgText(args.vg, portX0[5], portY0[1], "CV1", NULL);
-				nvgText(args.vg, portX0[5], portY0[2], sQuantizeCV1.str().c_str(), NULL);
+				track[0] = {"Steps", "16"};
+				track[1] = {"Speed", "x1"};
+				track[2] = {"Read", "►"};
+				track[3] = {"Root", "None"};
+				track[4] = {"Scale", "None"};
+				track[5] = {"CV1", "Free"};
+				trigA[0] = {"Len.", fixed2(M::Traits::PREVIEW_LENGTH)};
+				trigA[1] = {"Puls.", "1"};
+				trigA[2] = {"Dist.", fixed2(M::Traits::PREVIEW_DISTANCE)};
+				trigA[3] = {"Type", "INT."};
+				trigA[4] = {"Trim", "0"};
+				trigA[5] = {"Slide", fixed2(0.0f)};
+				trigB[0] = {"CV1", fixed2(0.0f)};
+				trigB[1] = {"CV2", fixed2(0.0f)};
+				trigB[2] = {"Prob.", "DICE"};
+				trigB[5] = {"Type", "1"};
+				trackTitle = "Pattern 0 : Track 0";
+				trigTitle = "Trig 1";
 			}
 
-			nvgFontSize(args.vg, 12.0f);
-			if (module && module->trigPage2) {
-				nvgText(args.vg, 112.5f, portY0[3], (sTrigHeader.str() + " - page 2").c_str(), NULL);
-				nvgFontSize(args.vg, 10.0f);
-				const int p = module->currentPattern, t = module->currentTrack, g = module->currentTrig;
-				char value[16];
-				nvgFontSize(args.vg, 9.0f);
-				nvgText(args.vg, portX1[0], portY0[4], "CV1 End", NULL);
-				nvgFontSize(args.vg, 10.0f);
-				snprintf(value, sizeof(value), "%.2f", module->trigCV1End[p][t][g]);
-				nvgText(args.vg, portX1[0], portY0[5], value, NULL);
-				nvgFontSize(args.vg, 9.0f);
-				nvgText(args.vg, portX1[1] + 3.0f, portY0[4], "CV2 End", NULL);
-				nvgFontSize(args.vg, 10.0f);
-				snprintf(value, sizeof(value), "%.2f", module->trigCV2End[p][t][g]);
-				nvgText(args.vg, portX1[1] + 3.0f, portY0[5], value, NULL);
-				nvgText(args.vg, portX1[2], portY0[4], "Pitch", NULL);
-				snprintf(value, sizeof(value), "%+d", module->trigPitchRamp[p][t][g]);
-				nvgText(args.vg, portX1[2], portY0[5], value, NULL);
-				nvgText(args.vg, portX1[3], portY0[4], "Dist.", NULL);
-				snprintf(value, sizeof(value), "%.3g%%", module->trigDistRamp[p][t][g] / 100.0);
-				nvgText(args.vg, portX1[3], portY0[5], value, NULL);
-				Widget::drawLayer(args, layer);
-				return;
-			}
-			nvgText(args.vg, 112.5f, portY0[3], sTrigHeader.str().c_str(), NULL);
-			nvgFontSize(args.vg, 10.0f);
-			nvgText(args.vg, portX1[0], portY0[4], "Len.", NULL);
-			nvgText(args.vg, portX1[0], portY0[5], sLen.str().c_str(), NULL);
-			nvgText(args.vg, portX1[1], portY0[4], "Puls.", NULL);
-			nvgText(args.vg, portX1[1], portY0[5], sPuls.str().c_str(), NULL);
-			nvgText(args.vg, portX1[2], portY0[4], "Dist.", NULL);
-			nvgText(args.vg, portX1[2], portY0[5], sDist.str().c_str(), NULL);
-			nvgText(args.vg, portX1[3], portY0[4], "Type", NULL);
-			nvgText(args.vg, portX1[3], portY0[5], sType.str().c_str(), NULL);
-			nvgText(args.vg, portX1[4], portY0[4], "Trim", NULL);
-			nvgText(args.vg, portX1[4], portY0[5], sTrim.str().c_str(), NULL);
-			nvgText(args.vg, portX1[5], portY0[4], "Slide", NULL);
-			nvgText(args.vg, portX1[5], portY0[5], sSlide.str().c_str(), NULL);
-			nvgText(args.vg, portX1[0], portY0[6], "CV1", NULL);
-			nvgText(args.vg, portX1[0], portY0[7], sCV1.str().c_str(), NULL);
-			nvgText(args.vg, portX1[1], portY0[6], "CV2", NULL);
-			nvgText(args.vg, portX1[1], portY0[7], sCV2.str().c_str(), NULL);
-			nvgText(args.vg, portX1[2], portY0[6], "Prob.", NULL);
-			nvgText(args.vg, portX1[2], portY0[7], sProb.str().c_str(), NULL);
-			// nvgFillColor(args.vg, nvgRGBA(255, 255, 255, 255));
-			// nvgText(args.vg, portX1[5], portY0[6], "V/Oct", NULL);
-			// nvgText(args.vg, portX1[5], portY0[7], sVO.str().c_str(), NULL);
-      nvgText(args.vg, portX1[5], portY0[6], "Type", NULL);
-			nvgText(args.vg, portX1[5], portY0[7], sSlideType.str().c_str(), NULL);
+			// Track screen: the header, then one row over the knob row.
+			screen(vg, TRACK_TOP, TRACK_BOTTOM);
+			header(vg, TRACK_TOP, trackTitle);
+			tableRow(vg, TRACK_EDGES, TRACK_X, TRACK_TOP + HEADER, TRACK_BOTTOM, track);
+
+			// Trig screen: the header, then a row per knob row; page 2 has one knob row.
+			screen(vg, TRIG_TOP, TRIG_BOTTOM);
+			header(vg, TRIG_TOP, trigTitle);
+			const float rowsTop = TRIG_TOP + HEADER, rowsBottom = TRIG_BOTTOM, middle = (rowsTop + rowsBottom) * 0.5f;
+			tableRow(vg, TRIG_EDGES, TRIG_X, rowsTop, middle, trigA);
+			if (trigRowB)
+				tableRow(vg, TRIG_EDGES, TRIG_X, middle, rowsBottom, trigB);
 		}
 		Widget::drawLayer(args, layer);
 	}
