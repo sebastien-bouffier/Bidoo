@@ -1,3 +1,8 @@
+### v2.6.0 (not released yet)
+Improvements
+- zOù MAï, enCORE: new per-track, per-pattern "Hold CV1 and CV2 between notes" option in the Track menu (undoable). CV1 and CV2 keep the last trig's value (a ramp's last pulse) while the gate is off, like V/O, instead of dropping to 0 V; the poly outputs follow. Off by default, and patches without it play exactly as before
+- zOù MAï, enCORE: both screens are tables, one column per knob with its label over its value, centred on the knob; the P2 buttons clear the header rule, and long values such as scale names shrink to fit their cell instead of running into the next one
+
 ### v2.5.0 (10/11/2026)
 New module
 - FiLTRe: all 71 filter types of the Potion synth (28 HP), the same code as Potion: low, high, band, notch, shelves, morphing, dual, combs, phasers, formants, ring mod, downsample, diffuser, reverb. TYPE, CUTOFF, RES, DRIVE, MORPH and MIX with attenuverters and CV; stereo, up to 16 voices. The screen shows the spectrum of the output, the input behind it, and the measured curve of the selected filter with the current settings

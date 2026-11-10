@@ -531,6 +531,10 @@ struct ZouSeq : BidooModule {
 	int scale[NUM_PATTERNS][NUM_TRACKS] = {{0}};
 	int quantizeCV1[NUM_PATTERNS][NUM_TRACKS] = {{0}};
 	bool slideMode[NUM_PATTERNS][NUM_TRACKS] = {{0}};
+	// CV1 and CV2 keep the last trig's value while the gate is off, as V/O does; off: 0 V.
+	bool cvHold[NUM_PATTERNS][NUM_TRACKS] = {{0}};
+	// The last trig's CV1 and CV2, kept across a reset and a pattern change; 0 V after a load.
+	float heldCV1[NUM_TRACKS] = {}, heldCV2[NUM_TRACKS] = {};
 	// Swing in 1/100 %, 5000..7500, and the delay of the even-numbered steps it makes.
 	int trackSwing[NUM_PATTERNS][NUM_TRACKS] = {{0}};
 	int trackSwingUnits[NUM_PATTERNS][NUM_TRACKS] = {{0}};
@@ -919,6 +923,8 @@ struct ZouSeq : BidooModule {
 				if (quantizeCV1[i][j] != 0)
 					json_object_set_new(trackJ, "quantizeCV1", json_integer(quantizeCV1[i][j]));
 				json_object_set_new(trackJ, "slideMode", json_boolean(slideMode[i][j]));
+				if (cvHold[i][j])
+					json_object_set_new(trackJ, "cvHold", json_true());
 				if (trackSwing[i][j] != 5000)
 					json_object_set_new(trackJ, "swing", json_real(trackSwing[i][j] / 100.0));
 				for (int k = 0; k < NUM_TRIGS; k++) {
@@ -987,6 +993,8 @@ struct ZouSeq : BidooModule {
 				trackInit(i,j);
 				slideMode[i][j] = false;
 			}
+		for (int j=0; j<NUM_TRACKS; j++)
+			heldCV1[j] = heldCV2[j] = 0.0f;
 		json_t *currentPatternJ = json_object_get(rootJ, "currentPattern");
 		if (currentPatternJ)
 			currentPattern = json_integer_value(currentPatternJ);
@@ -1043,6 +1051,9 @@ struct ZouSeq : BidooModule {
 						json_t *slideModeJ = json_object_get(trackJ, "slideMode");
 						if (slideModeJ)
 							slideMode[i][j]=json_boolean_value(slideModeJ);
+						json_t *cvHoldJ = json_object_get(trackJ, "cvHold");
+						if (cvHoldJ)
+							cvHold[i][j]=json_boolean_value(cvHoldJ);
 						json_t *swingJ = json_object_get(trackJ, "swing");
 						if (swingJ)
 							setSwing(i, j, (int)std::llround(json_number_value(swingJ) * 100.0));
@@ -1429,6 +1440,7 @@ struct ZouSeq : BidooModule {
 		rootNote[toPattern][toTrack] = rootNote[fromPattern][fromTrack];
 		scale[toPattern][toTrack] = scale[fromPattern][fromTrack];
 		quantizeCV1[toPattern][toTrack] = quantizeCV1[fromPattern][fromTrack];
+		cvHold[toPattern][toTrack] = cvHold[fromPattern][fromTrack];
 		setSwing(toPattern, toTrack, trackSwing[fromPattern][fromTrack]);
 		for (int i=0; i<NUM_TRIGS; i++) {
 			pasteTrig(fromPattern,fromTrack,i,toPattern,toTrack,i);
@@ -1509,6 +1521,7 @@ struct ZouSeq : BidooModule {
 		rootNote[pattern][track] = 0;
 		scale[pattern][track] = 0;
 		quantizeCV1[pattern][track] = 0;
+		cvHold[pattern][track] = false;
 		setSwing(pattern, track, 5000);
 		for (int i=0; i<NUM_TRIGS; i++) {
 			trigInit(pattern, track, i);
@@ -1523,6 +1536,8 @@ struct ZouSeq : BidooModule {
 				trackInit(i,j);
 			}
 		}
+		for (int j=0; j<NUM_TRACKS; j++)
+			heldCV1[j] = heldCV2[j] = 0.0f;
 		updateTrackToParams();
 		updateTrigToParams();
 	}
@@ -1544,10 +1559,10 @@ struct ZouSeq : BidooModule {
 	struct TrackData {
 		unsigned long main;
 		int root, scale, quantizeCV1, swing;
-		bool slideMode;
+		bool slideMode, cvHold;
 		float onOff;
 		bool operator==(const TrackData &o) const {
-			return main == o.main && root == o.root && scale == o.scale && quantizeCV1 == o.quantizeCV1 && swing == o.swing && slideMode == o.slideMode && onOff == o.onOff;
+			return main == o.main && root == o.root && scale == o.scale && quantizeCV1 == o.quantizeCV1 && swing == o.swing && slideMode == o.slideMode && cvHold == o.cvHold && onOff == o.onOff;
 		}
 	};
 	static constexpr unsigned long TRIG_MAIN_DATA = ~(TrigAttibutes::TRIG_INITIALIZED | TrigAttibutes::TRIG_SLEEPING);
@@ -1578,7 +1593,7 @@ struct ZouSeq : BidooModule {
 	}
 
 	TrackData getTrackData(const int pattern, const int track) {
-		return {nTracksAttibutes[pattern][track].mainAttributes & TRACK_MAIN_DATA, rootNote[pattern][track], scale[pattern][track], quantizeCV1[pattern][track], trackSwing[pattern][track], slideMode[pattern][track], params[TRACKSONOFF_PARAMS + track].getValue()};
+		return {nTracksAttibutes[pattern][track].mainAttributes & TRACK_MAIN_DATA, rootNote[pattern][track], scale[pattern][track], quantizeCV1[pattern][track], trackSwing[pattern][track], slideMode[pattern][track], cvHold[pattern][track], params[TRACKSONOFF_PARAMS + track].getValue()};
 	}
 
 	void setTrackData(const int pattern, const int track, const TrackData &d) {
@@ -1588,6 +1603,7 @@ struct ZouSeq : BidooModule {
 		scale[pattern][track] = d.scale;
 		quantizeCV1[pattern][track] = d.quantizeCV1;
 		slideMode[pattern][track] = d.slideMode;
+		cvHold[pattern][track] = d.cvHold;
 		setSwing(pattern, track, d.swing);
 		params[TRACKSONOFF_PARAMS + track].setValue(d.onOff);
 	}
@@ -2665,8 +2681,19 @@ void ZouSeq<TRAITS>::process(const ProcessArgs &args) {
 
 			bool q = scale[currentPattern][i]>0;
 			outputs[VO_OUTPUTS + i].setVoltage(trackGetVO(i, tPT, q));
-			outputs[CV1_OUTPUTS + i].setVoltage(outputs[GATE_OUTPUTS + i].getVoltage() == 0.0f ? 0.0f : ((quantizeCV1[currentPattern][i]>0 && q) ? quantizeCached(cv1Quant[i], trigRampedCV(i, tPT, trigCV1[currentPattern][i][tPT], trigCV1End[currentPattern][i][tPT])-4.0f, rootNote[currentPattern][i], scale[currentPattern][i]) : trigRampedCV(i, tPT, trigCV1[currentPattern][i][tPT], trigCV1End[currentPattern][i][tPT])));
-			outputs[CV2_OUTPUTS + i].setVoltage(outputs[GATE_OUTPUTS + i].getVoltage() == 0.0f ? 0.0f : trigRampedCV(i, tPT, trigCV2[currentPattern][i][tPT], trigCV2End[currentPattern][i][tPT]));
+			// While the gate is on, CV1 and CV2 follow the trig (ramps included) and are kept;
+			// while it is off they are 0 V, or the kept values when the track holds them.
+			if (outputs[GATE_OUTPUTS + i].getVoltage() != 0.0f) {
+				heldCV1[i] = (quantizeCV1[currentPattern][i]>0 && q) ? quantizeCached(cv1Quant[i], trigRampedCV(i, tPT, trigCV1[currentPattern][i][tPT], trigCV1End[currentPattern][i][tPT])-4.0f, rootNote[currentPattern][i], scale[currentPattern][i]) : trigRampedCV(i, tPT, trigCV1[currentPattern][i][tPT], trigCV1End[currentPattern][i][tPT]);
+				heldCV2[i] = trigRampedCV(i, tPT, trigCV2[currentPattern][i][tPT], trigCV2End[currentPattern][i][tPT]);
+				outputs[CV1_OUTPUTS + i].setVoltage(heldCV1[i]);
+				outputs[CV2_OUTPUTS + i].setVoltage(heldCV2[i]);
+			}
+			else {
+				const bool hold = cvHold[currentPattern][i];
+				outputs[CV1_OUTPUTS + i].setVoltage(hold ? heldCV1[i] : 0.0f);
+				outputs[CV2_OUTPUTS + i].setVoltage(hold ? heldCV2[i] : 0.0f);
+			}
 		}
 	}
 	else {
@@ -2689,7 +2716,7 @@ void ZouSeq<TRAITS>::process(const ProcessArgs &args) {
 // menu item below goes through these. They run in the UI thread, under the
 // module's edit lock (see ZouSeq::editMutex).
 enum class ZouTrigOp { ERASE, COPY, PASTE, RAND_NOTE, RAND_NOTE_PLUS, RAND_PROB, FULL_RAND, RAND_CV1, RAND_CV2, UP, DOWN };
-enum class ZouTrackOp { ERASE, COPY, PASTE, RAND, RAND_NOTES, RAND_NOTES_PLUS, RAND_PROBS, RAND_CV1, RAND_CV2, UP, DOWN, LEFT, RIGHT, SLIDE_MODE, EUCLID };
+enum class ZouTrackOp { ERASE, COPY, PASTE, RAND, RAND_NOTES, RAND_NOTES_PLUS, RAND_PROBS, RAND_CV1, RAND_CV2, UP, DOWN, LEFT, RIGHT, SLIDE_MODE, CV_HOLD, EUCLID };
 enum class ZouPageOp { ERASE, COPY, PASTE, RAND_NOTES, RAND_NOTES_PLUS, RAND_PROBS, RAND_CV1, RAND_CV2 };
 enum class ZouPatternOp { ERASE, COPY, PASTE, RAND, FULL_RAND };
 
@@ -2737,6 +2764,9 @@ void zouTrackEdit(M *mod, const ZouTrackOp op, const int track) {
 			return;
 		case ZouTrackOp::SLIDE_MODE:
 			edit("slide mode", [&]() {mod->slideMode[mod->currentPattern][track] = !mod->slideMode[mod->currentPattern][track];});
+			return;
+		case ZouTrackOp::CV_HOLD:
+			edit("hold CV1 and CV2", [&]() {mod->cvHold[mod->currentPattern][track] = !mod->cvHold[mod->currentPattern][track];});
 			return;
 		case ZouTrackOp::UP: edit("track up", [&]() {mod->trackUp(track);}); mod->updateTrigToParams(); return;
 		case ZouTrackOp::DOWN: edit("track down", [&]() {mod->trackDown(track);}); mod->updateTrigToParams(); return;
@@ -3760,6 +3790,10 @@ struct ZouSeqWidget : BidooWidget {
 				{"Rand Probs (over+U)", ZouTrackOp::RAND_PROBS}, {"Rand CV1 (over+F)", ZouTrackOp::RAND_CV1}, {"Rand CV2 (over+G)", ZouTrackOp::RAND_CV2},
 				{"Move Up (over+W)", ZouTrackOp::UP}, {"Move Down (over+S)", ZouTrackOp::DOWN}, {"Move Left (over+A)", ZouTrackOp::LEFT}, {"Move Right (over+D)", ZouTrackOp::RIGHT}};
 			menu->addChild(item(module, module->slideMode[module->currentPattern][module->currentTrack] ? "Slide time✓/rate const." : "Slide time/rate✓ const.", [=]() { zouTrackEdit(module, ZouTrackOp::SLIDE_MODE, module->currentTrack); }));
+			menu->addChild(createMenuItem("Hold CV1 and CV2 between notes", CHECKMARK(module->cvHold[module->currentPattern][module->currentTrack]), [=]() {
+				std::lock_guard<std::recursive_mutex> lock(module->editMutex);
+				zouTrackEdit(module, ZouTrackOp::CV_HOLD, module->currentTrack);
+			}));
 			for (const auto &it : items) {
 				const ZouTrackOp op = it.second;
 				menu->addChild(item(module, it.first, [=]() { zouTrackEdit(module, op, module->currentTrack); }));
