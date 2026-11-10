@@ -13,8 +13,9 @@ BUTTONS = ((8, 'RUN'), (9, 'GO'), (10, 'HOLD'), (11, 'COMMIT'))   # likewise
 def build():
     p = k.Picture(1910, W)
     H = k.H
-    # the book, in px: two pages from x0 to x1, the spine in the middle, slightly fanned at the top
-    x0, x1, y0, y1 = 18, 582, 44, 368
+    # the book, in px: two pages from x0 to x1, the spine in the middle. Larger than the panel, so that it runs off
+    # every edge (the picture is clipped to the panel)
+    x0, x1, y0, y1 = -70, 670, -24, 404
     mid = (x0 + x1) / 2
     def P(x, y):
         return (x * K, y * K)
