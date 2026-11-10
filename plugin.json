@@ -400,6 +400,17 @@
       ]
     },
     {
+      "slug": "REGISTRE",
+      "name": "rEgIStRE",
+      "description": "Indexed four-track sequencer: steps hold indices into voltage tables, with patterns, parts and MATH",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#registre",
+      "tags": [
+        "Sequencer",
+        "Polyphonic",
+        "Quantizer"
+      ]
+    },
+    {
       "slug": "HCTIP",
       "name": "HCTIP",
       "description": "Pitch shifter",

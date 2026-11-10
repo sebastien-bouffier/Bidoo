@@ -1,4 +1,6 @@
 ### v2.6.0 (not released yet)
+New module
+- rEgIStRE: an indexed four-track sequencer (40 HP) played with the mouse and the keyboard. Each step holds two indices into its track's voltage tables (CV A, CV B; 100 entries from -5 to +10 V, built-in and user tables), a duration and a gate in clock pulses, smoothing and ratchet; up to 100 patterns per track; per-track clock divider and multiplier, gates or triggers; MATH (random, multiply, jitter, add, quantize) on a selection, pattern or track, reverse and rotate of one row; parts with loops and reset steps, cued by PART and GO at the end of a loop; HOLD and COMMIT at the end of a step, pattern or loop; 16 snapshots; TRANSP input; polyphonic outputs; exact timing in whole pulses and samples; every edit undoable
 Improvements
 - zOù MAï, enCORE: new per-track, per-pattern "Hold CV1 and CV2 between notes" option in the Track menu (undoable). CV1 and CV2 keep the last trig's value (a ramp's last pulse) while the gate is off, like V/O, instead of dropping to 0 V; the poly outputs follow. Off by default, and patches without it play exactly as before
 - zOù MAï, enCORE: both screens are tables, one column per knob with its label over its value, centred on the knob; the P2 buttons clear the header rule, and long values such as scale names shrink to fit their cell instead of running into the next one
