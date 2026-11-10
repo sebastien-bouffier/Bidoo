@@ -1,12 +1,4 @@
-### v2.5.1 (10/11/2026)
-Improvements
-- cOPIA: the engine guards its inputs and its recorded history itself, and a slot whose output overflows restarts from silence
-- aCiDe and FiLTRe: the voice and the filters recover by themselves from a NaN or an infinity
-- FiLTRe: the same filter code as Potion 0.66.4 (its setup is skipped when nothing changed)
-- rICOcHEt: costs almost nothing once silent and fully decayed (about 1.5 ns a sample instead of 30 to 84); on waking the wow, flutter and noise start again from their beginning
-- The shared DSP code is the same as the Bidoo VST plugins' again (bidoo-dsp 4e6f6e2)
-
-### v2.5.0 (09/11/2026)
+### v2.5.0 (10/11/2026)
 New module
 - FiLTRe: all 71 filter types of the Potion synth (28 HP), the same code as Potion: low, high, band, notch, shelves, morphing, dual, combs, phasers, formants, ring mod, downsample, diffuser, reverb. TYPE, CUTOFF, RES, DRIVE, MORPH and MIX with attenuverters and CV; stereo, up to 16 voices. The screen shows the spectrum of the output, the input behind it, and the measured curve of the selected filter with the current settings
 - aCiDe: a mono acid bass voice (10 HP): saw or square, a diode ladder modelled from published analyses of the circuit, filter and volume envelopes, accent with its build-up, slide and VCA. V/OCT, GATE, ACCENT, SLIDE, CV on CUTOFF, RES, ENV MOD and DECAY. Plays directly from zOù MAï: GATE and V/O, CV1 for accent, CV2 for slide
@@ -14,6 +6,11 @@ New module
 - rICOcHEt: a stereo delay with six characters (14 HP): Digital, Tape, BBD, Lo-fi, Diffuse and Reverse, each with its own way of reacting to TIME (crossfade or pitch swoop). TIME up to 8 s or a ratio of a clock, FEEDBACK up to controlled self-oscillation, TONE, MIX, CHARACTER, SPREAD, ping-pong, freeze (button and gate), CV on TIME, FEEDBACK, TONE, MIX, CHARACTER and TYPE. Digital repeats are sample-exact
 - dOSE: a polyphonic VCA (6 HP) whose envelope goes through a curve: CURVE at 0 % uses ENV as it is, turned left it is exponential and envelopes sound shorter, turned right it is logarithmic and they sound longer. Mono or polyphonic ENV (unplugged: gain 1), polyphonic CURVE CV with an attenuverter, LEVEL up to +6 dB, OUT, a MIX of all channels and ENV OUT with the shaped envelope. The screen shows the curve and each channel's envelope on it
 Improvements
+- cOPIA: the engine guards its inputs and its recorded history itself, and a slot whose output overflows restarts from silence
+- aCiDe and FiLTRe: the voice and the filters recover by themselves from a NaN or an infinity
+- FiLTRe: the same filter code as Potion 0.66.4 (its setup is skipped when nothing changed)
+- rICOcHEt: costs almost nothing once silent and fully decayed (about 1.5 ns a sample instead of 30 to 84); on waking the wow, flutter and noise start again from their beginning
+- The shared DSP code is the same as the Bidoo VST plugins' again (bidoo-dsp 4e6f6e2)
 - fLAME: stereo. IN L and IN R (R follows L when unplugged), new BAND L / BAND R outputs with the audio inside the box's band (48 dB/oct high- and low-pass at its edges, no latency, edges glide so dragging does not click), and AMP L / AMP R (AMP L is the old OUT, so older cables stay). The screen is in dB, with a live spectrum redrawn every frame, a peak hold and a fading history, and scales for time (left), frequency (bottom) and level (right); new panel with the jacks in three boxes
 - REI: changing the algorithm fades out and back in instead of clearing the buffers under the tail, the pre-delay crossfades when moved, the shimmer keeps its timing at every sample rate, and a NaN or infinity in the input is heard as silence; at 48 kHz with the settings held the sound is the same
 - cOPIA: its reverb's modulation stays exact over long runs, SIZE glides, and a NaN or infinity in the input is heard as silence
