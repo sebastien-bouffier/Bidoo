@@ -12,6 +12,7 @@ library's file at commit 4e6f6e2 (2026-11-10): no local edits.
   `oversampling/IirHalfBand.h` and `shaping/TanhPade.h`
 - rICOcHEt: `bidoo/dsp/delay/CharacterDelay.h` and `bidoo/dsp/delay/WowFlutter.h`
 - bAFIs, lIMbO: `bidoo/dsp/shaping/TanhPade.h`, `bidoo/dsp/core/Random.h`, `bidoo/dsp/core/Inline.h`
+- baR: `bidoo/dsp/dynamics/Dynamics.h` (SlidingMax, the peak catcher's lookahead maximum)
 
 Copyright (c) 2026 Sebastien Bouffier (Bidoo). Distributed here under the GPL-3.0-or-later, as the
 rest of this plugin.

@@ -47,15 +47,23 @@ struct BAR : BidooModule {
 	BarPeakHold hold;
 	BarGain comp;
 	BarDelay delayL, delayR;
+	BarCatcher catcher;
 	BarMeter meter[4];
 	dsp::SchmittTrigger bypassTrigger;
 	bool bypass = false;
 	float bypassAmount = 0.0f;
 
+	// the top of the knob is the limit, shown as the infinity sign
+	struct RatioQuantity : ParamQuantity {
+		std::string getDisplayValueString() override {
+			return getValue() >= getMaxValue() ? "\xE2\x88\x9E" : ParamQuantity::getDisplayValueString();
+		}
+	};
+
 	BAR() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(THRESHOLD_PARAM, -93.6f, 0.0f, 0.0f, "Threshold", " dB");
-		configParam(RATIO_PARAM, 1.0f, 20.0f, 1.0f, "Ratio", ":1");
+		configParam<RatioQuantity>(RATIO_PARAM, 1.0f, 20.0f, 1.0f, "Ratio", ":1");
 		configParam(ATTACK_PARAM, 1.0f, 100.0f, 10.0f, "Attack", " ms");
 		configParam(RELEASE_PARAM, 1.0f, 300.0f, 10.0f, "Release", " ms");
 		configParam(KNEE_PARAM, 0.0f, 24.0f, 6.0f, "Knee", " dB");
@@ -73,11 +81,14 @@ struct BAR : BidooModule {
 		configBypass(IN_R_INPUT, OUT_R_OUTPUT);
 		delayL.resize(48000.0f);
 		delayR.resize(48000.0f);
+		catcher.resize(48000.0f);
+		settings.infiniteTop = true;
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent &e) override {
 		delayL.resize(e.sampleRate);
 		delayR.resize(e.sampleRate);
+		catcher.resize(e.sampleRate);
 	}
 
 	json_t *dataToJson() override {
@@ -117,8 +128,29 @@ void BAR::process(const ProcessArgs &args) {
 	float scR = inputs[SC_R_INPUT].isConnected() ? inputs[SC_R_INPUT].getVoltage() : scL;
 
 	// stereo linked: the louder side drives both
-	float level = hold.process(sc ? std::max(std::fabs(scL), std::fabs(scR)) : std::max(std::fabs(inL), std::fabs(inR)), settings.fall);
+	float detect = sc ? std::max(std::fabs(scL), std::fabs(scR)) : std::max(std::fabs(inL), std::fabs(inR));
+	float level = hold.process(detect, settings.fall);
 	float reduction = comp.process(barToDb(level), settings);
+
+	// bypassed, the lookahead delay stays: the audio is neither skipped nor
+	// repeated when the bypass goes on or off
+	float fadeDelay = 1.0f / (0.01f * args.sampleRate);
+	int delay = settings.delay;
+	float dL = delayL.process(inL, delay, fadeDelay);
+	float dR = delayR.process(inR, delay, fadeDelay);
+
+	// at the top of the RATIO knob (the limit) with lookahead, the catcher follows the level
+	// ahead of the delayed audio and holds the delayed audio under the threshold
+	if (settings.limit && delayL.longest() > 0) {
+		catcher.running = true;
+		float catchGain = catcher.process(detect, settings.thresholdLin, delayL.longest() + 1,
+			std::min(delayL.shortest() + 1, settings.attackSamples), settings.cRel);
+		if (catchGain < 1.0f)
+			reduction = std::min(reduction, 6.02059991f * barFastLog2(catchGain));
+	}
+	else if (catcher.running) {
+		catcher.reset();
+	}
 	gaindB = settings.makeupNow + reduction;
 	float g = barDbToGain(gaindB) * settings.mixNow + (1.0f - settings.mixNow);
 
@@ -126,12 +158,8 @@ void BAR::process(const ProcessArgs &args) {
 	bypassAmount = bypass ? std::min(bypassAmount + fade, 1.0f) : std::max(bypassAmount - fade, 0.0f);
 	g += (1.0f - g) * bypassAmount;
 
-	// bypassed, the lookahead delay stays: the audio is neither skipped nor
-	// repeated when the bypass goes on or off
-	float fadeDelay = 1.0f / (0.01f * args.sampleRate);
-	int delay = settings.delay;
-	outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(delayL.process(inL, delay, fadeDelay) * g));
-	outputs[OUT_R_OUTPUT].setVoltage(bidooSoftLimit(delayR.process(inR, delay, fadeDelay) * g));
+	outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(dL * g));
+	outputs[OUT_R_OUTPUT].setVoltage(bidooSoftLimit(dR * g));
 
 	if (inConnected) {
 		meter[0].process(inL, args.sampleRate);
@@ -343,7 +371,10 @@ struct BARDisplay : TransparentWidget {
 			sMix = "M";
 			sLa = "L%";
 			snprintf(tTresh, sizeof(tTresh), "%2.1f", module->threshold);
-			snprintf(tRatio, sizeof(tTresh), "%2.0f:1", module->ratio);
+			if (module->ratio >= module->paramQuantities[BAR::RATIO_PARAM]->getMaxValue())
+				snprintf(tRatio, sizeof(tRatio), "\xE2\x88\x9E:1");
+			else
+				snprintf(tRatio, sizeof(tTresh), "%2.0f:1", module->ratio);
 			snprintf(tAtt, sizeof(tTresh), "%1.0f/%1.0f", module->attackTime,module->releaseTime);
 			snprintf(tRel, sizeof(tTresh), "%3.0f", module->releaseTime);
 			snprintf(tKnee, sizeof(tTresh), "%2.1f", module->knee);
