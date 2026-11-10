@@ -1,4 +1,5 @@
-// rEgIStRE's engine without Rack: exact timing, voltage tables, saving, undo, parts.
+// rEgIStRE's engine without Rack: exact timing, voltage tables, saving, undo, parts, groups, quantized reset,
+// recording and MIDI import.
 //   g++ -std=c++17 -O2 -I src tools/tests/registre_engine_test.cpp -o registre_test && ./registre_test
 #include "RegistreEngine.hpp"
 #include <cstdio>
@@ -221,7 +222,16 @@ static Song randomSong(std::mt19937 &rng) {
 		k.patternFlags[2] = SMOOTH_B;
 		k.math.add[1] = 7;
 		k.math.g[2] = -3;
+		for (int i = 0; i < k.numSteps; i++)
+			k.steps[i].groups = (uint16_t)(rng() & 0xffff);
 	}
+	s.groups[3].high[1].add[CV_A] = 12;
+	s.groups[3].slope[2][DUR] = 1.5f;
+	s.groups[15].math.qt[GATE] = 4;
+	s.rec.mode = REC_ALTER;
+	s.rec.durQ[2] = 3;
+	s.resetAt = COMMIT_PATTERN;
+	s.resetTrack = 2;
 	for (int p : {1, 5, 99})
 		for (int t = 0; t < kTracks; t++) {
 			s.parts[p].reset[t] = s.tracks[t].steps[rng() % s.tracks[t].numSteps].uid;
@@ -385,6 +395,195 @@ static void testParts() {
 	CHECK(e.playingPart == 0 && io.gate[0] == 0.f, "part 0 stops every gate");
 }
 
+
+// Groups: the high and low transforms follow the X/Y/Z gates as the steps play; slopes add the bus's CVs
+static void testGroups() {
+	Engine e;
+	Song s = oneTrack(4, 2, 2);
+	referenceTable(REF_12TET, s.tracks[0].table[0]);
+	s.tracks[0].steps[0].v[CV_A] = 48;
+	s.tracks[0].steps[1].v[CV_A] = 48;
+	s.tracks[0].steps[1].groups = 1 << 5;
+	s.groups[5].high[0].add[CV_A] = 12;       // X high: an octave up
+	s.groups[5].low[0].g[DUR] = 2;            // X low: twice as long
+	s.groups[5].slope[1][CV_A] = 0.5f;        // Y CV: half a volt per volt on CV A
+	load(e, s);
+	auto run1 = [&](bool xHigh, float yCv, int samples, std::vector<float> &a, std::vector<float> &g) {
+		for (int n = 0; n < samples; n++) {
+			Engine::Io io;
+			io.clock = n % 1000 == 0;
+			io.modHigh[0] = xHigh;
+			io.modCv[1] = yCv;
+			e.process(io);
+			a.push_back(io.a[0]);
+			g.push_back(io.gate[0]);
+		}
+	};
+	std::vector<float> a, g;
+	run1(true, 0.f, 8000, a, g);
+	CHECK(a[1000] == 0.f && std::fabs(a[5000] - 1.f) < 1e-6f, "X high: the group's step an octave up (%f)", a[5000]);
+	e.resetRequest = true;
+	a.clear(); g.clear();
+	run1(false, 2.f, 16000, a, g);
+	// the group's step lasts 8 pulses now: steps at 0 and 4000, then the first again at 12000
+	CHECK(g[12000] > 1.f && g[9000] < 1.f, "X low: the group's step twice as long");
+	CHECK(std::fabs(a[5000] - 1.f) < 1e-6f && a[1000] == 0.f, "Y slope: +0.5 V/V on the group's steps only (%f)", a[5000]);
+	// membership tools
+	std::mt19937 rng(1);
+	Song *t = new Song;
+	Editor ed{*t, rng};
+	ed.euclidMembers(0, 0, 16, 2, 3, 8);
+	int count = 0;
+	for (int i = 0; i < 16; i++)
+		count += (t->tracks[0].steps[i].groups >> 2) & 1;
+	CHECK(count == 6 && (t->tracks[0].steps[0].groups & 4) && (t->tracks[0].steps[3].groups & 4) && (t->tracks[0].steps[6].groups & 4), "E(3,8) repeated");
+	ed.rotateMembers(0, 2, 1);
+	CHECK((t->tracks[0].steps[1].groups & 4) && !(t->tracks[0].steps[0].groups & 4), "rotate membership");
+	ed.invertMembers(0, 0, 16, 2);
+	CHECK((t->tracks[0].steps[0].groups & 4) && !(t->tracks[0].steps[1].groups & 4), "invert membership");
+	t->tracks[0].steps[0].v[GATE] = 1;
+	t->tracks[0].steps[1].v[GATE] = 1;
+	Transform m;
+	m.add[GATE] = 5;
+	ed.applyMath(0, 0, 16, m, 2);
+	CHECK(t->tracks[0].steps[0].v[GATE] == 6 && t->tracks[0].steps[1].v[GATE] == 1, "group MATH only on members");
+	delete t;
+}
+
+// RESET waiting for the end of a pattern: the reset lands exactly on the pattern boundary
+static void testQuantizedReset() {
+	Engine e;
+	Song s = oneTrack(1, 1, 8);
+	s.tracks[0].patternLength[0] = 4;
+	s.tracks[0].patternLength[1] = 4;
+	s.tracks[0].numPatterns = 2;
+	s.resetAt = COMMIT_PATTERN;
+	s.layout();
+	load(e, s);
+	int stepAt[12];
+	for (int c = 0; c < 12; c++) {
+		Engine::Io io;
+		io.clock = true;
+		io.reset = c == 5;      // asked during pattern 2
+		e.process(io);
+		for (int n = 1; n < 10; n++) {
+			Engine::Io idle;
+			e.process(idle);
+		}
+		stepAt[c] = e.play[0].step;
+	}
+	CHECK(stepAt[5] == 5 && stepAt[6] == 6 && stepAt[7] == 7 && stepAt[8] == 0, "reset waits for the end of the pattern (%d %d %d %d)", stepAt[5], stepAt[6], stepAt[7], stepAt[8]);
+}
+
+static std::vector<RecEvent> drain(Engine &e) {
+	std::vector<RecEvent> v;
+	RecEvent ev;
+	while (e.recQueue.pop(ev))
+		v.push_back(ev);
+	return v;
+}
+
+// Real-time recording: notes from a gate, timed in pulses, CV quantized to the table
+static void testRecording() {
+	Engine e;
+	Song s = oneTrack(4, 2, 4);
+	referenceTable(REF_12TET, s.tracks[0].table[0]);
+	load(e, s);
+	e.armed[0] = true;
+	// gate: on at pulse 2 for 1 pulse at C5 (1 V), on at pulse 5 for 3 pulses at G4, punch out at pulse 10
+	for (int n = 0; n < 12000; n++) {
+		Engine::Io io;
+		io.clock = n % 1000 == 0;
+		io.punch = n < 10000;
+		const bool g1 = n >= 2000 && n < 3000, g2 = n >= 5000 && n < 8000;
+		io.recGateOn = io.recAOn = true;
+		io.recGateV = (g1 || g2) ? 10.f : 0.f;
+		io.recA = g1 ? 1.f : 7.f / 12.f;
+		e.process(io);
+	}
+	std::vector<RecEvent> ev = drain(e);
+	CHECK(ev.size() == 3 && ev[0].type == EV_TAKE, "a take, then two notes (%zu events)", ev.size());
+	if (ev.size() == 3) {
+		CHECK(ev[1].dur == 3 && ev[1].gate == 1 && ev[1].a == 60, "first note: 3 pulses to the next, gate 1, C5 (%d %d %d)", ev[1].dur, ev[1].gate, ev[1].a);
+		CHECK(ev[2].dur == 5 && ev[2].gate == 3 && ev[2].a == 55, "second note: to the punch out, gate 3, G4 (%d %d %d)", ev[2].dur, ev[2].gate, ev[2].a);
+	}
+	// while recording, the track plays its inputs
+	Engine::Io io;
+	io.punch = true;
+	io.recGateOn = io.recAOn = true;
+	io.recGateV = 10.f;
+	io.recA = 0.25f;
+	e.process(io);
+	CHECK(io.a[0] == 0.25f && io.gate[0] == kGateVolts, "pass-thru while armed and punched in");
+	// a long note becomes tied steps
+	Step out[8], proto;
+	const int m = noteSteps(250, 230, proto, out, 8);
+	CHECK(m == 3 && out[0].v[DUR] == 99 && out[0].v[GATE] == 99 && out[2].v[DUR] == 52 && out[2].v[GATE] == 32, "250 pulses: 99 + 99 + 52, tied");
+
+	// ALTER: the step about to play takes the inputs' values, in the audio's song and in an event
+	Engine e2;
+	Song s2 = oneTrack(2, 1, 2);
+	referenceTable(REF_12TET, s2.tracks[0].table[0]);
+	s2.rec.mode = REC_ALTER;
+	load(e2, s2);
+	e2.armed[0] = true;
+	for (int n = 0; n < 3000; n++) {
+		Engine::Io io2;
+		io2.clock = n % 1000 == 0;
+		io2.punch = true;
+		io2.recAOn = io2.recGateOn = true;
+		io2.recA = 2.f;
+		io2.recGateV = 0.5f;          // GATE 10
+		e2.process(io2);
+	}
+	ev = drain(e2);
+	CHECK(!ev.empty() && ev[0].type == EV_ALTER && ev[0].a == 72 && ev[0].gate == 10 && ev[0].mask == (1 | 8), "alter: CV A and GATE rewritten");
+	CHECK(e2.song().tracks[0].steps[0].v[CV_A] == 72, "alter: the playing song changed");
+
+	// STEP: INSERT and DELETE triggers become events for the UI
+	Engine e3;
+	Song s3 = oneTrack(2, 1, 2);
+	s3.rec.mode = REC_STEP;
+	load(e3, s3);
+	e3.armed[2] = true;
+	Engine::Io io3;
+	io3.punch = true;
+	io3.recInsert = true;
+	e3.process(io3);
+	ev = drain(e3);
+	CHECK(ev.size() == 1 && ev[0].type == EV_INSERT && ev[0].track == 2, "step mode: insert event");
+}
+
+static void put32be(std::vector<uint8_t> &v, uint32_t x) { for (int k = 3; k >= 0; k--) v.push_back((uint8_t)(x >> (8 * k))); }
+
+static void testMidi() {
+	// SMF 0, 96 ticks a beat (4 pulses a beat): channel 1: C4 for a beat, a beat of silence, E4 half a beat, then G4
+	// a beat; channel 2: A3 from beat 1 for 2.5 beats
+	std::vector<uint8_t> trk = {
+		0x00, 0x90, 60, 100,  0x60, 0x80, 60, 0,
+		0x00, 0x91, 57, 50,
+		0x60, 0x90, 64, 127,  0x30, 0x80, 64, 0,
+		0x00, 0x90, 67, 64,   0x00, 0x81, 57, 0,
+		0x60, 0x80, 67, 0,    0x00, 0xff, 0x2f, 0x00};
+	std::vector<uint8_t> f = {'M', 'T', 'h', 'd', 0, 0, 0, 6, 0, 0, 0, 1, 0, 96, 'M', 'T', 'r', 'k'};
+	put32be(f, (uint32_t)trk.size());
+	f.insert(f.end(), trk.begin(), trk.end());
+	Song *s = new Song;
+	CHECK(importMidi(f.data(), f.size(), *s, 4, 4), "MIDI file read");
+	const Track &k = s->tracks[0];
+	// C4 lasts until E4 starts (8 pulses) with gate 4; E4 2 pulses, gate 2; G4 4 pulses, gate 4
+	CHECK(k.numSteps == 3, "three steps on track 1 (%d)", k.numSteps);
+	if (k.numSteps == 3) {
+		CHECK(k.steps[0].v[CV_A] == 48 && k.steps[0].v[DUR] == 8 && k.steps[0].v[GATE] == 4, "C4: lasts to E4, gate 4 (%d %d)", k.steps[0].v[DUR], k.steps[0].v[GATE]);
+		CHECK(k.steps[1].v[CV_A] == 52 && k.steps[1].v[DUR] == 2 && k.steps[1].v[GATE] == 2, "E4");
+		CHECK(k.steps[2].v[CV_A] == 55 && k.steps[2].v[DUR] == 4 && k.steps[2].v[GATE] == 4, "G4");
+	}
+	const Track &k2 = s->tracks[1];
+	CHECK(k2.numSteps == 2 && k2.steps[0].v[GATE] == 0 && k2.steps[0].v[DUR] == 4 && k2.steps[1].v[CV_A] == 45 && k2.steps[1].v[DUR] == 6,
+		"channel 2: a rest of 4 pulses, then A3 for 6 (%d steps)", k2.numSteps);
+	delete s;
+}
+
 int main() {
 	testTiming();
 	testTables();
@@ -392,6 +591,10 @@ int main() {
 	testUndo();
 	testEditing();
 	testParts();
+	testGroups();
+	testQuantizedReset();
+	testRecording();
+	testMidi();
 	std::printf(failures ? "%d FAILED\n" : "all passed\n", failures);
 	return failures ? 1 : 0;
 }

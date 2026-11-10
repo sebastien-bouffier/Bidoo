@@ -1,21 +1,21 @@
-# rEgIStRE's panel (40 HP). The picture: an open ledger, two pages of ruled lines and columns of figures with a ribbon,
+# rEgIStRE's panel (52 HP). The picture: an open ledger, two pages of ruled lines and columns of figures with a ribbon,
 # lightly mangled. An original drawing. Everything sits on the grid, as src/REGISTRE.cpp places it.
 import math
 import panel_kit as k
 
-PW = 600
+PW = 780
 K = k.K
 W = PW * K
-N = 12                              # jack columns, the same in src/REGISTRE.cpp
-NB = 16                             # the buttons' columns on row 1, likewise
-BUTTONS = ((8, 'RUN'), (9, 'GO'), (10, 'HOLD'), (11, 'COMMIT'))   # likewise
+N = 20                              # jack and button columns, the same in src/REGISTRE.cpp
+BUTTONS = ((6, 1, 'RUN'), (7, 1, 'GO'), (8, 1, 'HOLD'), (9, 1, 'COMMIT'), (19, 0, 'REC'))   # likewise: column, row
+SIZE = 7                            # captions: the columns are 37 px apart
 
 def build():
     p = k.Picture(1910, W)
     H = k.H
     # the book, in px: two pages from x0 to x1, the spine in the middle. Larger than the panel, so that it runs off
     # every edge (the picture is clipped to the panel)
-    x0, x1, y0, y1 = -70, 670, -24, 404
+    x0, x1, y0, y1 = -70, PW + 70, -24, 404
     mid = (x0 + x1) / 2
     def P(x, y):
         return (x * K, y * K)
@@ -71,19 +71,19 @@ def build():
 
     out = [k.header(PW, W), k.background(W), p.path(warp, .6), k.title('rEgIStRE', PW)]
     out.append(k.screen(k.MARGIN, k.SCREEN_TOP, PW - 2 * k.MARGIN, k.screen_bottom(1) - k.SCREEN_TOP))   # RegistreScreen
-    out.append(k.grid_box(0, 5, N, 1, PW, k.INPUT))
-    for i, l in enumerate(['CLOCK', 'RESET', 'RUN', 'TRANSP', 'PART', 'GO']):
-        out.append(k.jack_label(l, k.jack_col(i, N, PW), k.row(1)))
-    for i, l in BUTTONS:
-        # on the jack captions' baseline, so that the row keeps one (docs/THEME.md, "Alignment")
-        out.append(k.text(l, k.col(i, NB, PW), k.row(1) - k.LABEL_ABOVE, k.BOX_LABEL_SIZE, k.INK))
-    out.append(k.grid_box(9, 11, N, 1, PW, k.OUTPUT))
-    for i, l in enumerate(['POLY A', 'POLY B', 'POLY G']):
-        out.append(k.jack_label(l, k.jack_col(9 + i, N, PW), k.row(1)))
+    def boxed(i0, labels, k_row, colour):
+        out.append(k.grid_box(i0, i0 + len(labels) - 1, N, k_row, PW, colour))
+        for j, l in enumerate(labels):
+            out.append(k.jack_label(l, k.jack_col(i0 + j, N, PW), k.row(k_row), SIZE))
+    boxed(0, ['CLOCK', 'RESET', 'RUN', 'TRANSP', 'PART', 'GO'], 1, k.INPUT)
+    boxed(10, ['X CV', 'Y CV', 'Z CV', 'X GATE', 'Y GATE', 'Z GATE'], 1, k.INPUT)
+    boxed(17, ['POLY A', 'POLY B', 'POLY G'], 1, k.OUTPUT)
     for t in range(4):
-        out.append(k.grid_box(3 * t, 3 * t + 2, N, 0, PW, k.OUTPUT))
-        for j, l in enumerate(['A', 'B', 'GATE']):
-            out.append(k.jack_label(f'{l} {t + 1}', k.jack_col(3 * t + j, N, PW), k.row(0)))
+        boxed(3 * t, [f'A {t + 1}', f'B {t + 1}', f'GATE {t + 1}'], 0, k.OUTPUT)
+    boxed(12, ['REC A', 'REC B', 'REC G', 'REC D', 'INS', 'DEL', 'PUNCH'], 0, k.INPUT)
+    for i, r, l in BUTTONS:
+        # on the jack captions' baseline, so that the row keeps one (docs/THEME.md, "Alignment")
+        out.append(k.text(l, k.jack_col(i, N, PW), k.row(r) - k.LABEL_ABOVE, SIZE, k.INK))   # under POLY G's column
     out.append(k.logo(W))
     out.append('</svg>')
     return out

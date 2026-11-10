@@ -402,7 +402,7 @@
     {
       "slug": "REGISTRE",
       "name": "rEgIStRE",
-      "description": "Indexed four-track sequencer: steps hold indices into voltage tables, with patterns, parts and MATH",
+      "description": "Indexed four-track sequencer: steps hold indices into voltage tables, with patterns, parts, groups, MATH and recording",
       "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#registre",
       "tags": [
         "Sequencer",
