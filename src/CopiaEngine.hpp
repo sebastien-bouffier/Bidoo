@@ -239,6 +239,11 @@ public:
 	std::atomic<bool> autoInFired {false}; // a capture ended with "Remix comes in after capture": the module latches IN/OUT
 	std::atomic<bool> clearRequest {false};
 	std::atomic<bool> blockCapture {false}; // the UI loads or saves a loop: no capture starts meanwhile
+	// for the display: what CAPTURE would take, written in place over LENGTH (inPhase: the write head, -1 stopped),
+	// and the remix alone, written at the loop's phase (loopPhase); peaks 0..1 (racy reads are harmless)
+	float inPeaks[kPeaks] = {};
+	float outPeaks[kPeaks] = {};
+	std::atomic<float> inPhase {-1.f};
 
 	Engine() {
 		for (auto &lp : loops)
@@ -263,8 +268,16 @@ public:
 		std::fill(&preRing[0][0], &preRing[0][0] + 2 * kPreMax, 0.f);
 		capState = 0;
 		srcFade = 0;
+		heard = front.load();
+		jumpFade = 0;
+		havePos = false;
+		beatStep = 0.0;
+		playGain = 0.f;
+		stalled = 0;
+		mixNow = -1.f;
 		inGain = isIn ? 1.f : 0.f;
 		inCoef = 1.f - std::exp(-1.f / (float)(0.015 * sr));
+		mixCoef = 1.f - std::exp(-1.f / (float)(0.005 * sr));
 		lastPpq = -1.0;
 		pendingIn = isIn;
 		inDue = -1.0;
@@ -295,7 +308,6 @@ public:
 			if (capState == 2)
 				capState = 0;
 			front = -1;
-			srcFade = 0;
 		}
 		bpm = std::clamp(bpm, 20.0, 999.0);
 		const int bpb = std::max(1, ctl.beatsPerBar);
@@ -336,9 +348,46 @@ public:
 			preRing[0][preWrite] = capL[i];
 			preRing[1][preWrite] = capR[i];
 			preWrite = (preWrite + 1) % kPreMax;
+			if (running) {
+				const double win = (double)(std::max(1, ctl.lengthBars) * bpb);
+				double ph = pos / win;
+				ph -= std::floor(ph);
+				const int b = std::clamp((int)(ph * kPeaks), 0, kPeaks - 1);
+				if (b != inBin) {
+					inBin = b;
+					inPeaks[b] = 0.f;
+				}
+				inPeaks[b] = std::max(inPeaks[b], std::max(std::fabs(capL[i]), std::fabs(capR[i])));
+				inPhaseNow = (float)ph;
+			}
 
-			// the engine's input: the loop on the clock, or the live input while there is no loop
+			// the engine's input: the loop on the clock, or the live input while there is no loop. Another loop
+			// (a capture, CLEAR, a loop loaded) crossfades from the one heard; a position that jumps (RESET, a
+			// clock that came back) crossfades from where the loop was, carried on at its speed; the loop fades
+			// out while the clock stops or stalls, and back in when it moves again.
 			const int f = front.load(std::memory_order_relaxed);
+			if (f != heard) {
+				oldFront = heard;
+				heard = f;
+				srcFade = xf;
+				jumpFade = 0;
+				std::fill(outPeaks, outPeaks + kPeaks, 0.f);
+				outBin = -1;
+			}
+			// a jump: back, or on by more than a 500th of a beat in one sample (48 samples at 120 BPM, 6 at 999)
+			const double moved = pos - prevPos;
+			if (havePos && (!running || moved < 0.0 || moved > 0.002) && srcFade == 0) {
+				jumpFrom = prevPos + beatStep;
+				jumpFade = xf;
+			}
+			else if (havePos && moved > 0.0) {
+				beatStep = moved;
+			}
+			stalled = running && havePos && pos == prevPos ? stalled + 1 : 0;
+			havePos = running;
+			prevPos = pos;
+			const float wantPlay = running && stalled < xf / 2 ? 1.f : 0.f;
+			playGain += std::clamp(wantPlay - playGain, -1.f / (float)xf, 1.f / (float)xf);
 			float l, r;
 			source(f, pos, running, inL[i], inR[i], l, r);
 			if (srcFade > 0) {
@@ -349,11 +398,21 @@ public:
 				r = r + (orr - r) * t;
 				srcFade--;
 			}
+			else if (jumpFade > 0) {
+				float ol, orr;
+				source(f, jumpFrom, running, inL[i], inR[i], ol, orr);
+				jumpFrom += beatStep;
+				const float t = (float)jumpFade / (float)xf;
+				l = l + (ol - l) * t;
+				r = r + (orr - r) * t;
+				jumpFade--;
+			}
 			engL[i] = l;
 			engR[i] = r;
 		}
 		const int f = front.load();
 		loopPhase = f >= 0 && running ? (float)phase(loops[f], ppq[n - 1]) : -1.f;
+		inPhase = running ? inPhaseNow : -1.f;
 
 		// ---- the live history, in step with the engine's own ----
 		live.write(inL, inR, n);
@@ -401,19 +460,35 @@ public:
 			pendingIn = ctl.wantIn;
 			inDue = dueAt(ppq[0], running, ctl.inQuant, scenes[current.load()].div(), bpb);
 		}
+		if (mixNow < 0.f)
+			mixNow = ctl.mix;
 		for (int i = 0; i < n; i++) {
+			mixNow += mixCoef * (ctl.mix - mixNow);
 			if (inDue >= 0.0 && (!running || ctl.inQuant == 0 || ppq[i] >= inDue - 1e-9)) {
 				isIn = pendingIn;
 				inDue = -1.0;
 			}
 			inGain += inCoef * ((isIn ? 1.f : 0.f) - inGain);
 			float dry, wet;
-			g::lawGains(ctl.law, ctl.mix * inGain, dry, wet);
+			g::lawGains(ctl.law, mixNow * inGain, dry, wet);
 			outL[i] = inL[i] * dry + wetL[i] * wet;
 			outR[i] = inR[i] * dry + wetR[i] * wet;
+			if (f >= 0 && running) {
+				const int b = std::clamp((int)(phase(loops[f], ppq[i]) * kPeaks), 0, kPeaks - 1);
+				if (b != outBin) {
+					outBin = b;
+					outPeaks[b] = 0.f;
+				}
+				outPeaks[b] = std::max(outPeaks[b], std::max(std::fabs(wetL[i]), std::fabs(wetR[i])));
+			}
 		}
 		std::copy(outL, outL + n, lastOutL);
 		std::copy(outR, outR + n, lastOutR);
+	}
+
+	// for the display: the loop a capture records into
+	int capturingLoop() const {
+		return capLoop;
 	}
 
 	// for the display: the step under the play head (-1 stopped) and whether a slot sounds
@@ -448,9 +523,7 @@ public:
 		if (lp.frames < 64)
 			return;
 		lp.valid = true;
-		oldFront = f;
-		srcFade = 0; // nothing plays from this yet: no crossfade
-		front = k;
+		front = k; // the audio thread crossfades from the loop it heard
 	}
 
 private:
@@ -462,15 +535,11 @@ private:
 		return ph - std::floor(ph);
 	}
 
-	// Loop `k`'s sample at `pos` beats (silence when the clock stops), or the live input with no loop
+	// Loop `k`'s sample at `pos` beats (faded out while the clock stops), or the live input with no loop
 	void source(int k, double pos, bool running, float inL, float inR, float &l, float &r) const {
 		if (k < 0 || !loops[k].valid.load(std::memory_order_relaxed)) {
 			l = inL;
 			r = inR;
-			return;
-		}
-		if (!running) {
-			l = r = 0.f;
 			return;
 		}
 		const Loop &lp = loops[k];
@@ -486,6 +555,8 @@ private:
 			l += (pl - l) * t;
 			r += (pr - r) * t;
 		}
+		l *= playGain;
+		r *= playGain;
 	}
 
 	// Hermite on the loop itself (wrapping), and on the raw buffer (clamped)
@@ -564,8 +635,6 @@ private:
 		lp.bpm = (float)bpm;
 		lp.rate = (float)sr;
 		lp.valid = true;
-		oldFront = front.load();
-		srcFade = xf;
 		front = capLoop;
 		loopChanged = true;
 		if (autoIn)
@@ -645,6 +714,15 @@ private:
 	double capBeats = 4.0, capStartPpq = 0.0, capFirstPpq = 0.0, capExpected = 1.0;
 	double lastPpq = -1.0;
 	int oldFront = -1, srcFade = 0;
+	int heard = -1;                  // the loop the audio thread plays (front, once it has crossfaded to it)
+	double prevPos = 0.0, jumpFrom = 0.0;
+	double beatStep = 0.0;            // how far the position moved in the last sample that did not jump
+	bool havePos = false;
+	int jumpFade = 0, stalled = 0;
+	float playGain = 0.f;            // the loop, faded out while the clock stops
+	float mixNow = -1.f, mixCoef = 0.01f;
+	int inBin = -1, outBin = -1;
+	float inPhaseNow = 0.f;
 
 	// IN/OUT, scenes
 	bool pendingIn = false;

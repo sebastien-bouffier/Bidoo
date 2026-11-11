@@ -11,7 +11,6 @@ const NVGcolor kIdle = nvgRGBA(0xA4, 0x03, 0x6F, 0x8C);       // PINK_BIDOO, dim
 const NVGcolor kLoop = nvgRGBA(0xFF, 0x2D, 0x95, 0x38);       // behind the loop
 const NVGcolor kBar = theme::kScreenYellow;                   // START, END, loop points, cuts
 const NVGcolor kHead = nvgRGB(0x29, 0x8C, 0xFF);              // play heads
-const NVGcolor kHeadGlow = nvgRGB(0x0A, 0x23, 0x40);          // either side of a head (a quarter of it)
 
 // One column of the waveform: a rectangle from its highest to its lowest value (-1..1), `amp` px either side of
 // `mid`. Call between nvgBeginPath and fillWave.
@@ -55,7 +54,8 @@ inline void bar(NVGcontext *vg, float x, float top, float bottom, int flag = 0, 
 
 // A play head: a 2 px blue bar with a faint glow, added onto what is under it (NVG_LIGHTER), so the pink under it
 // turns white-violet. `strength` (0..1) dims it, for a voice that fades. Draw it after the waveform and the bars.
-inline void head(NVGcontext *vg, float x, float top, float bottom, float strength = 1.f) {
+// `c`: another colour (cOPIA's write head is orange), its glow a quarter of it.
+inline void head(NVGcontext *vg, float x, float top, float bottom, float strength = 1.f, NVGcolor c = kHead) {
 	strength = clamp(strength, 0.f, 1.f);
 	auto scaled = [&](NVGcolor c) { return nvgRGBf(c.r * strength, c.g * strength, c.b * strength); };
 	nvgSave(vg);
@@ -63,11 +63,11 @@ inline void head(NVGcontext *vg, float x, float top, float bottom, float strengt
 	nvgBeginPath(vg);
 	nvgRect(vg, x - 3.f, top, 2.f, bottom - top);
 	nvgRect(vg, x + 1.f, top, 2.f, bottom - top);
-	nvgFillColor(vg, scaled(kHeadGlow));
+	nvgFillColor(vg, scaled(nvgRGBf(c.r * 0.25f, c.g * 0.25f, c.b * 0.25f)));
 	nvgFill(vg);
 	nvgBeginPath(vg);
 	nvgRect(vg, x - 1.f, top, 2.f, bottom - top);
-	nvgFillColor(vg, scaled(kHead));
+	nvgFillColor(vg, scaled(c));
 	nvgFill(vg);
 	nvgRestore(vg);
 }

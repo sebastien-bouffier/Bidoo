@@ -164,6 +164,11 @@ public:
         sr = sampleRate;
         slot = index;
         fadeStep = (float) (1.0 / (0.004 * sampleRate)); // 4 ms fades in and out
+        declickLen = jmax (16, (int) (0.003 * sampleRate));
+        declickLeft = 0;
+        retrigger = false;
+        lastWet[0] = lastWet[1] = prevWet[0] = prevWet[1] = 0.0f;
+        inFade = 1.0f;
         effect.prepare (sampleRate);
         dryDelay.prepare (sampleRate);
         filter.reset();
@@ -192,6 +197,7 @@ public:
             fromSilence = ! continuing;
             if (! continuing)
             {
+                inFade = 0.0f; // the effect's input comes in with the slot (its delay lines start empty)
                 filter.reset();
                 drive = driveTarget;
                 dryLatency = -1; // from silence the dry tap jumps straight to the effect's latency
@@ -200,6 +206,7 @@ public:
             lastControl = c.counter;
             computeTargets (s, c, seed);
             effect.trigger (s.fx, p, c, continuing);
+            retrigger = continuing; // a block on a block: the effect starts afresh while it sounds
             lastFx = s.fx;
         }
         playing = on;
@@ -241,6 +248,7 @@ public:
             {
                 effect.trigger (s.fx, p, c, true); // another effect while playing: starts afresh, crossfaded
                 lastFx = s.fx;
+                retrigger = true;
             }
             if (s.filter > 0)
             {
@@ -259,7 +267,24 @@ public:
         follow (s, l, r, n); // after the control point: what it read is the same whatever the buffer size
 
         float wl[kMaxPiece], wr[kMaxPiece];
-        effect.process (lastFx, p, seed, slot, h, c, l, r, wl, wr, n, sideL, sideR);
+        // From silence the effect's input fades in with the slot, as its output does: a delay line starts
+        // empty, and an input let in at once would come out of it as a step (Delay's first echo, the
+        // flanger's tap) long after the slot's own fade
+        const float* effL = l;
+        const float* effR = r;
+        float fl[kMaxPiece], fr[kMaxPiece];
+        if (inFade < 1.0f)
+        {
+            for (int i = 0; i < n; ++i)
+            {
+                inFade = jmin (1.0f, inFade + fadeStep);
+                fl[i] = l[i] * inFade;
+                fr[i] = r[i] * inFade;
+            }
+            effL = fl;
+            effR = fr;
+        }
+        effect.process (lastFx, p, seed, slot, h, c, effL, effR, wl, wr, n, sideL, sideR);
         const int latency = effect.latency (lastFx, p);
         if (latency != dryLatency)
         {
@@ -281,8 +306,28 @@ public:
                 wr[i] = filter.tick (1, wr[i], s.filter);
             }
 
+        // An effect started afresh while it sounds (Gate's envelope, Tape's head, the grains, the flanger's
+        // delay start over) would switch its output in one sample: the step to where it was glides away over
+        // 3 ms (raised cosine), so the wet carries on from its last two samples
+        if (retrigger)
+        {
+            retrigger = false;
+            declick[0] = 2.0f * lastWet[0] - prevWet[0] - wl[0];
+            declick[1] = 2.0f * lastWet[1] - prevWet[1] - wr[0];
+            declickLeft = declickLen;
+        }
         for (int i = 0; i < n; ++i)
         {
+            if (declickLeft > 0)
+            {
+                const float t = 0.5f - 0.5f * std::cos (Pi<float>::pi * (float) declickLeft-- / (float) declickLen);
+                wl[i] += declick[0] * t;
+                wr[i] += declick[1] * t;
+            }
+            prevWet[0] = lastWet[0];
+            prevWet[1] = lastWet[1];
+            lastWet[0] = wl[i];
+            lastWet[1] = wr[i];
             fade = playing ? jmin (1.0f, fade + fadeStep) : jmax (0.0f, fade - fadeStep);
             const float d = dryGain.next(), w = wetGain.next();
             dryDelay.push (l[i], r[i]);
@@ -413,6 +458,10 @@ private:
     Fx lastFx = Fx::Off;
     static constexpr int kDryFade = 64; // samples: the dry tap's crossfade when the latency changes
     int dryLatency = -1, dryFrom = 0, dryFadeLeft = 0;
+    bool retrigger = false;             // the effect started afresh while sounding: its wet glides from where it was
+    int declickLen = 128, declickLeft = 0;
+    float declick[2] {}, lastWet[2] {}, prevWet[2] {};
+    float inFade = 1.0f;                // the effect's input, fading in after a start from silence
     Effect effect;
     DryDelay dryDelay;
     Svf filter;

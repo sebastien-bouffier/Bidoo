@@ -148,6 +148,8 @@ inline void slotMenu(COPIA *m, int s) {
 struct CopiaDisplay : OpaqueWidget {
 	COPIA *module = nullptr;
 	static constexpr float WAVE = 30.f, LABEL = 72.f, TOP = 34.f;
+	const NVGcolor REMIX = nvgRGB(0x3C, 0xE1, 0xFF);   // the remix's outline over the loop
+	float inHead = -1.f, outHead = -1.f;              // the last heads seen (the clock may stop)
 
 	// drag state
 	int dragLane = -1, dragMode = 0;      // 1 draw, 2 move or level (decided by the first move), 3 move, 4 level
@@ -395,37 +397,98 @@ struct CopiaDisplay : OpaqueWidget {
 			return;
 		}
 		copia::Engine &e = module->engine;
-		// ---- the loop
+		// ---- the waveform: what CAPTURE would take (no loop, or armed), the capture as it records, or the loop
+		// with the remix's outline over it
 		const int fr = e.front.load();
 		const int cs = e.capState.load();
 		const float ww = W - LABEL;
-		if (fr >= 0) {
-			const copia::Loop &lp = e.loops[fr];
-			nvgBeginPath(args.vg);
-			for (int i = 0; i < copia::kPeaks; i++) {
-				const float x = LABEL + ww * i / copia::kPeaks;
-				const float h = std::min(1.f, lp.peaks[i]) * (WAVE / 2 - 2);
-				nvgRect(args.vg, x, WAVE / 2 - h, std::max(1.f, ww / copia::kPeaks), 2 * h + 0.5f);
-			}
-			// the loop plays whole: all of it in the samplers' hot pink (src/WaveStyle.hpp)
-			wavestyle::fill(args.vg, true);
-			// the bars
-			const int bars = std::max(1, (int)std::round(lp.beats / std::max(1, module->beatsPerBar)));
+		const float bw = std::max(1.f, ww / copia::kPeaks);
+		const float half = WAVE / 2 - 2;
+		auto column = [&](int i, float peak) {
+			const float h = std::min(1.f, peak) * half;
+			nvgRect(args.vg, LABEL + ww * i / copia::kPeaks, WAVE / 2 - h, bw, 2 * h + 0.5f);
+		};
+		auto barLines = [&](double beats) {
+			const int bars = std::max(1, (int)std::round(beats / std::max(1, module->beatsPerBar)));
 			for (int b = 1; b < bars; b++) {
 				nvgBeginPath(args.vg);
 				nvgRect(args.vg, LABEL + ww * b / bars, 0, 1, WAVE);
 				nvgFillColor(args.vg, dim);
 				nvgFill(args.vg);
 			}
+		};
+		// bins drawn by age behind a head (0 at the head, a whole turn at kPeaks), in 16 shades
+		auto byAge = [&](float headPhase, float upTo, auto &&drawBin, auto &&colourFor) {
+			const int hb = clamp((int)(headPhase * copia::kPeaks), 0, copia::kPeaks - 1);
+			for (int g = 15; g >= 0; g--) {
+				nvgBeginPath(args.vg);
+				bool any = false;
+				for (int i = 0; i < copia::kPeaks; i++) {
+					const int age = (hb - i + copia::kPeaks) % copia::kPeaks;
+					if (age > upTo * copia::kPeaks || age * 16 / copia::kPeaks != g)
+						continue;
+					drawBin(i);
+					any = true;
+				}
+				if (any) {
+					nvgFillColor(args.vg, colourFor(g / 16.f));
+					nvgFill(args.vg);
+				}
+			}
+		};
+		if (cs == 2) {
+			// recording: the new loop up to the write head, the old one dimmed after it
+			const float p = clamp(e.capProgress.load(), 0.f, 1.f);
+			const int upTo = (int)(p * copia::kPeaks);
+			const copia::Loop &rec = e.loops[e.capturingLoop()];
+			if (fr >= 0) {
+				nvgBeginPath(args.vg);
+				for (int i = upTo; i < copia::kPeaks; i++)
+					column(i, e.loops[fr].peaks[i]);
+				wavestyle::fill(args.vg, false);
+			}
+			nvgBeginPath(args.vg);
+			for (int i = 0; i < upTo; i++)
+				column(i, rec.peaks[i]);
+			wavestyle::fill(args.vg, true);
+			if (fr >= 0)
+				barLines(e.loops[fr].beats);
+			wavestyle::head(args.vg, LABEL + ww * p, 0, WAVE, 1.f, theme::kLitOrange);
+		}
+		else if (cs == 1 || fr < 0) {
+			// what CAPTURE would take, written in place over LENGTH under an orange head, fading with age
+			const float ph = e.inPhase.load();
+			if (ph >= 0.f)
+				inHead = ph;
+			if (inHead >= 0.f) {
+				byAge(inHead, 0.98f, [&](int i) { column(i, e.inPeaks[i]); },
+				      [&](float age) { return nvgTransRGBAf(wavestyle::kActive, std::max(0.25f, 1.f - age)); });
+				static const int lengths[4] = {1, 2, 4, 8};
+				barLines((double)(lengths[clamp((int)std::round(module->params[COPIA::LENGTH_PARAM].getValue()), 0, 3)] * std::max(1, module->beatsPerBar)));
+				if (ph >= 0.f)
+					wavestyle::head(args.vg, LABEL + ww * ph, 0, WAVE, 1.f, theme::kLitOrange);
+			}
+		}
+		else {
+			// the loop in hot pink and the remix's outline in cyan over it, fading over one turn of the loop
+			const copia::Loop &lp = e.loops[fr];
+			nvgBeginPath(args.vg);
+			for (int i = 0; i < copia::kPeaks; i++)
+				column(i, lp.peaks[i]);
+			wavestyle::fill(args.vg, true);
+			barLines(lp.beats);
 			const float ph = e.loopPhase.load();
 			if (ph >= 0.f)
+				outHead = ph;
+			if (outHead >= 0.f)
+				byAge(outHead, 0.9f, [&](int i) {
+					const float h = std::min(1.f, e.outPeaks[i]) * half;
+					const float x = LABEL + ww * i / copia::kPeaks;
+					nvgRect(args.vg, x, WAVE / 2 - h - 0.5f, bw, 1.f);
+					nvgRect(args.vg, x, WAVE / 2 + h - 0.5f, bw, 1.f);
+				}, [&](float age) { return nvgTransRGBAf(REMIX, 1.f - 0.8f * age); });
+			if (ph >= 0.f)
 				wavestyle::head(args.vg, LABEL + ww * ph, 0, WAVE);
-		}
-		if (cs == 2) {
-			nvgBeginPath(args.vg);
-			nvgRect(args.vg, LABEL, WAVE - 3, ww * e.capProgress.load(), 3);
-			nvgFillColor(args.vg, theme::kLitOrange);
-			nvgFill(args.vg);
 		}
 		// what is going on, top left
 		std::string state;

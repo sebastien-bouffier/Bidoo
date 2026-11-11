@@ -7,8 +7,9 @@
 //  - The tempo comes from the interval between pulses: it jumps to a change of more than 10 %, and
 //    a steady clock's small differences move it halfway (sOUNAiRe's smoothing).
 //  - The position is the pulses counted since the first one (or since reset()), plus the part of an
-//    interval since the last pulse, held just below the next pulse so it never runs past it: a
-//    clock that slows down stalls the position until its pulse comes, then it carries on from there.
+//    interval since the last pulse, held half a sample below the next pulse so it never runs past it:
+//    a clock that slows down stalls the position until its pulse comes, then it carries on from there;
+//    a steady clock never stalls (its last sample before a pulse is a whole sample below it).
 //  - The clock counts as stopped before it has given two pulses, and once no pulse has come for
 //    two seconds plus one interval.
 
@@ -73,7 +74,7 @@ public:
     {
         if (pulses < 0)
             return 0.0;
-        const double part = interval > 0.0 ? std::min ((double) since / interval, kMaxPart) : 0.0;
+        const double part = interval > 0.0 ? std::min ((double) since, interval - 0.5) / interval : 0.0;
         return ((double) pulses + part) / (double) ppqn;
     }
 
@@ -84,7 +85,6 @@ public:
     double samplesPerPulse() const noexcept { return interval; }
 
 private:
-    static constexpr double kMaxPart = 0.999;
     int ppqn = 1;
     std::int64_t pulses = -1;    // counted since reset (-1: none yet)
     std::int64_t since = 0;      // samples since the last pulse counted in `pulses`
