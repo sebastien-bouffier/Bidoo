@@ -5,6 +5,8 @@ Improvements
 - zOù MAï, enCORE: new per-track, per-pattern "Hold CV1 and CV2 between notes" option in the Track menu (undoable). CV1 and CV2 keep the last trig's value (a ramp's last pulse) while the gate is off, like V/O, instead of dropping to 0 V; the poly outputs follow. Off by default, and patches without it play exactly as before
 - zOù MAï, enCORE: both screens are tables, one column per knob with its label over its value, centred on the knob; the P2 buttons clear the header rule, and long values such as scale names shrink to fit their cell instead of running into the next one
 Fixes
+- cANARd: the speed input is now V/O (caption on the panel too): exactly 1 V per octave, 0 V = the sample's own pitch, added to the knob, now shown as Tune in semitones; before, its speed followed a close approximation of the curve
+- cANARd: no more clicks when START, LENGTH or SLICE move the played region past the head (a jump fades out and in over 2 ms; a region gliding past it carries it along), when FADE jumps (its gain glides), when a new recording or a clear replaces the sample while it plays (the old one fades out), or when two jumps come within 2 ms (the first fade-out is no longer cut). Recording pressed right after adding the module now starts at once instead of being lost
 - baR: the top of RATIO is now ∞:1, a true limiter: with lookahead, no sample passes above threshold + make-up gain, single-sample clicks included (a peak catcher ramps the gain down within the lookahead). Before, about 2-3 dB of sharp attacks got through at 20:1 and 100 % lookahead. Lower ratios sound exactly as before
 
 ### v2.5.0 (10/11/2026)

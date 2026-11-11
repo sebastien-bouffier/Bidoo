@@ -134,8 +134,16 @@ struct CANARD : BidooModule {
 	float speed = 1.0f;
 	bool reverse = false;        // plays the slices backward
 	sampleread::Declick<2> dc;
+	sampleread::Declick<2> dc2;    // a tail still fading out when another jump comes (two jumps within 2 ms)
 	float lastStep = 0.f, lastGain = 0.f;  // of the last sample played
 	double lastPos = 0.0;
+	// The fade at the edges of the played region, slewed: a FADE or START change (CV or knob) glides over the declick
+	// length instead of stepping the gain
+	float regionGain = 1.f;
+	bool regionJump = true;    // a new head: the gain starts where it should be
+	// A sample replaced while it plays: the old one stays alive until its heads have faded out (then it is retired)
+	CanardSample *fading = nullptr;
+	sampleread::Declick<2> fadeOld[3];
 	dsp::SchmittTrigger trigTrigger;
 	dsp::SchmittTrigger gateTrigger;
 	dsp::SchmittTrigger recordTrigger;
@@ -196,7 +204,7 @@ struct CANARD : BidooModule {
 		configParam(SAMPLE_START_PARAM, 0.0f, 10.0f, 0.0f, "Start", "%", 0.f, 10.f);
 		configParam(LOOP_LENGTH_PARAM, 0.0f, 10.0f, 10.0f, "Length", "%", 0.f, 10.f);
 		configSwitch(READ_MODE_PARAM, 0.0f, 2.0f, 0.0f, "Read mode", {"Once", "Loop", "Ping-pong"});
-		configParam(SPEED_PARAM, -4.0f, 4.0f, 0.0f, "Speed", "x", 2.f);
+		configParam(SPEED_PARAM, -4.0f, 4.0f, 0.0f, "Tune", " semitones", 0.f, 12.f);
 		configParam(FADE_PARAM, 0.0f, 10.0f, 0.0f, "Fade", "%", 0.f, 5.f);
 		configParam(SLICE_PARAM, 0.0f, 10.0f, 0.0f, "Slice");
 		configButton(CLEAR_PARAM, "Clear the sample");
@@ -209,7 +217,7 @@ struct CANARD : BidooModule {
 		configInput(SAMPLE_START_INPUT, "Start CV");
 		configInput(LOOP_LENGTH_INPUT, "Length CV");
 		configInput(READ_MODE_INPUT, "Read mode CV");
-		configInput(SPEED_INPUT, "Speed (1V/oct)");
+		configInput(SPEED_INPUT, "V/O: 1 V per octave, 0 V plays the sample at its own pitch (added to TUNE, 4 octaves up or down at most)");
 		configInput(RECORD_INPUT, "Record trigger");
 		configInput(FADE_INPUT, "Fade CV");
 		configInput(SLICE_INPUT, "Slice CV");
@@ -538,22 +546,57 @@ struct CANARD : BidooModule {
 	void process(const ProcessArgs &args) override;
 
 	// Takes a new sample from the worker, once it has freed the previous one.
-	void takePending() {
-		if (pendingSet.load(std::memory_order_acquire) && !retired.load(std::memory_order_acquire)) {
+	// The head jumps: it fades out from where it was, without cutting a tail already fading out
+	void jumpTail(double pos, float step, float gain, int len) {
+		if (gain == 0.f)
+			return;
+		if (dc.tailActive())
+			dc2 = dc;
+		dc.tail(pos, step, gain, len);
+	}
+
+	void takePending(int fadeLen = 0) {
+		if (pendingSet.load(std::memory_order_acquire) && !retired.load(std::memory_order_acquire) && !fading) {
 			CanardSample *s = pending.exchange(nullptr, std::memory_order_acq_rel);
-			retired.store(smp, std::memory_order_release);
+			if (fadeLen > 0 && smp && (play || dc.tailActive() || dc2.tailActive())) {
+				// Playing: the old sample's heads (the playing one and its tails) fade out from it while the new one fades in
+				fadeOld[0] = dc;
+				fadeOld[1] = dc2;
+				fadeOld[2].reset();
+				if (play)
+					fadeOld[2].tail(samplePos + lastStep, lastStep, lastGain, fadeLen);
+				fading = smp;
+			}
+			else
+				retired.store(smp, std::memory_order_release);
 			smp = s;
 			live.store(s, std::memory_order_release);
 			pendingSet = false;
 			totalSampleCount = smp ? smp->size() : 0;
+			dc.reset();  // their tails read the old sample: fadeOld took them
+			dc2.reset();
 			if (samplePos >= totalSampleCount)
 				play = false;
-			dc.reset();  // a tail would read the old sample
+			else if (play) {
+				dc.fadeIn(fadeLen);
+				regionJump = true;
+			}
+		}
+	}
+
+	// The old sample is retired once its heads are silent (and the worker took the one before)
+	void finishFading(bool now) {
+		if (fading && (now || (!fadeOld[0].tailActive() && !fadeOld[1].tailActive() && !fadeOld[2].tailActive())) && !retired.load(std::memory_order_acquire)) {
+			retired.store(fading, std::memory_order_release);
+			fading = nullptr;
+			for (auto &f : fadeOld)
+				f.reset();
 		}
 	}
 
 	// Bypassed: still takes the worker's samples, so it never waits.
 	void processBypass(const ProcessArgs &args) override {
+		finishFading(true);
 		takePending();
 		Module::processBypass(args);
 	}
@@ -677,20 +720,22 @@ struct CANARD : BidooModule {
 };
 
 void CANARD::process(const ProcessArgs &args) {
-	takePending();
 	const int fadeLen = sampleread::declickLength(args.sampleRate);
+	finishFading(false);
+	takePending(fadeLen);
 	// Declicked restarts and stops: the old head fades out over 2 ms while
 	// the new one fades in.
 	// (samplePos is where the last sample played: the old head goes on from
 	// one step further.)
 	auto restart = [&]() {
 		if (play)
-			dc.tail(samplePos + lastStep, lastStep, lastGain, fadeLen);
+			jumpTail(samplePos + lastStep, lastStep, lastGain, fadeLen);
 		dc.fadeIn(fadeLen);
+		regionJump = true;
 	};
 	auto stop = [&]() {
 		if (play)
-			dc.tail(samplePos + lastStep, lastStep, lastGain, fadeLen);
+			jumpTail(samplePos + lastStep, lastStep, lastGain, fadeLen);
 		play = false;
 	};
 	if (smp && smp->sampleRate != args.sampleRate && busy.load() == 0 && recDone.load() < 0 && reloadRate.load() == 0.f)
@@ -734,7 +779,8 @@ void CANARD::process(const ProcessArgs &args) {
 			ch->f[ch->used].samples[1] = (inputs[INR_INPUT].isConnected() ? inputs[INR_INPUT].getVoltage() : inputs[INL_INPUT].getVoltage()) * 0.2f;
 			ch->used++;
 		}
-		else {
+		// (none yet, right after the module was added: the recording waits for the worker's first chunk)
+		else if (recCount > 0) {
 			// Out of chunks (the worker fell behind or 90 minutes were reached).
 			recAppend = params[MODE_PARAM].getValue() == 1;
 			recRate = args.sampleRate;
@@ -746,7 +792,8 @@ void CANARD::process(const ProcessArgs &args) {
 
 	int trigMode = inputs[TRIG_INPUT].isConnected() ? 1 : (inputs[GATE_INPUT].isConnected() ? 2 : 0);
 	int readMode = clamp((int)std::round(inputs[READ_MODE_INPUT].getVoltage() + params[READ_MODE_PARAM].getValue()), 0, 2);
-	speed = dsp::exp2_taylor5(clamp(params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage(), -4.f, 4.f));
+	// V/O: exactly 1 V per octave on top of TUNE; 16x either way is the most the band-limited reading plays cleanly
+	speed = std::exp2(clamp(params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage(), -4.f, 4.f));
 	calcLoop();
 
 	bool trig = trigTrigger.process(inputs[TRIG_INPUT].getVoltage(), 0.1f, 1.f);
@@ -792,6 +839,16 @@ void CANARD::process(const ProcessArgs &args) {
 		stop();
 
 	float step = 0.f;
+	// A real jump (more than a few frames, and not while the last one still fades in) is declicked; a region that
+	// glides past the head (an LFO on START) carries it along, which is continuous
+	const bool forward = (reverse ? -1.f : 1.f) * direction > 0.f;
+	const double behind = forward ? sampleStart - samplePos : samplePos - end;
+	if (advance && behind > 8.0 && dc.in >= 1.f) {
+		jumpTail(samplePos + lastStep, lastStep, lastGain, fadeLen);
+		samplePos = std::min(std::max(samplePos, (double)sampleStart), (double)end);
+		dc.fadeIn(fadeLen);
+		regionJump = true;
+	}
 	if (advance) {
 		// Forward, or backward with reverse; ping-pong flips the direction.
 		float dir = (reverse ? -1.f : 1.f) * direction;
@@ -805,9 +862,10 @@ void CANARD::process(const ProcessArgs &args) {
 			}
 			else if (readMode == 1) {
 				// The loop jump: the old head goes on, fading out.
-				dc.tail(samplePos, step, lastGain, fadeLen);
+				jumpTail(samplePos, step, lastGain, fadeLen);
 				initPos();
 				dc.fadeIn(fadeLen);
+				regionJump = true;
 			}
 			else {
 				direction = -direction;
@@ -822,12 +880,19 @@ void CANARD::process(const ProcessArgs &args) {
 	float acc[2] = {0.f, 0.f};
 	if (play && smp && totalSampleCount > 1) {
 		float fade = dc.nextIn();
+		float rg = 1.f;
 		if (fadeLenght >= 1.0f) {
 			if ((samplePos - sampleStart) < fadeLenght)
-				fade *= (float)(samplePos - sampleStart) / fadeLenght;
+				rg = (float)(samplePos - sampleStart) / fadeLenght;
 			else if ((end - samplePos) < fadeLenght)
-				fade *= (float)(end - samplePos) / fadeLenght;
+				rg = (float)(end - samplePos) / fadeLenght;
 		}
+		if (regionJump)
+			regionGain = rg;
+		else
+			regionGain += clamp(rg - regionGain, -1.f / fadeLen, 1.f / fadeLen);
+		regionJump = false;
+		fade *= regionGain;
 		if (readMode == 0 && !scrub) {
 			// Played once: at least 2 ms of fade before the end it stops at.
 			float dir = (reverse ? -1.f : 1.f) * direction;
@@ -847,6 +912,12 @@ void CANARD::process(const ProcessArgs &args) {
 	if (smp && totalSampleCount > 1) {
 		const sampleread::View<2> view{(const float *)smp->frames.data(), totalSampleCount, smp->mip.get()};
 		dc.addTail(view, acc);
+		dc2.addTail(view, acc);
+	}
+	if (fading && fading->size() > 1) {
+		const sampleread::View<2> old{(const float *)fading->frames.data(), fading->size(), fading->mip.get()};
+		for (auto &f : fadeOld)
+			f.addTail(old, acc);
 	}
 	float outL = acc[0] * 5.0f, outR = acc[1] * 5.0f;
 	outputs[OUTL_OUTPUT].setVoltage(canardSoftLimit(outL));
