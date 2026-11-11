@@ -32,8 +32,11 @@ constexpr int kNumDivisions = (int)(sizeof(kDivisions) / sizeof(kDivisions[0]));
 
 enum Direction { FORWARD, REVERSE, PINGPONG, RANDOM };
 inline const char *const kDirectionNames[] = {"Forward", "Reverse", "Ping-pong", "Random"};
-inline const float kIntervals[] = {12.f, 7.f, -12.f};
-inline const char *const kIntervalNames[] = {"+12", "+7", "-12"};
+// The shimmer's intervals, upwards, as REI's (Prism): the last two stack two intervals, one on each side
+inline const char *const kIntervalNames[] = {"+4TH", "+5TH", "+OCT", "+OCT+5", "+2OCT", "+OCT/+5TH", "+OCT/+2OCT"};
+inline const float kIntervalL[] = {5.f, 7.f, 12.f, 19.f, 24.f, 12.f, 12.f};
+inline const float kIntervalR[] = {5.f, 7.f, 12.f, 19.f, 24.f, 7.f, 24.f};
+constexpr int kNumIntervals = 7;
 inline const char *const kDetuneQuantNames[] = {"Free", "Octaves", "Fifths and octaves"};
 
 // The sound the grains read: a ring when it records, the file as it was loaded otherwise. Volts / 5.
@@ -137,7 +140,7 @@ struct Controls {
 	float room = 0.6f;
 	float tone = 0.6f;
 	float shimmer = 0.f;     // 0..1
-	int interval = 0;        // kIntervals
+	int interval = 2;        // kIntervalNames (+OCT)
 	float mix = 0.3f;        // 0 grains .. 1 reverb
 	float level = 1.f;
 };
@@ -192,6 +195,7 @@ public:
 		recStep = 1.f / (float)(0.005 * sr);
 		fadeLen = std::max(16, (int)(0.003 * sr));
 		wetRelease = std::exp(-1.f / (float)(0.3 * sr));
+		decayCoef = 1.0 - std::exp(-(double)kBlock / (0.2 * sr));
 		gainCoef = 1.f - std::exp(-1.f / (float)(0.02 * sr));
 		mixCoef = 1.f - std::exp(-1.f / (float)(0.005 * sr));
 		lastPpq = -1.0;
@@ -303,9 +307,9 @@ public:
 
 		// ---- reverb, the shimmer in its loop (the last block's wet, pitched, back into it)
 		float revL[kBlock], revR[kBlock], wetL[kBlock], wetR[kBlock];
-		const float semis = kIntervals[std::clamp(c.interval, 0, 2)];
-		shift[0].setSemitones(semis);
-		shift[1].setSemitones(semis);
+		const int iv = std::clamp(c.interval, 0, kNumIntervals - 1);
+		shift[0].setSemitones(kIntervalL[iv]);
+		shift[1].setSemitones(kIntervalR[iv]);
 		// the loop's gain falls as the decay grows (a long tail already holds more of the past), and what goes
 		// back in ducks when the wet gets loud, so the shimmer can't run away
 		const float amount = 0.6f * std::clamp(c.shimmer, 0.f, 1.f) * std::sqrt(3.f / std::max(3.f, c.decay));
@@ -323,7 +327,10 @@ public:
 			revR[i] = dryR[i] + std::tanh(sr2 * shimmerNow * duck);
 		}
 		bidoo::dsp::reverb::FdnReverbParams p;
-		p.rt60 = std::clamp((double)c.decay, 0.1, 30.0);
+		// DECAY glides (about 200 ms, on a log scale): a jump of the reverb time jumped the tail's level
+		const double decayTarget = std::log(std::clamp((double)c.decay, 0.1, 30.0));
+		decayLog = decayLog < -50.0 ? decayTarget : decayLog + decayCoef * (decayTarget - decayLog);
+		p.rt60 = std::exp(decayLog);
 		p.size = c.room;
 		p.brightness = c.tone;
 		p.width = 1.0;
@@ -517,6 +524,7 @@ private:
 	bidoo::dsp::GranularPitchShifter shift[2];
 	float lastWetL[kBlock] = {}, lastWetR[kBlock] = {};
 	float shimmerNow = 0.f, wetEnv = 0.f, wetRelease = 0.9999f;
+	double decayLog = -100.0, decayCoef = 0.01;   // per block
 	bool shimmerOn = false;
 	float mixNow = 0.3f, levelNow = 1.f, mixCoef = 0.01f;
 };

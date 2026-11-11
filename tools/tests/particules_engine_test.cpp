@@ -230,6 +230,23 @@ static float burstPeak(float shimmer) {
 
 // Shimmer at the top, the longest decay: a burst, then silence for 20 s: the tail must not grow
 static void shimmerBounded() {
+	for (int iv = 0; iv < kNumIntervals; iv++) {
+		Run r;
+		r.c.shimmer = 1.f;
+		r.c.interval = iv;
+		r.c.decay = 30.f;
+		r.c.mix = 1.f;
+		r.c.rate = 40.f;
+		r.c.size = 0.1f;
+		r.go(2.0);
+		r.c.rate = 0.05f;
+		r.c.record = false;
+		r.amp = 0.f;
+		r.go(14.0);
+		const size_t s = (size_t)SR;
+		const float early = r.peak(3 * s, 6 * s), late = r.peak(12 * s, 16 * s);
+		CHECK(std::isfinite(late) && late <= early * 1.5f + 1e-3f, "interval %s: the tail does not grow: %.3f then %.3f", kIntervalNames[iv], early, late);
+	}
 	Run r;
 	r.c.shimmer = 1.f;
 	r.c.decay = 30.f;

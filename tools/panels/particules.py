@@ -1,5 +1,7 @@
-# pARtiCuLeS's panel (32 HP). The picture: a cloud of particles swirling out of a bright core, specks and streaks that
-# run off every edge, lightly mangled. An original drawing. Everything sits on the grid, as src/PARTICULES.cpp places it.
+# pARtiCuLeS's panel (32 HP). The picture: a particle collision as a detector shows it: tracks curling out of the vertex
+# (tight spirals, wide arcs, a few straight jets), the detector's segmented rings with the hits on them and calorimeter
+# towers outside, larger than the panel so that it runs off every edge. An original drawing, lightly mangled.
+# Everything sits on the grid, as src/PARTICULES.cpp places it.
 import math
 import panel_kit as k
 
@@ -17,38 +19,83 @@ LABEL_ABOVE = 20                    # knob and button labels: centred between th
                                     # the knob above (three rows 46 apart; the theme's 22 sat on the knob above)
 
 def build():
-    p = k.Picture(1911, W)
+    p = k.Picture(1912, W)
     R = p.R
     H = k.H
     def P(x, y):
         return (x * K, y * K)
-    def speck(x, y, r, n=7):
-        a = R.uniform(0, 6.28)
-        p.add([P(x + r * (1 + R.uniform(-.25, .25)) * math.cos(a + 2 * math.pi * i / n),
-                 y + r * (1 + R.uniform(-.25, .25)) * math.sin(a + 2 * math.pi * i / n)) for i in range(n)])
-    def streak(x, y, ang, length, w):
-        dx, dy = math.cos(ang), math.sin(ang)
-        p.add([P(x - dy * w, y + dx * w), P(x + dx * length - dy * w * .2, y + dy * length + dx * w * .2),
-               P(x + dx * length + dy * w * .2, y + dy * length - dx * w * .2), P(x + dy * w, y - dx * w)])
-    # a spiral cloud in px around a core left of centre, larger than the panel so that it runs off every edge
-    cx, cy = PW * .38, 190
-    for j in range(900):
-        t = R.uniform(0, 1) ** .7
-        arm = R.randint(0, 2)
-        ang = arm * 2.094 + t * 7.5 + R.gauss(0, .35)
-        rad = 6 + t * 520
-        x, y = cx + rad * math.cos(ang), cy + .62 * rad * math.sin(ang)
-        if -20 < x < PW + 20 and -20 < y < 400:
-            r = max(.5, R.gauss(1.5 - t, .5))
-            if R.random() < .14:
-                streak(x, y, ang + 1.57, 4 + 10 * t * R.random(), r * .6)
-            else:
-                speck(x, y, r)
-    # the core: a few rings of larger specks
-    for j in range(40):
-        a = R.uniform(0, 6.28)
-        rr = R.uniform(2, 14)
-        speck(cx + rr * math.cos(a), cy + .7 * rr * math.sin(a), R.uniform(1.2, 2.6))
+    def line(pts, w):
+        # a polyline in px as a ribbon w px wide
+        left, right = [], []
+        for i, (x, y) in enumerate(pts):
+            a = pts[max(0, i - 1)]
+            b = pts[min(len(pts) - 1, i + 1)]
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            n = math.hypot(dx, dy) or 1.0
+            nx, ny = -dy / n * w / 2, dx / n * w / 2
+            left.append(P(x + nx, y + ny))
+            right.append(P(x - nx, y - ny))
+        p.add(left + right[::-1])
+    def dot(x, y, r, n=8):
+        p.add([P(x + r * math.cos(2 * math.pi * i / n), y + r * math.sin(2 * math.pi * i / n)) for i in range(n)])
+    cx, cy = PW * .42, 172           # the vertex, in px
+    # the detector: rings in segments, larger than the panel
+    rings = [38, 74, 118, 176, 250, 340]
+    for rr in rings:
+        n = int(rr * .9)
+        i = 0
+        a0 = R.uniform(0, 6.28)
+        while i < n:
+            run = R.randint(4, 10)
+            pts = [(cx + rr * math.cos(a0 + 2 * math.pi * (i + j) / n), cy + rr * math.sin(a0 + 2 * math.pi * (i + j) / n)) for j in range(run + 1)]
+            line(pts, .55 if rr < 200 else .8)
+            i += run + 1
+    # calorimeter towers outside the last ring
+    for j in range(140):
+        a = 2 * math.pi * j / 140
+        e = R.random() ** 3 * 60
+        if e < 3:
+            continue
+        r0 = 352
+        w = 2 * math.pi * r0 / 140 * .7
+        c, s_ = math.cos(a), math.sin(a)
+        p.add([P(cx + r0 * c - s_ * w / 2, cy + r0 * s_ + c * w / 2), P(cx + (r0 + e) * c - s_ * w / 2, cy + (r0 + e) * s_ + c * w / 2),
+               P(cx + (r0 + e) * c + s_ * w / 2, cy + (r0 + e) * s_ - c * w / 2), P(cx + r0 * c + s_ * w / 2, cy + r0 * s_ - c * w / 2)])
+    # tracks: arcs of a circle through the vertex (charge, momentum), some curling in a tightening spiral
+    def track(a0, radius, sign, length, curl):
+        pts = []
+        x, y, a = cx, cy, a0
+        step = 3.0
+        rad = radius
+        dist = 0.0
+        hit = 0
+        while dist < length:
+            x += step * math.cos(a)
+            y += step * math.sin(a)
+            a += sign * step / rad
+            if curl:
+                rad = max(4.0, rad * .985)
+            dist += step
+            pts.append((x, y))
+            d = math.hypot(x - cx, y - cy)
+            if hit < len(rings) and d >= rings[hit]:
+                dot(x, y, 1.3)
+                hit += 1
+        line([(cx, cy)] + pts, .7)
+    for j in range(46):
+        a0 = R.uniform(0, 2 * math.pi)
+        kind = R.random()
+        if kind < .2:
+            track(a0, R.uniform(20, 60), R.choice((-1, 1)), R.uniform(150, 420), True)
+        elif kind < .85:
+            track(a0, R.uniform(90, 900), R.choice((-1, 1)), R.uniform(160, 520), False)
+        else:
+            track(a0, 1e5, 1, 640, False)       # a straight, hard track: out through every ring and the panel
+    # two jets: bunches of near-straight tracks
+    for ja in (R.uniform(0, 3.14), R.uniform(3.14, 6.28)):
+        for j in range(9):
+            track(ja + R.gauss(0, .06), R.uniform(1500, 6000), R.choice((-1, 1)), R.uniform(420, 600), False)
+    dot(cx, cy, 3.2, 12)
     p.slices(1.3, 8, [0, 0, .4, -.6, .9, -1.2, 1.6])
 
     def warp(X, Y):

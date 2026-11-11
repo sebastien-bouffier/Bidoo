@@ -162,7 +162,8 @@ struct PARTICULES : BidooModule {
 		configParam(ROOM_PARAM, 0.f, 1.f, 0.6f, "Reverb room size", "%", 0.f, 100.f);
 		configParam(TONE_PARAM, 0.f, 1.f, 0.6f, "Reverb tone (dark to bright)", "%", 0.f, 100.f);
 		configParam(SHIMMER_PARAM, 0.f, 1.f, 0.f, "Shimmer", "%", 0.f, 100.f);
-		configSwitch(INTERVAL_PARAM, 0.f, 2.f, 0.f, "Shimmer interval", {"+12", "+7", "-12"});
+		configSwitch(INTERVAL_PARAM, 0.f, particules::kNumIntervals - 1, 2.f, "Shimmer interval",
+			std::vector<std::string>(particules::kIntervalNames, particules::kIntervalNames + particules::kNumIntervals));
 		configParam(MIX_PARAM, 0.f, 1.f, 0.3f, "Reverb mix", "%", 0.f, 100.f);
 		configParam(LEVEL_PARAM, 0.f, 2.f, 1.f, "Level", " dB", -10.f, 20.f);
 		configInput(POSITION_INPUT, "Position CV (10 V = the whole buffer)");
@@ -268,7 +269,7 @@ struct PARTICULES : BidooModule {
 		c.room = params[ROOM_PARAM].getValue();
 		c.tone = params[TONE_PARAM].getValue();
 		c.shimmer = params[SHIMMER_PARAM].getValue();
-		c.interval = clamp((int)std::round(params[INTERVAL_PARAM].getValue()), 0, 2);
+		c.interval = clamp((int)std::round(params[INTERVAL_PARAM].getValue()), 0, particules::kNumIntervals - 1);
 		c.mix = clamp(params[MIX_PARAM].getValue() + cv(MIX_INPUT, 0.1f), 0.f, 1.f);
 		c.level = params[LEVEL_PARAM].getValue();
 		if (c.record)
