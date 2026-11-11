@@ -92,6 +92,9 @@ struct OUAIVE : BidooModule {
 	float scrubPos = 0.f;     // gate mode with a position CV: the CV, smoothed
 	sampleread::Declick<2> dc;
 	float lastStep = 0.f, lastGain = 0.f;  // of the last sample played
+	// A sample replaced while it plays: kept until its heads (the playing one, a tail) have faded out, then retired
+	OuaiveSample *fading = nullptr;
+	sampleread::Declick<2> fadeOld[2];
 	double lastPos = 0.0;
 
 	// Audio thread: the sample it plays. The worker loads new ones into
@@ -124,13 +127,13 @@ struct OUAIVE : BidooModule {
 		configParam(NB_SLICES_PARAM, 1.0f, 128.0f, 1.0f, "Slices");
 		paramQuantities[NB_SLICES_PARAM]->snapEnabled = true;
 		configParam(CVSLICES_PARAM, -1.0f, 1.0f, 0.0f, "Slices CV amount", "%", 0.f, 100.f);
-		configParam(SPEED_PARAM, -4.0f, 4.0f, 0.0f, "Speed", "x", 2.0f);
-		configParam(CVSPEED_PARAM, -1.0f, 1.0f, 0.0f, "Speed CV amount (100% = 1V/oct)", "%", 0.f, 100.f);
+		configParam(SPEED_PARAM, -4.0f, 4.0f, 0.0f, "Tune", " semitones", 0.f, 12.f);
+		configParam(CVSPEED_PARAM, -1.0f / 12.0f, 1.0f / 12.0f, 0.0f, "Fine tune", " cents", 0.f, 1200.f);
 		configInput(GATE_INPUT, "Trigger / gate");
 		configInput(POS_INPUT, "Position (0-10 V = start-end, or the slice)");
 		configInput(NB_SLICES_INPUT, "Slices CV");
 		configInput(READ_MODE_INPUT, "Read mode (0, 5, 10 V)");
-		configInput(SPEED_INPUT, "Speed CV (1V/oct)");
+		configInput(SPEED_INPUT, "V/O: 1 V per octave, 0 V plays the sample at its own pitch (added to the tunings, 4 octaves up or down at most)");
 		configInput(POS_RESET_INPUT, "Position reset");
 		configOutput(OUTL_OUTPUT, "Left");
 		configOutput(OUTR_OUTPUT, "Right");
@@ -148,6 +151,7 @@ struct OUAIVE : BidooModule {
 			worker.join();
 		delete pending.load();
 		delete retired.load();
+		delete fading;
 		delete sample;
 	}
 
@@ -217,11 +221,19 @@ struct OUAIVE : BidooModule {
 	void process(const ProcessArgs &args) override;
 
 	// Takes a newly loaded sample, once the worker has freed the previous one.
-	void takePending() {
-		if (pending.load(std::memory_order_relaxed) && !retired.load(std::memory_order_acquire)) {
+	void takePending(int fadeLen = 0) {
+		if (pending.load(std::memory_order_relaxed) && !retired.load(std::memory_order_acquire) && !fading) {
 			OuaiveSample *s = pending.exchange(nullptr, std::memory_order_acq_rel);
 			if (s) {
-				retired.store(sample, std::memory_order_release);
+				if (fadeLen > 0 && sample && (play || dc.tailActive())) {
+					fadeOld[0] = dc;
+					fadeOld[1].reset();
+					if (play)
+						fadeOld[1].tail(samplePos, lastStep, lastGain, fadeLen);
+					fading = sample;
+				}
+				else
+					retired.store(sample, std::memory_order_release);
 				sample = s;
 				samplePos = 0.f;
 				play = false;
@@ -230,8 +242,19 @@ struct OUAIVE : BidooModule {
 		}
 	}
 
+	// The old sample is retired once its heads are silent (and the worker freed the one before)
+	void finishFading(bool now) {
+		if (fading && (now || (!fadeOld[0].tailActive() && !fadeOld[1].tailActive())) && !retired.load(std::memory_order_acquire)) {
+			retired.store(fading, std::memory_order_release);
+			fading = nullptr;
+			fadeOld[0].reset();
+			fadeOld[1].reset();
+		}
+	}
+
 	// Bypassed: still takes the loaded sample, so the loader never waits.
 	void processBypass(const ProcessArgs &args) override {
+		finishFading(true);
 		takePending();
 		Module::processBypass(args);
 	}
@@ -268,7 +291,8 @@ struct OUAIVE : BidooModule {
 };
 
 void OUAIVE::process(const ProcessArgs &args) {
-	takePending();
+	finishFading(false);
+	takePending(sampleread::declickLength(args.sampleRate));
 	// The engine rate changed: load the file again at the new rate.
 	if (sample && sample->count > 0 && sample->sampleRate != args.sampleRate && !loading)
 		reloadRate = args.sampleRate;
@@ -286,10 +310,12 @@ void OUAIVE::process(const ProcessArgs &args) {
 	else if (readModeTrigger.process(params[READ_MODE_PARAM].getValue()))
 		readMode = (readMode + 1) % 3;
 	nbSlices = clamp((int)std::round(params[NB_SLICES_PARAM].getValue() + params[CVSLICES_PARAM].getValue() * inputs[NB_SLICES_INPUT].getVoltage()), 1, 128);
-	float e = params[SPEED_PARAM].getValue() + params[CVSPEED_PARAM].getValue() * inputs[SPEED_INPUT].getVoltage();
+	// V/O: exactly 1 V per octave on top of the two tunings; 16x either way is the most the band-limited reading plays
+	// cleanly
+	float e = clamp(params[SPEED_PARAM].getValue() + params[CVSPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage(), -4.f, 4.f);
 	if (e != speedExp) {
 		speedExp = e;
-		speed = clamp(std::exp2(e), 1.f / 16.f, 16.f);
+		speed = std::exp2(e);
 	}
 	sliceLength = std::max(total / nbSlices, 1);
 
@@ -338,6 +364,13 @@ void OUAIVE::process(const ProcessArgs &args) {
 			}
 			else if (!gate)
 				stop();
+			if (play && std::fabs(target - scrubPos) > 0.02f * args.sampleRate && dc.in >= 1.f) {
+				// More than 20 ms of the sample away: the smoothing would sweep across it (a harsh scratch); the head
+				// jumps there instead, the old one fading out
+				dc.tail(samplePos, lastStep, lastGain, fadeLen);
+				scrubPos = target;
+				dc.fadeIn(fadeLen);
+			}
 			scrubPos += (target - scrubPos) * std::min(1.f, 200.f * args.sampleTime);
 			if (play)
 				samplePos = scrubPos;
@@ -358,6 +391,23 @@ void OUAIVE::process(const ProcessArgs &args) {
 
 	float acc[2] = {0.f, 0.f};
 	bool tailDone = false;
+	// The slice count changed under a playing slice: its bounds moved. A head past the new end stops (or wraps, in
+	// repeat), one left before the new start jumps to it; both fade over 2 ms instead of cutting
+	if (play && trigMode == 2 && total > 0 && sliceIndex >= 0) {
+		const float s0 = sliceIndex * sliceLength, s1 = std::min((float)((sliceIndex + 1) * sliceLength), (float)total);
+		const bool back = readMode == 1;
+		const bool past = back ? samplePos < s0 - 0.5 : samplePos > s1 + 0.5;
+		const bool before = back ? samplePos > s1 + 0.5 : samplePos < s0 - 0.5;
+		if (past && readMode == 0) {
+			dc.tail(samplePos, lastStep, lastGain, fadeLen);
+			play = false;
+		}
+		else if (past || before) {
+			dc.tail(samplePos, lastStep, lastGain, fadeLen);
+			samplePos = back ? s1 - 1.0 : s0;
+			dc.fadeIn(fadeLen);
+		}
+	}
 	if (play && total > 0 && samplePos >= 0 && samplePos < total) {
 		float step = scrub ? (float)(samplePos - lastPos) : ((readMode != 1) ? speed : -speed);
 		float g = dc.nextIn();
@@ -385,10 +435,11 @@ void OUAIVE::process(const ProcessArgs &args) {
 		if (!scrub) {
 			samplePos += step;
 			if (trigMode == 2) {
-				if (readMode == 0 && samplePos >= sliceEnd)
+				if ((readMode == 0 && samplePos >= sliceEnd) || (readMode == 1 && samplePos < sliceStart)) {
+					// At its end the gain is already 0 and this does nothing
+					dc.tail(samplePos, step, g, fadeLen);
 					play = false;
-				else if (readMode == 1 && samplePos < sliceStart)
-					play = false;
+				}
 				else if (readMode == 2 && samplePos >= sliceEnd) {
 					dc.tail(samplePos, step, g, fadeLen);
 					samplePos = sliceStart;
@@ -396,10 +447,10 @@ void OUAIVE::process(const ProcessArgs &args) {
 				}
 			}
 			else {
-				if (readMode == 0 && samplePos >= total)
+				if ((readMode == 0 && samplePos >= total) || (readMode == 1 && samplePos < 0)) {
+					dc.tail(samplePos, step, g, fadeLen);
 					play = false;
-				else if (readMode == 1 && samplePos < 0)
-					play = false;
+				}
 				else if (readMode == 2 && samplePos >= total) {
 					dc.tail(samplePos, step, g, fadeLen);
 					samplePos = inputs[POS_INPUT].isConnected() ? posCv * (total - 1.0f) : 0.0f;
@@ -413,6 +464,11 @@ void OUAIVE::process(const ProcessArgs &args) {
 	lastPos = samplePos;
 	if (sample && !tailDone)
 		dc.addTail(view, acc);
+	if (fading && fading->count > 1) {
+		const sampleread::View<2> old{(const float *)fading->frames.data(), fading->count, &fading->mip};
+		fadeOld[0].addTail(old, acc);
+		fadeOld[1].addTail(old, acc);
+	}
 	float l = acc[0], r = acc[1];
 	if (sample && sample->channels >= 2 && !(outputs[OUTL_OUTPUT].isConnected() && outputs[OUTR_OUTPUT].isConnected()))
 		l = r = 0.5f * (l + r);
