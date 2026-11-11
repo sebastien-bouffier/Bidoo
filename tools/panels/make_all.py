@@ -6,9 +6,9 @@
 import os, sys
 sys.dont_write_bytecode = True
 import panel_kit as k
-import acide, copia, dose, filtre, registre, ricochet, saison, sounaire
+import acide, copia, dose, filtre, particules, registre, ricochet, saison, sounaire
 
-PANELS = (('SAISON.svg', saison), ('ACIDE.svg', acide), ('FILTRE.svg', filtre), ('COPIA.svg', copia), ('SOUNAIRE.svg', sounaire), ('RICOCHET.svg', ricochet), ('DOSE.svg', dose), ('REGISTRE.svg', registre))
+PANELS = (('SAISON.svg', saison), ('ACIDE.svg', acide), ('FILTRE.svg', filtre), ('COPIA.svg', copia), ('SOUNAIRE.svg', sounaire), ('RICOCHET.svg', ricochet), ('DOSE.svg', dose), ('REGISTRE.svg', registre), ('PARTICULES.svg', particules))
 
 NEAR = (0.05, 6.0)   # closer than this is the same line; farther is a different one
 

@@ -65,6 +65,7 @@ extern Model *modelACIDE;
 extern Model *modelRICOCHET;
 extern Model *modelDOSE;
 extern Model *modelREGISTRE;
+extern Model *modelPARTICULES;
 extern Model *modelMU;
 extern Model *modelSIGMA;
 extern Model *modelRABBIT;

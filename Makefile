@@ -27,3 +27,4 @@ build/src/FiltreEngine.cpp.o: CXXFLAGS += -std=c++20 -Isrc/dep/bidoo-dsp
 
 # rICOcHEt: bidoo-dsp headers (delay/WowFlutter.h) include from the library root
 build/src/RICOCHET.cpp.o: CXXFLAGS += -Isrc/dep/bidoo-dsp
+build/src/PARTICULES.cpp.o: CXXFLAGS += -Isrc/dep/bidoo-dsp

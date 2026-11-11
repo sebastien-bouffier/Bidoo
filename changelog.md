@@ -1,6 +1,7 @@
 ### v2.6.0 (not released yet)
-New module
+New modules
 - rEgIStRE: an indexed four-track sequencer (52 HP) played with the mouse and the keyboard. Each step holds two indices into its track's voltage tables (CV A, CV B; 100 entries from -5 to +10 V, built-in and user tables), a duration and a gate in clock pulses, smoothing and ratchet; up to 100 patterns per track; per-track clock divider and multiplier, gates or triggers; MATH (random, multiply, jitter, add, quantize) on a selection, pattern, track or part loop, reverse and rotate of one row; parts with loops and reset steps, cued by PART and GO at the end of a loop; 16 groups of steps (Euclidean selection, their own MATH, HIGH and LOW transforms switched by the X, Y and Z gates as steps play, slopes adding the X, Y and Z CVs); real-time, step and alter recording with punch in and out; RESET at once or at the end of a step, pattern or loop; HOLD and COMMIT; 16 named snapshots; MIDI file import; TRANSP input; polyphonic outputs; exact timing in whole pulses and samples; every edit undoable
+- pARtiCuLeS: a granular player (32 HP). Grains from a stereo buffer, the live input recorded without end (20 s) or a loaded sample (WAV, AIFF, FLAC), up to 64 at once: POSITION, SPRAY and SCAN for where they come from, SIZE (1 ms to 2 s), free running (RATE, CHAOS from regular to random, RATE at 0 for TRIG only), on a clock (19 divisions with dotted and triplets, CHAOS skipping divisions) or on TRIG, COUNT grains at a time; each with its envelope (SHAPE from percussive to reversed, SOFT), pitch (TUNE, polyphonic V/O taken in turn, DETUNE free or on octaves and fifths), direction (forward, reverse, ping-pong, random) and pan (WIDTH); a 16-line reverb (DECAY, ROOM, TONE) with a shimmer at +12, +7 or -12 that cannot run away; FREEZE holds the buffer and the tail; GRAIN and ENV outputs; the buffer kept with the patch
 Improvements
 - sOUNAiRe, cANARd, OUAIve, eDsaroS, cOPIA: their screens drawn one way (src/WaveStyle.hpp): the waveform in hot pink where it plays (between start and end, the playing slice, the loop) and dimmed pink elsewhere, the loop shaded pink, start, end, loop points and cuts as yellow bars, and play heads as electric blue bars added onto the waveform, which they light up. sOUNAiRe's heads fade with their voice and its blue waveform stays a menu choice
 - cOPIA: the screen shows what CAPTURE would take when there is no loop or a capture is armed (the input written in place over LENGTH under an orange head, fading with age), the new loop drawing itself while it records (the old one dimmed after the head), and the remix as a cyan outline over the loop, fading over one turn
@@ -19,7 +20,7 @@ Fixes
 - baR: the top of RATIO is now ∞:1, a true limiter: with lookahead, no sample passes above threshold + make-up gain, single-sample clicks included (a peak catcher ramps the gain down within the lookahead). Before, about 2-3 dB of sharp attacks got through at 20:1 and 100 % lookahead. Lower ratios sound exactly as before
 
 ### v2.5.0 (10/11/2026)
-New module
+New modules
 - FiLTRe: all 71 filter types of the Potion synth (28 HP), the same code as Potion: low, high, band, notch, shelves, morphing, dual, combs, phasers, formants, ring mod, downsample, diffuser, reverb. TYPE, CUTOFF, RES, DRIVE, MORPH and MIX with attenuverters and CV; stereo, up to 16 voices. The screen shows the spectrum of the output, the input behind it, and the measured curve of the selected filter with the current settings
 - aCiDe: a mono acid bass voice (10 HP): saw or square, a diode ladder modelled from published analyses of the circuit, filter and volume envelopes, accent with its build-up, slide and VCA. V/OCT, GATE, ACCENT, SLIDE, CV on CUTOFF, RES, ENV MOD and DECAY. Plays directly from zOù MAï: GATE and V/O, CV1 for accent, CV2 for slide
 - sAiSOn: a pattern launcher with 16 slots (20 HP), HUITre in two columns; slot n selects pattern n on zOù MAï, enCORE, dTrOY, bordL and ratEaU
@@ -65,7 +66,7 @@ Fixes
 - zOù MAï, enCORE: random notes reach all 12 semitones (B never came up) and stay in the track's root and scale when it has one; random Val. and Base 1-100 (were 0-99); random track length up to 64 (was 63); full random speed over the whole range (was x1-x3); enCORE: random length and pulse distance over their whole range (length 0 no longer drawn)
 
 ### v2.4.0 (07/11/2026)
-New module
+New modules
 - cOPIA: a live resampler (34 HP) on the glitch engine of the Bidoo Mangle plugin. CAPTURE records 1 to 8 bars of the input from the next bar of the clock, then replays them through eight glitch slots (Repeat, Reverser, Slicer, Gate, Tape, Grain, Crush, Drive, Filter, Delay, Ring, Flanger, Phaser, Filter Pattern, Reactor) with lanes drawn on the display; eight scenes with pads, SCENE CV and a morph; PUNCH knobs; a new capture takes over on its bar without a gap; mix, remix, BAR, REC and LANES outputs; the loop is kept in the patch as FLAC
 Fixes
 - PILOT: the first move after loading a patch (or adding the module) no longer skips a scene: it goes to the top scene (or back to the bottom one when MORPH sits at the top)
@@ -94,7 +95,7 @@ Fixes
 - Themes: Blue and Green removed (Light, Dark, Black); sOUNAiRe has a single look and no Theme menu
 
 ### v2.2.0 (05/11/2026)
-New module
+New modules
 - sOUNAiRe: a 16-voice sampler (32 HP). KEYS mode plays one sample over a key range with loops and crossfades, reverse, legato, a multimode filter and Signalsmith time-stretch; SLICES mode cuts a loop at its transients (drums or tonal detector) and plays one slice per key or per trigger (TRIG, SLICE, RESET), each slice with its own play type, choke group, level, tune, pan and envelope. Clock sync, recording from its inputs, zoomable display with undo for the cuts, WAV export, sample kept in the patch as FLAC
 
 Sequencers and clocks

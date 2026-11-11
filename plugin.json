@@ -411,6 +411,18 @@
       ]
     },
     {
+      "slug": "PARTICULES",
+      "name": "pARtiCuLeS",
+      "description": "Granular player: grains from a live or loaded buffer, free or clocked, shaped, pitched by V/O, through a shimmer reverb",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki#particules",
+      "tags": [
+        "Granular",
+        "Sampler",
+        "Reverb",
+        "Polyphonic"
+      ]
+    },
+    {
       "slug": "HCTIP",
       "name": "HCTIP",
       "description": "Pitch shifter",
