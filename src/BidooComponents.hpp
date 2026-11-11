@@ -6,6 +6,7 @@
 #include "widget/Widget.hpp"
 #include <iostream>
 #include "BidooTheme.hpp"
+#include "WaveStyle.hpp"
 
 using namespace std;
 

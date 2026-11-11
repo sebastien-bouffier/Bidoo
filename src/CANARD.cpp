@@ -999,15 +999,19 @@ struct CANARDDisplay : OpaqueWidget {
 		OpaqueWidget::onDragEnd(e);
 	}
 
-	void drawWave(const DrawArgs& args, const CanardSample &s, int c, float top) {
+	void drawWave(const DrawArgs& args, const CanardSample &s, int c, float top, float activeX0, float activeX1) {
 		Rect b = Rect(Vec(zoomLeftAnchor, top), Vec(zoomWidth, height));
 		nvgScissor(args.vg, 0, b.pos.y, width, height);
 		// filled: one column per pixel, from its lowest to its highest value; from the overview when
 		// a pixel covers more than one of its bins, from the frames when zoomed in
 		const int total = s.size(), bins = CanardSample::OVERVIEW;
 		const double perPixel = (double)total / b.size.x, binFrames = (double)total / bins;
+		// two passes: the part that plays in hot pink, the rest dimmed (src/WaveStyle.hpp)
+		for (int pass = 0; pass < 2; pass++) {
 		nvgBeginPath(args.vg);
 		for (int px = 0; px < (int)width; px++) {
+			if ((px >= activeX0 && px <= activeX1) != (pass == 0))
+				continue;
 			const double f0 = (px - b.pos.x) * perPixel, f1 = f0 + perPixel;
 			if (f1 <= 0.0 || f0 >= total)
 				continue;
@@ -1026,13 +1030,10 @@ struct CANARDDisplay : OpaqueWidget {
 					hi = std::max(hi, s.frames[j].samples[c]);
 				}
 			}
-			const float yHi = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(hi, -1.f, 1.f));
-			const float yLo = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(lo, -1.f, 1.f));
-			nvgRect(args.vg, px, yHi, 1.f, std::max(yLo - yHi, 1.f));
+			wavestyle::column(args.vg, px, lo, hi, b.pos.y + b.size.y * 0.5f, b.size.y * 0.5f);
 		}
-		nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-		nvgFillColor(args.vg, PINK_BIDOO);
-		nvgFill(args.vg);
+		wavestyle::fill(args.vg, pass == 0);
+		}
 	}
 
 	void drawLayer(const DrawArgs& args, int layer) override {
@@ -1042,15 +1043,6 @@ struct CANARDDisplay : OpaqueWidget {
 			if (s && nbSample > 0) {
 				auto px = [&](float idx) { return idx * zoomWidth / nbSample + zoomLeftAnchor; };
 				nvgScissor(args.vg, 0, 0, width, 2*height+10);
-
-				// Play line
-				nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
-				nvgBeginPath(args.vg);
-				nvgStrokeWidth(args.vg, 2);
-				nvgMoveTo(args.vg, px(module->samplePos), 0);
-				nvgLineTo(args.vg, px(module->samplePos), 2*height+10);
-				nvgClosePath(args.vg);
-				nvgStroke(args.vg);
 
 				// Ref lines
 				nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
@@ -1066,8 +1058,8 @@ struct CANARDDisplay : OpaqueWidget {
 				nvgClosePath(args.vg);
 				nvgStroke(args.vg);
 
-				// Loop
-				nvgFillColor(args.vg, nvgRGBA(255, 255, 255, 60));
+				// The loop, its fades as slopes, in the samplers' loop pink
+				nvgFillColor(args.vg, wavestyle::kLoop);
 				nvgBeginPath(args.vg);
 				nvgMoveTo(args.vg, px(module->sampleStart + module->fadeLenght), 0);
 				nvgLineTo(args.vg, px(module->sampleStart), 2*height+10);
@@ -1090,25 +1082,22 @@ struct CANARDDisplay : OpaqueWidget {
 					nvgStroke(args.vg);
 				}
 
-				// Waveform
+				// Waveform: hot pink over the part that plays
+				const float playX0 = px(module->sampleStart), playX1 = px(module->sampleStart + module->loopLength);
 				nvgSave(args.vg);
-				nvgStrokeColor(args.vg, PINK_BIDOO);
-				drawWave(args, *s, 0, 0);
-				drawWave(args, *s, 1, height + 10);
+				drawWave(args, *s, 0, 0, playX0, playX1);
+				drawWave(args, *s, 1, height + 10, playX0, playX1);
 				nvgRestore(args.vg);
+				// START and END of the part that plays
+				wavestyle::bar(args.vg, playX0, 0, 2*height+10, 1);
+				wavestyle::bar(args.vg, playX1, 0, 2*height+10, -1);
 
 				// Slices
-				if (sliceMode) {
-					for (int x : s->slices) {
-						nvgStrokeColor(args.vg, x != module->deleteSliceMarker ? YELLOW_BIDOO : RED_BIDOO);
-						nvgStrokeWidth(args.vg, 1);
-						nvgBeginPath(args.vg);
-						nvgMoveTo(args.vg, px(x), 0);
-						nvgLineTo(args.vg, px(x), 2*height+10);
-						nvgClosePath(args.vg);
-						nvgStroke(args.vg);
-					}
-				}
+				if (sliceMode)
+					for (int x : s->slices)
+						wavestyle::bar(args.vg, px(x), 0, 2*height+10, 0, x != module->deleteSliceMarker ? wavestyle::kBar : RED_BIDOO);
+				// the play head, on top: it lights up the pink under it
+				wavestyle::head(args.vg, px(module->samplePos), 0, 2*height+10);
 				nvgResetScissor(args.vg);
 			}
 		}

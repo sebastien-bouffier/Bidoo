@@ -371,7 +371,7 @@ struct SounaireDisplay : OpaqueWidget {
 			float x0 = posToX(std::min(ls, le)), x1 = posToX(std::max(ls, le));
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, x0, 14, x1 - x0, B - 14);
-			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? BLUE : theme::kWavePink, 0x40));
+			nvgFillColor(args.vg, module->waveBlue ? nvgTransRGBA(BLUE, 0x40) : wavestyle::kLoop);
 			nvgFill(args.vg);
 		}
 		// waveform, normalized as it plays: from the overview when a pixel
@@ -413,8 +413,10 @@ struct SounaireDisplay : OpaqueWidget {
 				hi = clamp(hi * norm, -1.f, 1.f);
 				nvgRect(args.vg, i, mid - hi * amp, 1.f, std::max(1.f, (hi - lo) * amp));
 			}
-			NVGcolor waveColor = module->waveBlue ? BLUE : theme::kWavePink;
-			nvgFillColor(args.vg, pass == 0 ? waveColor : nvgTransRGBA(waveColor, 0x55));
+			if (module->waveBlue)
+				nvgFillColor(args.vg, pass == 0 ? BLUE : nvgTransRGBA(BLUE, 0x55));
+			else
+				nvgFillColor(args.vg, pass == 0 ? wavestyle::kActive : wavestyle::kIdle);
 			nvgFill(args.vg);
 		}
 		// SLICES mode: the cuts, each slice numbered
@@ -466,37 +468,12 @@ struct SounaireDisplay : OpaqueWidget {
 	// start, end and, looping, the loop's two lines
 	void drawMarkers(const DrawArgs &args, float st, float en, float ls, float le, bool looping, float B) {
 		using namespace sounaire_ui;
-		const float se[2] = {st, en};
-		nvgBeginPath(args.vg);
-		for (float m : se) {
-			float x = posToX(m);
-			nvgMoveTo(args.vg, x, 14);
-			nvgLineTo(args.vg, x, B);
-		}
-		nvgStrokeColor(args.vg, theme::kScreenYellow);
-		nvgStrokeWidth(args.vg, 1.f);
-		nvgStroke(args.vg);
-		nvgBeginPath(args.vg);
-		for (int i = 0; i < 2; i++) {
-			float x = posToX(se[i]);
-			float dir = i == 0 ? 1.f : -1.f;
-			nvgMoveTo(args.vg, x, 14);
-			nvgLineTo(args.vg, x + 5 * dir, 14);
-			nvgLineTo(args.vg, x, 20);
-			nvgClosePath(args.vg);
-		}
-		nvgFillColor(args.vg, theme::kScreenYellow);
-		nvgFill(args.vg);
+		// the samplers' shared yellow bars (src/WaveStyle.hpp): START and END flagged, the loop points plain
+		wavestyle::bar(args.vg, posToX(st), 14, B, 1);
+		wavestyle::bar(args.vg, posToX(en), 14, B, -1);
 		if (looping) {
-			nvgBeginPath(args.vg);
-			for (float m : {ls, le}) {
-				float x = posToX(m);
-				nvgMoveTo(args.vg, x, 14);
-				nvgLineTo(args.vg, x, B);
-			}
-			nvgStrokeColor(args.vg, theme::kScreenYellow);
-			nvgStrokeWidth(args.vg, 1.f);
-			nvgStroke(args.vg);
+			wavestyle::bar(args.vg, posToX(ls), 14, B);
+			wavestyle::bar(args.vg, posToX(le), 14, B);
 		}
 	}
 
@@ -511,7 +488,7 @@ struct SounaireDisplay : OpaqueWidget {
 			float x0 = posToX(std::min(ls, le)), x1 = posToX(std::max(ls, le));
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, x0, 14, x1 - x0, B - 14);
-			nvgFillColor(args.vg, nvgTransRGBA(module->waveBlue ? BLUE : theme::kWavePink, 0x40));
+			nvgFillColor(args.vg, module->waveBlue ? nvgTransRGBA(BLUE, 0x40) : wavestyle::kLoop);
 			nvgFill(args.vg);
 		}
 		// the part that does not play, dimmed as the framebuffer does it without a cable
@@ -565,11 +542,7 @@ struct SounaireDisplay : OpaqueWidget {
 				bool reversed = v.ownRegion ? v.region.reverse : module->params[SOUNAIRE::REVERSE_PARAM].getValue() > 0.5f;
 				if (reversed && i != sounaire::Engine::PREVIEW)
 					pos = v.frames - 1 - pos;
-				float x = posToX(pos / v.frames);
-				nvgBeginPath(args.vg);
-				nvgRect(args.vg, x, 14, 1.f, B - 14);
-				nvgFillColor(args.vg, nvgTransRGBA(theme::kScreenYellow, (unsigned char)(80 + 175 * clamp(v.env, 0.f, 1.f))));
-				nvgFill(args.vg);
+				wavestyle::head(args.vg, posToX(pos / v.frames), 14, B, 0.3f + 0.7f * clamp(v.env, 0.f, 1.f));
 			}
 		}
 		if (selecting) {

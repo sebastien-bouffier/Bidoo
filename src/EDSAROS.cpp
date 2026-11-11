@@ -1050,23 +1050,6 @@ struct EDSAROSDisplay : OpaqueWidget {
     OpaqueWidget::onDragEnd(e);
   }
 
-	// A point marker: a line with a small flag, pointing right or left.
-	void drawMarker(const DrawArgs &args, float x, float top, bool right) {
-		nvgBeginPath(args.vg);
-		nvgMoveTo(args.vg, x, top);
-		nvgLineTo(args.vg, x, height);
-		nvgClosePath(args.vg);
-		nvgStroke(args.vg);
-		nvgBeginPath(args.vg);
-		nvgMoveTo(args.vg, x, top);
-		nvgLineTo(args.vg, x + (right ? 5.0f : -5.0f), top + 3);
-		nvgLineTo(args.vg, x, top + 6);
-		nvgLineTo(args.vg, x, top);
-		nvgClosePath(args.vg);
-		nvgStroke(args.vg);
-		nvgFill(args.vg);
-	}
-
 	void drawSample(const DrawArgs &args) {
 		std::shared_ptr<EdsarosOverview> o;
 		{
@@ -1091,13 +1074,21 @@ struct EDSAROSDisplay : OpaqueWidget {
 		nvgLineTo(args.vg, width, height/2.0f);
 		nvgStroke(args.vg);
 
+		// The loop, when one is on, shaded behind the waveform (src/WaveStyle.hpp)
+		const float playX0 = px(module->sampleStart), playX1 = px(module->sampleEnd);
+		if ((int)module->params[EDSAROS::LOOPMODE_PARAM].getValue() > 0)
+			wavestyle::band(args.vg, px(module->loopStart), px(module->loopEnd), 0, height);
+
 		// The waveform, filled as in cANARd: one column per pixel, from its lowest to its highest value; from the
-		// overview when a pixel covers more than one of its bins, from the sample when zoomed in
-		{
+		// overview when a pixel covers more than one of its bins, from the sample when zoomed in. Hot pink between
+		// S STRT and S END (what plays), dimmed elsewhere
+		for (int pass = 0; pass < 2; pass++) {
 			const int total = o->count, bins = EdsarosSample::OVERVIEW;
 			const double perPixel = (double)total / b.size.x, binFrames = (double)total / bins;
 			nvgBeginPath(args.vg);
 			for (int x = 0; x < (int)width; x++) {
+				if ((x >= playX0 && x <= playX1) != (pass == 0))
+					continue;
 				const double f0 = (x - b.pos.x) * perPixel, f1 = f0 + perPixel;
 				if (f1 <= 0.0 || f0 >= total)
 					continue;
@@ -1116,37 +1107,26 @@ struct EDSAROSDisplay : OpaqueWidget {
 						hi = std::max(hi, o->data[j]);
 					}
 				}
-				const float yHi = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(hi * g, -1.f, 1.f));
-				const float yLo = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(lo * g, -1.f, 1.f));
-				nvgRect(args.vg, x, yHi, 1.f, std::max(yLo - yHi, 1.f));
+				wavestyle::column(args.vg, x, lo * g, hi * g, b.pos.y + b.size.y * 0.5f, b.size.y * 0.5f);
 			}
-			nvgFillColor(args.vg, PINK_BIDOO);
-			nvgFill(args.vg);
+			wavestyle::fill(args.vg, pass == 0);
 		}
 
-		// A play head for each voice that sounds (polyphonic: one per channel)
-		nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
-		nvgStrokeWidth(args.vg, 1);
-		nvgBeginPath(args.vg);
+		// The points as yellow bars: the loop's flags at the top, the sample's and the release's lower
+		wavestyle::bar(args.vg, px(module->sampleStart), 10, height, 1);
+		wavestyle::bar(args.vg, px(module->loopStart), 0, height, 1);
+		wavestyle::bar(args.vg, px(module->loopEnd), 0, height, -1);
+		wavestyle::bar(args.vg, px(module->releaseStart), 10, height, 1);
+		wavestyle::bar(args.vg, px(module->sampleEnd), 10, height, -1);
+
+		// A play head for each voice that sounds (polyphonic: one per channel), on top: it lights up the pink
 		const int voices = clamp(module->lastChannels, 0, 16);
 		for (int i = 0; i < voices; i++) {
 			if (!(module->play[i] || module->rel[i]) || module->lastLevel[i] <= 0.f)
 				continue;
-			const float head = px(module->direction[i] == 1 ? module->internalIntegerPosition[i] : module->revIndex(module->internalIntegerRevPosition[i]));
-			nvgMoveTo(args.vg, head, 0);
-			nvgLineTo(args.vg, head, height);
+			wavestyle::head(args.vg, px(module->direction[i] == 1 ? module->internalIntegerPosition[i] : module->revIndex(module->internalIntegerRevPosition[i])), 0, height,
+				0.3f + 0.7f * clamp(module->lastLevel[i], 0.f, 1.f));
 		}
-		nvgStroke(args.vg);
-
-		// Points.
-		nvgStrokeColor(args.vg, YELLOW_BIDOO);
-		nvgFillColor(args.vg, YELLOW_BIDOO);
-		nvgStrokeWidth(args.vg, 1);
-		drawMarker(args, px(module->sampleStart), 10, true);
-		drawMarker(args, px(module->loopStart), 0, true);
-		drawMarker(args, px(module->loopEnd), 0, false);
-		drawMarker(args, px(module->releaseStart), 10, true);
-		drawMarker(args, px(module->sampleEnd), 10, false);
 
 		nvgResetScissor(args.vg);
 		nvgRestore(args.vg);

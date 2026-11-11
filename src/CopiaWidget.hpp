@@ -407,8 +407,8 @@ struct CopiaDisplay : OpaqueWidget {
 				const float h = std::min(1.f, lp.peaks[i]) * (WAVE / 2 - 2);
 				nvgRect(args.vg, x, WAVE / 2 - h, std::max(1.f, ww / copia::kPeaks), 2 * h + 0.5f);
 			}
-			nvgFillColor(args.vg, theme::kWavePink);
-			nvgFill(args.vg);
+			// the loop plays whole: all of it in the samplers' hot pink (src/WaveStyle.hpp)
+			wavestyle::fill(args.vg, true);
 			// the bars
 			const int bars = std::max(1, (int)std::round(lp.beats / std::max(1, module->beatsPerBar)));
 			for (int b = 1; b < bars; b++) {
@@ -418,12 +418,8 @@ struct CopiaDisplay : OpaqueWidget {
 				nvgFill(args.vg);
 			}
 			const float ph = e.loopPhase.load();
-			if (ph >= 0.f) {
-				nvgBeginPath(args.vg);
-				nvgRect(args.vg, LABEL + ww * ph - 1, 0, 2, WAVE);
-				nvgFillColor(args.vg, theme::kScreenYellow);
-				nvgFill(args.vg);
-			}
+			if (ph >= 0.f)
+				wavestyle::head(args.vg, LABEL + ww * ph, 0, WAVE);
 		}
 		if (cs == 2) {
 			nvgBeginPath(args.vg);

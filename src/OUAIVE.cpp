@@ -526,15 +526,19 @@ struct OUAIVEDisplay : OpaqueWidget {
     OpaqueWidget::onDragEnd(e);
   }
 
-	void drawWave(const DrawArgs& args, const OuaiveSample &s, int c, float top) {
+	void drawWave(const DrawArgs& args, const OuaiveSample &s, int c, float top, float activeX0, float activeX1) {
 		Rect b = Rect(Vec(zoomLeftAnchor, top), Vec(zoomWidth, height));
 		nvgScissor(args.vg, 0, b.pos.y, width, height);
 		// filled: one column per pixel, from its lowest to its highest value; from the overview when
 		// a pixel covers more than one of its bins, from the frames when zoomed in
 		const int total = s.count, bins = OuaiveSample::OVERVIEW;
 		const double perPixel = (double)total / b.size.x, binFrames = (double)total / bins;
+		// two passes: the part that plays in hot pink, the rest dimmed (src/WaveStyle.hpp)
+		for (int pass = 0; pass < 2; pass++) {
 		nvgBeginPath(args.vg);
 		for (int px = 0; px < (int)width; px++) {
+			if ((px >= activeX0 && px <= activeX1) != (pass == 0))
+				continue;
 			const double f0 = (px - b.pos.x) * perPixel, f1 = f0 + perPixel;
 			if (f1 <= 0.0 || f0 >= total)
 				continue;
@@ -553,13 +557,10 @@ struct OUAIVEDisplay : OpaqueWidget {
 					hi = std::max(hi, s.frames[j].samples[c]);
 				}
 			}
-			const float yHi = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(hi, -1.f, 1.f));
-			const float yLo = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(lo, -1.f, 1.f));
-			nvgRect(args.vg, px, yHi, 1.f, std::max(yLo - yHi, 1.f));
+			wavestyle::column(args.vg, px, lo, hi, b.pos.y + b.size.y * 0.5f, b.size.y * 0.5f);
 		}
-		nvgGlobalCompositeOperation(args.vg, NVG_LIGHTER);
-		nvgFillColor(args.vg, PINK_BIDOO);
-		nvgFill(args.vg);
+		wavestyle::fill(args.vg, pass == 0);
+		}
 	}
 
 	void drawLayer(const DrawArgs& args, int layer) override {
@@ -610,18 +611,6 @@ struct OUAIVEDisplay : OpaqueWidget {
 
 				nvgTextBox(args.vg, 90, -15, 40, speed.c_str(), NULL);
 
-				//Draw play line
-				if (module->play) {
-					nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
-					nvgBeginPath(args.vg);
-					nvgStrokeWidth(args.vg, 2);
-					float x = module->samplePos * zoomWidth / nbSample + zoomLeftAnchor;
-					nvgMoveTo(args.vg, x, 0);
-					nvgLineTo(args.vg, x, 2 * height+10);
-					nvgClosePath(args.vg);
-					nvgStroke(args.vg);
-				}
-
 				//Draw ref line
 				nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
 				nvgStrokeWidth(args.vg, 1);
@@ -637,27 +626,30 @@ struct OUAIVEDisplay : OpaqueWidget {
 				nvgClosePath(args.vg);
 				nvgStroke(args.vg);
 
-				//Draw waveform
-				nvgStrokeColor(args.vg, PINK_BIDOO);
+				auto px = [&](double frame) { return (float)(frame * zoomWidth / nbSample + zoomLeftAnchor); };
+				// what plays: in SLICE mode the slice (shaded as a loop when it repeats), else the whole sample
+				const bool sliced = module->trigMode == 2 && module->sliceIndex >= 0;
+				const float playX0 = sliced ? px((double)module->sliceIndex * module->sliceLength) : -1.f;
+				const float playX1 = sliced ? px(std::min((double)(module->sliceIndex + 1) * module->sliceLength, (double)nbSample)) : width + 1.f;
 				nvgSave(args.vg);
-				drawWave(args, *s, 0, 0);
-				drawWave(args, *s, 1, height + 10);
+				nvgScissor(args.vg, 0, 0, width, 2*height+10);
+				if (sliced && module->readMode == 2)
+					wavestyle::band(args.vg, playX0, playX1, 0, 2*height+10);
 				nvgResetScissor(args.vg);
 
-				//draw slices
-				if (module->trigMode == 2) {
-					nvgScissor(args.vg, 0, 0, width, 2*height+10);
-					for (int i = 1; i < module->nbSlices; i++) {
-						nvgStrokeColor(args.vg, YELLOW_BIDOO);
-						nvgStrokeWidth(args.vg, 1);
-						nvgBeginPath(args.vg);
-						nvgMoveTo(args.vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 0);
-						nvgLineTo(args.vg, (int)(i * module->sliceLength * zoomWidth / nbSample + zoomLeftAnchor) , 2*height+10);
-						nvgClosePath(args.vg);
-						nvgStroke(args.vg);
-					}
-					nvgResetScissor(args.vg);
-				}
+				//Draw waveform
+				drawWave(args, *s, 0, 0, playX0, playX1);
+				drawWave(args, *s, 1, height + 10, playX0, playX1);
+				nvgResetScissor(args.vg);
+
+				// the slices' cuts, and the play head on top (it lights up the pink under it)
+				nvgScissor(args.vg, 0, 0, width, 2*height+10);
+				if (module->trigMode == 2)
+					for (int i = 1; i < module->nbSlices; i++)
+						wavestyle::bar(args.vg, (int)px((double)i * module->sliceLength), 0, 2*height+10);
+				if (module->play)
+					wavestyle::head(args.vg, px(module->samplePos), 0, 2*height+10);
+				nvgResetScissor(args.vg);
 
 				nvgRestore(args.vg);
 			}
