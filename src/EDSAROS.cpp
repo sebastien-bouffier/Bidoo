@@ -109,6 +109,7 @@ struct EdsarosOverview {
 	int count = 0;
 	float overviewMin[EdsarosSample::OVERVIEW] = {};
 	float overviewMax[EdsarosSample::OVERVIEW] = {};
+	std::vector<float> data;   // the sample itself, for the display zoomed in
 };
 
 struct EDSAROS : BidooModule {
@@ -237,6 +238,10 @@ struct EDSAROS : BidooModule {
 	float voiceRatio[16] = {1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f};
 	float attackFrom[16] = {0.f};   // where the attack starts: init, or the level a retrigger caught
 	int fadeLen = 96;
+	// A sample replaced while voices sound: kept until each voice's old heads (its tail, its playing head) have faded
+	// out from it, then retired
+	EdsarosSample *fading = nullptr;
+	sampleread::Declick<1> fadeOld[16][2];
 	dsp::SchmittTrigger zeroCrossingTrigger;
 	dsp::SchmittTrigger trigTriggers[16];
 	int lastChannels = 0;
@@ -297,6 +302,7 @@ struct EDSAROS : BidooModule {
 			worker.join();
 		delete pending.load();
 		delete retired.load();
+		delete fading;
 		delete smp;
 	}
 
@@ -344,6 +350,7 @@ struct EDSAROS : BidooModule {
 			if (s->build(frames)) {
 				auto o = std::make_shared<EdsarosOverview>();
 				o->count = s->count;
+				o->data = s->data;
 				std::copy(s->overviewMin, s->overviewMin + EdsarosSample::OVERVIEW, o->overviewMin);
 				std::copy(s->overviewMax, s->overviewMax + EdsarosSample::OVERVIEW, o->overviewMax);
 				{
@@ -366,11 +373,32 @@ struct EDSAROS : BidooModule {
 	void process(const ProcessArgs &args) override;
 
 	// Takes a newly loaded sample, once the worker has freed the previous one.
-	void takePending() {
-		if (pending.load(std::memory_order_relaxed) && !retired.load(std::memory_order_acquire)) {
+	void takePending(bool fade) {
+		if (pending.load(std::memory_order_relaxed) && !retired.load(std::memory_order_acquire) && !fading) {
 			EdsarosSample *s = pending.exchange(nullptr, std::memory_order_acq_rel);
 			if (s) {
-				retired.store(smp, std::memory_order_release);
+				// The voices that sound fade out from the old sample (from where their heads are, read before the
+				// resamplers move to the new one) instead of stopping dead
+				bool any = false;
+				for (int i = 0; fade && smp && i < lastChannels; i++) {   // the voices the output loop runs (the others are silent)
+					fadeOld[i][0].reset();
+					fadeOld[i][1].reset();
+					if (dc[i].tailActive()) {
+						fadeOld[i][0] = dc[i];
+						any = true;
+					}
+					if (lastLevel[i] > 0.f) {
+						double pos;
+						float step;
+						headNow(i, pos, step);
+						fadeOld[i][1].tail(pos, step, lastLevel[i], fadeLen);
+						any = true;
+					}
+				}
+				if (any)
+					fading = smp;
+				else
+					retired.store(smp, std::memory_order_release);
 				smp = s;
 				totalSampleCount = s->count;
 				for (int i=0; i<16; i++) {
@@ -391,9 +419,26 @@ struct EDSAROS : BidooModule {
 		}
 	}
 
+	// The old sample is retired once every voice's old heads are silent (and the worker freed the one before)
+	void finishFading(bool now) {
+		if (!fading || retired.load(std::memory_order_acquire))
+			return;
+		if (!now)
+			for (int i = 0; i < 16; i++)
+				if (fadeOld[i][0].tailActive() || fadeOld[i][1].tailActive())
+					return;
+		retired.store(fading, std::memory_order_release);
+		fading = nullptr;
+		for (int i = 0; i < 16; i++) {
+			fadeOld[i][0].reset();
+			fadeOld[i][1].reset();
+		}
+	}
+
 	// Bypassed: still takes the loaded sample, so the loader never waits.
 	void processBypass(const ProcessArgs &args) override {
-		takePending();
+		finishFading(true);
+		takePending(false);
 		Module::processBypass(args);
 	}
 
@@ -551,8 +596,9 @@ struct EDSAROS : BidooModule {
 };
 
 void EDSAROS::process(const ProcessArgs &args) {
-	takePending();
 	fadeLen = sampleread::declickLength(args.sampleRate);
+	finishFading(false);
+	takePending(true);
 	// The engine rate changed: load the file again at the new rate.
 	if (smp && smp->sampleRate != args.sampleRate && !loading)
 		reloadRate = args.sampleRate;
@@ -564,9 +610,12 @@ void EDSAROS::process(const ProcessArgs &args) {
 	attack = clamp(params[ATTACK_PARAM].getValue()+inputs[ATTACK_INPUT].getVoltage()*2.0f,0.0f,20.0f);
 	decay = clamp(params[DECAY_PARAM].getValue()+inputs[DECAY_INPUT].getVoltage()*6.0f,0.0f,60.0f);
 	release = clamp(params[RELEASE_PARAM].getValue()+inputs[RELEASE_INPUT].getVoltage()*6.0f,0.0f,60.0f);
-	init = clamp(params[INIT_PARAM].getValue()+inputs[INIT_INPUT].getVoltage()*0.1f,0.0f,1.0f);
-	peak = clamp(params[PEAK_PARAM].getValue()+inputs[PEAK_INPUT].getVoltage()*0.1f,0.0f,1.0f);
-	sustain = clamp(params[SUSTAIN_PARAM].getValue()+inputs[SUSTAIN_INPUT].getVoltage()*0.1f,0.0f,1.0f);
+	// The levels glide: a jump of INIT, PEAK or SUSTAIN (knob or CV) takes 2 ms instead of stepping the voices' gain
+	const float levelStep = 1.f / (float)fadeLen;
+	auto glide = [&](float &v, float target) { v += clamp(target - v, -levelStep, levelStep); };
+	glide(init, clamp(params[INIT_PARAM].getValue()+inputs[INIT_INPUT].getVoltage()*0.1f,0.0f,1.0f));
+	glide(peak, clamp(params[PEAK_PARAM].getValue()+inputs[PEAK_INPUT].getVoltage()*0.1f,0.0f,1.0f));
+	glide(sustain, clamp(params[SUSTAIN_PARAM].getValue()+inputs[SUSTAIN_INPUT].getVoltage()*0.1f,0.0f,1.0f));
 	attackSlope = clamp(params[ATTACKSLOPE_PARAM].getValue()+inputs[ATTACKSLOPE_INPUT].getVoltage()*0.1f,-1.0f,1.0f);
 	decaySlope = clamp(params[DECAYSLOPE_PARAM].getValue()+inputs[DECAYSLOPE_INPUT].getVoltage()*0.1f,-1.0f,1.0f);
 	releaseSlope = clamp(params[RELEASESLOPE_PARAM].getValue()+inputs[RELEASESLOPE_INPUT].getVoltage()*0.1f,-1.0f,1.0f);
@@ -818,6 +867,13 @@ void EDSAROS::process(const ProcessArgs &args) {
 			dc[i].addTail(view, &t);
 			out += 5.0f * t;
 		}
+		if (fading) {
+			const sampleread::View<1> old{fading->data.data(), fading->count, nullptr};
+			float t = 0.f;
+			fadeOld[i][0].addTail(old, &t);
+			fadeOld[i][1].addTail(old, &t);
+			out += 5.0f * t;
+		}
 		outputs[OUT].setVoltage(edsSoftLimit(out), i);
 	}
 
@@ -1027,40 +1083,59 @@ struct EDSAROSDisplay : OpaqueWidget {
 		Rect b = Rect(Vec(zoomLeftAnchor, 0), Vec(zoomWidth, height));
 		nvgScissor(args.vg, -0.5f, b.pos.y-0.5f, width+1.0f, height+1.0f);
 
-		nvgStrokeColor(args.vg, nvgRGBA(255, 255, 255, 255));
+		// The centre line, as in cANARd and sOUNAiRe
+		nvgStrokeColor(args.vg, nvgRGBA(0xff, 0xff, 0xff, 0x30));
+		nvgStrokeWidth(args.vg, 1);
 		nvgBeginPath(args.vg);
 		nvgMoveTo(args.vg, 0, height/2.0f);
 		nvgLineTo(args.vg, width, height/2.0f);
-		nvgClosePath(args.vg);
 		nvgStroke(args.vg);
 
-		// Waveform, from the overview built at load time.
-		nvgStrokeColor(args.vg, nvgRGBA(164, 3, 111, 200));
-		nvgBeginPath(args.vg);
-		for (int i = 0; i < EdsarosSample::OVERVIEW; i++) {
-			float x = b.pos.x + b.size.x * (i + 0.5f) / EdsarosSample::OVERVIEW;
-			float y = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(o->overviewMax[i] * g, -1.f, 1.f));
-			if (i == 0)
-				nvgMoveTo(args.vg, x, y);
-			else
-				nvgLineTo(args.vg, x, y);
+		// The waveform, filled as in cANARd: one column per pixel, from its lowest to its highest value; from the
+		// overview when a pixel covers more than one of its bins, from the sample when zoomed in
+		{
+			const int total = o->count, bins = EdsarosSample::OVERVIEW;
+			const double perPixel = (double)total / b.size.x, binFrames = (double)total / bins;
+			nvgBeginPath(args.vg);
+			for (int x = 0; x < (int)width; x++) {
+				const double f0 = (x - b.pos.x) * perPixel, f1 = f0 + perPixel;
+				if (f1 <= 0.0 || f0 >= total)
+					continue;
+				float lo = 1.f, hi = -1.f;
+				if (perPixel >= binFrames || (int)o->data.size() < total) {
+					const int k0 = clamp((int)(f0 / binFrames), 0, bins - 1), k1 = clamp((int)(f1 / binFrames), k0 + 1, bins);
+					for (int k = k0; k < k1; k++) {
+						lo = std::min(lo, o->overviewMin[k]);
+						hi = std::max(hi, o->overviewMax[k]);
+					}
+				}
+				else {
+					const int j0 = clamp((int)f0, 0, total - 1), j1 = clamp((int)std::ceil(f1), j0, total - 1);
+					for (int j = j0; j <= j1; j++) {
+						lo = std::min(lo, o->data[j]);
+						hi = std::max(hi, o->data[j]);
+					}
+				}
+				const float yHi = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(hi * g, -1.f, 1.f));
+				const float yLo = b.pos.y + b.size.y * (0.5f - 0.5f * clamp(lo * g, -1.f, 1.f));
+				nvgRect(args.vg, x, yHi, 1.f, std::max(yLo - yHi, 1.f));
+			}
+			nvgFillColor(args.vg, PINK_BIDOO);
+			nvgFill(args.vg);
 		}
-		for (int i = EdsarosSample::OVERVIEW - 1; i >= 0; i--) {
-			float x = b.pos.x + b.size.x * (i + 0.5f) / EdsarosSample::OVERVIEW;
-			nvgLineTo(args.vg, x, b.pos.y + b.size.y * (0.5f - 0.5f * clamp(o->overviewMin[i] * g, -1.f, 1.f)));
-		}
-		nvgLineCap(args.vg, NVG_MITER);
-		nvgStrokeWidth(args.vg, 1);
-		nvgStroke(args.vg);
 
-		// Playhead of the first voice.
+		// A play head for each voice that sounds (polyphonic: one per channel)
 		nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
-		nvgBeginPath(args.vg);
 		nvgStrokeWidth(args.vg, 1);
-		float head = px(module->direction[0] == 1 ? module->internalIntegerPosition[0] : module->revIndex(module->internalIntegerRevPosition[0]));
-		nvgMoveTo(args.vg, head, 0);
-		nvgLineTo(args.vg, head, height);
-		nvgClosePath(args.vg);
+		nvgBeginPath(args.vg);
+		const int voices = clamp(module->lastChannels, 0, 16);
+		for (int i = 0; i < voices; i++) {
+			if (!(module->play[i] || module->rel[i]) || module->lastLevel[i] <= 0.f)
+				continue;
+			const float head = px(module->direction[i] == 1 ? module->internalIntegerPosition[i] : module->revIndex(module->internalIntegerRevPosition[i]));
+			nvgMoveTo(args.vg, head, 0);
+			nvgLineTo(args.vg, head, height);
+		}
 		nvgStroke(args.vg);
 
 		// Points.
