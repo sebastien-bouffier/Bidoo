@@ -195,6 +195,7 @@ private:
         wetSmoothed = std::sin (m * kHalfPi);
         charSmoothed = settings.character;
         toneLpK = toneHpK = -1.0f;
+        apPhase = {};
         tick = 0;
         wet = {};
         updateTargets();
@@ -208,6 +209,8 @@ private:
             c.freezeLength = std::max (1, (int) std::lround (c.target));
         }
         control();
+        diffuseGNow = diffuseG;
+        diffuseBlendNow = diffuseBlend;
     }
 
 public:
@@ -561,14 +564,19 @@ private:
         diffuseCross = 0.25f * ch;
         if (typeOld == Diffuse || typeNew == Diffuse)
         {
-            lfoPhase += (double) kControl / sr * 0.31;
-            if (lfoPhase >= 1.0)
-                lfoPhase -= 1.0;
+            // each all-pass has its own phase, at its own rate: one phase scaled by a rate that is not a whole
+            // number jumped when it wrapped (every 3.2 s), and the all-passes' delays with it
+            for (int i = 0; i < kAllpasses; ++i)
+            {
+                apPhase[(size_t) i] += (double) kControl / sr * 0.31 * (1.0 + 0.27 * (double) i);
+                if (apPhase[(size_t) i] >= 1.0)
+                    apPhase[(size_t) i] -= 1.0;
+            }
             const float depth = 0.0003f * rate;
             for (int c = 0; c < 2; ++c)
                 for (int i = 0; i < kAllpasses; ++i)
                 {
-                    const float phase = 6.2831853f * (float) lfoPhase * (1.0f + 0.27f * (float) i) + 1.7f * (float) i + 2.3f * (float) c;
+                    const float phase = 6.2831853f * (float) apPhase[(size_t) i] + 1.7f * (float) i + 2.3f * (float) c;
                     chans[(size_t) c].apDelay[(size_t) i] = chans[(size_t) c].apBase[(size_t) i] + depth * std::sin (phase);
                 }
         }
@@ -628,7 +636,8 @@ private:
     {
         if (! on)
             return x;
-        const float lp = toneLpK >= 1.0f ? x : onePole (v.toneLp, x, toneLpK);
+        // bypassed, the low pass follows its input, so it starts from there when TONE goes dark again
+        const float lp = toneLpK >= 1.0f ? (v.toneLp = x) : onePole (v.toneLp, x, toneLpK);
         return lp - onePole (v.toneHp, lp, toneHpK);
     }
 
@@ -674,17 +683,23 @@ private:
                 return onePole (v.lp1, readCross (c), lofiK);
             case Diffuse:
             {
+                // the all-passes' gain and blend glide every sample (CHARACTER moved them in steps of kControl)
+                if (ch == 0)
+                {
+                    diffuseGNow += 0.01f * (diffuseG - diffuseGNow);
+                    diffuseBlendNow += 0.01f * (diffuseBlend - diffuseBlendNow);
+                }
                 const float x = onePole (v.lp1, readCross (c), diffuseK);
                 float y = x;
                 for (int i = 0; i < kAllpasses; ++i)
                 {
                     auto& a = c.ap[(size_t) i];
                     const float d = a.readHermite (c.apDelay[(size_t) i] - 1.0f);
-                    const float u = y + diffuseG * d;
+                    const float u = y + diffuseGNow * d;
                     a.push (u);
-                    y = d - diffuseG * u;
+                    y = d - diffuseGNow * u;
                 }
-                return x + diffuseBlend * (y - x);
+                return x + diffuseBlendNow * (y - x);
             }
             case Reverse:
                 return readCross (c);
@@ -692,7 +707,12 @@ private:
             default:
             {
                 const float y = readCross (c);
-                return digitalOn ? onePole (v.lp2, onePole (v.lp1, y, digitalK), digitalK) : y;
+                if (! digitalOn)
+                {
+                    v.lp1 = v.lp2 = y; // ready for CHARACTER coming up from 0
+                    return y;
+                }
+                return onePole (v.lp2, onePole (v.lp1, y, digitalK), digitalK);
             }
         }
     }
@@ -740,7 +760,9 @@ private:
                     }
                     return v.hold;
                 }
-                return limit (x);
+                v.hold = limit (x);
+                v.holdPhase = 1.0f; // CHARACTER coming up from 0 takes a new sample at once
+                return v.hold;
             case Diffuse:
             default:
                 return limit (x);
@@ -805,7 +827,8 @@ private:
     float pingMix = 0.0f, pingStep = 0.001f, smooth = 0.001f, envRelease = 0.9999f;
     float fbSmoothed = 0.0f, drySmoothed = 1.0f, wetSmoothed = 0.0f, dryTarget = 1.0f, wetTarget = 0.0f, charSmoothed = 0.0f;
     float toneLpK = 1.0f, toneHpK = 0.001f, crossStep = 0.001f;
-    double glideCoef = 0.001, glideRise = 0.75, glideFall = 2.0, lfoPhase = 0.0;
+    double glideCoef = 0.001, glideRise = 0.75, glideFall = 2.0;
+    std::array<double, kAllpasses> apPhase {}; // the Diffuse LFO, one phase per all-pass
 
     bool digitalOn = false;
     float digitalK = 1.0f, digitalQ = 1.0f, digitalInc = 1.0f;
@@ -813,6 +836,7 @@ private:
     float bbdDrive = 1.0f, bbdNoise = 0.0f, bbdLeak = 0.0f, bbdHpK = 0.01f;
     float lofiInc = 1.0f, lofiQ = 1.0f, lofiK = 1.0f;
     float diffuseBlend = 0.0f, diffuseG = 0.35f, diffuseK = 1.0f, diffuseCross = 0.0f;
+    float diffuseGNow = 0.35f, diffuseBlendNow = 0.0f; // gliding towards them every sample
     float reverseForward = 0.0f;
     float wowSet = -1.0f, wowHzSet = -1.0f, flutterSet = -1.0f;
 
