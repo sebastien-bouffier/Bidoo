@@ -102,7 +102,15 @@ struct LIMBO : BidooModule {
 	LadderCoefs coefs[16];
 	// the saturation's drive and output gain, worked out when the boost moves
 	float lastBoost[16], pre[16], post[16];
+	// the boost glides (about 3 ms): its gain jumped with a CV or a knob
+	float boostNow[16];
 	bool wasNonLinear = false;
+	// a MODE change crossfades over 5 ms from the old mode, run on a copy of each filter
+	static constexpr int kModeFade = 240;
+	int modeFadeLeft = 0;
+	bool oldNonLinear = false;
+	LadderFilter oldL[16], oldR[16];
+	LadderCoefs oldCoefs[16];
 
 	LIMBO() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -122,6 +130,7 @@ struct LIMBO : BidooModule {
 		configBypass(IN_R, OUT_R);
 		for (int c = 0; c < 16; c++) {
 			lastBoost[c] = -1.0f;
+			boostNow[c] = -1.0f;
 			pre[c] = post[c] = 1.0f;
 		}
 	}
@@ -131,13 +140,24 @@ struct LIMBO : BidooModule {
 		bool rightIn = inputs[IN_R].isConnected();
 		bool nonLinear = params[MODE_PARAM].getValue() > 0.5f;
 		if (nonLinear != wasNonLinear) {
-			// the oversampling filters start from rest
+			// the old mode carries on, on a copy of the filters, while the new one fades in; going saturated, the
+			// oversampling filters start from rest (the old, linear, path does not use them)
 			for (int c = 0; c < 16; c++) {
-				lOver[c].reset();
-				rOver[c].reset();
+				oldL[c] = lFilter[c];
+				oldR[c] = rFilter[c];
+				if (nonLinear) {
+					lOver[c].reset();
+					rOver[c].reset();
+				}
 			}
+			oldNonLinear = wasNonLinear;
+			modeFadeLeft = kModeFade;
 			wasNonLinear = nonLinear;
 		}
+		const bool fading = modeFadeLeft > 0;
+		const float fadeNew = fading ? 1.f - (float)modeFadeLeft / (float)kModeFade : 1.f;
+		if (fading)
+			modeFadeLeft--;
 		// saturated, the ladder runs at 2x
 		float rate = nonLinear ? 2.0f * args.sampleRate : args.sampleRate;
 		float fMax = 0.45f * args.sampleRate;
@@ -150,13 +170,18 @@ struct LIMBO : BidooModule {
 			float fc = clamp(dsp::exp2_taylor5(clamp(knobOct + cmod * inputs[CUTOFF_INPUT].getPolyVoltage(c), 3.0f, 15.0f)), 10.0f, fMax);
 			float g = gainCache[c].get(fc, rate);
 			float k = 3.5f * clamp(qKnob + inputs[Q_INPUT].getPolyVoltage(c) * 0.2f, 0.0f, 1.0f);
-			float boostIn = clamp(boostKnob + inputs[MUG_INPUT].getPolyVoltage(c) * 0.2f, 0.0f, 1.0f);
+			const float boostTarget = clamp(boostKnob + inputs[MUG_INPUT].getPolyVoltage(c) * 0.2f, 0.0f, 1.0f);
+			if (boostNow[c] < 0.f || std::fabs(boostTarget - boostNow[c]) < 1e-5f)
+				boostNow[c] = boostTarget;
+			else
+				boostNow[c] += 0.007f * (boostTarget - boostNow[c]);
+			const float boostIn = boostNow[c];
 			float boost = dsp::exp2_taylor5(3.0f * boostIn);
 			// saturated: the stages saturate from 1 / d (d = boost / 3, as before);
 			// the input is raised by s^3 and the output by s, s = d / tanh(d): the
 			// gain and the ceiling of the old stages (each had a slope of s), the
 			// resonance of the linear filter
-			if (nonLinear && boostIn != lastBoost[c]) {
+			if ((nonLinear || fading) && boostIn != lastBoost[c]) {
 				lastBoost[c] = boostIn;
 				float d = boost / 3.0f;
 				float s = d / std::tanh(d);
@@ -167,13 +192,27 @@ struct LIMBO : BidooModule {
 			float inGain = nonLinear ? 0.2f * pre[c] : 0.2f;
 			float outGain = 5.0f * (nonLinear ? post[c] : boost);
 
-			float inL = inputs[IN_L].getPolyVoltage(c) * inGain;
-			float yL = run(lFilter[c], lOver[c], inL, coefs[c]);
-			outputs[OUT_L].setVoltage(softLimit(yL * outGain), c);
+			const float xL = inputs[IN_L].getPolyVoltage(c);
+			float yL = run(lFilter[c], lOver[c], xL * inGain, coefs[c]) * outGain;
+			const float xR = rightIn ? inputs[IN_R].getPolyVoltage(c) : 0.f;
+			float yR = rightIn ? run(rFilter[c], rOver[c], xR * inGain, coefs[c]) * outGain : 0.f;
+			if (fading) {
+				// the old mode, at its own rate and gains
+				const float oldRate = oldNonLinear ? 2.0f * args.sampleRate : args.sampleRate;
+				const float og = svfGain(fc, oldRate);
+				oldCoefs[c].set(og, k, boost / 3.0f, oldNonLinear);
+				const float oIn = oldNonLinear ? 0.2f * pre[c] : 0.2f;
+				const float oOut = 5.0f * (oldNonLinear ? post[c] : boost);
+				const float oL = run(oldL[c], lOver[c], xL * oIn, oldCoefs[c]) * oOut;
+				yL = oL + fadeNew * (yL - oL);
+				if (rightIn) {
+					const float oR = run(oldR[c], rOver[c], xR * oIn, oldCoefs[c]) * oOut;
+					yR = oR + fadeNew * (yR - oR);
+				}
+			}
+			outputs[OUT_L].setVoltage(softLimit(yL), c);
 			if (rightIn) {
-				float inR = inputs[IN_R].getPolyVoltage(c) * inGain;
-				float yR = run(rFilter[c], rOver[c], inR, coefs[c]);
-				outputs[OUT_R].setVoltage(softLimit(yR * outGain), c);
+				outputs[OUT_R].setVoltage(softLimit(yR), c);
 			}
 			else {
 				// the right side would be the same filter on the same input
