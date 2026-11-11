@@ -852,7 +852,20 @@ struct PlayHead {
 		float bl, br;
 		bool wasFading = fading;
 		fading = false;
-		if (inLoop && r.x > 0 && r.tail) {
+		if (fadeLen > 0) {
+			// the old place fades out while the head goes on from where it jumped
+			read(ghost, r.reverse, bl, br);
+			float hl = l, hr = rr;
+			l = bl;
+			rr = br;
+			blend(r, (float)(fadePos / fadeLen), hl, hr, l, rr);
+			const double last = (double)s->frames - 1.0;
+			ghost = std::max(0.0, std::min(last, ghost + step * ghostDir));
+			fadePos += step;
+			if (fadePos >= fadeLen)
+				fadeLen = 0;
+		}
+		else if (inLoop && r.x > 0 && r.tail) {
 			// after each wrap: what followed the seam fades into the loop's start
 			if (wrapped && r.mode == LOOP_FORWARD && v < r.ls + r.x) {
 				read(v + L, r.reverse, bl, br);
@@ -876,7 +889,13 @@ struct PlayHead {
 		if (wasFading && !fading)
 			xaa = xbb = xab = 0;   // the next fade measures afresh
 		v += step * dir;
-		if (r.mode != LOOP_OFF && !inLoop && v >= r.ls && v < r.le)
+		if (r.mode == LOOP_REVERSE && !inLoop && v >= r.ls && v < r.le && dir > 0 && L > 0) {
+			// entering a reverse loop at LOOP IN: the head goes to LOOP OUT and plays backward from there, as
+			// before, the jump now crossfaded (the old place goes on as `ghost`) instead of cut
+			beginFade(r.le - (v - r.ls), 0.0, std::max(r.x, 16.0 * step), -1);
+			inLoop = true;
+		}
+		else if (r.mode != LOOP_OFF && !inLoop && v >= r.ls && v < r.le)
 			inLoop = true;
 		if (inLoop && r.mode != LOOP_OFF && L > 0) {
 			switch (r.mode) {
@@ -1125,6 +1144,13 @@ struct Voice {
 	float pitchSemis = 0.f;   // from the root note, bend and tune included
 	float velocity = 1.f;
 	float cutoffNote = 120.f;
+	float cutoffNow = 120.f;  // cutoffNote glided (about 2 ms): a jumping cutoff CV does not knock the filter
+	// a change of filter mode crossfades over 5 ms from the old mode, which keeps running meanwhile
+	int filterMode = -1;      // the mode it plays, -1: none yet
+	int oldFilterMode = 0;
+	VoiceFilter oldFilter;
+	int modeFade = 0, modeFadeLen = 1;
+	bool playReverse = false; // the REVERSE the head's play space was set for
 	float speed = 1.f;        // the knob plus this channel's CV
 	float resonance = 0.f;    // the knob plus this channel's CV
 	Stretcher *st = nullptr;  // its stretcher, nullptr: repitch
@@ -1185,6 +1211,7 @@ struct Engine {
 	Stretcher *pool = nullptr;   // STRETCH_POOL stretchers, built by the worker
 	Stretcher *oldPool = nullptr;   // the one replaced, until its voices have faded
 	float rate = 48000.f;
+	float gainNow = -1.f;        // the output gain, glided towards PlaySettings::gain (-1: not yet)
 	int poolMode = -1;           // the preset the pool runs, -1: none yet
 	float poolRate = 0.f;
 	float liveCoef = 1.f;
@@ -1371,9 +1398,17 @@ struct Engine {
 		v.frames = (double)current->frames;
 		v.head.s = current;
 		v.head.v = std::max(r.start, std::min(r.end - 1, r.start + startOffset * (r.end - r.start)));
+		if (r.mode == LOOP_REVERSE && v.head.v >= r.ls && v.head.v < r.le) {
+			if (v.head.v - r.ls < 1.0)
+				v.head.v = r.le - (v.head.v - r.ls);
+			v.head.inLoop = true;
+			v.head.dir = -1;
+		}
 		v.pitchSemis = std::isfinite(semis) ? semis : 0.f;
 		v.velocity = velocity;
 		v.cutoffNote = cutoffNote;
+		v.cutoffNow = cutoffNote;
+		v.playReverse = r.reverse;
 		v.speed = p.speed;
 		v.resonance = p.filter.resonance;
 		v.ownRegion = own != nullptr;
@@ -1472,6 +1507,11 @@ struct Engine {
 		if (current)
 			mainRegion = PlayHead::region(*current, p, rate);
 		const float speedKnob = std::isfinite(p.speed) ? p.speed : 1.f;
+		const float glideCoef = 1.f - std::exp(-1.f / (0.002f * rate));
+		if (gainNow < 0.f || !std::isfinite(gainNow))
+			gainNow = p.gain;
+		else
+			gainNow += glideCoef * (p.gain - gainNow);
 		for (int i = 0; i < SLOTS; i++) {
 			Voice &v = voices[i];
 			if (!v.active || !v.sample)
@@ -1502,6 +1542,13 @@ struct Engine {
 			if (v.live)
 				updateLive(v, s, ps);
 			PlayHead::Region r = (v.ownRegion || v.live) ? v.region : ((!preview && v.sample == current) ? mainRegion : PlayHead::region(s, ps, rate));
+			if (r.reverse != v.playReverse) {
+				// play space is the sample mirrored when REVERSE is on: the same place is mirrored too
+				const double last = (double)s.frames - 1.0;
+				v.head.v = last - v.head.v;
+				v.head.ghost = last - v.head.ghost;
+				v.playReverse = r.reverse;
+			}
 			const double srcRatio = s.rate / rate;
 			float l = 0.f, rr = 0.f;
 			double step = srcRatio;
@@ -1585,11 +1632,25 @@ struct Engine {
 			envelope(v, ps);
 			if (!v.active)
 				continue;
+			// a mode change while it sounds: the old mode (or none) goes on for 5 ms and crossfades into the new one
+			if (ps.filter.mode != v.filterMode) {
+				if (v.filterMode >= 0 && v.env > 0.f) {
+					v.oldFilter = v.filter;
+					v.oldFilterMode = v.filterMode;
+					v.modeFadeLen = std::max(1, (int)(0.005f * rate));
+					v.modeFade = v.modeFadeLen;
+				}
+				v.filterMode = ps.filter.mode;
+			}
+			const float dryL = l, dryR = rr;
 			// filter coefficients every 16 frames, glided to in between; at once
-			// when the slope changes or the filter comes on
+			// when the slope changes or the filter comes on. The cutoff itself glides over about 2 ms
+			v.cutoffNow += glideCoef * (v.cutoffNote - v.cutoffNow);
+			if (!std::isfinite(v.cutoffNow))
+				v.cutoffNow = v.cutoffNote;
 			if (ps.filter.mode != FILTER_OFF) {
 				if (v.filterCount-- <= 0 || v.filter.stages != VoiceFilter::count(ps.filter)) {
-					v.filter.set(ps.filter, v.cutoffNote, rate, 16);
+					v.filter.set(ps.filter, v.cutoffNow, rate, 16);
 					v.filterCount = 15;
 				}
 				v.filter.process(l, rr, ps.filter.mode);
@@ -1597,11 +1658,20 @@ struct Engine {
 			else {
 				v.filter.stages = 0;
 			}
+			if (v.modeFade > 0) {
+				float ol = dryL, orr = dryR;
+				if (v.oldFilterMode != FILTER_OFF && v.oldFilter.stages > 0)
+					v.oldFilter.process(ol, orr, v.oldFilterMode);
+				const float t = 1.f - (float)v.modeFade / (float)v.modeFadeLen;
+				l = ol + (l - ol) * t;
+				rr = orr + (rr - orr) * t;
+				v.modeFade--;
+			}
 			if (!std::isfinite(l) || !std::isfinite(rr)) {
 				v.filter.reset();
 				l = rr = 0.f;
 			}
-			float g = v.env * v.fadeGain * v.velocity * p.gain;
+			float g = v.env * v.fadeGain * v.velocity * gainNow;
 			outL[v.outChannel] += l * g * v.gainL;
 			outR[v.outChannel] += rr * g * v.gainR;
 			v.age++;
