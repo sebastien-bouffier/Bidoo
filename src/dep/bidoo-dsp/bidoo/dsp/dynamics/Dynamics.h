@@ -57,7 +57,8 @@ inline float gainComputer (float levelDb, float thresholdDb, float ratio, float 
     return over <= 0.0f ? 0.0f : slope * over;
 }
 
-// A fixed-size delay line (lookahead, delay-matched dry paths).
+// A fixed-size delay line (lookahead, delay-matched dry paths). prepare keeps a delay set before it, limited to the new
+// line (as Pow2DelayLine's); setDelay clamps to 0 .. maxDelay.
 class DelayLine
 {
 public:
@@ -65,6 +66,9 @@ public:
     {
         buf.assign ((size_t) std::max (1, maxDelay + 1), 0.0f);
         w = 0;
+        // A delay set before a smaller line (prepared again at a lower rate, the delay not set again) would read before
+        // the buffer's start: process() wraps the read index once
+        d = std::min (d, (int) buf.size() - 1);
     }
 
     void setDelay (int samples) { d = std::clamp (samples, 0, (int) buf.size() - 1); }
