@@ -137,7 +137,7 @@ struct TiareOscillator {
 
 	void setPitch(T pitch, int factor) {
 		lfo = factor != 1;
-		freq = dsp::FREQ_C4 * dsp::approxExp2_taylor5(pitch + 30) / 1073741824 / factor;
+		freq = dsp::FREQ_C4 * dsp::exp2_taylor5(pitch + 30) / 1073741824 / factor;
 	}
 
 	void setPulseWidth(T pw) {

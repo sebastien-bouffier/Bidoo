@@ -801,7 +801,7 @@ void LIMONADE::process(const ProcessArgs &args) {
 			ps[j] = pos[c];
 			sy[j] = sync[c];
 		}
-		float_4 freq = dsp::FREQ_C4 * dsp::approxExp2_taylor5(p + 30.f) / 1073741824.f;
+		float_4 freq = dsp::FREQ_C4 * dsp::exp2_taylor5(p + 30.f) / 1073741824.f;
 		float_4 lv = p + levelBase;
 		float_4 k0 = simd::floor(lv);
 		float_4 level = simd::clamp(k0 + 1.f, 0.f, (float)(WT_LEVELS - 1));

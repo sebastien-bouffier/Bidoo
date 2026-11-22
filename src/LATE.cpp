@@ -11,7 +11,6 @@ using namespace std;
 struct LateChannel {
 	dsp::SchmittTrigger clockTrigger;
 	dsp::SchmittTrigger resetTrigger;
-	bool inHigh = false;
 	long sinceRise = -1;      // samples since the last clock, -1 = none yet
 	bool nextOdd = true;      // the next clock goes straight through
 
@@ -54,9 +53,10 @@ struct LateChannel {
 
 		if (sinceRise >= 0)
 			sinceRise++;
-		bool rise = clockTrigger.process(clock, 0.1f, 1.f);
-		bool fall = inHigh && !clockTrigger.isHigh();
-		inHigh = clockTrigger.isHigh();
+		const auto edge = clockTrigger.processEvent(clock, 0.1f, 1.f);
+		const bool rise = edge == dsp::SchmittTrigger::TRIGGERED;
+		const bool fall = edge == dsp::SchmittTrigger::UNTRIGGERED;
+		const bool inHigh = clockTrigger.isHigh();
 
 		if (rise) {
 			long interval = sinceRise;
