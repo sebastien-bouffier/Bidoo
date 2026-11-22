@@ -1,3 +1,9 @@
+### v2.6.1 (22/11/2026)
+Fixes
+- rICOcHEt: its tags are now Delay and Effect only (Stereo is not one of Rack's tags)
+- The shared delay line keeps a delay set before a sample-rate change inside its buffer (bidoo-dsp f4b1033); the sound is unchanged
+- Built with the Rack 2.6.6 SDK
+
 ### v2.6.0 (11/11/2026)
 New modules
 - rEgIStRE: an indexed four-track sequencer (52 HP) played with the mouse and the keyboard. Each step holds two indices into its track's voltage tables (CV A, CV B; 100 entries from -5 to +10 V, built-in and user tables), a duration and a gate in clock pulses, smoothing and ratchet; up to 100 patterns per track; per-track clock divider and multiplier, gates or triggers; MATH (random, multiply, jitter, add, quantize) on a selection, pattern, track or part loop, reverse and rotate of one row; parts with loops and reset steps, cued by PART and GO at the end of a loop; 16 groups of steps (Euclidean selection, their own MATH, HIGH and LOW transforms switched by the X, Y and Z gates as steps play, slopes adding the X, Y and Z CVs); real-time, step and alter recording with punch in and out; RESET at once or at the end of a step, pattern or loop; HOLD and COMMIT; 16 named snapshots; MIDI file import; TRANSP input; polyphonic outputs; exact timing in whole pulses and samples; every edit undoable
