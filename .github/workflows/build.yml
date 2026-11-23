@@ -39,6 +39,7 @@ jobs:
         with:
           path: ${{ env.rack-plugin-toolchain-dir }}/plugin-build
           name: ${{ matrix.platform }}
+          retention-days: 7
 
   build-mac:
     name: mac-${{ matrix.platform }}
@@ -68,3 +69,4 @@ jobs:
         with:
           path: dist/*.vcvplugin
           name: mac-${{ matrix.platform }}
+          retention-days: 7
