@@ -27,6 +27,7 @@
 #include <type_traits>
 #include <vector>
 #include "../core/Random.h"
+#include "../core/Trig.h" // sinF: per-sample sines, cheap on MinGW (VCV) too
 #include "../shaping/TanhPade.h"
 
 namespace bidoo::dsp::reverb
@@ -501,7 +502,7 @@ inline float PrismReverb::Shifter::process (float x, float ratio, float window)
     }
     if (fade >= 1.0f)
         return line.read (d);
-    const float g = std::sin (0.5f * prism_detail::kPiF * fade);
+    const float g = sinF (0.5f * prism_detail::kPiF * fade);
     return g * g * line.read (d) + (1.0f - g * g) * line.read (d2);
 }
 
@@ -781,7 +782,7 @@ inline void PrismReverb::fdn (float inL, float inR, float& outL, float& outR)
             auto& ph = lfoPhase[(size_t) i];
             ph += lfoInc[(size_t) i];
             ph -= std::floor (ph);
-            lfoNow[(size_t) i] = 1.0f + std::sin (prism_detail::kTwoPiF * ph); // the read modulation, held for 8 samples
+            lfoNow[(size_t) i] = 1.0f + sinF (prism_detail::kTwoPiF * ph); // the read modulation, held for 8 samples
         }
     std::array<float, kLines> y {};
     float l = 0, r = 0;
@@ -837,7 +838,7 @@ inline void PrismReverb::spring (float inL, float inR, float& outL, float& outR)
         auto& k = tanks[(size_t) t];
         k.lfo += (0.6 + 0.23 * t) / sr;
         k.lfo -= std::floor (k.lfo);
-        const float d = k.line.read (k.length + modDepth * (1.0f + std::sin (prism_detail::kTwoPiF * (float) k.lfo)));
+        const float d = k.line.read (k.length + modDepth * (1.0f + sinF (prism_detail::kTwoPiF * (float) k.lfo)));
         out[t] = d;
         // loop filters: the spring's bandwidth
         k.lp += springLpA * (d - k.lp);

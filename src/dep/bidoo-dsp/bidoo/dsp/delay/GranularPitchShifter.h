@@ -7,6 +7,7 @@
 // the shift is 0 (bypassed, no added delay); latency() is the average delay it adds when active.
 // For delays with a Doppler-style head and no added latency use PitchHeads (PitchHeads.h).
 
+#include "../core/Trig.h" // sinF: the grain windows, cheap on MinGW (VCV) too
 #include "SincDelayLine.h"
 #include <algorithm>
 #include <cmath>
@@ -71,7 +72,6 @@ public:
         }
         const float inc = std::abs (speed) / window; // grain phase per sample
         const float hi = base + window + (float) search;
-        float out = 0.0f;
         for (int g = 0; g < 2; ++g)
         {
             auto& gr = grain[g];
@@ -79,9 +79,18 @@ public:
             gr.delay += speed;
             if (gr.phase >= 1.0f || gr.delay < base || gr.delay > hi)
                 restart (g, speed);
-            const float s = std::sin (3.14159265358979f * gr.phase);
-            out += s * s * buffer.read (gr.delay);
         }
+        // both grains read at once (same samples as two read() calls)
+        SincDelayLine::Spot sa, sb;
+        buffer.locate (grain[0].delay, sa);
+        buffer.locate (grain[1].delay, sb);
+        float r[2];
+        SincDelayLine::interpolate2 (sa, sb, r);
+        const float s0 = sinF (3.14159265358979f * grain[0].phase);
+        const float s1 = sinF (3.14159265358979f * grain[1].phase);
+        float out = 0.0f;
+        out += s0 * s0 * r[0];
+        out += s1 * s1 * r[1];
         return x + mix * (out - x);
     }
 

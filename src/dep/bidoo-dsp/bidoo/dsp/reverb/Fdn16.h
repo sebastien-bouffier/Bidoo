@@ -228,7 +228,8 @@ public:
             const float h[6] = { hw[0][j], hw[1][j], hw[2][j], hw[3][j], hw[4][j], hw[5][j] };
             v[j] = (double) loopAp[(size_t) j].process (lines[(size_t) j].read6 (whole[j], h), loopG, glide) * lineGain[(size_t) j];
         }
-        // the absorption, stage by stage across the lines (independent lanes: vectorised)
+        // the absorption, stage by stage across the lines (independent lanes: vectorised by every
+        // compiler, MSVC since the restrict pointers in StageLanes::process)
         for (auto& st : absorb)
             st.process (v);
         for (int j = 0; j < kLines; ++j)
@@ -321,14 +322,22 @@ private:
         }
 
         // the same transposed direct form II as DBiquad, per lane
-        inline void process (double* x)
+        inline void process (double* BIDOO_DSP_RESTRICT x)
         {
+            // restrict: MSVC proves nothing else and left this loop scalar (clang and GCC vectorised it)
+            double* BIDOO_DSP_RESTRICT z1 = s1;
+            double* BIDOO_DSP_RESTRICT z2 = s2;
+            const double* BIDOO_DSP_RESTRICT c0 = b0;
+            const double* BIDOO_DSP_RESTRICT c1 = b1;
+            const double* BIDOO_DSP_RESTRICT c2 = b2;
+            const double* BIDOO_DSP_RESTRICT d1 = a1;
+            const double* BIDOO_DSP_RESTRICT d2 = a2;
             for (int j = 0; j < kLines; ++j)
             {
                 const double in = x[j];
-                const double out = b0[j] * in + s1[j];
-                s1[j] = b1[j] * in - a1[j] * out + s2[j];
-                s2[j] = b2[j] * in - a2[j] * out;
+                const double out = c0[j] * in + z1[j];
+                z1[j] = c1[j] * in - d1[j] * out + z2[j];
+                z2[j] = c2[j] * in - d2[j] * out;
                 x[j] = out;
             }
         }

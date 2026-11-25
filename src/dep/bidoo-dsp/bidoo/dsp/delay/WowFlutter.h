@@ -95,11 +95,11 @@ public:
 
     // Depth in cents (peak, including the scrape), rate the main flutter frequency in Hz, scrape
     // the share of the flutter's power that is broadband scrape noise (0..1).
-    void setFlutter (float depthCents, float rateHz = kDefaultFlutterHz, float scrape = kDefaultScrapeShare)
+    void setFlutter (float depthCents, float rateHz = kDefaultFlutterHz, float scrapeAmount = kDefaultScrapeShare)
     {
         flutterTarget = centsToSpeed (depthCents);
         flutterRateTarget = clampf (rateHz, 0.5f, 60.0f);
-        scrapeShare = clampf (scrape, 0.0f, 1.0f);
+        scrapeShare = clampf (scrapeAmount, 0.0f, 1.0f);
         update();
     }
 

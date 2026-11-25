@@ -221,7 +221,7 @@ inline const ParamDef& paramDef (Fx fx, int k)
                                           percent ("Reso", 0.5f), choice ("Type", kFilterPatternTypes, 3, 0) };
         d[(size_t) Fx::Spectral] = { length ("Time", "1/8", 2, 9), choice ("Pattern", kSpectralPatterns, 5, 0), percent ("Spread", 1.0f),
                                      percent ("Feedback", 0.4f), choice ("Freeze", kOffOn, 2, 0) };
-        // Texture: records the input and plays it back in four ways (changing the mode restarts the recording)
+        // Texture: records the input and plays it back in four ways (a change to or from spectral restarts the recording; between the other three it carries on)
         d[(size_t) Fx::Texture] = { choice ("Mode", kTextureModes, 4, 0), percent ("Position", 0.5f), percent ("Size", 0.5f),
                                     semis ("Pitch", 24), percent ("Density", 0.7f) };
         // Cross Mod: the input is the carrier and the Side input (the sidechain, or the plugin's input without one) the

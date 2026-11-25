@@ -44,6 +44,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 
 namespace bidoo::dsp
 {
@@ -181,6 +182,14 @@ private:
             c.sliceLeft = 0;
             c.freezeLength = 0;
         }
+        // the transport restarts as in a fresh delay: no depth, so that control() below sets it again
+        // and it glides in (it used to snap to the depth of before, so a delay prepared again or reset
+        // played another wow than a fresh one: Tape and Bbd, about -76 dBFS from the first repeat)
+        wowSet = wowHzSet = flutterSet = -1.0f;
+        rng.reseed (1234); // the hiss, the BBD's noise and the drop-outs start their sequence again too
+        wow.setWow (0.0f);
+        flutter[0].setFlutter (0.0f);
+        flutter[1].setFlutter (0.0f);
         wow.reset();
         flutter[0].reset();
         flutter[1].reset();
@@ -195,6 +204,7 @@ private:
         wetSmoothed = std::sin (m * kHalfPi);
         charSmoothed = settings.character;
         toneLpK = toneHpK = -1.0f;
+        invalidateControlCache();
         apPhase = {};
         tick = 0;
         wet = {};
@@ -353,7 +363,7 @@ private:
         bool crossing = false;
         int sliceLeft = 0, freezeLength = 0;
         // per channel because they follow the time
-        float bbdK = 1.0f, bbdInc = 1.0f;
+        float bbdK = 1.0f, bbdInc = 1.0f, bbdKeySeconds = 0.0f; // bbdKeySeconds: the glide the two were computed for
     };
 
     struct Frame
@@ -502,8 +512,15 @@ private:
 
         // TONE: a low pass below the centre, the DC blocker rises above it
         const float t = settings.tone;
-        const float lpTarget = t < 0.0f ? coef (22000.0f * std::pow (400.0f / 22000.0f, -t)) : 1.0f;
-        const float hpTarget = coef (5.0f * std::pow (400.0f, std::max (t, 0.0f)));
+        // the logs and exponentials below are computed again only when what they depend on moves (the
+        // same values: MinGW's pow / exp cost about 30 ns, a fifth of the delay's time in VCV)
+        if (! (t == cacheTone))
+        {
+            cacheTone = t;
+            cacheLpTarget = t < 0.0f ? coef (22000.0f * std::pow (400.0f / 22000.0f, -t)) : 1.0f;
+            cacheHpTarget = coef (5.0f * std::pow (400.0f, std::max (t, 0.0f)));
+        }
+        const float lpTarget = cacheLpTarget, hpTarget = cacheHpTarget;
         toneLpK = toneLpK < 0.0f ? lpTarget : toneLpK + 0.2f * (lpTarget - toneLpK);
         toneHpK = toneHpK < 0.0f ? hpTarget : toneHpK + 0.2f * (hpTarget - toneHpK);
 
@@ -525,42 +542,51 @@ private:
 
         // Digital: nothing at all at 0
         digitalOn = ch > 0.002f;
-        digitalK = digitalOn ? coef (18000.0f * std::pow (7000.0f / 18000.0f, ch)) : 1.0f;
-        digitalQ = std::exp2 ((22.0f - 11.0f * std::sqrt (ch)) - 1.0f);
-        digitalInc = digitalOn ? std::min (1.0f, 44100.0f * std::pow (20000.0f / 44100.0f, ch) / rate) : 1.0f;
+        const bool chMoved = ! (ch == cacheCh);
+        cacheCh = ch;
+        if (chMoved)
+        {
+            digitalK = digitalOn ? coef (18000.0f * std::pow (7000.0f / 18000.0f, ch)) : 1.0f;
+            digitalQ = std::exp2 ((22.0f - 11.0f * std::sqrt (ch)) - 1.0f);
+            digitalInc = digitalOn ? std::min (1.0f, 44100.0f * std::pow (20000.0f / 44100.0f, ch) / rate) : 1.0f;
+            tapeLossK = coef (24000.0f * std::pow (5000.0f / 24000.0f, ch));
+            tapePreK = coef (3000.0f);
+            tapeDeK = coef (1500.0f); // the exact inverse of a +6 dB shelf at 3 kHz has its pole an octave down
+            tapeHpK = coef (35.0f);
+            cacheStages = 16384.0f * std::pow (2048.0f / 16384.0f, ch);
+            bbdHpK = coef (50.0f);
+            lofiInc = std::min (1.0f, 32000.0f * std::pow (4000.0f / 32000.0f, ch) / rate);
+            lofiQ = std::exp2 ((12.0f - 8.0f * ch) - 1.0f);
+            lofiK = coef (std::min (0.5f * 32000.0f * std::pow (4000.0f / 32000.0f, ch), 15000.0f));
+            diffuseK = coef (15000.0f * std::pow (6500.0f / 15000.0f, ch));
+        }
 
         // Tape: new at 0, worn at 1
         tapeDrive = 1.15f + 1.85f * ch;
-        tapeLossK = coef (24000.0f * std::pow (5000.0f / 24000.0f, ch));
         tapeHiss = 1.5e-4f + 3.0e-3f * ch * ch;
-        tapePreK = coef (3000.0f);
-        tapeDeK = coef (1500.0f); // the exact inverse of a +6 dB shelf at 3 kHz has its pole an octave down
-        tapeHpK = coef (35.0f);
         tapeDropChance = ch > 0.35f ? (ch - 0.35f) * (ch - 0.35f) * 6.0f * (float) kControl / rate : 0.0f;
 
         // Bbd: more stages are cleaner
-        const float stages = 16384.0f * std::pow (2048.0f / 16384.0f, ch);
+        const float stages = cacheStages;
         for (auto& c : chans)
         {
             const float seconds = (float) (c.glide / sr);
-            const float clock = stages / (2.0f * std::max (seconds, 0.001f));
-            c.bbdK = coef (std::clamp (clock / 1.6f, 900.0f, 24000.0f));
-            c.bbdInc = std::min (1.0f, std::max (clock, 1500.0f) / rate);
+            if (chMoved || ! (seconds == c.bbdKeySeconds))
+            {
+                c.bbdKeySeconds = seconds;
+                const float clock = stages / (2.0f * std::max (seconds, 0.001f));
+                c.bbdK = coef (std::clamp (clock / 1.6f, 900.0f, 24000.0f));
+                c.bbdInc = std::min (1.0f, std::max (clock, 1500.0f) / rate);
+            }
         }
         bbdDrive = 1.0f + 1.4f * ch;
         bbdNoise = 3.0e-4f + 4.0e-3f * ch;
         bbdLeak = 1.2e-3f * ch;
-        bbdHpK = coef (50.0f);
 
-        // Lofi
-        lofiInc = std::min (1.0f, 32000.0f * std::pow (4000.0f / 32000.0f, ch) / rate);
-        lofiQ = std::exp2 ((12.0f - 8.0f * ch) - 1.0f);
-        lofiK = coef (std::min (0.5f * 32000.0f * std::pow (4000.0f / 32000.0f, ch), 15000.0f));
 
         // Diffuse: the all-passes fade in over the first quarter, then get denser
         diffuseBlend = std::min (ch * 4.0f, 1.0f);
         diffuseG = 0.35f + 0.4f * ch;
-        diffuseK = coef (15000.0f * std::pow (6500.0f / 15000.0f, ch));
         diffuseCross = 0.25f * ch;
         if (typeOld == Diffuse || typeNew == Diffuse)
         {
@@ -827,6 +853,14 @@ private:
     float pingMix = 0.0f, pingStep = 0.001f, smooth = 0.001f, envRelease = 0.9999f;
     float fbSmoothed = 0.0f, drySmoothed = 1.0f, wetSmoothed = 0.0f, dryTarget = 1.0f, wetTarget = 0.0f, charSmoothed = 0.0f;
     float toneLpK = 1.0f, toneHpK = 0.001f, crossStep = 0.001f;
+    // control()'s cache (NaN keys: computed on the next control())
+    float cacheTone = 0.0f, cacheLpTarget = 1.0f, cacheHpTarget = 0.001f, cacheCh = 0.0f, cacheStages = 16384.0f;
+    void invalidateControlCache() noexcept
+    {
+        cacheTone = cacheCh = std::numeric_limits<float>::quiet_NaN();
+        for (auto& c : chans)
+            c.bbdKeySeconds = std::numeric_limits<float>::quiet_NaN();
+    }
     double glideCoef = 0.001, glideRise = 0.75, glideFall = 2.0;
     std::array<double, kAllpasses> apPhase {}; // the Diffuse LFO, one phase per all-pass
 

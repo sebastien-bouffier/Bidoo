@@ -1048,7 +1048,7 @@ private:
         const auto fx = Fx::Texture;
         const int mode = stepValue (paramDef (fx, 0), p[0]);
         if (mode != texture.mode())
-            texture.setMode (mode); // restarts the recording
+            texture.setMode (mode); // to or from spectral: restarts the recording; between the other modes it carries on
         texture.setPosition (p[1]);
         texture.setSize (p[2]);
         texture.setPitchSemitones ((float) semitoneValue (paramDef (fx, 3), p[3]));

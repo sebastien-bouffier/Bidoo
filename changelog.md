@@ -1,3 +1,10 @@
+### v2.6.2 (not released yet)
+Improvements
+- rICOcHEt, pARtiCuLeS, REI: lighter on the CPU in the Windows builds, where the compiler's maths library is slow (bidoo-dsp's own sines and cached curves): rICOcHEt about 4.6x in Digital, 1.8x in Tape, 2.2x in Diffuse; pARtiCuLeS' grains 2.4x; REI 1.3x. The sound is unchanged (within -120 dB)
+Fixes
+- rICOcHEt: after a sample-rate change or a reset, Tape, Bbd and Reverse start as a fresh delay (their wow, flutter and noise kept part of what played before)
+- The shared bidoo-dsp headers brought up to date (bidoo-dsp 26eb775) by its sync script
+
 ### v2.6.1 (22/11/2026)
 Fixes
 - rICOcHEt: its tags are now Delay and Effect only (Stereo is not one of Rack's tags)
