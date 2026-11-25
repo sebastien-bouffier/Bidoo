@@ -82,6 +82,45 @@ struct CanardChunk {
 	int used = 0;
 };
 
+// One playing head. cANARd plays one per polyphonic channel of TRIG / GATE / V/O: the same sample at several
+// pitches or places at once; each channel has its own slice, start, length and fade CVs.
+struct CanardVoice {
+	bool play = false;
+	double samplePos = 0.0;  // double: a float loses the pitch far into long samples
+	float sampleStart = 0.0f, loopLength = 0.0f, fadeLenght = 0.0f;
+	float direction = 1.0f;  // ping-pong flips it
+	float speed = 1.0f;
+	float speedOct = 0.f;    // speed = 2^speedOct, exp2 only when it moves
+	sampleread::Declick<2> dc;
+	sampleread::Declick<2> dc2;  // a tail still fading out when another jump comes (two jumps within 2 ms)
+	float lastStep = 0.f, lastGain = 0.f;  // of the last sample played
+	double lastPos = 0.0;
+	// The fade at the edges of the played region, slewed: a FADE or START change (CV or knob) glides over the declick
+	// length instead of stepping the gain
+	float regionGain = 1.f;
+	bool regionJump = true;  // a new head: the gain starts where it should be
+	sampleread::Declick<2> fadeOld[3];  // its heads on a sample being replaced, fading out
+	dsp::SchmittTrigger trigTrigger;
+	dsp::SchmittTrigger gateTrigger;
+	dsp::PulseGenerator eocPulse;
+
+	// The head jumps: it fades out from where it was, without cutting a tail already fading out
+	void jumpTail(double pos, float step, float gain, int len) {
+		if (gain == 0.f)
+			return;
+		if (dc.tailActive())
+			dc2 = dc;
+		dc.tail(pos, step, gain, len);
+	}
+	bool fadingOld() const { return fadeOld[0].tailActive() || fadeOld[1].tailActive() || fadeOld[2].tailActive(); }
+	void silence() {
+		play = false;
+		dc.reset();
+		dc2.reset();
+		eocPulse.reset();
+	}
+};
+
 struct CANARD : BidooModule {
 	enum ParamIds {
 		RECORD_PARAM,
@@ -124,32 +163,20 @@ struct CANARD : BidooModule {
 
 	// Audio thread: the sample it plays and the playback state.
 	CanardSample *smp = nullptr;
-	bool play = false;
 	bool record = false;
-	double samplePos = 0.0;  // double: a float loses the pitch far into long samples
-	float sampleStart = 0.0f, loopLength = 0.0f, fadeLenght = 0.0f;
-	float direction = 1.0f;      // ping-pong flips it
-	int playedSlice = 0;
 	int totalSampleCount = 0;
-	float speed = 1.0f;
-	float speedOct = 0.f;        // speed = 2^speedOct, exp2 only when it moves
 	bool reverse = false;        // plays the slices backward
-	sampleread::Declick<2> dc;
-	sampleread::Declick<2> dc2;    // a tail still fading out when another jump comes (two jumps within 2 ms)
-	float lastStep = 0.f, lastGain = 0.f;  // of the last sample played
-	double lastPos = 0.0;
-	// The fade at the edges of the played region, slewed: a FADE or START change (CV or knob) glides over the declick
-	// length instead of stepping the gain
-	float regionGain = 1.f;
-	bool regionJump = true;    // a new head: the gain starts where it should be
+	CanardVoice voices[16];
+	int nVoices = 1;
+	// for the display: the first voice's region, and every playing head
+	double samplePos = 0.0;
+	float sampleStart = 0.0f, loopLength = 0.0f, fadeLenght = 0.0f;
+	float heads[16] = {};
+	std::atomic<int> headCount{0};
 	// A sample replaced while it plays: the old one stays alive until its heads have faded out (then it is retired)
 	CanardSample *fading = nullptr;
-	sampleread::Declick<2> fadeOld[3];
-	dsp::SchmittTrigger trigTrigger;
-	dsp::SchmittTrigger gateTrigger;
 	dsp::SchmittTrigger recordTrigger;
 	dsp::SchmittTrigger clearTrigger;
-	dsp::PulseGenerator eocPulse;
 
 	// Handoff between the worker and the audio thread.
 	std::atomic<CanardSample*> pending{nullptr};
@@ -213,19 +240,19 @@ struct CANARD : BidooModule {
 		configSwitch(MODE_PARAM, 0, 1, 0, "Slice mode", {"Off", "On"});
 		configInput(INL_INPUT, "Left in");
 		configInput(INR_INPUT, "Right in");
-		configInput(TRIG_INPUT, "Trigger");
-		configInput(GATE_INPUT, "Gate");
-		configInput(SAMPLE_START_INPUT, "Start CV");
-		configInput(LOOP_LENGTH_INPUT, "Length CV");
+		configInput(TRIG_INPUT, "Trigger (polyphonic: one voice per channel)");
+		configInput(GATE_INPUT, "Gate (polyphonic: one voice per channel)");
+		configInput(SAMPLE_START_INPUT, "Start CV (polyphonic: per voice)");
+		configInput(LOOP_LENGTH_INPUT, "Length CV (polyphonic: per voice)");
 		configInput(READ_MODE_INPUT, "Read mode CV");
-		configInput(SPEED_INPUT, "V/O: 1 V per octave, 0 V plays the sample at its own pitch (added to TUNE, 4 octaves up or down at most)");
+		configInput(SPEED_INPUT, "V/O: 1 V per octave, 0 V plays the sample at its own pitch (added to TUNE, 4 octaves up or down at most; polyphonic: one voice per channel)");
 		configInput(RECORD_INPUT, "Record trigger");
-		configInput(FADE_INPUT, "Fade CV");
-		configInput(SLICE_INPUT, "Slice CV");
+		configInput(FADE_INPUT, "Fade CV (polyphonic: per voice)");
+		configInput(SLICE_INPUT, "Slice CV (polyphonic: per voice)");
 		configInput(CLEAR_INPUT, "Clear trigger");
-		configOutput(OUTL_OUTPUT, "Left");
-		configOutput(OUTR_OUTPUT, "Right");
-		configOutput(EOC_OUTPUT, "End of cycle");
+		configOutput(OUTL_OUTPUT, "Left (one channel per voice)");
+		configOutput(OUTR_OUTPUT, "Right (one channel per voice)");
+		configOutput(EOC_OUTPUT, "End of cycle (one channel per voice)");
 		for (int i = 0; i < SPARES; i++)
 			spare[i] = nullptr;
 		worker = std::thread(&CANARD::workerLoop, this);
@@ -547,25 +574,21 @@ struct CANARD : BidooModule {
 	void process(const ProcessArgs &args) override;
 
 	// Takes a new sample from the worker, once it has freed the previous one.
-	// The head jumps: it fades out from where it was, without cutting a tail already fading out
-	void jumpTail(double pos, float step, float gain, int len) {
-		if (gain == 0.f)
-			return;
-		if (dc.tailActive())
-			dc2 = dc;
-		dc.tail(pos, step, gain, len);
-	}
-
 	void takePending(int fadeLen = 0) {
 		if (pendingSet.load(std::memory_order_acquire) && !retired.load(std::memory_order_acquire) && !fading) {
 			CanardSample *s = pending.exchange(nullptr, std::memory_order_acq_rel);
-			if (fadeLen > 0 && smp && (play || dc.tailActive() || dc2.tailActive())) {
-				// Playing: the old sample's heads (the playing one and its tails) fade out from it while the new one fades in
-				fadeOld[0] = dc;
-				fadeOld[1] = dc2;
-				fadeOld[2].reset();
-				if (play)
-					fadeOld[2].tail(samplePos + lastStep, lastStep, lastGain, fadeLen);
+			bool sounding = false;
+			for (const CanardVoice &v : voices)
+				sounding = sounding || v.play || v.dc.tailActive() || v.dc2.tailActive();
+			if (fadeLen > 0 && smp && sounding) {
+				// Playing: the old sample's heads (the playing ones and their tails) fade out from it while the new one fades in
+				for (CanardVoice &v : voices) {
+					v.fadeOld[0] = v.dc;
+					v.fadeOld[1] = v.dc2;
+					v.fadeOld[2].reset();
+					if (v.play)
+						v.fadeOld[2].tail(v.samplePos + v.lastStep, v.lastStep, v.lastGain, fadeLen);
+				}
 				fading = smp;
 			}
 			else
@@ -574,24 +597,32 @@ struct CANARD : BidooModule {
 			live.store(s, std::memory_order_release);
 			pendingSet = false;
 			totalSampleCount = smp ? smp->size() : 0;
-			dc.reset();  // their tails read the old sample: fadeOld took them
-			dc2.reset();
-			if (samplePos >= totalSampleCount)
-				play = false;
-			else if (play) {
-				dc.fadeIn(fadeLen);
-				regionJump = true;
+			for (CanardVoice &v : voices) {
+				v.dc.reset();  // their tails read the old sample: fadeOld took them
+				v.dc2.reset();
+				if (v.samplePos >= totalSampleCount)
+					v.play = false;
+				else if (v.play) {
+					v.dc.fadeIn(fadeLen);
+					v.regionJump = true;
+				}
 			}
 		}
 	}
 
 	// The old sample is retired once its heads are silent (and the worker took the one before)
 	void finishFading(bool now) {
-		if (fading && (now || (!fadeOld[0].tailActive() && !fadeOld[1].tailActive() && !fadeOld[2].tailActive())) && !retired.load(std::memory_order_acquire)) {
+		if (!fading || retired.load(std::memory_order_acquire))
+			return;
+		bool silent = true;
+		for (const CanardVoice &v : voices)
+			silent = silent && !v.fadingOld();
+		if (now || silent) {
 			retired.store(fading, std::memory_order_release);
 			fading = nullptr;
-			for (auto &f : fadeOld)
-				f.reset();
+			for (CanardVoice &v : voices)
+				for (auto &f : v.fadeOld)
+					f.reset();
 		}
 	}
 
@@ -692,60 +723,51 @@ struct CANARD : BidooModule {
 			post({LOAD, json_string_value(lastPathJ), rate, sl, engineRate()});
 	}
 
-	void calcLoop() {
+	// The played region of channel c: the slice, start, length and fade CVs are per channel
+	void calcLoop(int c, CanardVoice &v) {
 		int sliceStart = 0;
 		int sliceEnd = totalSampleCount > 0 ? totalSampleCount - 1 : 0;
-		playedSlice = 0;
 		if (smp && params[MODE_PARAM].getValue() == 1 && smp->slices.size() > 0) {
 			int n = smp->slices.size();
-			playedSlice = clamp((int)std::round(clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f, 10.0f) * (n - 1) / 10), 0, n - 1);
-			sliceStart = smp->slices[playedSlice];
-			sliceEnd = (playedSlice < n - 1) ? (smp->slices[playedSlice + 1] - 1) : (totalSampleCount - 1);
+			int slice = clamp((int)std::round(clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getPolyVoltage(c), 0.0f, 10.0f) * (n - 1) / 10), 0, n - 1);
+			sliceStart = smp->slices[slice];
+			sliceEnd = (slice < n - 1) ? (smp->slices[slice + 1] - 1) : (totalSampleCount - 1);
 		}
 		if (totalSampleCount > 0) {
-			sampleStart = rescale(clamp(inputs[SAMPLE_START_INPUT].getVoltage() + params[SAMPLE_START_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f, sliceStart, sliceEnd);
-			loopLength = clamp(rescale(clamp(inputs[LOOP_LENGTH_INPUT].getVoltage() + params[LOOP_LENGTH_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f, 0.0f, sliceEnd - sliceStart + 1), 1.0f, std::max(sliceEnd - sampleStart, 1.0f));
-			fadeLenght = rescale(clamp(inputs[FADE_INPUT].getVoltage() + params[FADE_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f, 0.0f, std::floor(loopLength / 2));
+			v.sampleStart = rescale(clamp(inputs[SAMPLE_START_INPUT].getPolyVoltage(c) + params[SAMPLE_START_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f, sliceStart, sliceEnd);
+			v.loopLength = clamp(rescale(clamp(inputs[LOOP_LENGTH_INPUT].getPolyVoltage(c) + params[LOOP_LENGTH_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f, 0.0f, sliceEnd - sliceStart + 1), 1.0f, std::max(sliceEnd - v.sampleStart, 1.0f));
+			v.fadeLenght = rescale(clamp(inputs[FADE_INPUT].getPolyVoltage(c) + params[FADE_PARAM].getValue(), 0.0f, 10.0f), 0.0f, 10.0f, 0.0f, std::floor(v.loopLength / 2));
 		}
 		else {
-			loopLength = 0;
-			sampleStart = 0;
-			fadeLenght = 0;
+			v.loopLength = 0;
+			v.sampleStart = 0;
+			v.fadeLenght = 0;
 		}
 	}
 
-	void initPos() {
-		direction = 1.0f;
-		samplePos = reverse ? sampleStart + loopLength : sampleStart;
+	void initPos(CanardVoice &v) {
+		v.direction = 1.0f;
+		v.samplePos = reverse ? v.sampleStart + v.loopLength : v.sampleStart;
 	}
+
+	void playVoice(int c, CanardVoice &v, int trigMode, int readMode, int fadeLen, float *out);
 };
 
 void CANARD::process(const ProcessArgs &args) {
 	const int fadeLen = sampleread::declickLength(args.sampleRate);
 	finishFading(false);
 	takePending(fadeLen);
-	// Declicked restarts and stops: the old head fades out over 2 ms while
-	// the new one fades in.
-	// (samplePos is where the last sample played: the old head goes on from
-	// one step further.)
-	auto restart = [&]() {
-		if (play)
-			jumpTail(samplePos + lastStep, lastStep, lastGain, fadeLen);
-		dc.fadeIn(fadeLen);
-		regionJump = true;
-	};
-	auto stop = [&]() {
-		if (play)
-			jumpTail(samplePos + lastStep, lastStep, lastGain, fadeLen);
-		play = false;
-	};
 	if (smp && smp->sampleRate != args.sampleRate && busy.load() == 0 && recDone.load() < 0 && reloadRate.load() == 0.f)
 		reloadRate = args.sampleRate;
 
 	if (clearTrigger.process(inputs[CLEAR_INPUT].getVoltage() + params[CLEAR_PARAM].getValue(), 0.1f, 1.f)) {
 		// Through the worker, like any change of the sample.
 		clearRequested = true;
-		stop();
+		for (CanardVoice &v : voices) {
+			if (v.play)
+				v.jumpTail(v.samplePos + v.lastStep, v.lastStep, v.lastGain, fadeLen);
+			v.play = false;
+		}
 	}
 
 	// Recording, into chunks the worker keeps ready.
@@ -793,49 +815,95 @@ void CANARD::process(const ProcessArgs &args) {
 
 	int trigMode = inputs[TRIG_INPUT].isConnected() ? 1 : (inputs[GATE_INPUT].isConnected() ? 2 : 0);
 	int readMode = clamp((int)std::round(inputs[READ_MODE_INPUT].getVoltage() + params[READ_MODE_PARAM].getValue()), 0, 2);
-	// V/O: exactly 1 V per octave on top of TUNE; 16x either way is the most the band-limited reading plays cleanly
-	float oct = clamp(params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage(), -4.f, 4.f);
-	if (oct != speedOct) {
-		speedOct = oct;
-		speed = std::exp2(oct);
-	}
-	calcLoop();
+	// as many voices as the TRIG (or GATE) or V/O cable has channels
+	const int trigChannels = trigMode == 1 ? inputs[TRIG_INPUT].getChannels() : trigMode == 2 ? inputs[GATE_INPUT].getChannels() : 1;
+	const int n = clamp(std::max(trigChannels, inputs[SPEED_INPUT].getChannels()), 1, 16);
+	for (int c = n; c < nVoices; c++)
+		voices[c].silence();
+	nVoices = n;
 
-	bool trig = trigTrigger.process(inputs[TRIG_INPUT].getVoltage(), 0.1f, 1.f);
-	bool gateRise = gateTrigger.process(inputs[GATE_INPUT].getVoltage(), 0.1f, 1.f);
-	bool gateHigh = gateTrigger.isHigh();
-	float end = sampleStart + loopLength;
+	int heads_ = 0;
+	for (int c = 0; c < n; c++) {
+		float out[2];
+		playVoice(c, voices[c], trigMode, readMode, fadeLen, out);
+		outputs[OUTL_OUTPUT].setVoltage(canardSoftLimit(out[0] * 5.0f), c);
+		outputs[OUTR_OUTPUT].setVoltage(canardSoftLimit(out[1] * 5.0f), c);
+		outputs[EOC_OUTPUT].setVoltage(voices[c].eocPulse.process(args.sampleTime) ? 10.0f : 0.0f, c);
+		if (voices[c].play)
+			heads[heads_++] = (float)voices[c].samplePos;
+	}
+	outputs[OUTL_OUTPUT].setChannels(n);
+	outputs[OUTR_OUTPUT].setChannels(n);
+	outputs[EOC_OUTPUT].setChannels(n);
+	headCount.store(heads_, std::memory_order_relaxed);
+	// the display shows the first voice's region
+	samplePos = voices[0].samplePos;
+	sampleStart = voices[0].sampleStart;
+	loopLength = voices[0].loopLength;
+	fadeLenght = voices[0].fadeLenght;
+}
+
+// One voice, one sample: out gets its stereo frame (5 V = 1)
+void CANARD::playVoice(int c, CanardVoice &v, int trigMode, int readMode, int fadeLen, float *out) {
+	// Declicked restarts and stops: the old head fades out over 2 ms while
+	// the new one fades in.
+	// (samplePos is where the last sample played: the old head goes on from
+	// one step further.)
+	auto restart = [&]() {
+		if (v.play)
+			v.jumpTail(v.samplePos + v.lastStep, v.lastStep, v.lastGain, fadeLen);
+		v.dc.fadeIn(fadeLen);
+		v.regionJump = true;
+	};
+	auto stop = [&]() {
+		if (v.play)
+			v.jumpTail(v.samplePos + v.lastStep, v.lastStep, v.lastGain, fadeLen);
+		v.play = false;
+	};
+	// V/O: exactly 1 V per octave on top of TUNE; 16x either way is the most the band-limited reading plays cleanly
+	float oct = clamp(params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getPolyVoltage(c), -4.f, 4.f);
+	if (oct != v.speedOct) {
+		v.speedOct = oct;
+		v.speed = std::exp2(oct);
+	}
+	calcLoop(c, v);
+	const float sliceCv = clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getPolyVoltage(c), 0.0f, 10.0f);
+
+	bool trig = v.trigTrigger.process(inputs[TRIG_INPUT].getPolyVoltage(c), 0.1f, 1.f);
+	bool gateRise = v.gateTrigger.process(inputs[GATE_INPUT].getPolyVoltage(c), 0.1f, 1.f);
+	bool gateHigh = v.gateTrigger.isHigh();
+	float end = v.sampleStart + v.loopLength;
 	bool advance = false;
 
 	bool scrub = false;
 	if (trigMode == 1) {
 		if (trig) {
 			restart();
-			initPos();
+			initPos(v);
 			if (smp && smp->slices.size() == 1 && inputs[SLICE_INPUT].isConnected())
-				samplePos = sampleStart + loopLength * clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f, 10.0f) * 0.1f;
-			play = totalSampleCount > 0;
+				v.samplePos = v.sampleStart + v.loopLength * sliceCv * 0.1f;
+			v.play = totalSampleCount > 0;
 		}
 		else
-			advance = play;
+			advance = v.play;
 	}
 	else if (trigMode == 2) {
 		if (gateHigh) {
 			if (inputs[SLICE_INPUT].isConnected()) {
 				// Scrubbing: the slice CV sets the position.
 				scrub = true;
-				if (!play)
-					dc.fadeIn(fadeLen);
-				play = totalSampleCount > 0;
-				samplePos = sampleStart + clamp(params[SLICE_PARAM].getValue() + inputs[SLICE_INPUT].getVoltage(), 0.0f, 10.0f) * 0.1f * loopLength;
+				if (!v.play)
+					v.dc.fadeIn(fadeLen);
+				v.play = totalSampleCount > 0;
+				v.samplePos = v.sampleStart + sliceCv * 0.1f * v.loopLength;
 			}
 			else if (gateRise) {
 				restart();
-				initPos();
-				play = totalSampleCount > 0;
+				initPos(v);
+				v.play = totalSampleCount > 0;
 			}
 			else
-				advance = play;
+				advance = v.play;
 		}
 		else
 			stop();
@@ -846,88 +914,86 @@ void CANARD::process(const ProcessArgs &args) {
 	float step = 0.f;
 	// A real jump (more than a few frames, and not while the last one still fades in) is declicked; a region that
 	// glides past the head (an LFO on START) carries it along, which is continuous
-	const bool forward = (reverse ? -1.f : 1.f) * direction > 0.f;
-	const double behind = forward ? sampleStart - samplePos : samplePos - end;
-	if (advance && behind > 8.0 && dc.in >= 1.f) {
-		jumpTail(samplePos + lastStep, lastStep, lastGain, fadeLen);
-		samplePos = std::min(std::max(samplePos, (double)sampleStart), (double)end);
-		dc.fadeIn(fadeLen);
-		regionJump = true;
+	const bool forward = (reverse ? -1.f : 1.f) * v.direction > 0.f;
+	const double behind = forward ? v.sampleStart - v.samplePos : v.samplePos - end;
+	if (advance && behind > 8.0 && v.dc.in >= 1.f) {
+		v.jumpTail(v.samplePos + v.lastStep, v.lastStep, v.lastGain, fadeLen);
+		v.samplePos = std::min(std::max(v.samplePos, (double)v.sampleStart), (double)end);
+		v.dc.fadeIn(fadeLen);
+		v.regionJump = true;
 	}
 	if (advance) {
 		// Forward, or backward with reverse; ping-pong flips the direction.
-		float dir = (reverse ? -1.f : 1.f) * direction;
-		step = dir * speed;
-		samplePos += step;
-		bool pastEnd = dir > 0 ? samplePos >= end : samplePos <= sampleStart;
+		float dir = (reverse ? -1.f : 1.f) * v.direction;
+		step = dir * v.speed;
+		v.samplePos += step;
+		bool pastEnd = dir > 0 ? v.samplePos >= end : v.samplePos <= v.sampleStart;
 		if (pastEnd) {
 			if (readMode == 0) {
-				play = false;
-				eocPulse.trigger(1e-3f);
+				v.play = false;
+				v.eocPulse.trigger(1e-3f);
 			}
 			else if (readMode == 1) {
 				// The loop jump: the old head goes on, fading out.
-				jumpTail(samplePos, step, lastGain, fadeLen);
-				initPos();
-				dc.fadeIn(fadeLen);
-				regionJump = true;
+				v.jumpTail(v.samplePos, step, v.lastGain, fadeLen);
+				initPos(v);
+				v.dc.fadeIn(fadeLen);
+				v.regionJump = true;
 			}
 			else {
-				direction = -direction;
-				samplePos = std::min(std::max(samplePos, (double)sampleStart), (double)end);
+				v.direction = -v.direction;
+				v.samplePos = std::min(std::max(v.samplePos, (double)v.sampleStart), (double)end);
 			}
 		}
-		samplePos = std::min(std::max(samplePos, (double)sampleStart), (double)end);
+		v.samplePos = std::min(std::max(v.samplePos, (double)v.sampleStart), (double)end);
 	}
 	else if (scrub)
-		step = (float)(samplePos - lastPos);
+		step = (float)(v.samplePos - v.lastPos);
 
 	float acc[2] = {0.f, 0.f};
-	if (play && smp && totalSampleCount > 1) {
-		float fade = dc.nextIn();
+	if (v.play && smp && totalSampleCount > 1) {
+		float fade = v.dc.nextIn();
 		float rg = 1.f;
-		if (fadeLenght >= 1.0f) {
-			if ((samplePos - sampleStart) < fadeLenght)
-				rg = (float)(samplePos - sampleStart) / fadeLenght;
-			else if ((end - samplePos) < fadeLenght)
-				rg = (float)(end - samplePos) / fadeLenght;
+		if (v.fadeLenght >= 1.0f) {
+			if ((v.samplePos - v.sampleStart) < v.fadeLenght)
+				rg = (float)(v.samplePos - v.sampleStart) / v.fadeLenght;
+			else if ((end - v.samplePos) < v.fadeLenght)
+				rg = (float)(end - v.samplePos) / v.fadeLenght;
 		}
-		if (regionJump)
-			regionGain = rg;
+		if (v.regionJump)
+			v.regionGain = rg;
 		else
-			regionGain += clamp(rg - regionGain, -1.f / fadeLen, 1.f / fadeLen);
-		regionJump = false;
-		fade *= regionGain;
+			v.regionGain += clamp(rg - v.regionGain, -1.f / fadeLen, 1.f / fadeLen);
+		v.regionJump = false;
+		fade *= v.regionGain;
 		if (readMode == 0 && !scrub) {
 			// Played once: at least 2 ms of fade before the end it stops at.
-			float dir = (reverse ? -1.f : 1.f) * direction;
-			float left = (float)(dir > 0 ? end - samplePos : samplePos - sampleStart) / speed;
+			float dir = (reverse ? -1.f : 1.f) * v.direction;
+			float left = (float)(dir > 0 ? end - v.samplePos : v.samplePos - v.sampleStart) / v.speed;
 			if (left < fadeLen)
 				fade *= std::max(left, 0.f) / fadeLen;
 		}
-		double p = std::min(std::max(samplePos, 0.0), totalSampleCount - 1.001);
+		double p = std::min(std::max(v.samplePos, 0.0), totalSampleCount - 1.001);
 		const sampleread::View<2> view{(const float *)smp->frames.data(), totalSampleCount, smp->mip.get()};
-		view.read(p, std::fabs(step == 0.f ? speed : step), acc);
+		view.read(p, std::fabs(step == 0.f ? v.speed : step), acc);
 		acc[0] *= fade;
 		acc[1] *= fade;
-		lastGain = fade;
-		lastStep = step;
+		v.lastGain = fade;
+		v.lastStep = step;
 	}
-	lastPos = samplePos;
+	v.lastPos = v.samplePos;
 	if (smp && totalSampleCount > 1) {
 		const sampleread::View<2> view{(const float *)smp->frames.data(), totalSampleCount, smp->mip.get()};
-		dc.addTail(view, acc);
-		dc2.addTail(view, acc);
+		v.dc.addTail(view, acc);
+		v.dc2.addTail(view, acc);
 	}
 	if (fading && fading->size() > 1) {
 		const sampleread::View<2> old{(const float *)fading->frames.data(), fading->size(), fading->mip.get()};
-		for (auto &f : fadeOld)
+		for (auto &f : v.fadeOld)
 			f.addTail(old, acc);
 	}
-	float outL = acc[0] * 5.0f, outR = acc[1] * 5.0f;
-	outputs[OUTL_OUTPUT].setVoltage(canardSoftLimit(outL));
-	outputs[OUTR_OUTPUT].setVoltage(canardSoftLimit(outR));
-	outputs[EOC_OUTPUT].setVoltage(eocPulse.process(args.sampleTime) ? 10.0f : 0.0f);
+	out[0] = acc[0];
+	out[1] = acc[1];
 }
 
 struct BidooTransientsBlueTrimpot : BidooBlueTrimpot {
@@ -1101,8 +1167,13 @@ struct CANARDDisplay : OpaqueWidget {
 				if (sliceMode)
 					for (int x : s->slices)
 						wavestyle::bar(args.vg, px(x), 0, 2*height+10, 0, x != module->deleteSliceMarker ? wavestyle::kBar : RED_BIDOO);
-				// the play head, on top: it lights up the pink under it
-				wavestyle::head(args.vg, px(module->samplePos), 0, 2*height+10);
+				// the play heads, on top: they light up the pink under them (one per playing voice; the first
+				// voice's place when none plays)
+				const int nh = module->headCount.load(std::memory_order_relaxed);
+				if (nh == 0)
+					wavestyle::head(args.vg, px(module->samplePos), 0, 2*height+10);
+				for (int h = 0; h < nh; h++)
+					wavestyle::head(args.vg, px(module->heads[h]), 0, 2*height+10);
 				nvgResetScissor(args.vg);
 			}
 		}

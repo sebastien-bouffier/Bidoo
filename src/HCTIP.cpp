@@ -24,28 +24,33 @@ struct HCTIP : BidooModule {
 		NUM_LIGHTS
 	};
 
-	PitchShifter *pShifter = nullptr;
-	// paused (nothing patched): the buffers are cleared before it plays again
-	bool paused = true;
+	// one shifter per polyphonic channel, all made with the sample rate (about 140 kB each at 48 kHz)
+	PitchShifter *pShifter[16] = {};
+	// paused (nothing patched, or the channel unused): its buffers are cleared before it plays again
+	bool paused[16];
 
 	HCTIP() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configParam(PITCH_PARAM, -12.f, 12.f, 0.f, "Pitch", " semitones");
-		configInput(INPUT, "Audio (polyphonic inputs are summed)");
-		configInput(PITCH_INPUT, "Pitch CV (1V/oct)");
+		configInput(INPUT, "Audio (polyphonic: one shifter per channel)");
+		configInput(PITCH_INPUT, "Pitch CV (1V/oct, polyphonic: per channel; with a mono input, one shifted copy per channel)");
+		for (bool &p : paused)
+			p = true;
 		configOutput(OUTPUT, "Audio (37 ms late: the analysis window)");
 		configBypass(INPUT, OUTPUT);
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent &e) override {
-		delete pShifter;
-		pShifter = new PitchShifter();
 		// the same frequency resolution and hop time at any rate: 2048 at 44.1 /
 		// 48 kHz, 4096 at 88.2 / 96 kHz, 8192 at 176.4 / 192 kHz
 		int size = e.sampleRate >= 160000.f ? 8192 : (e.sampleRate >= 80000.f ? 4096 : 2048);
-		pShifter->init(size, 8, e.sampleRate);
-		pShifter->phaseLock = true;
-		paused = true;
+		for (int c = 0; c < 16; c++) {
+			delete pShifter[c];
+			pShifter[c] = new PitchShifter();
+			pShifter[c]->init(size, 8, e.sampleRate);
+			pShifter[c]->phaseLock = true;
+			paused[c] = true;
+		}
 	}
 
 	// the phase-locked shifter's gain per semitone from -12 to +24, measured
@@ -65,27 +70,38 @@ struct HCTIP : BidooModule {
 	}
 
 	void process(const ProcessArgs &args) override {
-		if (!pShifter)
+		if (!pShifter[0])
 			return;
 		if (!outputs[OUTPUT].isConnected() || !inputs[INPUT].isConnected()) {
+			outputs[OUTPUT].setChannels(1);
 			outputs[OUTPUT].setVoltage(0.f);
-			paused = true;
+			for (bool &p : paused)
+				p = true;
 			return;
 		}
-		if (paused) {
-			pShifter->clear();
-			paused = false;
+		// as many channels as the audio or the pitch CV has: a mono input with a polyphonic pitch CV
+		// is a harmoniser (one shifted copy per CV channel)
+		const int channels = std::max(1, std::max(inputs[INPUT].getChannels(), inputs[PITCH_INPUT].getChannels()));
+		for (int c = channels; c < 16; c++)
+			paused[c] = true;
+		for (int c = 0; c < channels; c++) {
+			if (paused[c]) {
+				pShifter[c]->clear();
+				paused[c] = false;
+			}
+			float semis = params[PITCH_PARAM].getValue() + inputs[PITCH_INPUT].getPolyVoltage(c) * 12.f;
+			semis = clamp(semis, -12.f, 24.f);
+			float ratio = dsp::exp2_taylor5(semis / 12.f);
+			// one 256-sample hop of FFT work at a time instead of eight at once
+			float y = pShifter[c]->step(ratio, inputs[INPUT].getPolyVoltage(c) * 0.2f);
+			outputs[OUTPUT].setVoltage(bidooSoftLimit(y * 5.0f * levelFix(semis)), c);
 		}
-		float semis = params[PITCH_PARAM].getValue() + inputs[PITCH_INPUT].getVoltage() * 12.f;
-		semis = clamp(semis, -12.f, 24.f);
-		float ratio = dsp::exp2_taylor5(semis / 12.f);
-		// one 256-sample hop of FFT work at a time instead of eight at once
-		float y = pShifter->step(ratio, inputs[INPUT].getVoltageSum() * 0.2f);
-		outputs[OUTPUT].setVoltage(bidooSoftLimit(y * 5.0f * levelFix(semis)));
+		outputs[OUTPUT].setChannels(channels);
 	}
 
 	~HCTIP() {
-		delete pShifter;
+		for (PitchShifter *p : pShifter)
+			delete p;
 	}
 };
 
