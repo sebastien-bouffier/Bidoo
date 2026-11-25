@@ -203,6 +203,37 @@ public:
         return acc;
     }
 
+    // Two reads at once (lanes 0 and 1), each summed in the same order as interpolate(): the same
+    // samples, with the two serial sums interleaved instead of one after the other (GranularPitchShifter's
+    // two grains; clang-cl scheduled two inlined interpolate() 1.25x slower than MSVC in SSE2).
+    static void interpolate2 (const Spot& a, const Spot& b, float* out)
+    {
+#if BIDOO_DSP_SSE
+        constexpr int n = SincTable::kTaps;
+        __m128 acc = _mm_setzero_ps();
+        const __m128 pa = _mm_set1_ps (a.pt), pb = _mm_set1_ps (b.pt);
+        for (int j = 0; j < n; j += 4)
+        {
+            __m128 xa = _mm_loadu_ps (a.x - j - 3), xb = _mm_loadu_ps (b.x - j - 3);
+            xa = _mm_shuffle_ps (xa, xa, _MM_SHUFFLE (0, 1, 2, 3));
+            xb = _mm_shuffle_ps (xb, xb, _MM_SHUFFLE (0, 1, 2, 3));
+            const __m128 ta = _mm_mul_ps (_mm_add_ps (_mm_loadu_ps (a.h + j), _mm_mul_ps (pa, _mm_loadu_ps (a.dh + j))), xa);
+            const __m128 tb = _mm_mul_ps (_mm_add_ps (_mm_loadu_ps (b.h + j), _mm_mul_ps (pb, _mm_loadu_ps (b.dh + j))), xb);
+            const __m128 lo = _mm_unpacklo_ps (ta, tb); // terms j, j + 1 of a and b
+            const __m128 hi = _mm_unpackhi_ps (ta, tb); // terms j + 2, j + 3
+            acc = _mm_add_ps (acc, lo);
+            acc = _mm_add_ps (acc, _mm_movehl_ps (lo, lo));
+            acc = _mm_add_ps (acc, hi);
+            acc = _mm_add_ps (acc, _mm_movehl_ps (hi, hi));
+        }
+        out[0] = _mm_cvtss_f32 (acc);
+        out[1] = _mm_cvtss_f32 (_mm_shuffle_ps (acc, acc, _MM_SHUFFLE (1, 1, 1, 1)));
+#else
+        out[0] = interpolate (a);
+        out[1] = interpolate (b);
+#endif
+    }
+
     // Four reads at once (one per lane), each summed in the same order as interpolate(): the
     // same samples, for less work per read.
     static void interpolate4 (const Spot* const* s, float* out)
