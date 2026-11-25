@@ -1,3 +1,25 @@
+### v2.7.1 (25/11/2026)
+Improvements
+- REI: Hall, Room, Chamber, Plate and Cloud run 16 lines instead of 8, with deeper modulation and 24 diffused early reflections (bidoo-dsp's Prism, dense mode): smoother tails without metallic ringing, at the same level and decay. About twice the CPU on those algorithms. Patches made before sound different
+- dFUZE: GVerb replaced by the 16-line network of Bidoo's Grotte reverb plus a cluster of diffused early reflections spread over the room size: dense from the first milliseconds (GVerb took 200 to 570 ms), no ringing on long times, true stereo, the knobs and levels kept. Patches made before sound different
+- Theme: a new Follow Rack choice (now the default) shows Dark or Light as Rack's View > Use dark panels says, and switches with it. Themes saved before are ignored, so modules follow Rack until a theme is chosen again
+- Factory presets for REI, dFUZE, FiLTRe, pARtiCuLeS and dIKT@T (right-click > Preset)
+- lambda: a polyphonic clock runs one channel per voice; ziNC: a polyphonic carrier; baR: polyphonic
+- ratEaU: Clear of a pattern mode can be undone; πlOT: the control fills of the menu can be undone
+- Rack's bypass passes the signal on BAFIS, ziNC, SPORE, lATe, dFUZE and pErCO
+- Tooltips on every zOù MAï and enCORE port; knobs that snap on zOù MAï, tOCAnTe, TiARE, dIKT@T; rICOcHEt's time can be typed as a ratio or in ms
+- Lighter on the CPU: BAFIS (drive curves about 4x), BanCoù (5 to 6x), the samplers' reads, cANARd, eDsaroS, sOUNAIRe, tOCAnTe; BAFIS, ziNC and fLAME rest when nothing is patched; pARtiCuLeS loads files in the background
+- The manual links point to the wiki pages; the expanders carry the Expander tag
+Fixes
+- sOUNAIRe: saving while a sample is written could corrupt the file; out-of-range values in a patch are clamped
+- antN: a patch without a URL no longer crashes; the audio buffer is cleared when a new stream starts
+- ACnE: the live mutes and solos are saved with the patch
+- ratEaU: Clear ran on the interface thread while the engine played
+- mOiRE, πlOT: a control moved from outside takes over again
+- EMILE, HUITre, SAISON, lATe, lIMbO, bordL: small fixes (the pattern slot saved, very large images refused, a counter that could overflow, LIMBO's fades at any sample rate, bordL's Randomize)
+- REI: Initialize starts a fresh reverb (the modulation went on from where it was)
+- GVerb's sources removed: no module uses them any more
+
 ### v2.7.0 (25/11/2026)
 Improvements
 - rICOcHEt, pARtiCuLeS, REI: lighter on the CPU in the Windows builds, where the compiler's maths library is slow (bidoo-dsp's own sines and cached curves): rICOcHEt about 4.6x in Digital, 1.8x in Tape, 2.2x in Diffuse; pARtiCuLeS' grains 2.4x; REI 1.3x. The sound is unchanged (within -120 dB)
