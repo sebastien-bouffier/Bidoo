@@ -1,9 +1,7 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "Svf.hpp"
-#include "gverb.h"
-#include "dep/gverb/src/gverb.c"
-#include "dep/gverb/src/gverbdsp.c"
+#include "DfuzeEngine.hpp"
 
 using namespace std;
 
@@ -41,24 +39,15 @@ struct DFUZE : BidooModule {
 	};
 
 
-	// one gverb per side
-	ty_gverb *verb[2] = {nullptr, nullptr};
-	float size = -1.f;
-	float applied[6] = {-1.f, -1.f, -1.f, -1.f, -1.f, -1.f};
-
-	// FREEZE: gverb has no freeze mode, so its tail is held by an endless
-	// reverb time and no damping while the input fades out (10 ms)
+	DfuzeEngine engine;
+	DfuzeEngine::Params ep;
 	dsp::SchmittTrigger freezeTrigger;
 	bool freeze = false;
 	float inGain = 1.f;
-
-	// the coefficients follow the knobs and CVs every 16 samples
+	// the knobs and CVs are read every 16 samples (the engine glides sizes and decay times itself)
 	dsp::ClockDivider control;
 	static constexpr int CONTROL = 16;
-	// idle: nothing in and nothing left of the tail for longer than the
-	// longest delay, then gverb is skipped until the input moves again
-	int silent = 0;
-	bool idle = false;
+	bool first = true;
 
 	DFUZE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -82,36 +71,12 @@ struct DFUZE : BidooModule {
 		configOutput(OUT_R_OUTPUT, "Right");
 		configBypass(IN_INPUT, OUT_L_OUTPUT);
 		configBypass(IN_R_INPUT, OUT_R_OUTPUT);
-		build(48000.f);
-	}
-
-	~DFUZE() {
-		for (ty_gverb *v : verb)
-			if (v)
-				gverb_free(v);
-	}
-
-	// gverb's delays are counted in samples: rebuilt for each sample rate
-	void build(float sampleRate) {
-		for (int i = 0; i < 2; i++) {
-			if (verb[i])
-				gverb_free(verb[i]);
-			// built as the original LADSPA design (a 50 m room, spread 15): the
-			// diffusers are sized from the room given here, a 1 m room made them
-			// about 50 times too short (a grainy, metallic tail)
-			verb[i] = gverb_new((int)sampleRate, 300, 50, 1, 0.5f, 15, 0.5f, 0.5f, 0.5f);
-		}
-		size = -1.f;
-		for (float &a : applied)
-			a = -1.f;
 		control.setDivision(CONTROL);
-		control.reset();
-		silent = 0;
-		idle = false;
+		engine.prepare(48000.f);
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent &e) override {
-		build(e.sampleRate);
+		engine.prepare(e.sampleRate);
 	}
 
 	void onReset() override {
@@ -138,36 +103,16 @@ void DFUZE::process(const ProcessArgs &args) {
 	float fade = 1.f / (0.01f * args.sampleRate);
 	inGain = freeze ? std::max(inGain - fade, 0.f) : std::min(inGain + fade, 1.f);
 
-	// control rate: the size glides (50 ms) so a moving size bends the tail
-	// instead of clicking; coefficients worked out again only when a value moves
-	if (size < 0.f || control.process()) {
+	if (first || control.process()) {
+		first = false;
 		lights[FREEZE_LIGHT].setBrightness(freeze ? 1.f : 0.f);
-		float sizeTarget = clamp(params[SIZE_PARAM].getValue() + inputs[SIZE_INPUT].getVoltage() * 30.0f, 1.0f, 300.0f);
-		size = size < 0.f ? sizeTarget : size + (sizeTarget - size) * std::min(1.0f, (float)CONTROL / (0.05f * args.sampleRate));
-
-		float values[6] = {
-			size,
-			freeze ? 1e6f : clamp(params[REVTIME_PARAM].getValue() + inputs[REVTIME_INPUT].getVoltage() * 5.0f, 0.0f, 50.0f),
-			freeze ? 0.0f : clamp(params[DAMP_PARAM].getValue() + inputs[DAMP_INPUT].getVoltage() * 0.09f, 0.0f, 0.9f),
-			clamp(params[BANDWIDTH_PARAM].getValue() + inputs[BANDWIDTH_INPUT].getVoltage() * 0.1f, 0.0f, 1.0f),
-			clamp((params[EARLYLEVEL_PARAM].getValue() + inputs[EARLYLEVEL_INPUT].getVoltage()) * 0.1f, 0.0f, 1.0f),
-			clamp((params[TAIL_PARAM].getValue() + inputs[TAIL_INPUT].getVoltage()) * 0.1f, 0.0f, 1.0f)
-		};
-		for (int k = 0; k < 6; k++) {
-			if (values[k] == applied[k] || (k == 0 && std::fabs(values[k] - applied[k]) < 1e-4f))
-				continue;
-			applied[k] = values[k];
-			for (ty_gverb *v : verb) {
-				switch (k) {
-					case 0: gverb_set_roomsize(v, values[k]); break;
-					case 1: gverb_set_revtime(v, values[k]); break;
-					case 2: gverb_set_damping(v, values[k]); break;
-					case 3: gverb_set_inputbandwidth(v, values[k]); break;
-					case 4: gverb_set_earlylevel(v, values[k]); break;
-					case 5: gverb_set_taillevel(v, values[k]); break;
-				}
-			}
-		}
+		ep.sizeM = clamp(params[SIZE_PARAM].getValue() + inputs[SIZE_INPUT].getVoltage() * 30.0f, 1.0f, 300.0f);
+		ep.revTime = clamp(params[REVTIME_PARAM].getValue() + inputs[REVTIME_INPUT].getVoltage() * 5.0f, 0.0f, 50.0f);
+		ep.damp = clamp(params[DAMP_PARAM].getValue() + inputs[DAMP_INPUT].getVoltage() * 0.09f, 0.0f, 0.9f);
+		ep.bandwidth = clamp(params[BANDWIDTH_PARAM].getValue() + inputs[BANDWIDTH_INPUT].getVoltage() * 0.1f, 0.0f, 1.0f);
+		ep.early = clamp((params[EARLYLEVEL_PARAM].getValue() + inputs[EARLYLEVEL_INPUT].getVoltage()) * 0.1f, 0.0f, 1.0f);
+		ep.tail = clamp((params[TAIL_PARAM].getValue() + inputs[TAIL_INPUT].getVoltage()) * 0.1f, 0.0f, 1.0f);
+		ep.freeze = freeze;
 	}
 
 	bool outL = outputs[OUT_L_OUTPUT].isConnected(), outR = outputs[OUT_R_OUTPUT].isConnected();
@@ -175,34 +120,16 @@ void DFUZE::process(const ProcessArgs &args) {
 	float inR = inputs[IN_R_INPUT].isConnected() ? inputs[IN_R_INPUT].getVoltageSum() : inL;
 	float xL = inL * 0.1f * inGain, xR = inR * 0.1f * inGain;
 
-	// nothing to hear, or nothing left of the tail: skip the reverb
-	bool quiet = std::fabs(xL) < 1e-7f && std::fabs(xR) < 1e-7f;
-	if (!quiet) {
-		silent = 0;
-		idle = false;
-	}
-	if (idle || (!outL && !outR)) {
+	// nobody listens: nothing to work out (the engine skips its network by itself once the tail is gone)
+	if (!outL && !outR) {
 		outputs[OUT_L_OUTPUT].setVoltage(0.f);
 		outputs[OUT_R_OUTPUT].setVoltage(0.f);
 		return;
 	}
-
-	// dual mono: the left reverb feeds the left output, the right one the right
-	// (true stereo, ll + rl and lr + rr, doubled the cost for a narrower image);
-	// a side nobody listens to is not worked out
-	float yL = outL ? gverb_do_side(verb[0], xL, 0) : 0.f;
-	float yR = outR ? gverb_do_side(verb[1], xR, 1) : 0.f;
+	float yL, yR;
+	engine.process(xL, xR, yL, yR, ep);
 	outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(yL * 10.0f));
 	outputs[OUT_R_OUTPUT].setVoltage(bidooSoftLimit(yR * 10.0f));
-
-	// the tail is gone once the output stays under -140 dB (re 10 V) for longer
-	// than the longest delay line
-	if (quiet && std::fabs(yL) < 1e-6f && std::fabs(yR) < 1e-6f) {
-		if (++silent > (int)(verb[0]->largestdelay + 0.25f * args.sampleRate))
-			idle = true;
-	}
-	else
-		silent = 0;
 }
 
 template <typename BASE>

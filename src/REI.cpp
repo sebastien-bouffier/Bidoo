@@ -8,7 +8,9 @@ using namespace std;
 
 using bidoo::dsp::reverb::PrismReverb;
 
-// REI: the Prism reverb of FadaBox (eight algorithms and a shimmer), stereo.
+// REI: the Prism reverb of FadaBox (eight algorithms and a shimmer), stereo, in Prism's dense mode: the
+// network algorithms on 16 lines with diffused early reflections (smoother, less metallic tails than
+// FadaBox's eight lines, about twice the CPU).
 // Prism works on blocks: the wet signal comes 32 samples (0.7 ms at 48 kHz) late.
 struct REI : BidooModule {
 	enum ParamIds {
@@ -114,7 +116,7 @@ struct REI : BidooModule {
 		configBypass(IN_R_INPUT, OUT_R_OUTPUT);
 		// a short glide of the line lengths, so a moving DECAY bends instead of clicking
 		settings.glideMs = 100.f;
-		prism.prepare(48000.f);
+		prism.prepare(48000.f, true);
 		prepareLoop(48000.f);
 	}
 
@@ -130,7 +132,7 @@ struct REI : BidooModule {
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent &e) override {
-		prism.prepare(e.sampleRate);
+		prism.prepare(e.sampleRate, true);
 		prepareLoop(e.sampleRate);
 		pos = 0;
 	}

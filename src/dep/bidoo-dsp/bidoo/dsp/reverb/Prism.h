@@ -18,6 +18,12 @@
 // reset(), when there is no tail, it still switches at once). Settings held: bit for bit as before.
 // And, as FdnReverb / FdnEcoReverb: a NaN or an infinity coming in is heard as silence, and an output that
 // goes non-finite resets the reverb (that block silent); finite audio bit for bit as before.
+// Dense mode (prepare (rate, true); Bidoo VCV REI, 2026-11-25): the FDN algorithms run 16 lines instead of 8
+// (log spaced between 0.75 x the shortest and the longest of the eight; PLATE's 2.2 x longer), with deeper,
+// slower modulation and 24 diffused early reflections instead of 8 discrete ones. Measured on impulse
+// responses: the tail's colour (deviation of its spectrum from a smooth one) down from 1.2-3.3 to 1.1-1.5
+// times that of noise, echo density reached in 20-115 ms instead of 20-165 ms, the same RT60 and energy
+// (within 0.5 dB). About twice the CPU of the FDN algorithms. Off by default: FadaBox and Potion bit for bit.
 
 #include <algorithm>
 #include <array>
@@ -55,17 +61,18 @@ inline float prismSoftClip (float x)
 using PrismRng = XorShift32;
 
 // in-place 8-point Hadamard transform, normalised (lossless)
-inline void hadamard8 (std::array<float, 8>& x)
+template <size_t N>
+inline void hadamard (std::array<float, N>& x)
 {
-    for (int h = 1; h < 8; h *= 2)
-        for (int i = 0; i < 8; i += 2 * h)
+    for (int h = 1; h < (int) N; h *= 2)
+        for (int i = 0; i < (int) N; i += 2 * h)
             for (int j = i; j < i + h; ++j)
             {
                 const float a = x[(size_t) j], b = x[(size_t) (j + h)];
                 x[(size_t) j] = a + b;
                 x[(size_t) (j + h)] = a - b;
             }
-    constexpr float k = 0.35355339f; // 1 / sqrt (8)
+    constexpr float k = N == 8 ? 0.35355339f : 0.25f; // 1 / sqrt (N)
     for (auto& v : x)
         v *= k;
 }
@@ -75,6 +82,11 @@ constexpr int kTankLines[3] { 1, 4, 6 }; // the lines that carry the shimmer
 constexpr float kSignR[8] { 1, 1, -1, -1, 1, 1, -1, -1 }; // orthogonal to kSignL: uncorrelated sides
 constexpr float kErMs[8] { 7.1f, 11.3f, 17.9f, 23.3f, 31.7f, 41.9f, 53.3f, 67.1f };
 constexpr float kErGain[8] { 0.85f, -0.7f, 0.62f, -0.55f, 0.46f, -0.38f, 0.3f, -0.24f };
+// dense: the outputs' signs, two orthogonal Walsh rows of 16 (the parity of i & 5 and of i & 10)
+constexpr float kSign16L[16] { 1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1, 1, -1, 1 };
+constexpr float kSign16R[16] { 1, 1, -1, -1, 1, 1, -1, -1, -1, -1, 1, 1, -1, -1, 1, 1 };
+// dense: the eight lengths spread to sixteen (log spaced, a little jitter so no two share a ratio)
+constexpr float kJitter16[16] { 0.0f, 0.021f, -0.017f, 0.013f, -0.023f, 0.011f, -0.009f, 0.019f, -0.014f, 0.024f, -0.02f, 0.008f, -0.012f, 0.016f, -0.006f, 0.0f };
 } // namespace prism_detail
 
 // PRISM REVERB: eight reverb algorithms with an optional shimmer (a pitch shifter in the feedback path).
@@ -107,7 +119,8 @@ public:
         float glideMs = 0;
     };
 
-    void prepare (float sampleRate);
+    // dense: the FDN algorithms' 16-line voicing (see the top of this file), fixed until the next prepare()
+    void prepare (float sampleRate, bool dense = false);
     // clears every buffer (no allocation); the next change of algorithm then switches at once (no fade)
     void reset();
     // wet output only; non-finite input samples are heard as silence, a non-finite output resets the reverb
@@ -118,7 +131,8 @@ public:
 
 private:
     friend struct PrismTestAccess; // the tests reach the shimmer's shifter alone
-    static constexpr int kLines = 8;
+    static constexpr int kLines = 16; // storage; 8 run unless dense
+    static constexpr int kEr = 24;    // storage; 8 reflections unless dense
     static constexpr int kSpringStages = 20;
     static constexpr int kTaps = 36;
 
@@ -198,6 +212,7 @@ private:
     // stays what it always was); with fadingOut, returns as soon as the output has faded out
     template <bool transient>
     int run (const float* inL, const float* inR, float* outL, float* outR, int n, bool fadingOut);
+    template <int N>
     void fdn (float inL, float inR, float& outL, float& outR);
     void spring (float inL, float inR, float& outL, float& outR);
     void burst (float inL, float inR, float& outL, float& outR);
@@ -209,14 +224,18 @@ private:
     std::array<Allpass, 4> inDiffL, inDiffR;
     float inDiffGain = 0.6f;
     // early reflections (from the predelayed input)
-    std::array<int, 8> erTimeL {}, erTimeR {};
-    std::array<float, 8> erGain {};
+    std::array<int, kEr> erTimeL {}, erTimeR {};
+    std::array<float, kEr> erGain {};
+    std::array<Allpass, 2> erApL, erApR; // dense: the reflections smeared by two allpasses a side
+    bool dense = false;
+    int nLines = 8, nEr = 8;
     float erLevel = 0;
     // FDN
     std::array<Line, kLines> lines;
     std::array<Allpass, kLines> lineAp, lineAp2; // two allpasses per line: a denser, smoother tail
     std::array<float, kLines> baseLen {}, gain {}, dampB {}, dampZ {}, dcZ {}, lfoPhase {}, lfoInc {}, lfoNow {};
     std::array<float, kLines> curLen {}; // the lengths read now: baseLen, or gliding towards it (Settings::glideMs)
+    std::array<float, kLines> lens16 {}; // dense: the sixteen lengths (ms) of the algorithm
     float apGain = 0.3f, dampA = 0.5f, modDepth = 0, lenGlide = 0;
     bool snapLen = true;
     // spring tanks
@@ -507,9 +526,12 @@ inline float PrismReverb::Shifter::process (float x, float ratio, float window)
 }
 
 // --- setup
-inline void PrismReverb::prepare (float sampleRate)
+inline void PrismReverb::prepare (float sampleRate, bool denseMode)
 {
     sr = sampleRate;
+    dense = denseMode;
+    nLines = dense ? 16 : 8;
+    nEr = dense ? kEr : 8;
     dcA = 0.0008f * (48000.0f / sr);
     preFadeInc = 1.0f / (0.01f * sr);
     shimHpA = 1.0f - std::exp (-prism_detail::kTwoPiF * 160.0f / sr);
@@ -526,11 +548,16 @@ inline void PrismReverb::prepare (float sampleRate)
         inDiffL[(size_t) i].prepare ((int) (sr * 0.035f));
         inDiffR[(size_t) i].prepare ((int) (sr * 0.035f));
     }
-    for (int i = 0; i < kLines; ++i)
+    for (int i = 0; i < kLines; ++i) // the eight lines dense mode adds stay tiny without it
     {
-        lines[(size_t) i].prepare ((int) (sr * 0.3f));
-        lineAp[(size_t) i].prepare ((int) (sr * 0.02f));
-        lineAp2[(size_t) i].prepare ((int) (sr * 0.02f));
+        lines[(size_t) i].prepare (i < nLines ? (int) (sr * 0.3f) : 0);
+        lineAp[(size_t) i].prepare (i < nLines ? (int) (sr * 0.02f) : 0);
+        lineAp2[(size_t) i].prepare (i < nLines ? (int) (sr * 0.02f) : 0);
+    }
+    for (int i = 0; i < 2; ++i)
+    {
+        erApL[(size_t) i].prepare (dense ? (int) (sr * 0.01f) : 0);
+        erApR[(size_t) i].prepare (dense ? (int) (sr * 0.01f) : 0);
     }
     const int k = std::max (1, (int) std::lround (sr / (2.0f * 4400.0f)));
     for (auto& t : tanks)
@@ -551,10 +578,11 @@ inline void PrismReverb::prepare (float sampleRate)
     shiftR.prepare (sr);
     for (auto& t : tankShift)
         t.prepare (sr);
-    for (int i = 0; i < kLines; ++i)
+    for (int i = 0; i < nLines; ++i)
     {
-        lfoPhase[(size_t) i] = (float) i / kLines;
-        lfoInc[(size_t) i] = (0.11f + 0.137f * (float) i) / sr * 8.0f; // advanced every 8 samples
+        lfoPhase[(size_t) i] = (float) i / (float) nLines;
+        // advanced every 8 samples; dense: sixteen rates over about the same span
+        lfoInc[(size_t) i] = (0.11f + (dense ? 0.1f : 0.137f) * (float) i) / sr * 8.0f;
     }
     algo = -1;
     reset();
@@ -581,6 +609,10 @@ inline void PrismReverb::clear()
     for (auto& a : lineAp2)
         a.reset();
     for (auto& a : lineAp)
+        a.reset();
+    for (auto& a : erApL)
+        a.reset();
+    for (auto& a : erApR)
         a.reset();
     dampZ.fill (0);
     dcZ.fill (0);
@@ -640,6 +672,8 @@ inline void PrismReverb::configure (const Settings& s)
             inDiffGain = d.diffGain;
             for (int i = 0; i < 8; ++i)
             {
+                if (dense)
+                    continue;
                 erTimeL[(size_t) i] = (int) (prism_detail::kErMs[i] * d.erScale * ms);
                 erTimeR[(size_t) i] = (int) (prism_detail::kErMs[i] * d.erScale * 1.09f * ms + 0.7f * ms);
                 erGain[(size_t) i] = prism_detail::kErGain[i] * (i % 3 == 1 ? -1.0f : 1.0f);
@@ -649,6 +683,43 @@ inline void PrismReverb::configure (const Settings& s)
             erLevel = d.er;
             apGain = d.apGain;
             outGain = d.level * 0.55f;
+            if (dense)
+            {
+                // sixteen lines: lengths log spaced over the eight's span (PLATE's 2.2 x longer: its short
+                // lines rang on a few modes), allpasses spread the same way
+                const float stretch = a == Plate ? 2.2f : 1.0f;
+                const float lo = d.lens[0] * 0.75f * stretch, hi = d.lens[7] * stretch;
+                for (int i = 0; i < kLines; ++i)
+                {
+                    lens16[(size_t) i] = lo * std::pow (hi / lo, (float) i / 15.0f) * (1.0f + prism_detail::kJitter16[i]);
+                    lineAp[(size_t) i].setLength ((int) (d.apMs * (0.62f + 0.055f * (float) i) * ms));
+                    lineAp2[(size_t) i].setLength ((int) (d.apMs * (0.31f + 0.0335f * (float) ((i * 7) % 16)) * ms));
+                }
+                // 24 reflections over the eight's span (5-67 ms x erScale), denser late, gains falling with
+                // time and the energy of the eight, then smeared by two allpasses: no discrete flams
+                prism_detail::PrismRng rr { 0xe41u };
+                float sum = 0;
+                for (int k = 0; k < kEr; ++k)
+                {
+                    const float x = ((float) k + 0.5f + 0.35f * rr.bipolar()) / (float) kEr;
+                    const float t = 5.0f + 62.0f * std::pow (x, 1.4f);
+                    const float tR = 5.0f + 62.0f * std::pow (std::min (1.0f, x + 0.3f * rr.bipolar() / (float) kEr), 1.4f);
+                    erTimeL[(size_t) k] = std::max (1, (int) (t * d.erScale * ms));
+                    erTimeR[(size_t) k] = std::max (1, (int) (tR * d.erScale * 1.07f * ms + 0.4f * ms));
+                    const float g = std::exp (-t / 45.0f) * (rr.uniform() < 0.5f ? -1.0f : 1.0f) * (0.6f + 0.4f * rr.uniform());
+                    erGain[(size_t) k] = g;
+                    sum += g * g;
+                }
+                const float norm = std::sqrt (2.75f / std::max (1.0e-6f, sum));
+                for (auto& g : erGain)
+                    g *= norm;
+                erApL[0].setLength ((int) (1.3f * ms));
+                erApL[1].setLength ((int) (2.9f * ms));
+                erApR[0].setLength ((int) (1.7f * ms));
+                erApR[1].setLength ((int) (3.4f * ms));
+                // the same energy as the eight-line voicing (measured)
+                outGain *= a == Plate ? 1.75f : 1.29f;
+            }
         }
         else
         {
@@ -688,9 +759,9 @@ inline void PrismReverb::configure (const Settings& s)
     {
         const auto& d = prism_detail::fdnDef (a);
         const float size = 1.0f - d.sizeFromDecay * 0.15f + d.sizeFromDecay * 0.3f * s.decay;
-        for (int i = 0; i < kLines; ++i)
+        for (int i = 0; i < nLines; ++i)
         {
-            baseLen[(size_t) i] = d.lens[(size_t) i] * size * sr * 0.001f;
+            baseLen[(size_t) i] = (dense ? lens16[(size_t) i] : d.lens[(size_t) i]) * size * sr * 0.001f;
             const float loop = baseLen[(size_t) i] + (float) (lineAp[(size_t) i].len + lineAp2[(size_t) i].len);
             // frequency-dependent decay (Jot): the low end decays in T60, the top in T60 * hf, for
             // any line length, through a one-pole whose DC gain is g and Nyquist gain g_hf
@@ -704,6 +775,8 @@ inline void PrismReverb::configure (const Settings& s)
             curLen = baseLen;
         snapLen = false;
         modDepth = d.modMs * sr * 0.001f * prism_detail::clampf (s.mod, 0.0f, 1.0f);
+        if (dense) // deeper: the modes smeared (PLATE and ROOM, whose depths were the smallest, most)
+            modDepth *= 2.0f * (a == Plate ? 3.0f : a == Room ? 2.0f : 1.0f);
     }
     else if (a == Spring)
     {
@@ -774,26 +847,30 @@ inline void PrismReverb::configure (const Settings& s)
 }
 
 // --- the algorithms, one stereo sample each
+template <int N>
 inline void PrismReverb::fdn (float inL, float inR, float& outL, float& outR)
 {
+    // N = 8: the original voicing, unchanged; 16: dense
+    constexpr const float* signL = N == 8 ? prism_detail::kSignL : prism_detail::kSign16L;
+    constexpr const float* signR = N == 8 ? prism_detail::kSignR : prism_detail::kSign16R;
     if ((counter++ & 7) == 0)
-        for (int i = 0; i < kLines; ++i)
+        for (int i = 0; i < N; ++i)
         {
             auto& ph = lfoPhase[(size_t) i];
             ph += lfoInc[(size_t) i];
             ph -= std::floor (ph);
             lfoNow[(size_t) i] = 1.0f + sinF (prism_detail::kTwoPiF * ph); // the read modulation, held for 8 samples
         }
-    std::array<float, kLines> y {};
+    std::array<float, N> y {};
     float l = 0, r = 0;
-    for (int i = 0; i < kLines; ++i)
+    for (int i = 0; i < N; ++i)
     {
         if (lenGlide > 0.0f)
             curLen[(size_t) i] += lenGlide * (baseLen[(size_t) i] - curLen[(size_t) i]);
         const float d = curLen[(size_t) i] + modDepth * lfoNow[(size_t) i];
         y[(size_t) i] = lines[(size_t) i].read (d);
-        l += prism_detail::kSignL[i] * y[(size_t) i];
-        r += prism_detail::kSignR[i] * y[(size_t) i];
+        l += signL[i] * y[(size_t) i];
+        r += signR[i] * y[(size_t) i];
         // damping (high frequencies decay faster) and a DC guard, then the decay gain
         auto& z = dampZ[(size_t) i];
         const float b = dampB[(size_t) i];
@@ -802,7 +879,7 @@ inline void PrismReverb::fdn (float inL, float inR, float& outL, float& outR)
         dc += dcA * (z - dc);
         y[(size_t) i] = (z - dc) * gain[(size_t) i];
     }
-    prism_detail::hadamard8 (y);
+    prism_detail::hadamard (y);
     if (tankMix > 0.0f)
         for (int k = 0; k < kTankShifters; ++k)
         {
@@ -820,13 +897,15 @@ inline void PrismReverb::fdn (float inL, float inR, float& outL, float& outR)
             const float comp = std::min (1.5f, std::sqrt ((pin + 1.0e-12f) / (pout + 1.0e-12f)));
             v += tankMix * (comp * tankLp[(size_t) k] - v);
         }
-    for (int i = 0; i < kLines; ++i)
+    constexpr float inK = N == 8 ? 0.5f : 0.3535534f; // the same input power into twice the lines
+    for (int i = 0; i < N; ++i)
     {
-        const float in = (i % 2 == 0 ? inL : inR) * (i % 4 < 2 ? 0.5f : -0.5f);
+        const float in = (i % 2 == 0 ? inL : inR) * (i % 4 < 2 ? inK : -inK);
         lines[(size_t) i].push (lineAp2[(size_t) i].process (lineAp[(size_t) i].process (y[(size_t) i] + in, apGain), apGain * 0.8f));
     }
-    outL = l * 0.35355339f;
-    outR = r * 0.35355339f;
+    constexpr float outK = N == 8 ? 0.35355339f : 0.25f;
+    outL = l * outK;
+    outR = r * outK;
 }
 
 inline void PrismReverb::spring (float inL, float inR, float& outL, float& outR)
@@ -998,7 +1077,12 @@ inline int PrismReverb::run (const float* inL, const float* inR, float* outL, fl
         }
         float oL = 0, oR = 0;
         if (prism_detail::isFdn (algo))
-            fdn (xL, xR, oL, oR);
+        {
+            if (dense)
+                fdn<16> (xL, xR, oL, oR);
+            else
+                fdn<8> (xL, xR, oL, oR);
+        }
         else if (algo == Spring)
             spring (xL, xR, oL, oR);
         else
@@ -1006,7 +1090,7 @@ inline int PrismReverb::run (const float* inL, const float* inR, float* outL, fl
         if (erLevel > 0.0f)
         {
             float eL = 0, eR = 0;
-            for (int k = 0; k < 8; ++k)
+            for (int k = 0; k < nEr; ++k)
             {
                 eL += erGain[(size_t) k] * preL.readInt (preSamples + erTimeL[(size_t) k]);
                 eR += erGain[(size_t) k] * preR.readInt (preSamples + erTimeR[(size_t) k]);
@@ -1014,13 +1098,18 @@ inline int PrismReverb::run (const float* inL, const float* inR, float* outL, fl
             if (transient && preG < 1.0f) // the pre-delay on the move: the old reflections fade out with it
             {
                 float oldL = 0, oldR = 0;
-                for (int k = 0; k < 8; ++k)
+                for (int k = 0; k < nEr; ++k)
                 {
                     oldL += erGain[(size_t) k] * preL.readInt (preOld + erTimeL[(size_t) k]);
                     oldR += erGain[(size_t) k] * preR.readInt (preOld + erTimeR[(size_t) k]);
                 }
                 eL = preG * eL + (1.0f - preG) * oldL;
                 eR = preG * eR + (1.0f - preG) * oldR;
+            }
+            if (dense)
+            {
+                eL = erApL[1].process (erApL[0].process (eL, 0.6f), 0.55f);
+                eR = erApR[1].process (erApR[0].process (eR, 0.6f), 0.55f);
             }
             oL += inGate * erLevel * 0.5f * eL;
             oR += inGate * erLevel * 0.5f * eR;
