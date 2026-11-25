@@ -1,3 +1,7 @@
+### v2.7.4 (26/11/2026)
+Improvements
+- aCiDe: polyphonic, one voice per channel of V/OCT or GATE (up to 16), each with its own accent, slide and cutoff, resonance, env mod and decay CVs (a mono cable acts on every voice); OUT has one channel per voice. With mono cables it plays as before
+
 ### v2.7.3 (26/11/2026)
 Improvements
 - zOù MAï, enCORE: the Len. and Dist. knobs step through musical fractions of a step (1/32, 1/24, 1/16, 1/12, 3/32, 1/8, 1/6, 3/16, 1/4, 1/3, 3/8, 1/2, 2/3, 3/4, 7/8, 1, 4/3, 3/2, 2, 3, 4 ... 64), shown by name on the screen and in the tooltip, and typed as 3/16, 0.75 or fit. A context-menu option gives free knobs back (on a curve, fine at the short end)
