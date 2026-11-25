@@ -119,9 +119,10 @@ struct PILOT : BidooModule {
 	bool reset = false;
 	int copyBankId = -1;
 	bool copyBankArmed = false;
-	// UI -> audio thread: fill one control's scenes in the current bank (kind * 16 + control, -1 none)
+	// UI -> audio thread: copy fillValues into one control's scenes (bank * 16 + control, -1 none)
 	enum CtrlFill { FILL_RAND, FILL_RAMP_UP, FILL_RAMP_DOWN, FILL_SIN, FILL_INIT };
 	std::atomic<int> ctrlFillRequest {-1};
+	float fillValues[16] = {};
 	int copySceneId = -1;
 	int copySceneBankId = -1;
 	bool showTapes = false;
@@ -266,24 +267,39 @@ struct PILOT : BidooModule {
 			lastWritten[i] = params[CONTROLS_PARAMS + i].getValue();
 	}
 
+	// UI thread: the values are worked out here (random included) so the fill can be undone
 	void requestCtrlFill(int kind, int c) {
-		ctrlFillRequest.store(kind * 16 + clamp(c, 0, 15));
+		c = clamp(c, 0, 15);
+		const int b = clamp(bank, 0, 15);
+		const int len = clamp(length, 0, 15);
+		history::ModuleChange *h = new history::ModuleChange;
+		h->name = "fill control";
+		h->moduleId = id;
+		h->oldModuleJ = APP->engine->moduleToJson(this);
+		h->newModuleJ = json_deep_copy(h->oldModuleJ);
+		json_t *bankJ = json_array_get(json_object_get(json_object_get(h->newModuleJ, "data"), "banks"), b);
+		for (int i = 0; i < 16; i++) {
+			float v = scenes[b][i][c];
+			switch (kind) {
+				case FILL_RAND: v = random::uniform(); break;
+				case FILL_RAMP_UP: v = (i > 0 && i <= len) ? (float)i / len : 0.0f; break;
+				case FILL_RAMP_DOWN: v = (i == 0) ? 1.0f : (i < len ? (float)(len - i) / len : 0.0f); break;
+				// one scene: the formula's ends are sin(pi) = 0, avoid 0/0
+				case FILL_SIN: v = (i <= len && len > 0) ? sin((float)(len - i) * M_PI / len) : 0.0f; break;
+				case FILL_INIT: if (i <= len) v = 0.0f; break;
+				default: break;
+			}
+			fillValues[i] = v;
+			json_array_set_new(json_array_get(bankJ, i), c, json_real(v));
+		}
+		APP->history->push(h);
+		ctrlFillRequest.store(b * 16 + c);
 	}
 
 	// audio thread only
-	void fillCtrl(int kind, int c) {
-		for (int i = 0; i < 16; i++) {
-			float &v = scenes[bank][i][c];
-			switch (kind) {
-				case FILL_RAND: v = random::uniform(); break;
-				case FILL_RAMP_UP: v = (i > 0 && i <= length) ? (float)i / length : 0.0f; break;
-				case FILL_RAMP_DOWN: v = (i == 0) ? 1.0f : (i < length ? (float)(length - i) / length : 0.0f); break;
-				// one scene: the formula's ends are sin(pi) = 0, avoid 0/0
-				case FILL_SIN: v = (i <= length && length > 0) ? sin((float)(length - i) * M_PI / length) : 0.0f; break;
-				case FILL_INIT: if (i <= length) v = 0.0f; break;
-				default: break;
-			}
-		}
+	void fillCtrl(int b, int c) {
+		for (int i = 0; i < 16; i++)
+			scenes[b][i][c] = fillValues[i];
 	}
 
 	void onReset() override {
@@ -1169,7 +1185,7 @@ struct BidooLargeColoredKnob : RoundKnob {
 	}
 };
 
-// The fills run on the audio thread, at the top of process()
+// The fills are worked out on the UI thread (with undo) and copied in at the top of process()
 struct CtrlRandMenuItem : ui::MenuItem {
 	ParamQuantity* param = NULL;
 	void onAction(const ActionEvent& e) override {
