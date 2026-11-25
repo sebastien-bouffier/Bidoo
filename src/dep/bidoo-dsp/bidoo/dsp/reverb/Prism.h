@@ -645,6 +645,13 @@ inline void PrismReverb::clear()
     preFade = 1;
     shimL = shimR = shimEnv = inEnv = shimHpL = shimHpR = shimLpL = shimLpR = 0;
     counter = 0;
+    // the modulation starts where prepare() started it, so a reset (or a change of algorithm) plays
+    // exactly as a fresh reverb (it went on from the last user's phases, 2026-11-25)
+    for (int i = 0; i < nLines; ++i)
+        lfoPhase[(size_t) i] = (float) i / (float) nLines;
+    lfoNow.fill (0);
+    for (auto& t : tanks)
+        t.lfo = 0;
 }
 
 inline void PrismReverb::configure (const Settings& s)

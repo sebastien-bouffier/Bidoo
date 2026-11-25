@@ -31,7 +31,6 @@ The plugin includes the following code, each under its own license, in `src/dep`
 | [minimp3](https://github.com/lieff/minimp3) | lieff | CC0 1.0 (`minimp3/LICENSE`) | antN |
 | [FAAD2](https://github.com/knik0/faad2) 2.11.4 | M. Bakker, Nero AG and contributors | GPL-2.0-or-later (`faad2/COPYING`) | antN (AAC) |
 | [stb_vorbis](https://github.com/nothings/stb) 1.22 | Sean Barrett | Public domain or MIT (end of `stb_vorbis/stb_vorbis.c`) | antN (Ogg Vorbis) |
-| [GVerb](https://github.com/swh/ladspa) | Juhana Sadeharju | GPL-2.0-or-later (in the sources) | dFUZE |
 | [PFFFT](https://bitbucket.org/jpommier/pffft) | Julien Pommier | FFTPACK license, BSD-like (in `pffft.h`) | sOUNAiRe, fLAME, FiLTRe, HCTIP, ziNC, liMonADe |
 | [LodePNG](https://github.com/lvandeve/lodepng) | Lode Vandevenne | zlib (in `lodepng.h`) | EMILE, liMonADe |
 | Resampler | Laurent de Soras | LGPL-2.1 (`resampler/license.txt`) | antN, eDsaroS, fLAME, the samplers |
