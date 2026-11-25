@@ -2,7 +2,7 @@
 Improvements
 - rICOcHEt, pARtiCuLeS, REI: lighter on the CPU in the Windows builds, where the compiler's maths library is slow (bidoo-dsp's own sines and cached curves): rICOcHEt about 4.6x in Digital, 1.8x in Tape, 2.2x in Diffuse; pARtiCuLeS' grains 2.4x; REI 1.3x. The sound is unchanged (within -120 dB)
 - ACnE: a polyphonic cable spreads its channels over the next inputs that have no cable (channel 1 on its own input, channel 2 on the next one, and so on; what finds no free input stays summed on its own input), so one cable from oAï, pOUPRE or mAGMA feeds one track per sample. A context-menu option, on for a new ACnE; patches made before it keep summing every channel into its input
-- ACnE: level meters, a thin bar beside each of the 16 input jacks (what reaches the track, after the polyphonic spread) and each of the 8 output jacks (after VOLUME): green below -6 dB (5 V = 0 dB), amber up to 10 V, red at 10 V and over, with a peak line held for a second
+- ACnE: level meters, a thin bar centred between the 16 input jacks (what reaches the track, after the polyphonic spread) and a horizontal one under each of the 8 output jacks (after VOLUME): green below -6 dB (5 V = 0 dB), amber up to 10 V, red at 10 V and over, with a peak line held for a second
 Fixes
 - ACnE, mOiRE: the coloured knobs turn from blue to pink as their value rises again (since Rack 2 every knob showed the colour of the last one drawn)
 - REI: a patch made with the old REI (2.1.1 and older) opens with its ROOM SIZE as a DECAY below the top of the knob (0.9 at most) and its PITCH SHIFT as the nearest shimmer interval. Read as they were, a room size of 1 or more froze the reverb at once, so it took almost no input

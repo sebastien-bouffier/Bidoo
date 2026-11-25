@@ -504,7 +504,7 @@ void ACNE::process(const ProcessArgs &args) {
 	}
 }
 
-// A thin vertical level bar beside a jack: green below -6 dB (5 V = 0 dB), amber up to
+// A thin level bar between two jacks (vertical, or horizontal when wider than tall): green below -6 dB (5 V = 0 dB), amber up to
 // 10 V, red at 10 V and over; a peak line held 1 s. On the light layer.
 struct AcneMeter : TransparentWidget {
 	const float *level = nullptr;
@@ -518,6 +518,7 @@ struct AcneMeter : TransparentWidget {
 	void drawLayer(const DrawArgs &args, int layer) override {
 		if (layer == 1) {
 			float w = box.size.x, h = box.size.y;
+			bool horizontal = w > h;
 			nvgBeginPath(args.vg);
 			nvgRect(args.vg, 0, 0, w, h);
 			nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 110));
@@ -531,7 +532,10 @@ struct AcneMeter : TransparentWidget {
 			auto seg = [&](float from, float to, NVGcolor c) {
 				if (to <= from) return;
 				nvgBeginPath(args.vg);
-				nvgRect(args.vg, 0, h * (1.f - to), w, h * (to - from));
+				if (horizontal)
+					nvgRect(args.vg, w * from, 0, w * (to - from), h);
+				else
+					nvgRect(args.vg, 0, h * (1.f - to), w, h * (to - from));
 				nvgFillColor(args.vg, c);
 				nvgFill(args.vg);
 			};
@@ -539,9 +543,11 @@ struct AcneMeter : TransparentWidget {
 			seg(amberAt, std::min(p, redAt), nvgRGB(0xef, 0x9f, 0x27));
 			if (v >= 10.f) seg(redAt, 1.f, nvgRGB(0xe2, 0x4b, 0x4a));
 			if (peak > 1e-3f) {
-				float y = h * (1.f - pos(peak));
 				nvgBeginPath(args.vg);
-				nvgRect(args.vg, 0, std::min(y, h - 1.f), w, 1.f);
+				if (horizontal)
+					nvgRect(args.vg, std::min(w * pos(peak), w - 1.f), 0, 1.f, h);
+				else
+					nvgRect(args.vg, 0, std::min(h * (1.f - pos(peak)), h - 1.f), w, 1.f);
 				nvgFillColor(args.vg, peak >= 10.f ? nvgRGB(0xe2, 0x4b, 0x4a) : nvgRGB(0xe0, 0xe0, 0xe0));
 				nvgFill(args.vg);
 			}
@@ -550,11 +556,11 @@ struct AcneMeter : TransparentWidget {
 	}
 };
 
-static AcneMeter *acneMeter(const float *level, float x, float y) {
+static AcneMeter *acneMeter(const float *level, float x, float y, float w, float h) {
 	AcneMeter *m = new AcneMeter;
 	m->level = level;
 	m->box.pos = Vec(x, y);
-	m->box.size = Vec(3.f, 15.f);
+	m->box.size = Vec(w, h);
 	return m;
 }
 
@@ -620,7 +626,7 @@ ACNEWidget::ACNEWidget(ACNE *module) {
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
 		addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, ACNE::TRACKS_OUTPUTS + i), 482.0f, 79.0f+i*27.0f));
-		addChild(acneMeter(module ? &module->outLevel[i] : nullptr, 499.0f, 79.0f+i*27.0f));
+		addChild(acneMeter(module ? &module->outLevel[i] : nullptr, 482.0f, 98.5f+i*27.0f, 15.f, 3.f));  // horizontal, centred under this jack
 
 		addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::OUT_MUTE_PARAMS + i), 10.0f, 77.0f+i*27.0f));
 		addChild(theme::atCorner(createLight<SmallLight<RedLight>>(Vec(), module, ACNE::OUT_MUTE_LIGHTS + i), 16.0f, 83.0f+i*27.0f));
@@ -631,7 +637,7 @@ ACNEWidget::ACNEWidget(ACNE *module) {
 		addChild(theme::atCorner(createLight<SmallLight<BlueLight>>(Vec(), module, ACNE::SNAPSHOT_LIGHTS + i), 49.0f+i*27.0f, 55.0f));
 
 		addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, ACNE::TRACKS_INPUTS + i), 45.0f+i*27.0f, 340.0f));
-		addChild(acneMeter(module ? &module->inLevel[i] : nullptr, 62.0f+i*27.0f, 340.0f));
+		addChild(acneMeter(module ? &module->inLevel[i] : nullptr, 64.5f+i*27.0f, 340.0f, 3.f, 15.f));  // centred between this jack and the next
 
 		addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::IN_MUTE_PARAMS + i), 43.0f+i*27.0f, 292.0f));
 		addChild(theme::atCorner(createLight<SmallLight<RedLight>>(Vec(), module, ACNE::IN_MUTE_LIGHTS + i), 49.0f+i*27.0f, 298.0f));
