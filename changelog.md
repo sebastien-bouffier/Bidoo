@@ -1,4 +1,4 @@
-### v2.6.2 (not released yet)
+### v2.7.0 (25/11/2026)
 Improvements
 - rICOcHEt, pARtiCuLeS, REI: lighter on the CPU in the Windows builds, where the compiler's maths library is slow (bidoo-dsp's own sines and cached curves): rICOcHEt about 4.6x in Digital, 1.8x in Tape, 2.2x in Diffuse; pARtiCuLeS' grains 2.4x; REI 1.3x. The sound is unchanged (within -120 dB)
 - ACnE: a polyphonic cable spreads its channels over the next inputs that have no cable (channel 1 on its own input, channel 2 on the next one, and so on; what finds no free input stays summed on its own input), so one cable from oAï, pOUPRE or mAGMA feeds one track per sample. A context-menu option, on for a new ACnE; patches made before it keep summing every channel into its input
