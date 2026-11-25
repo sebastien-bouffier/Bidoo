@@ -93,6 +93,12 @@ struct ACNE : BidooModule {
 	float morphPhase = 1.0f;
 	float mainGain = 0.7f;
 	float smoothCoef = 0.f;
+	// level meters: peak of each block of 32 samples, falling 20 dB/s (read by the panel's meters)
+	static constexpr int METER_BLOCK = 32;
+	float inLevel[ACNE_NB_TRACKS] = {}, outLevel[ACNE_NB_OUTS] = {};
+	float inPeak[ACNE_NB_TRACKS] = {}, outPeak[ACNE_NB_OUTS] = {};
+	float meterFall = 1.f;
+	int meterPos = 0;
 	float smoothRate = 0.f;
 	float saveLight = 0.f;
 
@@ -302,6 +308,7 @@ struct ACNE : BidooModule {
 void ACNE::process(const ProcessArgs &args) {
 	if (args.sampleRate != smoothRate) {
 		smoothCoef = 1.f - std::exp(-args.sampleTime / 0.005f);
+		meterFall = std::pow(10.f, -20.f * METER_BLOCK * args.sampleTime / 20.f);
 		smoothRate = args.sampleRate;
 	}
 
@@ -441,7 +448,7 @@ void ACNE::process(const ProcessArgs &args) {
 		anyOut = anyOut || outputs[TRACKS_OUTPUTS + i].isConnected();
 
 	float_4 in[ACNE_NB_TRACKS/4] = {};
-	if (anyOut) {
+	{
 		float trk[ACNE_NB_TRACKS] = {};
 		for (int t = 0; t < ACNE_NB_TRACKS; t++) {
 			Input &cable = inputs[TRACKS_INPUTS + t];
@@ -461,6 +468,8 @@ void ACNE::process(const ProcessArgs &args) {
 		}
 		for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
 			in[j] = float_4::load(trk + j*4);
+		for (int t = 0; t < ACNE_NB_TRACKS; t++)
+			inPeak[t] = std::max(inPeak[t], std::fabs(trk[t]));
 	}
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
@@ -479,6 +488,74 @@ void ACNE::process(const ProcessArgs &args) {
 	mainGain += (params[MAIN_OUT_GAIN_PARAM].getValue() - mainGain) * smoothCoef;
 	outputs[TRACKS_OUTPUTS].setVoltage(outputs[TRACKS_OUTPUTS].getVoltage() * mainGain);
 	outputs[TRACKS_OUTPUTS + 1].setVoltage(outputs[TRACKS_OUTPUTS + 1].getVoltage() * mainGain);
+
+	for (int i = 0; i < ACNE_NB_OUTS; i++)
+		outPeak[i] = std::max(outPeak[i], std::fabs(outputs[TRACKS_OUTPUTS + i].getVoltage()));
+	if (++meterPos >= METER_BLOCK) {
+		meterPos = 0;
+		for (int t = 0; t < ACNE_NB_TRACKS; t++) {
+			inLevel[t] = std::max(inPeak[t], inLevel[t] * meterFall);
+			inPeak[t] = 0.f;
+		}
+		for (int i = 0; i < ACNE_NB_OUTS; i++) {
+			outLevel[i] = std::max(outPeak[i], outLevel[i] * meterFall);
+			outPeak[i] = 0.f;
+		}
+	}
+}
+
+// A thin vertical level bar beside a jack: green below -6 dB (5 V = 0 dB), amber up to
+// 10 V, red at 10 V and over; a peak line held 1 s. On the light layer.
+struct AcneMeter : TransparentWidget {
+	const float *level = nullptr;
+	float peak = 0.f, held = 0.f;
+
+	static float pos(float v) {  // -48 dB .. +6 dB (10 V) -> 0..1
+		float db = 20.f * std::log10(std::max(v, 1e-6f) / 5.f);
+		return clamp((db + 48.f) / 54.f, 0.f, 1.f);
+	}
+
+	void drawLayer(const DrawArgs &args, int layer) override {
+		if (layer == 1) {
+			float w = box.size.x, h = box.size.y;
+			nvgBeginPath(args.vg);
+			nvgRect(args.vg, 0, 0, w, h);
+			nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 110));
+			nvgFill(args.vg);
+			float v = level ? *level : 0.f;
+			float dt = APP->window->getLastFrameDuration();
+			if (v >= peak) { peak = v; held = 0.f; }
+			else if ((held += dt) > 1.f) peak = std::max(v, peak * std::pow(10.f, -20.f * dt / 20.f));
+			float p = pos(v);
+			const float amberAt = pos(2.5f), redAt = pos(10.f) - 0.04f;
+			auto seg = [&](float from, float to, NVGcolor c) {
+				if (to <= from) return;
+				nvgBeginPath(args.vg);
+				nvgRect(args.vg, 0, h * (1.f - to), w, h * (to - from));
+				nvgFillColor(args.vg, c);
+				nvgFill(args.vg);
+			};
+			seg(0.f, std::min(p, amberAt), nvgRGB(0x1d, 0x9e, 0x75));
+			seg(amberAt, std::min(p, redAt), nvgRGB(0xef, 0x9f, 0x27));
+			if (v >= 10.f) seg(redAt, 1.f, nvgRGB(0xe2, 0x4b, 0x4a));
+			if (peak > 1e-3f) {
+				float y = h * (1.f - pos(peak));
+				nvgBeginPath(args.vg);
+				nvgRect(args.vg, 0, std::min(y, h - 1.f), w, 1.f);
+				nvgFillColor(args.vg, peak >= 10.f ? nvgRGB(0xe2, 0x4b, 0x4a) : nvgRGB(0xe0, 0xe0, 0xe0));
+				nvgFill(args.vg);
+			}
+		}
+		Widget::drawLayer(args, layer);
+	}
+};
+
+static AcneMeter *acneMeter(const float *level, float x, float y) {
+	AcneMeter *m = new AcneMeter;
+	m->level = level;
+	m->box.pos = Vec(x, y);
+	m->box.size = Vec(3.f, 15.f);
+	return m;
 }
 
 struct ACNEWidget : BidooWidget {
@@ -543,6 +620,7 @@ ACNEWidget::ACNEWidget(ACNE *module) {
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
 		addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, ACNE::TRACKS_OUTPUTS + i), 482.0f, 79.0f+i*27.0f));
+		addChild(acneMeter(module ? &module->outLevel[i] : nullptr, 499.0f, 79.0f+i*27.0f));
 
 		addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::OUT_MUTE_PARAMS + i), 10.0f, 77.0f+i*27.0f));
 		addChild(theme::atCorner(createLight<SmallLight<RedLight>>(Vec(), module, ACNE::OUT_MUTE_LIGHTS + i), 16.0f, 83.0f+i*27.0f));
@@ -553,6 +631,7 @@ ACNEWidget::ACNEWidget(ACNE *module) {
 		addChild(theme::atCorner(createLight<SmallLight<BlueLight>>(Vec(), module, ACNE::SNAPSHOT_LIGHTS + i), 49.0f+i*27.0f, 55.0f));
 
 		addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, ACNE::TRACKS_INPUTS + i), 45.0f+i*27.0f, 340.0f));
+		addChild(acneMeter(module ? &module->inLevel[i] : nullptr, 62.0f+i*27.0f, 340.0f));
 
 		addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::IN_MUTE_PARAMS + i), 43.0f+i*27.0f, 292.0f));
 		addChild(theme::atCorner(createLight<SmallLight<RedLight>>(Vec(), module, ACNE::IN_MUTE_LIGHTS + i), 49.0f+i*27.0f, 298.0f));
