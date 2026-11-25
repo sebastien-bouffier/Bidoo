@@ -61,6 +61,8 @@ struct ACNE : BidooModule {
 	int copySnapshot = 0;
 	bool copyState = false;
 	bool autosave = true;
+	// a polyphonic input spreads its channels over the next inputs left empty (off in patches made before it)
+	bool polySpread = true;
 	// Live state of the current scene.
 	bool outMutes[ACNE_NB_OUTS] = {0};
 	bool inMutes[ACNE_NB_TRACKS] = {0};
@@ -145,6 +147,7 @@ struct ACNE : BidooModule {
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "autosave", json_boolean(autosave));
+		json_object_set_new(rootJ, "polySpread", json_boolean(polySpread));
 		json_object_set_new(rootJ, "currentSnapshot", json_integer(currentSnapshot));
 		json_t *snapShotsJ = json_array();
 		json_t *inMutesJ = json_array();
@@ -181,6 +184,8 @@ struct ACNE : BidooModule {
 		BidooModule::dataFromJson(rootJ);
 		json_t *autosaveJ = json_object_get(rootJ, "autosave");
 		if (autosaveJ) autosave = json_is_true(autosaveJ);
+		json_t *polySpreadJ = json_object_get(rootJ, "polySpread");
+		polySpread = polySpreadJ && json_is_true(polySpreadJ);  // older patches summed every channel into its input
 		json_t *currentJ = json_object_get(rootJ, "currentSnapshot");
 		currentSnapshot = currentJ ? clamp((int)json_integer_value(currentJ), 0, ACNE_NB_SNAPSHOTS-1) : 0;
 		json_t *snapShotsJ = json_object_get(rootJ, "snapshots");
@@ -437,9 +442,25 @@ void ACNE::process(const ProcessArgs &args) {
 
 	float_4 in[ACNE_NB_TRACKS/4] = {};
 	if (anyOut) {
+		float trk[ACNE_NB_TRACKS] = {};
+		for (int t = 0; t < ACNE_NB_TRACKS; t++) {
+			Input &cable = inputs[TRACKS_INPUTS + t];
+			if (!polySpread) {
+				trk[t] = cable.getVoltageSum();
+				continue;
+			}
+			int n = cable.getChannels();
+			if (n == 0)
+				continue;
+			// channel c goes to input t + c while those inputs have no cable; the rest stays summed in t
+			int stop = t + 1;
+			while (stop < ACNE_NB_TRACKS && stop < t + n && !inputs[TRACKS_INPUTS + stop].isConnected())
+				stop++;
+			for (int c = 0; c < n; c++)
+				trk[t + c < stop ? t + c : t] += cable.getVoltage(c);
+		}
 		for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
-			for (int l = 0; l < 4; l++)
-				in[j][l] = inputs[TRACKS_INPUTS + j*4 + l].getVoltageSum();
+			in[j] = float_4::load(trk + j*4);
 	}
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
@@ -462,6 +483,15 @@ void ACNE::process(const ProcessArgs &args) {
 
 struct ACNEWidget : BidooWidget {
 	ACNEWidget(ACNE *module);
+
+	void appendContextMenu(ui::Menu *menu) override {
+		BidooWidget::appendContextMenu(menu);
+		ACNE *module = dynamic_cast<ACNE*>(this->module);
+		if (!module)
+			return;
+		menu->addChild(new MenuSeparator());
+		menu->addChild(createBoolPtrMenuItem("Spread a polyphonic input over the next empty inputs", "", &module->polySpread));
+	}
 };
 
 struct AcneBidooColoredTrimpot : BidooColoredTrimpot {

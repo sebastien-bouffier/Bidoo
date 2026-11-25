@@ -255,19 +255,18 @@ struct BidooColoredKnob : RoundKnob {
 		shadow->opacity = 0.0f;
 	}
 
-	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer == 1) {
-			if (getParamQuantity()) {
-				for (NSVGshape *shape = this->sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
-					std::string str(shape->id);
-					if (str == "bidooKnob") {
-						shape->fill.color = (((unsigned int)42+(unsigned int)getParamQuantity()->getValue()*21) | (((unsigned int)87-(unsigned int)getParamQuantity()->getValue()*8) << 8) | (((unsigned int)117-(unsigned int)getParamQuantity()->getValue()) << 16));
-						shape->fill.color |= (unsigned int)(255) << 24;
-					}
+	// Rack caches the SVG, so every knob shares its shapes: the colour must be set right
+	// before this knob's framebuffer renders (inside draw), not after it (drawLayer)
+	void draw(const DrawArgs& args) override {
+		if (getParamQuantity() && sw->svg && sw->svg->handle) {
+			for (NSVGshape *shape = sw->svg->handle->shapes; shape != NULL; shape = shape->next) {
+				if (std::string(shape->id) == "bidooKnob") {
+					shape->fill.color = (((unsigned int)42+(unsigned int)getParamQuantity()->getValue()*21) | (((unsigned int)87-(unsigned int)getParamQuantity()->getValue()*8) << 8) | (((unsigned int)117-(unsigned int)getParamQuantity()->getValue()) << 16));
+					shape->fill.color |= (unsigned int)(255) << 24;
 				}
 			}
 		}
-		Widget::drawLayer(args, layer);
+		RoundKnob::draw(args);
 	}
 
 };
@@ -304,18 +303,19 @@ struct BidooColoredTrimpot : RoundKnob {
 		}
 	}
 
-	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer == 1) {
-			if (getParamQuantity() && tShape) {
-				tShape->fill.color = int(42+getParamQuantity()->getValue() * 210) | int(87-getParamQuantity()->getValue() * 80) << 8 | int(117-getParamQuantity()->getValue()*10) << 16;
-				tShape->fill.color |= 255 << 24;
-			}
-			if (getParamQuantity() && tShapeInterior) {
-				tShapeInterior->fill.color = int(42+getParamQuantity()->getValue() * 210) | int(87-getParamQuantity()->getValue() * 80) << 8 | int(117-getParamQuantity()->getValue()*10) << 16;
-				tShapeInterior->fill.color |= 255 << 24;
-			}
+	// blue at 0, pink at 1. The shapes belong to Rack's shared SVG: set them right before
+	// this knob's framebuffer renders (inside draw); drawLayer came after it, so every
+	// trimpot showed the colour of whichever knob was drawn last
+	void draw(const DrawArgs& args) override {
+		if (getParamQuantity()) {
+			float v = clamp(getParamQuantity()->getValue(), 0.f, 1.f);
+			unsigned int c = (unsigned int)(42 + v * 210) | (unsigned int)(87 - v * 80) << 8 | (unsigned int)(117 - v * 10) << 16 | 255u << 24;
+			if (tShape)
+				tShape->fill.color = c;
+			if (tShapeInterior)
+				tShapeInterior->fill.color = c;
 		}
-		Widget::drawLayer(args, layer);
+		RoundKnob::draw(args);
 	}
 
 };
