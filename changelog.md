@@ -1,3 +1,10 @@
+### v2.7.2 (25/11/2026)
+Improvements
+- HCTIP: polyphonic, one pitch shifter per channel of IN or the pitch CV; a mono input with a polyphonic pitch CV is a harmoniser (one shifted copy per CV channel). Patches with a polyphonic IN now get one output channel per input channel (it was summed)
+- cANARd: polyphonic, one voice per channel of TRIG / GATE / V/O, each with its own head and its own slice, start, length and fade CVs (a mono CV acts on every voice): the sample in chords, or several slices at once. The screen shows a head per playing voice. Recording and the modes stay shared
+- OUAIve: polyphonic, one voice per channel of TRIG / POS / V/O, each with its own head and slice: several slices at once from one trigger, or the sample in chords. The screen shows a head per playing voice
+- OUAIve: the screen shows the loaded file's name between two arrows that load the previous or next WAV or AIFF of its folder (files the loader cannot read are skipped); the speed readout is gone (the input is V/O)
+
 ### v2.7.1 (25/11/2026)
 Improvements
 - REI: Hall, Room, Chamber, Plate and Cloud run 16 lines instead of 8, with deeper modulation and 24 diffused early reflections (bidoo-dsp's Prism, dense mode): smoother tails without metallic ringing, at the same level and decay. About twice the CPU on those algorithms. Patches made before sound different
