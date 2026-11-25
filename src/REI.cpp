@@ -199,6 +199,50 @@ struct REI : BidooModule {
 			mod = clamp((int)json_integer_value(j), 0, (int)mods().size() - 1);
 	}
 
+	// Patches of the gverb REI (2.1.1 and older, no "algo" in their data) keep
+	// the old knobs' raw values: ROOM SIZE 0-2 (heard up to 1) and PITCH SHIFT
+	// 0.5-4 x. Read as DECAY, a room size of 1 or more would sit at the top of
+	// the knob, where Prism freezes and shuts the input out.
+	static float decayFromRoomSize(float size) {
+		return 0.9f * clamp(size, 0.f, 1.f);  // the old default 0.5 lands near the new one, the top stays below FREEZE
+	}
+
+	static int intervalFromRatio(float ratio) {
+		float semis = 12.f * std::log2(clamp(ratio, 0.5f, 4.f));
+		if (std::fabs(semis) < 2.5f)
+			return 4;  // the old default (1 x, no shift) has no match: the new default, +OCT
+		static const float single[] = {-12.f, -7.f, 5.f, 7.f, 12.f, 19.f, 24.f};  // intervals 0-6
+		int best = 0;
+		for (int i = 1; i < 7; i++)
+			if (std::fabs(single[i] - semis) < std::fabs(single[best] - semis))
+				best = i;
+		return best;
+	}
+
+	void fromJson(json_t *rootJ) override {
+		BidooModule::fromJson(rootJ);
+		json_t *dataJ = json_object_get(rootJ, "data");
+		if (dataJ && json_object_get(dataJ, "algo"))
+			return;
+		// Module::paramsFromJson clamped the values to the new ranges: read them again
+		json_t *paramsJ = json_object_get(rootJ, "params");
+		size_t i;
+		json_t *paramJ;
+		json_array_foreach(paramsJ, i, paramJ) {
+			json_t *idJ = json_object_get(paramJ, "id");
+			json_t *valueJ = json_object_get(paramJ, "value");
+			if (!idJ || !valueJ)
+				continue;
+			float v = (float)json_number_value(valueJ);
+			switch (json_integer_value(idJ)) {
+				case SIZE_PARAM: params[SIZE_PARAM].setValue(decayFromRoomSize(v)); break;
+				case SHIMMPITCH_PARAM: params[SHIMMPITCH_PARAM].setValue((float)intervalFromRatio(v)); break;
+				default: break;
+			}
+		}
+		INFO("REI: patch of the gverb REI converted: DECAY %.3f, shimmer interval %d", params[SIZE_PARAM].getValue(), (int)params[SHIMMPITCH_PARAM].getValue());
+	}
+
 	void process(const ProcessArgs &args) override {
 		if (freezeTrigger.process(params[FREEZE_PARAM].getValue() + inputs[FREEZE_INPUT].getVoltage()))
 			freeze = !freeze;
