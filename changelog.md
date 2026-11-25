@@ -1,3 +1,10 @@
+### v2.7.3 (26/11/2026)
+Improvements
+- zOù MAï, enCORE: the Len. and Dist. knobs step through musical fractions of a step (1/32, 1/24, 1/16, 1/12, 3/32, 1/8, 1/6, 3/16, 1/4, 1/3, 3/8, 1/2, 2/3, 3/4, 7/8, 1, 4/3, 3/2, 2, 3, 4 ... 64), shown by name on the screen and in the tooltip, and typed as 3/16, 0.75 or fit. A context-menu option gives free knobs back (on a curve, fine at the short end)
+- zOù MAï, enCORE: ratchets stay separate hits: with two pulses or more each gate lasts Len. but never more than half the gap to the next pulse (pulses closer than Len. merged into one long gate)
+- zOù MAï, enCORE: Dist. on Fit (the bottom of the knob) spreads the pulses evenly over the trig's length: Len. 1 and 3 pulses is a triplet. Dist. 0 played a single pulse before
+- enCORE: 96 ticks a step instead of 32 (32nds and triplets exact), still 32 clocks a step; patches saved before are scaled on load to the same times exactly
+
 ### v2.7.2 (25/11/2026)
 Improvements
 - HCTIP: polyphonic, one pitch shifter per channel of IN or the pitch CV; a mono input with a polyphonic pitch CV is a harmoniser (one shifted copy per CV channel). Patches with a polyphonic IN now get one output channel per input channel (it was summed)
