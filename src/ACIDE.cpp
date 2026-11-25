@@ -1,6 +1,7 @@
-// aCiDe: a mono acid bass voice, oscillator, diode ladder, envelopes, accent, slide and VCA. The sound is all in
+// aCiDe: an acid bass voice, oscillator, diode ladder, envelopes, accent, slide and VCA. The sound is all in
 // bidoo-dsp (synth/AcidVoice.h, filters/DiodeLadder.h, copied unchanged in src/dep/bidoo-dsp); this is the panel and the
-// jacks. One voice: a polyphonic cable plays its channel 1.
+// jacks. Polyphonic: one voice per channel of V/OCT or GATE (each with its own accent, slide and CVs), a mono cable
+// acting on every voice; with mono cables it is the mono voice it always was.
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "Svf.hpp"
@@ -40,8 +41,9 @@ struct ACIDE : BidooModule {
 	static constexpr float kVolts = 5.f;
 	static constexpr int kControl = 16;  // knobs and CV are read every 16 samples: the voice glides between them
 
-	bidoo::dsp::AcidVoice voice;
-	dsp::SchmittTrigger gateIn, accentIn, slideIn;
+	bidoo::dsp::AcidVoice voices[16];
+	dsp::SchmittTrigger gateIn[16], accentIn[16], slideIn[16];
+	int channels = 1;
 	int tick = 0;
 	float volume = 0.f, volumeStep = 0.f;
 
@@ -55,20 +57,21 @@ struct ACIDE : BidooModule {
 		configParam(ENVMOD_PARAM, 0.f, 1.f, 0.5f, "Env mod", "%", 0.f, 100.f);
 		configParam(DECAY_PARAM, 0.f, 1.f, 0.5f, "Decay", " s", 10.f, 0.2f);
 		configParam(ACCENT_PARAM, 0.f, 1.f, 0.5f, "Accent", "%", 0.f, 100.f);
-		configInput(VOCT_INPUT, "V/oct (0 V = C4; polyphonic: channel 1)");
-		configInput(GATE_INPUT, "Gate");
-		configInput(ACCENT_INPUT, "Accent (high at the note's start; a gate or a CV above 1 V)");
-		configInput(SLIDE_INPUT, "Slide (high when the gate falls or at the next gate: the notes are tied and glide)");
-		configInput(CUTOFF_INPUT, "Cutoff CV, 1 V/oct");
-		configInput(RES_INPUT, "Resonance CV (10 V = full range)");
-		configInput(ENVMOD_INPUT, "Env mod CV (10 V = full range)");
-		configInput(DECAY_INPUT, "Decay CV (10 V = full range)");
-		configOutput(OUT_OUTPUT, "Audio");
+		configInput(VOCT_INPUT, "V/oct (0 V = C4; polyphonic: one voice per channel)");
+		configInput(GATE_INPUT, "Gate (polyphonic: one voice per channel)");
+		configInput(ACCENT_INPUT, "Accent (high at the note's start; a gate or a CV above 1 V; polyphonic: per voice)");
+		configInput(SLIDE_INPUT, "Slide (high when the gate falls or at the next gate: the notes are tied and glide; polyphonic: per voice)");
+		configInput(CUTOFF_INPUT, "Cutoff CV, 1 V/oct (polyphonic: per voice)");
+		configInput(RES_INPUT, "Resonance CV (10 V = full range; polyphonic: per voice)");
+		configInput(ENVMOD_INPUT, "Env mod CV (10 V = full range; polyphonic: per voice)");
+		configInput(DECAY_INPUT, "Decay CV (10 V = full range; polyphonic: per voice)");
+		configOutput(OUT_OUTPUT, "Audio (one channel per voice)");
 		prepare(APP->engine->getSampleRate());
 	}
 
 	void prepare(float fs) {
-		voice.prepare(fs);
+		for (auto &v : voices)
+			v.prepare(fs);
 		tick = 0;
 	}
 
@@ -78,43 +81,60 @@ struct ACIDE : BidooModule {
 
 	void onReset(const ResetEvent &e) override {
 		BidooModule::onReset(e);
-		voice.reset();
+		for (auto &v : voices)
+			v.reset();
 	}
 
-	float cv(int input) {
-		const float v = inputs[input].getVoltage();
+	float cv(int input, int c) {
+		const float v = inputs[input].getPolyVoltage(c);
 		return std::isfinite(v) ? v : 0.f;
 	}
 
-	void control() {
-		const float res = clamp(params[RES_PARAM].getValue() + cv(RES_INPUT) * 0.1f, 0.f, 1.f);
-		const float env = clamp(params[ENVMOD_PARAM].getValue() + cv(ENVMOD_INPUT) * 0.1f, 0.f, 1.f);
-		const float decay = clamp(params[DECAY_PARAM].getValue() + cv(DECAY_INPUT) * 0.1f, 0.f, 1.f);
+	void control(int c) {
+		bidoo::dsp::AcidVoice &voice = voices[c];
+		const float res = clamp(params[RES_PARAM].getValue() + cv(RES_INPUT, c) * 0.1f, 0.f, 1.f);
+		const float env = clamp(params[ENVMOD_PARAM].getValue() + cv(ENVMOD_INPUT, c) * 0.1f, 0.f, 1.f);
+		const float decay = clamp(params[DECAY_PARAM].getValue() + cv(DECAY_INPUT, c) * 0.1f, 0.f, 1.f);
 		voice.setSquare(params[WAVE_PARAM].getValue() > 0.5f);
 		voice.setTune(params[TUNE_PARAM].getValue() / 12.f);
-		voice.setCutoff(200.f * std::pow(12.5f, params[CUTOFF_PARAM].getValue()) * std::pow(2.f, clamp(cv(CUTOFF_INPUT), -10.f, 10.f)));
+		voice.setCutoff(200.f * std::pow(12.5f, params[CUTOFF_PARAM].getValue()) * std::pow(2.f, clamp(cv(CUTOFF_INPUT, c), -10.f, 10.f)));
 		voice.setResonance(res);
 		voice.setEnvMod(env);
 		voice.setDecay(0.2f * std::pow(10.f, decay));
 		voice.setAccent(params[ACCENT_PARAM].getValue());
-		volumeStep = (params[VOLUME_PARAM].getValue() - volume) / kControl;
 	}
 
 	void process(const ProcessArgs &args) override {
-		if (--tick <= 0) {
-			tick = kControl;
-			control();
+		// as many voices as V/OCT or GATE has channels; a voice that comes back starts fresh
+		const int n = clamp(std::max(inputs[VOCT_INPUT].getChannels(), inputs[GATE_INPUT].getChannels()), 1, 16);
+		for (int c = channels; c < n; c++) {
+			voices[c].reset();
+			gateIn[c].reset();
+			accentIn[c].reset();
+			slideIn[c].reset();
 		}
-		gateIn.process(inputs[GATE_INPUT].getVoltage(), 0.1f, 1.f);
-		accentIn.process(inputs[ACCENT_INPUT].getVoltage(), 0.5f, 1.f);
-		slideIn.process(inputs[SLIDE_INPUT].getVoltage(), 0.5f, 1.f);
-		float y = voice.process(clamp(cv(VOCT_INPUT), -10.f, 10.f), gateIn.isHigh(), accentIn.isHigh(), slideIn.isHigh());
-		if (!std::isfinite(y) || !voice.isFinite()) {
-			voice.reset();
-			y = 0.f;
+		const bool newVoices = n > channels;
+		channels = n;
+		if (--tick <= 0 || newVoices) {
+			tick = kControl;
+			for (int c = 0; c < n; c++)
+				control(c);
+			volumeStep = (params[VOLUME_PARAM].getValue() - volume) / kControl;
 		}
 		volume += volumeStep;
-		outputs[OUT_OUTPUT].setVoltage(bidooSoftLimit(y * volume * kVolts));
+		for (int c = 0; c < n; c++) {
+			bidoo::dsp::AcidVoice &voice = voices[c];
+			gateIn[c].process(inputs[GATE_INPUT].getPolyVoltage(c), 0.1f, 1.f);
+			accentIn[c].process(inputs[ACCENT_INPUT].getPolyVoltage(c), 0.5f, 1.f);
+			slideIn[c].process(inputs[SLIDE_INPUT].getPolyVoltage(c), 0.5f, 1.f);
+			float y = voice.process(clamp(cv(VOCT_INPUT, c), -10.f, 10.f), gateIn[c].isHigh(), accentIn[c].isHigh(), slideIn[c].isHigh());
+			if (!std::isfinite(y) || !voice.isFinite()) {
+				voice.reset();
+				y = 0.f;
+			}
+			outputs[OUT_OUTPUT].setVoltage(bidooSoftLimit(y * volume * kVolts), c);
+		}
+		outputs[OUT_OUTPUT].setChannels(n);
 	}
 };
 
