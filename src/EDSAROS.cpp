@@ -236,6 +236,8 @@ struct EDSAROS : BidooModule {
 	sampleread::Declick<1> dc[16];
 	float lastLevel[16] = {0.f};    // the gain of the head in the last output sample
 	float voiceRatio[16] = {1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f};
+	float ratioPitch[16] = {};      // ratioOf = 2^ratioPitch, exp2 only when the pitch moves
+	double ratioOf[16] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
 	float attackFrom[16] = {0.f};   // where the attack starts: init, or the level a retrigger caught
 	int fadeLen = 96;
 	// A sample replaced while voices sound: kept until each voice's old heads (its tail, its playing head) have faded
@@ -780,7 +782,11 @@ void EDSAROS::process(const ProcessArgs &args) {
 
 				// Output samples until the voice reaches `dist` input samples
 				// further, at this pitch.
-				const double ratio = std::exp2((double)pitchV);
+				if (pitchV != ratioPitch[i]) {
+					ratioPitch[i] = pitchV;
+					ratioOf[i] = std::exp2((double)pitchV);
+				}
+				const double ratio = ratioOf[i];
 				voiceRatio[i] = (float)ratio;
 				auto outLen = [&](long dist) -> long {
 					if (dist <= 0)

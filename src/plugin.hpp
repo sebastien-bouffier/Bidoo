@@ -80,10 +80,11 @@ struct InstantiateExpanderItem : MenuItem {
 	void onAction(const event::Action &e) override;
 };
 
+// Theme ids saved in patches and in <user>/Bidoo.json. 3 and 4 were the removed blue and green (shown as light).
+enum BidooTheme { THEME_LIGHT = 0, THEME_DARK = 1, THEME_BLACK = 2, THEME_FOLLOW_RACK = 5 };
+
 struct BidooModule : Module {
-	int themeId = -1;
-	bool themeChanged = true;
-	bool loadDefault = true;
+	int themeId = -1; // -1 until the widget sets the user's default
 	json_t *dataToJson() override;
 	void dataFromJson(json_t *rootJ) override;
 };
@@ -92,46 +93,16 @@ struct BidooWidget : ModuleWidget {
 	SvgPanel* lightPanel;
 	SvgPanel* darkPanel;
 	SvgPanel* blackPanel;
-	int defaultPanelTheme = 0;
+	int defaultPanelTheme = THEME_FOLLOW_RACK;
 	int shownTheme = -1; // panel currently visible, -1 before the first showTheme
+	engine::Module *themeModule = nullptr; // module the cast below was made for
+	BidooModule *bidooModule = nullptr;
 
 	BidooWidget() {
 		readThemeAndContrastFromDefault();
 	}
 
-	struct LightItem : MenuItem {
-		BidooModule *module;
-		BidooWidget *pWidget;
-		void onAction(const event::Action &e) override {
-			module->themeId = 0;
-			module->themeChanged = true;
-			pWidget->defaultPanelTheme = 0;
-			pWidget->writeThemeAndContrastAsDefault();
-		}
-	};
-
-	struct DarkItem : MenuItem {
-		BidooModule *module;
-		BidooWidget *pWidget;
-		void onAction(const event::Action &e) override {
-			module->themeId = 1;
-			module->themeChanged = true;
-			pWidget->defaultPanelTheme = 1;
-			pWidget->writeThemeAndContrastAsDefault();
-		}
-	};
-
-	struct BlackItem : MenuItem {
-		BidooModule *module;
-		BidooWidget *pWidget;
-		void onAction(const event::Action &e) override {
-			module->themeId = 2;
-			module->themeChanged = true;
-			pWidget->defaultPanelTheme = 2;
-			pWidget->writeThemeAndContrastAsDefault();
-		}
-	};
-
+	void setTheme(int theme);
 	void writeThemeAndContrastAsDefault();
 	void readThemeAndContrastFromDefault();
 	void prepareThemes(const std::string& filename);

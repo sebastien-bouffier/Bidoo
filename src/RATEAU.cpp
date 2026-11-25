@@ -192,6 +192,8 @@ struct RATEAU : BidooModule {
 		return banks[bank].cells[set][i];
 	}
 
+	std::atomic<int> clearRequest {-1};   // bank * 16 + set, from the menu; run by the engine so the knobs can't undo it
+
 	void clear(int b, int set) {
 		for (int i = 0; i < RIOT_CELLS; i++)
 			banks[b].cells[set][i] = RiotCell();
@@ -260,6 +262,23 @@ struct RATEAU : BidooModule {
 		updateControls();
 	}
 
+	static json_t *cellToJson(const RiotCell &c) {
+		return json_pack("[i, i, f, i, i, f, f]", c.div, c.step, (double)c.prob, c.speed, c.clockShift, c.timeShift / 10000.0, c.pulseWidth / 1000000.0);
+	}
+
+	// What clear(b, set) does, on saved data (for the undo of a clear).
+	static void clearJson(json_t *dataJ, int b, int set) {
+		json_t *bankJ = json_array_get(json_object_get(dataJ, "riotBanks"), b);
+		json_t *cellsJ = json_array_get(json_object_get(bankJ, "cells"), set);
+		if (!bankJ || !cellsJ)
+			return;
+		json_object_set_new(bankJ, "cycleStart", json_integer(1));
+		json_object_set_new(bankJ, "cycleEnd", json_integer(0));
+		json_array_clear(cellsJ);
+		for (int i = 0; i < RIOT_CELLS; i++)
+			json_array_append_new(cellsJ, cellToJson(RiotCell()));
+	}
+
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
 		json_t *banksJ = json_array();
@@ -271,10 +290,8 @@ struct RATEAU : BidooModule {
 			json_t *setsJ = json_array();
 			for (int s = 0; s < RIOT_SETS; s++) {
 				json_t *cellsJ = json_array();
-				for (int i = 0; i < RIOT_CELLS; i++) {
-					const RiotCell &c = banks[b].cells[s][i];
-					json_array_append_new(cellsJ, json_pack("[i, i, f, i, i, f, f]", c.div, c.step, (double)c.prob, c.speed, c.clockShift, c.timeShift / 10000.0, c.pulseWidth / 1000000.0));
-				}
+				for (int i = 0; i < RIOT_CELLS; i++)
+					json_array_append_new(cellsJ, cellToJson(banks[b].cells[s][i]));
 				json_array_append_new(setsJ, cellsJ);
 			}
 			json_object_set_new(bankJ, "cells", setsJ);
@@ -531,6 +548,12 @@ void RATEAU::process(const ProcessArgs &args) {
 		if (params[DIV_PARAM + page].getValue() < 0.5f)
 			params[DIV_PARAM + page].setValue(1.f);
 
+		const int clearReq = clearRequest.exchange(-1);
+		if (clearReq >= 0) {
+			clear(clearReq >> 4, clearReq & 15);
+			updateControls();
+		}
+
 		// Knobs edit the current page of the current set.
 		for (int i = 0; i < RIOT_CELLS; i++)
 			fromKnob(page, cell(i, pMode), params[CONTROLS_PARAMS + i].getValue());
@@ -550,7 +573,7 @@ void RATEAU::process(const ProcessArgs &args) {
 	const long long unitsPerEdge = (clock24ppq ? 4 : TICKS_PER_CLOCK) * UNITS_PER_TICK;
 	bool edge = clockTrigger.process(inputs[CLOCK_INPUT].getVoltage(), 0.1f, 1.f);
 	bool reset = resetTrigger.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f);
-	if (edgeCount >= 0)
+	if (edgeCount >= 0 && edgeCount < (1L << 30))   // capped: Windows' long is 32-bit
 		edgeCount++;
 	const long sampleRate = std::lround(args.sampleRate);
 	// The internal tempo, or the 120 BPM a pulse uses until the first clocks are measured.
@@ -920,7 +943,20 @@ void RATEAUWidget::appendContextMenu(Menu *menu) {
 	menu->addChild(new RiotSlider(new RiotQuantity(&b.bpm, 20.f, 300.f, 120.f, "Internal clock", " BPM")));
 	menu->addChild(new RiotSlider(new RiotQuantity(&b.cycleStart, 1.f, 255.f, 1.f, "Cycle start", "")));
 	menu->addChild(new RiotSlider(new RiotQuantity(&b.cycleEnd, 0.f, 255.f, 0.f, "Cycle end (0 = endless)", "")));
-	menu->addChild(createMenuItem("Clear this mode of the pattern", "", [=]() { m->clear(m->bank, m->pMode); m->updateControls(); }));
+	menu->addChild(createMenuItem("Clear this mode of the pattern", "", [=]() {
+		// Undo from data: the module now, and the same with the set cleared, as the engine will do it.
+		history::ModuleChange *h = new history::ModuleChange;
+		h->name = "clear pattern mode";
+		h->moduleId = m->id;
+		h->oldModuleJ = APP->engine->moduleToJson(m);
+		json_t *dataJ = json_object_get(h->oldModuleJ, "data");
+		const int b = RATEAU::jsonInt(json_object_get(dataJ, "bank"), 0, 0, RIOT_BANKS - 1);
+		const int set = RATEAU::jsonInt(json_object_get(dataJ, "mode"), matrix, 0, 2);
+		h->newModuleJ = json_deep_copy(h->oldModuleJ);
+		RATEAU::clearJson(json_object_get(h->newModuleJ, "data"), b, set);
+		APP->history->push(h);
+		m->clearRequest = b * 16 + set;
+	}));
 	menu->addChild(new MenuSeparator());
 	menu->addChild(createBoolPtrMenuItem("Internal clock running", "", &m->running));
 	menu->addChild(createBoolPtrMenuItem("Clock input at 24 PPQ (DIN sync)", "", &m->clock24ppq));

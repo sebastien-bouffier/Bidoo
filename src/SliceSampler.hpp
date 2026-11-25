@@ -7,6 +7,7 @@
 #include <thread>
 #include "dep/waves.hpp"
 #include "SampleRead.hpp"
+#include "dep/bidoo-dsp/bidoo/dsp/core/Trig.h"
 
 using namespace rack;
 
@@ -218,12 +219,22 @@ struct SliceFilter {
 	// The coefficients, computed again only when the cutoff or Q moves.
 	float lastFc = -1.f, lastQ = -1.f, g = 0.f, R = 1.f, norm = 1.f;
 
+	// std::tan(float(M_PI) * fc) for fc in [0, 0.5) as sin / cos by Trig.h's polynomials, in double:
+	// the same float on every fc in [1e-5, 0.45], without MinGW's slower tanf
+	static float tanPi(float fc) {
+		double x = (double)(float(M_PI) * fc);
+		if (x <= 0.7853981633974483)
+			return (float)(bidoo::dsp::trig_detail::sinPoly(x) / bidoo::dsp::trig_detail::cosPoly(x));
+		double y = 1.5707963267948966 - x;
+		return (float)(bidoo::dsp::trig_detail::cosPoly(y) / bidoo::dsp::trig_detail::sinPoly(y));
+	}
+
 	void process(float sample, float freq, float q, float sampleTime) {
 		float fc = clamp(freq * sampleTime, 1e-5f, 0.45f);
 		if (fc != lastFc || q != lastQ) {
 			lastFc = fc;
 			lastQ = q;
-			g = std::tan(float(M_PI) * fc);
+			g = tanPi(fc);
 			R = 1.0f / (2.0f * q);
 			norm = 1.0f / (1.0f + 2.0f * R * g + g * g);
 		}
@@ -257,6 +268,7 @@ struct SliceVoice {
 	SliceFilter filter;
 	SliceControls ctl;
 	sampleread::Declick<1> dc;
+	sampleread::View<1> view;   // kept per voice for its log2 cache
 };
 
 // Plays voice v on sample s for one sample; returns the output voltage.
@@ -272,7 +284,10 @@ inline float slicePlay(SliceVoice &v, const SliceSample *s, const SliceControls 
 		v.dc.reset();
 		return 0.f;
 	}
-	const sampleread::View<1> view{s->data.data(), size, &s->mip};
+	sampleread::View<1> &view = v.view;
+	view.d = s->data.data();
+	view.n = size;
+	view.mip = &s->mip;
 	float first = clamp(c.start * size, 0.f, size - 2.f);
 	float end = std::min((c.start + c.len) * size, size - 1.f);
 	if ((!v.active || c.gate == 1) && rise) {

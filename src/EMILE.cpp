@@ -71,10 +71,10 @@ struct EMILE : BidooModule {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
-		R_LIGTH,
-		G_LIGTH,
-		B_LIGTH,
-		A_LIGTH,
+		R_LIGHT,
+		G_LIGHT,
+		B_LIGHT,
+		A_LIGHT,
 		NUM_LIGHTS
 	};
 
@@ -95,7 +95,8 @@ struct EMILE : BidooModule {
 
 	// UI thread: what the display shows.
 	std::mutex uiMutex;
-	std::string lastPath;      // under uiMutex
+	std::string lastPath;      // under uiMutex: the file asked for (saved)
+	std::string shownPath;     // under uiMutex: the file loaded, empty if none (displayed)
 	std::atomic<unsigned> shownWidth{0}, shownHeight{0};
 
 	std::atomic<unsigned> samplePos{0};
@@ -180,6 +181,11 @@ struct EMILE : BidooModule {
 	// UI thread: load a PNG.
 	void loadImage(const std::string &path) {
 		{
+			// kept even if the file fails to load, so a moved file can be found again
+			std::lock_guard<std::mutex> ui(uiMutex);
+			lastPath = path;
+		}
+		{
 			std::lock_guard<std::mutex> lock(jobMutex);
 			jobPath = path;
 			jobRequested = true;
@@ -190,6 +196,11 @@ struct EMILE : BidooModule {
 	std::string getPath() {
 		std::lock_guard<std::mutex> lock(uiMutex);
 		return lastPath;
+	}
+
+	std::string getShownPath() {
+		std::lock_guard<std::mutex> lock(uiMutex);
+		return shownPath;
 	}
 
 	void workerLoop() {
@@ -204,17 +215,24 @@ struct EMILE : BidooModule {
 			lock.unlock();
 
 			EmileImage *im = new EmileImage();
-			unsigned error = lodepng::decode(im->rgba, im->width, im->height, path, LCT_RGBA, 16);
+			// 25 megapixels at most: 8 bytes a pixel once decoded
+			std::vector<unsigned char> png;
+			unsigned w = 0, h = 0;
+			bool ok = lodepng::load_file(png, path) == 0 && !png.empty();
+			if (ok) {
+				lodepng::State st;
+				ok = lodepng_inspect(&w, &h, &st, png.data(), png.size()) == 0 && (uint64_t)w * h <= 25000000ull;
+			}
+			unsigned error = ok ? lodepng::decode(im->rgba, im->width, im->height, png, LCT_RGBA, 16) : 1;
 			if (error != 0 || im->width == 0 || im->height == 0) {
 				delete im;
 				im = nullptr;
-				path.clear();
 			}
 			if (im)
 				im->shape.assign(im->width, 0.f);
 			{
 				std::lock_guard<std::mutex> ui(uiMutex);
-				lastPath = path;
+				shownPath = im ? path : "";
 			}
 			shownWidth = im ? im->width : 0;
 			shownHeight = im ? im->height : 0;
@@ -263,8 +281,9 @@ struct EMILE : BidooModule {
 	void dataFromJson(json_t *rootJ) override {
 		BidooModule::dataFromJson(rootJ);
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
-		if (lastPathJ && json_string_value(lastPathJ)[0])
-			loadImage(json_string_value(lastPathJ));
+		const char *last = json_string_value(lastPathJ);
+		if (last && last[0])
+			loadImage(last);
 		json_t *rJ = json_object_get(rootJ, "r");
 		if (rJ) r = json_is_true(rJ);
 		json_t *gJ = json_object_get(rootJ, "g");
@@ -289,10 +308,10 @@ void EMILE::process(const ProcessArgs &args) {
 	if (aTrigger.process(params[A_PARAM].getValue()+inputs[A_INPUT].getVoltage(), 0.1f, 1.f))
 		a=!a;
 	if (lightDivider.process()) {
-		lights[R_LIGTH].setBrightness(r?1:0);
-		lights[G_LIGTH].setBrightness(g?1:0);
-		lights[B_LIGTH].setBrightness(b?1:0);
-		lights[A_LIGTH].setBrightness(a?1:0);
+		lights[R_LIGHT].setBrightness(r?1:0);
+		lights[G_LIGHT].setBrightness(g?1:0);
+		lights[B_LIGHT].setBrightness(b?1:0);
+		lights[A_LIGHT].setBrightness(a?1:0);
 	}
 
 	curve = clamp(params[CURVE_PARAM].getValue() + clamp(inputs[CURVE_INPUT].getVoltage(), 0.0f, 10.0f) * 0.009f, 0.01f, 0.2f);
@@ -382,7 +401,7 @@ struct EMILEDisplay : OpaqueWidget {
 
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1 && module) {
-			std::string p = module->getPath();
+			std::string p = module->getShownPath();
 			if (p != path) {
 				if (img)
 					nvgDeleteImage(args.vg, img);
@@ -444,10 +463,10 @@ struct EMILEWidget : BidooWidget {
 			const theme::Pos light = theme::specificCorner(button.x - kButtonSize.w * 0.5f + kLightIn, button.top + kLightIn, kSmallLightSize);
 			addParam(theme::param<LEDButton>(button, module, buttonIds[i]));
 			switch (i) {
-				case 0: addChild(theme::light<SmallLight<RedLight>>(light, module, EMILE::R_LIGTH)); break;
-				case 1: addChild(theme::light<SmallLight<GreenLight>>(light, module, EMILE::G_LIGTH)); break;
-				case 2: addChild(theme::light<SmallLight<BlueLight>>(light, module, EMILE::B_LIGTH)); break;
-				default: addChild(theme::light<SmallLight<WhiteLight>>(light, module, EMILE::A_LIGTH)); break;
+				case 0: addChild(theme::light<SmallLight<RedLight>>(light, module, EMILE::R_LIGHT)); break;
+				case 1: addChild(theme::light<SmallLight<GreenLight>>(light, module, EMILE::G_LIGHT)); break;
+				case 2: addChild(theme::light<SmallLight<BlueLight>>(light, module, EMILE::B_LIGHT)); break;
+				default: addChild(theme::light<SmallLight<WhiteLight>>(light, module, EMILE::A_LIGHT)); break;
 			}
 		}
 		for (int i = 0; i < 4; i++)

@@ -365,8 +365,8 @@ struct ANTN : BidooModule {
   void dataFromJson(json_t *rootJ) override {
     BidooModule::dataFromJson(rootJ);
     json_t *urlJ = json_object_get(rootJ, "url");
-  	if (urlJ)
-  		setUrl(json_string_value(urlJ));
+  	if (const char *url = json_string_value(urlJ))
+  		setUrl(url);
     json_t *stationJ = json_object_get(rootJ, "station");
     setStationName(json_string_value(stationJ) ? json_string_value(stationJ) : "");
     dirty = true;
@@ -915,6 +915,9 @@ void ANTN::workerLoop() {
       continue;
     }
     handled = g;
+    // the previous stream (this thread) has stopped pushing: drop the frames it pushed after the audio
+    // thread's clear. Safe: the audio thread reads nothing while it prebuffers the new stream
+    audio.clear();
     failed = false;
     bool ok = runStream(getUrl(), g);
     if (startCount != g)

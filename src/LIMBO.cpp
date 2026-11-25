@@ -106,7 +106,7 @@ struct LIMBO : BidooModule {
 	float boostNow[16];
 	bool wasNonLinear = false;
 	// a MODE change crossfades over 5 ms from the old mode, run on a copy of each filter
-	static constexpr int kModeFade = 240;
+	int modeFadeLen = 240;   // 5 ms at the rate of the change
 	int modeFadeLeft = 0;
 	bool oldNonLinear = false;
 	LadderFilter oldL[16], oldR[16];
@@ -151,11 +151,12 @@ struct LIMBO : BidooModule {
 				}
 			}
 			oldNonLinear = wasNonLinear;
-			modeFadeLeft = kModeFade;
+			modeFadeLen = std::max(16, (int)(0.005f * args.sampleRate));
+			modeFadeLeft = modeFadeLen;
 			wasNonLinear = nonLinear;
 		}
 		const bool fading = modeFadeLeft > 0;
-		const float fadeNew = fading ? 1.f - (float)modeFadeLeft / (float)kModeFade : 1.f;
+		const float fadeNew = fading ? 1.f - (float)modeFadeLeft / (float)modeFadeLen : 1.f;
 		if (fading)
 			modeFadeLeft--;
 		// saturated, the ladder runs at 2x
@@ -165,6 +166,7 @@ struct LIMBO : BidooModule {
 		float cmod = params[CMOD_PARAM].getValue();
 		float qKnob = params[Q_PARAM].getValue();
 		float boostKnob = params[MUG_PARAM].getValue();
+		const float boostGlide = std::min(1.f, 336.f / args.sampleRate);   // 0.007 a sample at 48 kHz
 
 		for (int c = 0; c < channels; c++) {
 			float fc = clamp(dsp::exp2_taylor5(clamp(knobOct + cmod * inputs[CUTOFF_INPUT].getPolyVoltage(c), 3.0f, 15.0f)), 10.0f, fMax);
@@ -174,7 +176,7 @@ struct LIMBO : BidooModule {
 			if (boostNow[c] < 0.f || std::fabs(boostTarget - boostNow[c]) < 1e-5f)
 				boostNow[c] = boostTarget;
 			else
-				boostNow[c] += 0.007f * (boostTarget - boostNow[c]);
+				boostNow[c] += boostGlide * (boostTarget - boostNow[c]);
 			const float boostIn = boostNow[c];
 			float boost = dsp::exp2_taylor5(3.0f * boostIn);
 			// saturated: the stages saturate from 1 / d (d = boost / 3, as before);

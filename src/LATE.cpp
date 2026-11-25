@@ -51,7 +51,7 @@ struct LateChannel {
 		if (delayLeft > 0 && --delayLeft == 0)
 			startDelayed();
 
-		if (sinceRise >= 0)
+		if (sinceRise >= 0 && sinceRise < (1L << 30))   // capped: Windows' long is 32-bit
 			sinceRise++;
 		const auto edge = clockTrigger.processEvent(clock, 0.1f, 1.f);
 		const bool rise = edge == dsp::SchmittTrigger::TRIGGERED;
@@ -155,6 +155,7 @@ struct LATE : BidooModule {
 		configInput(CLOCK_INPUT, "Clock / gates");
 		configInput(RESET_INPUT, "Reset (next clock is not delayed)");
 		configOutput(CLOCK_OUTPUT, "Swung clock / gates");
+		configBypass(CLOCK_INPUT, CLOCK_OUTPUT);
 	}
 
 	void process(const ProcessArgs &args) override {

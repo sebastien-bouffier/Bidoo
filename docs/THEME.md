@@ -203,7 +203,9 @@ The full grid is for new modules, and for an older one only when the user decide
 
 Every module has the three themes, through `BidooWidget`: derive from `BidooModule` and `BidooWidget`, and call
 `prepareThemes(asset::plugin(pluginInstance, "res/NAME.svg"))` first in the widget. Dark and Black are made at load time by
-finding exact colours in the SVG, so a panel only follows if it uses them:
+finding exact colours in the SVG, so a panel only follows if it uses them. The Theme menu also has Follow Rack (id 5, the default
+when `<user>/Bidoo.json` has no `panelThemeDefault` yet; the old `themeDefault` and per-module `themeId` keys are ignored, so older patches follow Rack too): Dark when Rack's View > Use dark panels if available is on, Light otherwise, switching live.
+Ids 3 and 4 were the removed blue and green and show as Light. Exact colours:
 
 - `#E6E6E6` panel, `#000000` text and input boxes, `#FFFFFF` box labels, `#CD1F00` output boxes. A near value stays as it is
   and looks wrong in Dark.

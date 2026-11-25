@@ -1,0 +1,38 @@
+{
+  "plugin": "Bidoo",
+  "model": "dFUZE",
+  "version": "2.7.0",
+  "params": [
+    {
+      "value": 30.0,
+      "id": 0
+    },
+    {
+      "value": 2.0,
+      "id": 1
+    },
+    {
+      "value": 0.45,
+      "id": 2
+    },
+    {
+      "value": 0.0,
+      "id": 3
+    },
+    {
+      "value": 0.5,
+      "id": 4
+    },
+    {
+      "value": 5.0,
+      "id": 5
+    },
+    {
+      "value": 5.0,
+      "id": 6
+    }
+  ],
+  "data": {
+    "freeze": false
+  }
+}

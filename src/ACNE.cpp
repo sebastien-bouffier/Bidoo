@@ -178,6 +178,17 @@ struct ACNE : BidooModule {
 		json_object_set_new(rootJ, "sceneInMutes", inMutesJ);
 		json_object_set_new(rootJ, "sceneInSolos", inSolosJ);
 		json_object_set_new(rootJ, "sceneOutMutes", outMutesJ);
+		// the live state, which may differ from the scene when AUTOSAVE is off (the faders are Rack params)
+		uint32_t im = 0, is = 0, om = 0;
+		for (int i = 0; i < ACNE_NB_OUTS; i++)
+			if (outMutes[i]) om |= 1u << i;
+		for (int i = 0; i < ACNE_NB_TRACKS; i++) {
+			if (inMutes[i]) im |= 1u << i;
+			if (inSolo[i]) is |= 1u << i;
+		}
+		json_object_set_new(rootJ, "liveInMutes", json_integer(im));
+		json_object_set_new(rootJ, "liveInSolos", json_integer(is));
+		json_object_set_new(rootJ, "liveOutMutes", json_integer(om));
 
 		for (int i = 0; i < 8; i++) {
 			json_object_set_new(rootJ, ("link" + to_string(i)).c_str(), json_boolean(links[i]));
@@ -218,7 +229,20 @@ struct ACNE : BidooModule {
 			links[i] = linkJ && json_boolean_value(linkJ);
 		}
 
-		loadScene();
+		json_t *liveInJ = json_object_get(rootJ, "liveInMutes");
+		json_t *liveSoloJ = json_object_get(rootJ, "liveInSolos");
+		json_t *liveOutJ = json_object_get(rootJ, "liveOutMutes");
+		if (liveInJ && liveSoloJ && liveOutJ) {
+			// keep the faders Rack restored and the saved live mutes
+			for (int i = 0; i < ACNE_NB_OUTS; i++)
+				outMutes[i] = (json_integer_value(liveOutJ) >> i) & 1;
+			for (int i = 0; i < ACNE_NB_TRACKS; i++) {
+				inMutes[i] = (json_integer_value(liveInJ) >> i) & 1;
+				inSolo[i] = (json_integer_value(liveSoloJ) >> i) & 1;
+			}
+		}
+		else
+			loadScene();   // older patches
 		// Start at the stored levels instead of fading in.
 		morphPhase = 1.f;
 		for (int i = 0; i < ACNE_NB_OUTS; i++)

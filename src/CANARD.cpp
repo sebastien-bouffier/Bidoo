@@ -132,6 +132,7 @@ struct CANARD : BidooModule {
 	int playedSlice = 0;
 	int totalSampleCount = 0;
 	float speed = 1.0f;
+	float speedOct = 0.f;        // speed = 2^speedOct, exp2 only when it moves
 	bool reverse = false;        // plays the slices backward
 	sampleread::Declick<2> dc;
 	sampleread::Declick<2> dc2;    // a tail still fading out when another jump comes (two jumps within 2 ms)
@@ -793,7 +794,11 @@ void CANARD::process(const ProcessArgs &args) {
 	int trigMode = inputs[TRIG_INPUT].isConnected() ? 1 : (inputs[GATE_INPUT].isConnected() ? 2 : 0);
 	int readMode = clamp((int)std::round(inputs[READ_MODE_INPUT].getVoltage() + params[READ_MODE_PARAM].getValue()), 0, 2);
 	// V/O: exactly 1 V per octave on top of TUNE; 16x either way is the most the band-limited reading plays cleanly
-	speed = std::exp2(clamp(params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage(), -4.f, 4.f));
+	float oct = clamp(params[SPEED_PARAM].getValue() + inputs[SPEED_INPUT].getVoltage(), -4.f, 4.f);
+	if (oct != speedOct) {
+		speedOct = oct;
+		speed = std::exp2(oct);
+	}
 	calcLoop();
 
 	bool trig = trigTrigger.process(inputs[TRIG_INPUT].getVoltage(), 0.1f, 1.f);

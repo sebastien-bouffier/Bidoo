@@ -169,6 +169,7 @@ struct LiveMip {
 	static constexpr int LATENCY = 3 * HALF + 8;  // frames behind the input that the levels can be read at
 	std::vector<float> lv[LEVELS];
 	long long mask[LEVELS] = {};
+	mutable float lastSpeed = -1.f, lastO = 0.f;   // log2 of the last speed read (SPORE's grains share one)
 
 	static const float *kernel() {
 		static const std::array<float, MIP_TAPS> k = designLowpass(0.22, HALF, 7.0);
@@ -213,7 +214,11 @@ struct LiveMip {
 	float read(const float *x, long long xm, double pos, float absSpeed) const {
 		if (absSpeed <= 1.f)
 			return hermiteRing(x, xm, pos);
-		float o = std::min(std::log2(absSpeed), (float)LEVELS);
+		if (absSpeed != lastSpeed) {
+			lastSpeed = absSpeed;
+			lastO = std::log2(absSpeed);
+		}
+		float o = std::min(lastO, (float)LEVELS);
 		int L = (int)o;
 		float f = o - (float)L;
 		auto level = [&](int k) {
@@ -239,13 +244,13 @@ inline float mipBlend(float f) {
 // Read at frame `pos` (of the full-rate sample) playing at |speed|: Hermite on
 // the full-rate data up to 1x, then on the band-limited levels, two adjacent
 // levels mixed so the tone does not step at each octave.
+// o: log2(absSpeed), given by the caller (View caches it)
 template <int C>
-inline void readAA(const float *d0, int n0, const Mip<C> *mip, double pos, float absSpeed, float *out) {
+inline void readAA(const float *d0, int n0, const Mip<C> *mip, double pos, float absSpeed, float o, float *out) {
 	if (!mip || absSpeed <= 1.0f || mip->n[0] == 0) {
 		hermiteAt<C>(d0, n0, pos, out);
 		return;
 	}
-	float o = std::log2(absSpeed);
 	int L = (int)o;
 	float f = o - (float)L;
 	if (L >= Mip<C>::LEVELS || mip->n[std::min(L, Mip<C>::LEVELS - 1)] == 0) {
@@ -276,9 +281,14 @@ struct View {
 	const float *d = nullptr;
 	int n = 0;
 	const Mip<C> *mip = nullptr;
+	mutable float lastSpeed = -1.f, lastO = 0.f;   // log2 of the last speed above 1x: it rarely changes
 
 	void read(double pos, float absSpeed, float *out) const {
-		readAA<C>(d, n, mip, pos, absSpeed, out);
+		if (absSpeed > 1.f && absSpeed != lastSpeed) {
+			lastSpeed = absSpeed;
+			lastO = std::log2(absSpeed);
+		}
+		readAA<C>(d, n, mip, pos, absSpeed, lastO, out);
 	}
 };
 

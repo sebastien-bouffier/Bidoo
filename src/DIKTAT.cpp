@@ -64,7 +64,7 @@ struct DIKTAT : BidooModule {
 
 	DIKTAT() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f, "Channel","",0,1,1);
+		configParam(CHANNEL_PARAM, 0.0f, 15.0f, 0.0f, "Channel","",0,1,1)->snapEnabled = true;
 		std::vector<std::string> roots, scales;
 		for (int i = 0; i < quantizer::numNotes; i++)
 			roots.push_back(quantizer::rootNotes[i].label);

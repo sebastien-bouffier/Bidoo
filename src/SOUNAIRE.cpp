@@ -254,6 +254,7 @@ struct SOUNAIRE : BidooModule {
 
 	// ---- the patch storage folder, known once added (the worker cannot ask Rack)
 	std::mutex storageMutex;
+	std::mutex writeMutex;   // one writer of sample.flac at a time (worker or onSave)
 	std::string storageDir;
 	std::string jobExportDir, jobExportFile;
 	std::atomic<int> lastSlice {-1};   // the slice played last, for the display
@@ -785,8 +786,11 @@ struct SOUNAIRE : BidooModule {
 				std::lock_guard<std::mutex> lock(storageMutex);
 				dir = storageDir;
 			}
-			if (!dir.empty() && flacWriteFile(rack::system::join(dir, "sample.flac"), s->ch, s->channels, s->frames, (int)s->rate, s->bits))
-				dirty = false;
+			if (!dir.empty()) {
+				std::lock_guard<std::mutex> lock(writeMutex);
+				if (flacWriteFile(rack::system::join(dir, "sample.flac"), s->ch, s->channels, s->frames, (int)s->rate, s->bits))
+					dirty = false;
+			}
 		}
 	}
 
@@ -869,9 +873,11 @@ struct SOUNAIRE : BidooModule {
 		if (!s)
 			return;
 		std::string path = storagePath();
+		std::lock_guard<std::mutex> lock(writeMutex);
 		if (!dirty && rack::system::isFile(path))
 			return;
-		if (flacWriteFile(path, s->ch, s->channels, s->frames, (int)s->rate, s->bits))
+		s = displaySample();   // the worker may have installed a newer one meanwhile
+		if (s && flacWriteFile(path, s->ch, s->channels, s->frames, (int)s->rate, s->bits))
 			dirty = false;
 	}
 
@@ -958,12 +964,12 @@ struct SOUNAIRE : BidooModule {
 				u.start[u.count] = u.count == 0 ? 0 : (int64_t)json_integer_value(json_array_get(sJ, 0));
 				u.type[u.count] = (uint8_t)clamp((int)json_integer_value(json_array_get(sJ, 1)), 0, NUM_PLAY_TYPES - 1);
 				u.choke[u.count] = (uint8_t)clamp((int)json_integer_value(json_array_get(sJ, 2)), 0, 4);
-				u.level[u.count] = (float)json_number_value(json_array_get(sJ, 3));
-				u.tune[u.count] = (float)json_number_value(json_array_get(sJ, 4));
-				u.pan[u.count] = (float)json_number_value(json_array_get(sJ, 5));
+				u.level[u.count] = clamp((float)json_number_value(json_array_get(sJ, 3)), -36.f, 12.f);
+				u.tune[u.count] = clamp((float)json_number_value(json_array_get(sJ, 4)), -24.f, 24.f);
+				u.pan[u.count] = clamp((float)json_number_value(json_array_get(sJ, 5)), -1.f, 1.f);
 				json_t *aJ = json_array_get(sJ, 6), *rJ = json_array_get(sJ, 7);
-				u.attack[u.count] = aJ ? (float)json_number_value(aJ) : -1.f;
-				u.release[u.count] = rJ ? (float)json_number_value(rJ) : -1.f;
+				u.attack[u.count] = aJ ? std::min((float)json_number_value(aJ), 2000.f) : -1.f;
+				u.release[u.count] = rJ ? std::min((float)json_number_value(rJ), 5000.f) : -1.f;
 				u.count++;
 			}
 			if (u.count == 0)

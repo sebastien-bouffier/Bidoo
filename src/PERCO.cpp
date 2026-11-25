@@ -67,6 +67,9 @@ struct PERCO : BidooModule {
 		configOutput(OUT_LP, "Low-pass");
 		configOutput(OUT_BP, "Band-pass");
 		configOutput(OUT_HP, "High-pass");
+		configBypass(IN, OUT_LP);
+		configBypass(IN, OUT_BP);
+		configBypass(IN, OUT_HP);
 	}
 
 	void process(const ProcessArgs &args) override {

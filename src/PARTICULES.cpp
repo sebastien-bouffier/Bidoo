@@ -11,6 +11,10 @@
 #include "dep/waves.hpp"
 #include "osdialog.h"
 #include <bidoo/dsp/time/PulseClock.h>
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 
 using namespace std;
 
@@ -80,8 +84,25 @@ struct PARTICULES : BidooModule {
 	dsp::PulseGenerator grainPulse;
 	int clockPpqn = 4;
 	int detuneQuant = 0;
-	std::string fileName;   // the file loaded (shown), empty for the live buffer
-	bool dirty = false;     // the buffer differs from the patch storage
+	std::string fileName;   // the file loaded (shown), empty for the live buffer; under jobMutex
+	std::atomic<bool> dirty {false};   // the buffer differs from the patch storage
+
+	// Worker thread: decodes a file (or the patch storage) into a Buffer and hands it to the engine through
+	// `pending`; it also frees `retired`. A newer request (or a clear) bumps loadGen: the older load is dropped.
+	struct Job {
+		std::string path;
+		bool storage = false;   // the patch's buffer.flac
+		double rate = 48000.0;  // Rack's rate when asked
+		uint32_t gen = 0;
+	};
+	std::thread worker;
+	std::mutex jobMutex;
+	std::condition_variable jobCv;
+	Job job;
+	bool jobRequested = false;
+	std::atomic<bool> quit {false};
+	std::atomic<uint32_t> loadGen {0};
+	std::atomic<bool> loading {false};
 
 	// one block in, one block out (the output is a block late)
 	float inL[B] = {}, inR[B] = {}, outL[B] = {}, outR[B] = {}, env[B] = {};
@@ -190,6 +211,18 @@ struct PARTICULES : BidooModule {
 		configBypass(R_INPUT, R_OUTPUT);
 		updateClockName();
 		engine.prepare(APP->engine->getSampleRate());
+		worker = std::thread(&PARTICULES::workerLoop, this);
+	}
+
+	// deleted mid-load: the FLAC loop stops at its next chunk, a WAV/AIFF finishes first
+	~PARTICULES() {
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			quit = true;
+		}
+		jobCv.notify_all();
+		if (worker.joinable())
+			worker.join();
 	}
 
 	void updateClockName() {
@@ -288,36 +321,114 @@ struct PARTICULES : BidooModule {
 
 	// ---------------------------------------------------------------- the buffer: a file, the patch
 
-	// UI thread: a new buffer for the audio thread (the one waiting, if any, is dropped)
+	// a new buffer for the audio thread (the one waiting, if any, is dropped); under jobMutex
 	void install(particules::Buffer *b) {
 		delete engine.pending.exchange(b);
 		dirty = true;
 	}
 
-	// WAV and AIFF (resampled to Rack's rate), FLAC (kept at its own rate: the grains read it at the right pitch)
+	std::string shownName() {
+		std::lock_guard<std::mutex> lock(jobMutex);
+		return fileName;
+	}
+
+	// any thread but the audio thread: the newest request wins
+	void requestLoad(const std::string &path, bool storage) {
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			job.path = path;
+			job.storage = storage;
+			job.rate = APP->engine->getSampleRate();
+			job.gen = ++loadGen;
+			jobRequested = true;
+		}
+		loading = true;
+		jobCv.notify_all();
+	}
+
 	void loadFile(const std::string &path) {
-		std::vector<float> l, r;
-		double rate = APP->engine->getSampleRate();
-		if (rack::string::lowercase(rack::system::getExtension(path)) == ".flac") {
-			unsigned int channels = 0, fr = 0;
-			drflac_uint64 frames = 0;
-			float *data = drflac_open_file_and_read_pcm_frames_f32(path.c_str(), &channels, &fr, &frames, nullptr);
-			if (!data)
-				return;
-			rate = fr;
-			const size_t n = std::min((size_t)frames, (size_t)(120.0 * rate));
-			l.resize(n);
-			r.resize(n);
-			for (size_t i = 0; i < n; i++) {
-				l[i] = data[i * channels];
-				r[i] = data[i * channels + (channels > 1 ? 1 : 0)];
+		requestLoad(path, false);
+	}
+
+	void workerLoop() {
+		std::unique_lock<std::mutex> lock(jobMutex);
+		while (!quit) {
+			// the audio thread can't notify without locking: poll for `retired`
+			jobCv.wait_for(lock, std::chrono::milliseconds(50));
+			delete engine.retired.exchange(nullptr, std::memory_order_acq_rel);
+			if (!jobRequested || quit)
+				continue;
+			Job j = job;
+			jobRequested = false;
+			lock.unlock();
+			particules::Buffer *b = j.storage ? decodeStorage(j) : decodeFile(j);
+			lock.lock();
+			if (b && j.gen == loadGen && !quit) {
+				install(b);
+				if (j.storage) {
+					dirty = false;
+				}
+				else {
+					fileName = rack::system::getFilename(j.path);
+					params[REC_PARAM].setValue(0.f);   // the file stays as it is until REC goes on again
+				}
 			}
-			drflac_free(data, nullptr);
+			else {
+				delete b;
+			}
+			if (j.gen == loadGen)
+				loading = false;
+		}
+	}
+
+	bool stale(uint32_t gen) {
+		return quit || loadGen != gen;
+	}
+
+	// FLAC, chunk by chunk up to maxSeconds (0: all), at its own rate, times `gain`; false if unread or dropped
+	bool readFlac(const std::string &path, float gain, double maxSeconds, uint32_t gen, std::vector<float> &l, std::vector<float> &r, double &rate) {
+		drflac *f = drflac_open_file(path.c_str(), nullptr);
+		if (!f)
+			return false;
+		const unsigned ch = f->channels;
+		rate = f->sampleRate;
+		const size_t cap = maxSeconds > 0.0 ? (size_t)(maxSeconds * rate) : SIZE_MAX;
+		if (f->totalPCMFrameCount > 0) {
+			l.reserve(std::min(cap, (size_t)f->totalPCMFrameCount));
+			r.reserve(std::min(cap, (size_t)f->totalPCMFrameCount));
+		}
+		const size_t chunk = 4096;
+		std::vector<float> buf(chunk * std::max(1u, ch));
+		bool ok = ch > 0;
+		while (ok && l.size() < cap) {
+			if (stale(gen)) {
+				ok = false;
+				break;
+			}
+			const drflac_uint64 got = drflac_read_pcm_frames_f32(f, std::min(chunk, cap - l.size()), buf.data());
+			if (got == 0)
+				break;
+			for (drflac_uint64 i = 0; i < got; i++) {
+				l.push_back(gain * buf[i * ch]);
+				r.push_back(gain * buf[i * ch + (ch > 1 ? 1 : 0)]);
+			}
+		}
+		drflac_close(f);
+		return ok;
+	}
+
+	// worker: WAV and AIFF (resampled to Rack's rate), FLAC (kept at its own rate: the grains read it at the right pitch)
+	particules::Buffer *decodeFile(const Job &j) {
+		std::vector<float> l, r;
+		double rate = j.rate;
+		if (rack::string::lowercase(rack::system::getExtension(j.path)) == ".flac") {
+			if (!readFlac(j.path, 1.f, 120.0, j.gen, l, r, rate))   // two minutes at most
+				return nullptr;
 		}
 		else {
 			std::string name, ext;
 			int ch = 0, sr = 0, cnt = 0;
-			std::vector<dsp::Frame<2>> frames = waves::getStereoWav(path, (float)rate, name, ext, ch, sr, cnt);
+			std::vector<dsp::Frame<2>> frames = waves::getStereoWav(j.path, (float)rate, name, ext, ch, sr, cnt, 120.0);
 			const size_t n = std::min(frames.size(), (size_t)(120.0 * rate));   // two minutes at most
 			l.resize(n);
 			r.resize(n);
@@ -326,19 +437,37 @@ struct PARTICULES : BidooModule {
 				r[i] = frames[i].samples[1];
 			}
 		}
-		if (l.size() < 64)
-			return;
+		if (l.size() < 64 || stale(j.gen))
+			return nullptr;
 		particules::Buffer *b = new particules::Buffer;
 		b->fill(l.data(), r.data(), (int64_t)l.size(), rate);
-		install(b);
-		fileName = rack::system::getFilename(path);
-		params[REC_PARAM].setValue(0.f);   // the file stays as it is until REC goes on again
+		return b;
 	}
 
+	// worker: the patch's buffer (saved at half level), with room to record on: at least the live buffer's length
+	particules::Buffer *decodeStorage(const Job &j) {
+		std::vector<float> l, r;
+		double rate = 0.0;
+		if (!readFlac(j.path, 2.f, 0.0, j.gen, l, r, rate))
+			return nullptr;
+		const int64_t frames = (int64_t)l.size();
+		particules::Buffer *b = new particules::Buffer;
+		const double live = particules::kLiveSeconds * std::max(48000.0, rate);
+		b->allocate(std::max<int64_t>(frames, (int64_t)live), rate);
+		for (int64_t i = 0; i < frames; i++)
+			b->record(l[(size_t)i], r[(size_t)i], 1.f);
+		return b;
+	}
+
+	// a clear also drops a load on its way
 	void clearBuffer() {
 		particules::Buffer *b = new particules::Buffer;
 		const double rate = APP->engine->getSampleRate();
 		b->allocate((int64_t)(particules::kLiveSeconds * std::max(48000.0, rate)), rate);
+		std::lock_guard<std::mutex> lock(jobMutex);
+		++loadGen;
+		jobRequested = false;
+		loading = false;
 		install(b);
 		fileName.clear();
 	}
@@ -349,8 +478,9 @@ struct PARTICULES : BidooModule {
 
 	// the buffer, oldest to newest, while it doesn't record (a recording one would change while it's written)
 	void onSave(const SaveEvent &e) override {
+		// while a load runs, the storage keeps what it has (it may be the file being read)
 		const particules::Buffer *b = engine.view.load();
-		if (!b || engine.recording.load() || !dirty)
+		if (!b || engine.recording.load() || !dirty || loading)
 			return;
 		std::string path = storagePath();
 		if (b->length < 64) {
@@ -373,36 +503,18 @@ struct PARTICULES : BidooModule {
 			dirty = false;
 	}
 
+	// the patch's buffer, decoded by the worker
 	void onAdd(const AddEvent &e) override {
 		std::string path = rack::system::join(getPatchStorageDirectory(), "buffer.flac");
-		if (!rack::system::isFile(path))
-			return;
-		unsigned int channels = 0, rate = 0;
-		drflac_uint64 frames = 0;
-		float *data = drflac_open_file_and_read_pcm_frames_f32(path.c_str(), &channels, &rate, &frames, nullptr);
-		if (!data)
-			return;
-		std::vector<float> l((size_t)frames), r((size_t)frames);
-		for (drflac_uint64 i = 0; i < frames; i++) {
-			l[(size_t)i] = 2.f * data[i * channels];
-			r[(size_t)i] = 2.f * data[i * channels + (channels > 1 ? 1 : 0)];
-		}
-		drflac_free(data, nullptr);
-		// room to record on: at least the live buffer's length
-		particules::Buffer *b = new particules::Buffer;
-		const double live = particules::kLiveSeconds * std::max(48000.0, (double)rate);
-		b->allocate(std::max<int64_t>((int64_t)frames, (int64_t)live), rate);
-		for (drflac_uint64 i = 0; i < frames; i++)
-			b->record(l[(size_t)i], r[(size_t)i], 1.f);
-		delete engine.pending.exchange(b);
-		dirty = false;
+		if (rack::system::isFile(path))
+			requestLoad(path, true);
 	}
 
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "clockPpqn", json_integer(clockPpqn));
 		json_object_set_new(rootJ, "detuneQuant", json_integer(detuneQuant));
-		json_object_set_new(rootJ, "fileName", json_string(fileName.c_str()));
+		json_object_set_new(rootJ, "fileName", json_string(shownName().c_str()));
 		return rootJ;
 	}
 
@@ -412,8 +524,11 @@ struct PARTICULES : BidooModule {
 			clockPpqn = clamp((int)json_integer_value(j), 1, 96);
 		if (json_t *j = json_object_get(rootJ, "detuneQuant"))
 			detuneQuant = clamp((int)json_integer_value(j), 0, 2);
-		if (json_t *j = json_object_get(rootJ, "fileName"))
-			fileName = json_string_value(j);
+		if (json_t *j = json_object_get(rootJ, "fileName")) {
+			std::lock_guard<std::mutex> lock(jobMutex);
+			const char *s = json_string_value(j);
+			fileName = s ? s : "";
+		}
 		updateClockName();
 	}
 };
@@ -507,7 +622,10 @@ struct ParticulesScreen : TransparentWidget {
 			wavestyle::head(vg, w - 2.f, top, bottom, 1.f, theme::kLitOrange);
 
 		// top: the buffer, the mode
-		std::string left = e.recording.load() ? "REC" : module->fileName.empty() ? "FROZEN" : module->fileName;
+		const std::string name = module->shownName();
+		std::string left = e.recording.load() ? "REC" : name.empty() ? "FROZEN" : name;
+		if (module->loading.load())
+			left = "LOADING...";
 		if (b && b->length > 0)
 			left += rack::string::f("  %.1f s", (double)b->length / b->rate);
 		text(vg, 4, 2, left, NVG_ALIGN_LEFT | NVG_ALIGN_TOP, e.recording.load() ? theme::kLitOrange : theme::kScreenYellow, 9.f);

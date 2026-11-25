@@ -1,6 +1,6 @@
 RACK_DIR ?= ../..
 
-DISTRIBUTABLES += $(wildcard LICENSE*) res
+DISTRIBUTABLES += $(wildcard LICENSE*) res presets
 
 FLAGS += -Idep/include -I./src/dep/dr_wav -I./src/dep/filters -I./src/dep/gverb/include -I./src/dep/minimp3 -I./src/dep/lodepng -I./src/dep/pffft -I./src/dep/signalsmith -I./src/dep/AudioFile -I./src/dep/resampler -I./src/dep
 

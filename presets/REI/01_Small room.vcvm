@@ -1,0 +1,48 @@
+{
+  "plugin": "Bidoo",
+  "model": "REI",
+  "version": "2.7.0",
+  "params": [
+    {
+      "value": 0.35,
+      "id": 0
+    },
+    {
+      "value": 0.5,
+      "id": 1
+    },
+    {
+      "value": 0.0,
+      "id": 2
+    },
+    {
+      "value": 0.5,
+      "id": 3
+    },
+    {
+      "value": 1.0,
+      "id": 4
+    },
+    {
+      "value": 0.3,
+      "id": 5
+    },
+    {
+      "value": 0.0,
+      "id": 6
+    },
+    {
+      "value": 4.0,
+      "id": 7
+    },
+    {
+      "value": 0.0,
+      "id": 8
+    }
+  ],
+  "data": {
+    "algo": 1,
+    "preDelay": 1,
+    "mod": 2
+  }
+}

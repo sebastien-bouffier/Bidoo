@@ -488,15 +488,19 @@ struct FLAME : BidooModule {
 		++liveHop;
 		if (++hop >= N2) {
 			hop = liveHop = 0;
-			analyse();
-			updateOutput();
+			if (anyInput()) {
+				analyse();
+				updateOutput();
+			}
+			else   // nothing to show or play without an input
+				out[0] = out[1] = 0.f;
 		}
 		else {
-			if (liveHop >= LIVE_HOP) {
+			if (liveHop >= LIVE_HOP && anyInput()) {
 				liveHop = 0;
 				analyseLive();
 			}
-			if (changed)
+			if (changed && anyInput())
 				updateOutput();
 		}
 		const float a = std::min(1.f, 1.f / (0.005f * args.sampleRate));

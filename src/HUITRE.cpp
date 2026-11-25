@@ -67,6 +67,7 @@ struct HUITRE : BidooModule {
 	json_t *dataToJson() override {
 		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "mode", json_boolean(mode));
+		json_object_set_new(rootJ, "currentPattern", json_integer(currentPattern));
 		return rootJ;
 	}
 
@@ -74,6 +75,13 @@ struct HUITRE : BidooModule {
 		BidooModule::dataFromJson(rootJ);
 		json_t *modeJ = json_object_get(rootJ, "mode");
 		if (modeJ) mode = json_is_true(modeJ);
+		if (json_t *patJ = json_object_get(rootJ, "currentPattern"))
+			currentPattern = nextPattern = clamp((int)json_integer_value(patJ), 0, 8 - 1);
+	}
+
+	void onReset() override {
+		currentPattern = nextPattern = 0;
+		mode = false;
 	}
 };
 

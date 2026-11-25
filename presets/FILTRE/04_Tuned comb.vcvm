@@ -1,0 +1,58 @@
+{
+  "plugin": "Bidoo",
+  "model": "FILTRE",
+  "version": "2.7.0",
+  "params": [
+    {
+      "value": 49.0,
+      "id": 0
+    },
+    {
+      "value": 0.3722,
+      "id": 1
+    },
+    {
+      "value": 0.85,
+      "id": 2
+    },
+    {
+      "value": 0.0,
+      "id": 3
+    },
+    {
+      "value": 0.3,
+      "id": 4
+    },
+    {
+      "value": 1.0,
+      "id": 5
+    },
+    {
+      "value": 1.0,
+      "id": 6
+    },
+    {
+      "value": 1.0,
+      "id": 7
+    },
+    {
+      "value": 1.0,
+      "id": 8
+    },
+    {
+      "value": 1.0,
+      "id": 9
+    },
+    {
+      "value": 1.0,
+      "id": 10
+    },
+    {
+      "value": 1.0,
+      "id": 11
+    }
+  ],
+  "data": {
+    "rate": 0
+  }
+}

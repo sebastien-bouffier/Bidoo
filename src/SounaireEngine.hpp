@@ -1215,6 +1215,7 @@ struct Engine {
 	int poolMode = -1;           // the preset the pool runs, -1: none yet
 	float poolRate = 0.f;
 	float liveCoef = 1.f;
+	float glideRate = 0.f, glideCoef = 0.f;   // the 2 ms glide's coefficient at glideRate
 
 	const Sample *current = nullptr;
 	// samples replaced while voices still played them (hot-swap)
@@ -1507,7 +1508,10 @@ struct Engine {
 		if (current)
 			mainRegion = PlayHead::region(*current, p, rate);
 		const float speedKnob = std::isfinite(p.speed) ? p.speed : 1.f;
-		const float glideCoef = 1.f - std::exp(-1.f / (0.002f * rate));
+		if (rate != glideRate) {
+			glideRate = rate;
+			glideCoef = 1.f - std::exp(-1.f / (0.002f * rate));
+		}
 		if (gainNow < 0.f || !std::isfinite(gainNow))
 			gainNow = p.gain;
 		else

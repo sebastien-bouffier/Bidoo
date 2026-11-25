@@ -19,7 +19,10 @@ using namespace std;
 // the display.
 struct OuaiveSample {
 	static constexpr int OVERVIEW = 1024;
-	std::vector<dsp::Frame<2>> frames;
+	// the frames, shared (never copied) by the engine's sample and the display's; freed by whichever thread drops
+	// the last one, never the audio thread (it only reads `frames`, the worker deletes what it retires)
+	std::shared_ptr<const std::vector<dsp::Frame<2>>> buf;
+	const dsp::Frame<2> *frames = nullptr;   // buf's data
 	sampleread::Mip<2> mip;  // band-limited copies, for playing faster than 1x
 	int channels = 0;
 	int count = 0;
@@ -193,15 +196,18 @@ struct OUAIVE : BidooModule {
 			OuaiveSample *s = new OuaiveSample();
 			std::string name, ext;
 			int sr = 0;
-			s->frames = waves::getStereoWav(path, rate, name, ext, s->channels, sr, s->count);
-			s->count = s->frames.size();
+			auto buf = std::make_shared<std::vector<dsp::Frame<2>>>(waves::getStereoWav(path, rate, name, ext, s->channels, sr, s->count));
+			s->count = buf->size();
+			s->frames = buf->data();
+			s->buf = buf;
 			s->sampleRate = rate;
-			s->mip.build((const float *)s->frames.data(), s->count);
+			s->mip.build((const float *)s->frames, s->count);
 			s->buildOverview();
 			{
 				std::lock_guard<std::mutex> ui(uiMutex);
 				auto shown = std::make_shared<OuaiveSample>();
-				shown->frames = s->frames; // the display reads them when zoomed in
+				shown->buf = s->buf; // the display reads the frames when zoomed in
+				shown->frames = s->frames;
 				shown->count = s->count;
 				shown->channels = s->channels;
 				std::copy(&s->overviewMin[0][0], &s->overviewMin[0][0] + 2 * OuaiveSample::OVERVIEW, &shown->overviewMin[0][0]);
@@ -301,7 +307,7 @@ void OUAIVE::process(const ProcessArgs &args) {
 	const int fadeLen = sampleread::declickLength(args.sampleRate);
 	sampleread::View<2> view;
 	if (sample)
-		view = {(const float *)sample->frames.data(), total, &sample->mip};
+		view = {(const float *)sample->frames, total, &sample->mip};
 
 	if (trigModeTrigger.process(params[TRIG_MODE_PARAM].getValue()))
 		trigMode = (trigMode + 1) % 3;
@@ -465,7 +471,7 @@ void OUAIVE::process(const ProcessArgs &args) {
 	if (sample && !tailDone)
 		dc.addTail(view, acc);
 	if (fading && fading->count > 1) {
-		const sampleread::View<2> old{(const float *)fading->frames.data(), fading->count, &fading->mip};
+		const sampleread::View<2> old{(const float *)fading->frames, fading->count, &fading->mip};
 		fadeOld[0].addTail(old, acc);
 		fadeOld[1].addTail(old, acc);
 	}
@@ -543,7 +549,7 @@ struct OUAIVEDisplay : OpaqueWidget {
 			if (f1 <= 0.0 || f0 >= total)
 				continue;
 			float lo = 1.f, hi = -1.f;
-			if (perPixel >= binFrames || (int)s.frames.size() < total) {
+			if (perPixel >= binFrames || !s.frames) {
 				const int k0 = clamp((int)(f0 / binFrames), 0, bins - 1), k1 = clamp((int)(f1 / binFrames), k0 + 1, bins);
 				for (int k = k0; k < k1; k++) {
 					lo = std::min(lo, s.overviewMin[c][k]);

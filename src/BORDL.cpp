@@ -74,6 +74,11 @@ struct BORDL : MetroModule<BORDL> {
 
 	static constexpr bool EXTENDED = true;
 
+	// as dTrOY: Rack runs it under the engine lock and keeps it in its undo
+	void onRandomize() override {
+		randomizeSlidesSkips();
+	}
+
 	BORDL() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configMetro(*this);

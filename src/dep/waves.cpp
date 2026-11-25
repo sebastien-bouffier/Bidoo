@@ -4,6 +4,7 @@
 #include "dr_wav/dr_wav.h"
 #include <dsp/resampler.hpp>
 #include <cstring>
+#include <cmath>
 
 namespace waves {
 
@@ -50,7 +51,7 @@ namespace waves {
   }
 
   template <int N>
-  static std::vector<rack::dsp::Frame<N>> loadFrames(const std::string &path, const float currentSampleRate, std::string &waveFileName, std::string &waveExtension, int &sampleChannels, int &sampleRate, int &sampleCount) {
+  static std::vector<rack::dsp::Frame<N>> loadFrames(const std::string &path, const float currentSampleRate, std::string &waveFileName, std::string &waveExtension, int &sampleChannels, int &sampleRate, int &sampleCount, double maxSeconds = 0.0) {
     waveFileName = rack::system::getFilename(path);
     waveExtension = rack::system::getExtension(waveFileName);
     std::string ext = rack::string::uppercase(waveExtension);
@@ -67,8 +68,33 @@ namespace waves {
       }
       result.push_back(frame);
     };
+    // the cap in source frames, with a margin so the resampler's last outputs still read real input
+    auto capFrames = [&](unsigned int sr) -> size_t {
+      return (size_t)std::ceil(maxSeconds * sr) + 1024;
+    };
 
-    if (ext == ".WAV") {
+    if (ext == ".WAV" && maxSeconds > 0.0) {
+      drwav wav;
+      if (drwav_init_file(&wav, path.c_str(), NULL)) {
+        unsigned int c = wav.channels;
+        sampleChannels = c;
+        sampleRate = wav.sampleRate;
+        drwav_uint64 want = capFrames(wav.sampleRate);
+        if (wav.totalPCMFrameCount > 0 && wav.totalPCMFrameCount < want)
+          want = wav.totalPCMFrameCount;
+        if (c > 0) {
+          std::vector<float> data((size_t)want * c);
+          drwav_uint64 frames = drwav_read_pcm_frames_f32(&wav, want, data.data());
+          result.reserve(frames);
+          for (drwav_uint64 f = 0; f < frames; f++) {
+            const float *s = data.data() + f * c;
+            push(s[0], c >= 2 ? s[1] : s[0]);
+          }
+        }
+        drwav_uninit(&wav);
+      }
+    }
+    else if (ext == ".WAV") {
       unsigned int c;
       unsigned int sr;
       drwav_uint64 frames;
@@ -100,6 +126,8 @@ namespace waves {
         }
       }
     }
+    if (maxSeconds > 0.0 && sampleRate > 0 && result.size() > capFrames(sampleRate))
+      result.resize(capFrames(sampleRate));  // AIFF is decoded whole, only resampled up to the cap
     sampleCount = result.size();
 
     if ((sampleCount > 0) && (sampleRate > 0) && (sampleRate != currentSampleRate)) {
@@ -114,8 +142,8 @@ namespace waves {
     return loadFrames<1>(path, currentSampleRate, waveFileName, waveExtension, sampleChannels, sampleRate, sampleCount);
   }
 
-  std::vector<rack::dsp::Frame<2>> getStereoWav(const std::string path, const float currentSampleRate, std::string &waveFileName, std::string &waveExtension, int &sampleChannels, int &sampleRate, int &sampleCount) {
-    return loadFrames<2>(path, currentSampleRate, waveFileName, waveExtension, sampleChannels, sampleRate, sampleCount);
+  std::vector<rack::dsp::Frame<2>> getStereoWav(const std::string path, const float currentSampleRate, std::string &waveFileName, std::string &waveExtension, int &sampleChannels, int &sampleRate, int &sampleCount, double maxSeconds) {
+    return loadFrames<2>(path, currentSampleRate, waveFileName, waveExtension, sampleChannels, sampleRate, sampleCount, maxSeconds);
   }
 
   std::vector<rack::dsp::Frame<2>> resampleStereo(const std::vector<rack::dsp::Frame<2>> &frames, float fromRate, float toRate) {

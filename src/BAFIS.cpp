@@ -2,6 +2,8 @@
 #include "BidooComponents.hpp"
 #include "Svf.hpp"
 #include "dep/bidoo-dsp/bidoo/dsp/shaping/TanhPade.h"
+#include "dep/bidoo-dsp/bidoo/dsp/core/Trig.h"
+#include <cstring>
 
 // Four bands split at three Linkwitz-Riley crossovers (24 dB/oct), each band
 // distorted before or after its filters. The bands are built so they add up
@@ -64,35 +66,59 @@ struct BafisSvf {
 // sin(d x) / sin(d) up to d = pi / 2, clamp(d x) / min(d, 1).
 struct BafisShaper {
 	Halfband2x over;
-	float u0 = 0.f, F0 = 0.f;  // ADAA: the previous (2x) sample and its antiderivative
+	float u0 = 0.f;            // ADAA: the previous (2x) sample
+	double F0 = 0.0;           // and its antiderivative (double: F1 - F0 cancels)
 	bool primed = true;        // F0 belongs to u0 (the previous sample took the ADAA path)
 
-	static float logCosh(float u) {
-		float a = std::fabs(u);
-		return a + std::log1p(std::exp(-2.f * a)) - 0.69314718f;
+	// log cosh u = |u| - ln 2 + log1p(t), t = e^-2|u| (2^k times a Taylor e^r), log1p(t) = 2 atanh(t / (2 + t));
+	// in double, without MinGW's slow exp / log1p
+	static double logCosh(float u) {
+		double a = std::fabs((double)u);
+		double x = std::max(-2.0 * a, -60.0);
+		int k = (int)(x * 1.4426950408889634 - 0.5);
+		double r = x - k * 0.6931471805599453;
+		double e = 1.0 + r * (1.0 + r * (1.0 / 2 + r * (1.0 / 6 + r * (1.0 / 24 + r * (1.0 / 120 + r * (1.0 / 720 + r * (1.0 / 5040 + r * (1.0 / 40320))))))));
+		uint64_t bits = (uint64_t)(k + 1023) << 52;
+		double p2;
+		std::memcpy(&p2, &bits, 8);
+		double t = e * p2;
+		double s = t / (2.0 + t), s2 = s * s;
+		double l = 2.0 * s * (1.0 + s2 * (1.0 / 3 + s2 * (1.0 / 5 + s2 * (1.0 / 7 + s2 * (1.0 / 9 + s2 * (1.0 / 11 + s2 * (1.0 / 13 + s2 * (1.0 / 15))))))));
+		return a - 0.6931471805599453 + l;
 	}
 	static float clipF(float u) {
 		float a = std::fabs(u);
 		return a <= 1.f ? 0.5f * u * u : a - 0.5f;
 	}
+	// std::sin by Trig.h's polynomial (MinGW's sinf is slow), within 1e-9 of it up to |u| = 64
+	static float sinPoly(float u) {
+		if (!(std::fabs(u) <= 64.f))
+			return std::sin(u);
+		int n;
+		double r = bidoo::dsp::trig_detail::reduce((double)u, n);
+		double v = (n & 1) ? bidoo::dsp::trig_detail::cosPoly(r) : bidoo::dsp::trig_detail::sinPoly(r);
+		return (float)((n & 2) ? -v : v);
+	}
 
 	inline float shape(int type, float u, float w) {
 		if (type == 1)
-			return std::sin(u);
+			return sinPoly(u);
 		float plain = type == 0 ? bidoo::dsp::tanhPade(u) : clamp(u, -1.f, 1.f);
 		if (w <= 0.f) {
 			primed = false;
 			return plain;
 		}
-		float F1 = type == 0 ? logCosh(u) : clipF(u);
+		double F1 = type == 0 ? logCosh(u) : clipF(u);
 		float du = u - u0;
 		float adaa;
 		if (!primed)
 			adaa = plain;
 		else if (std::fabs(du) < 2e-3f)
 			adaa = type == 0 ? bidoo::dsp::tanhPade(0.5f * (u + u0)) : clamp(0.5f * (u + u0), -1.f, 1.f);
+		else if (type == 0)
+			adaa = (float)((F1 - F0) / du);
 		else
-			adaa = (F1 - F0) / du;
+			adaa = ((float)F1 - (float)F0) / du;   // the clip's own float quotient, as before
 		u0 = u;
 		F0 = F1;
 		primed = true;
@@ -203,6 +229,7 @@ struct BAFIS : BidooModule {
 		}
 		configInput(IN, "Audio");
 		configOutput(OUT, "Audio");
+		configBypass(IN, OUT);
 		control.setDivision(CONTROL);
 	}
 
@@ -265,6 +292,8 @@ struct BAFIS : BidooModule {
 	}
 
 	void process(const ProcessArgs &args) override {
+		if (!outputs[OUT].isConnected())   // nothing listens: skip the 4 oversampled bands
+			return;
 		int channels = std::max(1, inputs[IN].getChannels());
 		if (control.process() || channels != lastChannels) {
 			readControls(channels, args.sampleRate);

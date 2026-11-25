@@ -315,7 +315,8 @@ public:
 		const float amount = 0.6f * std::clamp(c.shimmer, 0.f, 1.f) * std::sqrt(3.f / std::max(3.f, c.decay));
 		for (int i = 0; i < n; i++) {
 			float sl = 0.f, sr2 = 0.f;
-			if (amount > 0.f || shimmerOn) {
+			const bool pitched = amount > 0.f || shimmerOn;
+			if (pitched) {
 				sl = shift[0].process(lastWetL[i]);
 				sr2 = shift[1].process(lastWetR[i]);
 			}
@@ -323,8 +324,14 @@ public:
 			shimmerOn = shimmerNow > 1e-4f;
 			wetEnv = std::max(std::max(std::fabs(lastWetL[i]), std::fabs(lastWetR[i])), wetEnv * wetRelease);
 			const float duck = wetEnv > 0.5f ? 0.5f / wetEnv : 1.f;
-			revL[i] = dryL[i] + std::tanh(sl * shimmerNow * duck);
-			revR[i] = dryR[i] + std::tanh(sr2 * shimmerNow * duck);
+			if (pitched) {
+				revL[i] = dryL[i] + std::tanh(sl * shimmerNow * duck);
+				revR[i] = dryR[i] + std::tanh(sr2 * shimmerNow * duck);
+			}
+			else {   // tanh(0): nothing to add
+				revL[i] = dryL[i];
+				revR[i] = dryR[i];
+			}
 		}
 		bidoo::dsp::reverb::FdnReverbParams p;
 		// DECAY glides (about 200 ms, on a log scale): a jump of the reverb time jumped the tail's level
@@ -342,9 +349,13 @@ public:
 			lastWetR[i] = wetR[i];
 			mixNow += mixCoef * (c.mix - mixNow);
 			levelNow += mixCoef * (c.level - levelNow);
-			const float dg = std::cos(mixNow * 1.5707963f), wg = std::sin(mixNow * 1.5707963f);
-			outL[i] = (dryL[i] * dg + wetL[i] * wg) * levelNow;
-			outR[i] = (dryR[i] * dg + wetR[i] * wg) * levelNow;
+			if (mixNow != mixTrig) {   // the mix law again only while MIX glides
+				mixTrig = mixNow;
+				mixDry = std::cos(mixNow * 1.5707963f);
+				mixWet = std::sin(mixNow * 1.5707963f);
+			}
+			outL[i] = (dryL[i] * mixDry + wetL[i] * mixWet) * levelNow;
+			outR[i] = (dryR[i] * mixDry + wetR[i] * mixWet) * levelNow;
 		}
 
 		// ---- for the display
@@ -527,6 +538,7 @@ private:
 	double decayLog = -100.0, decayCoef = 0.01;   // per block
 	bool shimmerOn = false;
 	float mixNow = 0.3f, levelNow = 1.f, mixCoef = 0.01f;
+	float mixTrig = -1.f, mixDry = 1.f, mixWet = 0.f;   // the mix law at mixTrig
 };
 
 }  // namespace particules

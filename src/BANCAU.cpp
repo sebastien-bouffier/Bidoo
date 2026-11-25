@@ -1,5 +1,6 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
+#include <cstring>
 
 using namespace std;
 
@@ -21,9 +22,21 @@ struct BancauSlope {
 	static constexpr float CURVE_SPAN = 1.f - EXP_MINUS_K;       // 1 - exp(-K)
 	static constexpr float INV_CURVE_SPAN = 1.f / CURVE_SPAN;
 
+	// e^x for x <= 0 (to -60): 2^k times a Taylor e^r, in double; within 6e-8 of std::exp, without MinGW's slow one
+	static float expNeg(float xf) {
+		double x = std::max((double)xf, -60.0);
+		int k = (int)(x * 1.4426950408889634 - 0.5);
+		double r = x - k * 0.6931471805599453;
+		double e = 1.0 + r * (1.0 + r * (1.0 / 2 + r * (1.0 / 6 + r * (1.0 / 24 + r * (1.0 / 120 + r * (1.0 / 720 + r * (1.0 / 5040 + r * (1.0 / 40320))))))));
+		uint64_t bits = (uint64_t)(k + 1023) << 52;
+		double p2;
+		std::memcpy(&p2, &bits, 8);
+		return (float)(e * p2);
+	}
+
 	// segment shape: x (0..1 of the way) against u (0..1 of the time)
 	static float shape(float u, bool curved) {
-		return curved ? (1.f - std::exp(-K * u)) * INV_CURVE_SPAN : u;
+		return curved ? (1.f - expNeg(-K * u)) * INV_CURVE_SPAN : u;
 	}
 	static float inverse(float x, bool curved) {
 		x = clamp(x, 0.f, 1.f);
@@ -51,7 +64,7 @@ struct BancauSlope {
 				float t = up ? riseT : fallT;
 				bool curved = up ? riseCurve : fallCurve;
 				if (curved) {
-					out += (in - out) * (1.f - std::exp(-K * dt / t));
+					out += (in - out) * (1.f - expNeg(-K * dt / t));
 					if (std::fabs(in - out) < 1e-5f)
 						out = in;
 				}
@@ -158,8 +171,6 @@ struct BANCAU : BidooModule {
 		NUM_OUTPUTS
 	};
 	enum LightIds {
-		ONE_LIGHT,
-		TWO_LIGHT,
 		NUM_LIGHTS
 	};
 

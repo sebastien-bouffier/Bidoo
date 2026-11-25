@@ -626,6 +626,23 @@ struct ZouSeq : BidooModule {
 	ZouSeq() {
     config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configInput(PATTERN_INPUT, "Pattern (0.625 V per pattern: 0-10 V adds 0-16 to the knob)");
+		configInput(EXTCLOCK_INPUT, "Clock (one pulse per step at speed x1)");
+		configInput(RESET_INPUT, "Reset (tracks without their own reset)");
+		configInput(G1_INPUT, "Gate 1 (passed to the gates of GATE1 trigs)");
+		configInput(G2_INPUT, "Gate 2 (passed to the gates of GATE2 trigs)");
+		configInput(FILL_INPUT, "Fill (high: fill on)");
+		configInput(RUN_INPUT, "Run toggle trigger");
+		configInput(GATE_INPUT, "Record gate");
+		configInput(VO_INPUT, "Record V/Oct");
+		for (int t = 0; t < NUM_TRACKS; t++) {
+			const std::string n = "Track " + std::to_string(t + 1);
+			configInput(TRACKRESET_INPUTS + t, n + " reset");
+			configInput(TRACKACTIVE_INPUTS + t, n + " mute toggle trigger");
+			configOutput(GATE_OUTPUTS + t, n + " gate");
+			configOutput(VO_OUTPUTS + t, n + " V/Oct");
+			configOutput(CV1_OUTPUTS + t, n + " CV1");
+			configOutput(CV2_OUTPUTS + t, n + " CV2");
+		}
 		configOutput(POLY_GATE_OUTPUT, "Polyphonic gates (tracks 1-8)");
 		configOutput(POLY_VO_OUTPUT, "Polyphonic V/Oct (tracks 1-8)");
 		configOutput(POLY_CV1_OUTPUT, "Polyphonic CV1 (tracks 1-8)");
@@ -650,6 +667,8 @@ struct ZouSeq : BidooModule {
 		configSwitch(TRACKROOTNOTE_PARAM, 0.0f, 11.0f, 0.0f, "Root note", {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"});
 		configParam(TRACKSCALE_PARAM, 0.0f, quantizer::numScales-1, 0.0f, "Scale (No: not quantized)");
 		paramQuantities[TRACKSCALE_PARAM]->snapEnabled = true;
+		paramQuantities[PATTERN_PARAM]->snapEnabled = true;
+		paramQuantities[TRACKLENGTH_PARAM]->snapEnabled = true;
 		configSwitch(TRACKQUANTIZECV1_PARAM, 0.0f, 1.0f, 0.0f, "CV1 quantize", {"Free", "Quantized to scale"});
 
 		configParam(TRIGCV1_PARAM, -10.0f, 10.0f, 0.0f, "Trig CV1", " V");
@@ -657,14 +676,14 @@ struct ZouSeq : BidooModule {
 		// ENCORE's knobs are in ticks, 32 per step; shown in steps.
 		const float toSteps = 1.f / TRAITS::KNOB_PER_STEP;
 		configParam(TRIGLENGTH_PARAM, toKnob(TRAITS::MIN_LENGTH), toKnob(TRAITS::MAX_LENGTH), toKnob(TRAITS::DEFAULT_LENGTH), "Trig length", " steps", 0.f, toSteps);
-		configParam(TRIGPULSECOUNT_PARAM, 1.0f, 64.0f, 1.0f, "Pulse count");
+		configParam(TRIGPULSECOUNT_PARAM, 1.0f, 64.0f, 1.0f, "Pulse count")->snapEnabled = true;
 		configParam(TRIGPULSEDISTANCE_PARAM, 0.0f, toKnob(TRAITS::MAX_DISTANCE), toKnob(TRAITS::DEFAULT_DISTANCE), "Pulse distance", " steps", 0.f, toSteps);
 		configSwitch(TRIGTYPE_PARAM, 0.0f, 2.0f, 0.0f, "Trig type", {"INT. (internal gate)", "GATE1 (G1 input)", "GATE2 (G2 input)"});
 		configParam(TRIGTRIM_PARAM, -toKnob(TRAITS::MAX_TRIM), toKnob(TRAITS::MAX_TRIM), 0.0f, "Trim", " steps", 0.f, toSteps);
 		configParam(TRIGSLIDE_PARAM, 0.0f, 1.0f, 0.0f, "Slide");
 		configSwitch(TRIGPROBA_PARAM, 0.0f, TrigAttibutes::NUM_CONDITIONS - 1.0f, 0.0f, "Trig condition", {"DICE (probability)", "COUNT (first Val. of every Base)", "FILL (only on fill)", "!FILL (not on fill)", "PRE (previous condition played)", "!PRE (previous condition not played)", "NEI (track above played)", "!NEI (track above not played)", "FIRST (first pass only)", "LAST (last pass before a pattern change)"});
-		configParam(TRIGPROBACOUNT_PARAM, 1.0f, 100.0f, 100.0f, "Condition value (DICE: %, COUNT: Val.)");
-		configParam(TRIGPROBACOUNTRESET_PARAM, 1.0f, 100.0f, 1.0f, "Count base (COUNT cycle length)");
+		configParam(TRIGPROBACOUNT_PARAM, 1.0f, 100.0f, 100.0f, "Condition value (DICE: %, COUNT: Val.)")->snapEnabled = true;
+		configParam(TRIGPROBACOUNTRESET_PARAM, 1.0f, 100.0f, 1.0f, "Count base (COUNT cycle length)")->snapEnabled = true;
     configSwitch(TRIGSLIDETYPE_PARAM, 0.0f, 1.0f, 0.0f, "Slide type", {"FULL (whole trig)", "1 (one step)"});
 
 		configButton(TRIGPAGE2_PARAM, "Trig page 2 (CV ends, pitch and distance ramps)");

@@ -52,6 +52,7 @@ struct TOCANTE : BidooModule {
 	int beats = 4;
 	int count = 0;
 	float bpm = 60.f;
+	float bpmVolts = 0.f, bpmFromVolts = 120.f;   // BPM CV: exp2 only when it moves
 
 	bool running = false;
 	bool restart = false;
@@ -66,10 +67,10 @@ struct TOCANTE : BidooModule {
 
 	TOCANTE() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configParam(BPM_PARAM, 1.f, 350.f, 60.f, "BPM");
+		configParam(BPM_PARAM, 1.f, 350.f, 60.f, "BPM")->snapEnabled = true;
 		configParam(BPMFINE_PARAM, 0.f, 0.99f, 0.f, "Fine");
-		configParam(BEATS_PARAM,  1.f, 32.f, 4.f, "Beats per measure");
-		configParam(REF_PARAM, 1.f, 4.f, 2.f, "Note value");
+		configParam(BEATS_PARAM,  1.f, 32.f, 4.f, "Beats per measure")->snapEnabled = true;
+		configSwitch(REF_PARAM, 1.f, 4.f, 2.f, "Note value", {"/2", "/4", "/8", "/16"});
 		configButton(RUN_PARAM, "Run");
 		configButton(RESET_PARAM, "Reset");
 		configInput(BPM_INPUT, "BPM (1V/oct, 0 V = 120 BPM, replaces the knob)");
@@ -119,7 +120,17 @@ struct TOCANTE : BidooModule {
 void TOCANTE::process(const ProcessArgs &args) {
 	ref = 1 << clamp((int)std::round(params[REF_PARAM].getValue()) + (int)rescale(clamp(inputs[REF_INPUT].getVoltage(), 0.f, 10.f), 0.f, 10.f, 0.f, 3.f), 1, 4);
 	beats = clamp((int)(params[BEATS_PARAM].getValue() + rescale(clamp(inputs[BEATS_INPUT].getVoltage(), 0.f, 10.f), 0.f, 10.f, 0.f, 32.f)), 1, 32);
-	float base = inputs[BPM_INPUT].isConnected() ? 120.f * std::exp2(clamp(inputs[BPM_INPUT].getVoltage(), -10.f, 10.f)) : std::round(params[BPM_PARAM].getValue());
+	float base;
+	if (inputs[BPM_INPUT].isConnected()) {
+		float v = clamp(inputs[BPM_INPUT].getVoltage(), -10.f, 10.f);
+		if (v != bpmVolts) {
+			bpmVolts = v;
+			bpmFromVolts = 120.f * std::exp2(v);
+		}
+		base = bpmFromVolts;
+	}
+	else
+		base = std::round(params[BPM_PARAM].getValue());
 	float fine = std::round(100.f * (params[BPMFINE_PARAM].getValue() + rescale(clamp(inputs[BPMFINE_INPUT].getVoltage(), 0.f, 10.f), 0.f, 10.f, 0.f, 0.99f))) * 0.01f;
 	bpm = clamp(base + fine, 1.f, 350.f);
 

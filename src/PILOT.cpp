@@ -3,6 +3,7 @@
 #include "dsp/digital.hpp"
 #include <sstream>
 #include <iomanip>
+#include <atomic>
 #include "dep/quantizer.hpp"
 
 using namespace std;
@@ -89,6 +90,8 @@ struct PILOT : BidooModule {
 	int controlRootNotes[16] = {0};
 	int controlScales[16] = {0};
 	bool controlFocused[16] = {false};
+	// what the engine last wrote to each control: a param that differs was moved from outside (MIDI-Map, automation)
+	float lastWritten[16] = {0.0f};
 	float values[16] = {0.0f};
 	int currentFocus = -1;
 	bool morphFocused = false;
@@ -116,6 +119,9 @@ struct PILOT : BidooModule {
 	bool reset = false;
 	int copyBankId = -1;
 	bool copyBankArmed = false;
+	// UI -> audio thread: fill one control's scenes in the current bank (kind * 16 + control, -1 none)
+	enum CtrlFill { FILL_RAND, FILL_RAMP_UP, FILL_RAMP_DOWN, FILL_SIN, FILL_INIT };
+	std::atomic<int> ctrlFillRequest {-1};
 	int copySceneId = -1;
 	int copySceneBankId = -1;
 	bool showTapes = false;
@@ -255,6 +261,31 @@ struct PILOT : BidooModule {
 
   void process(const ProcessArgs &args) override;
 
+	void syncWritten() {
+		for (int i = 0; i < 16; i++)
+			lastWritten[i] = params[CONTROLS_PARAMS + i].getValue();
+	}
+
+	void requestCtrlFill(int kind, int c) {
+		ctrlFillRequest.store(kind * 16 + clamp(c, 0, 15));
+	}
+
+	// audio thread only
+	void fillCtrl(int kind, int c) {
+		for (int i = 0; i < 16; i++) {
+			float &v = scenes[bank][i][c];
+			switch (kind) {
+				case FILL_RAND: v = random::uniform(); break;
+				case FILL_RAMP_UP: v = (i > 0 && i <= length) ? (float)i / length : 0.0f; break;
+				case FILL_RAMP_DOWN: v = (i == 0) ? 1.0f : (i < length ? (float)(length - i) / length : 0.0f); break;
+				// one scene: the formula's ends are sin(pi) = 0, avoid 0/0
+				case FILL_SIN: v = (i <= length && length > 0) ? sin((float)(length - i) * M_PI / length) : 0.0f; break;
+				case FILL_INIT: if (i <= length) v = 0.0f; break;
+				default: break;
+			}
+		}
+	}
+
 	void onReset() override {
 		forward = false;
 		for (int i=0; i<16; i++) {
@@ -273,6 +304,7 @@ struct PILOT : BidooModule {
 		}
 		currentFocus = -1;
 		moveType = 5;
+		syncWritten();
 	}
 
 	// Pastes the copied scene into this bank's scene; nothing before a copy.
@@ -312,6 +344,7 @@ struct PILOT : BidooModule {
 
 	void onRandomize() override {
 		randomizeScenes();
+		syncWritten();
 	}
 
 	json_t *dataToJson() override {
@@ -372,11 +405,11 @@ struct PILOT : BidooModule {
 		forward = params[MORPH_PARAM].getValue() >= 0.5f;
 		json_t *moveTypeJ = json_object_get(rootJ, "moveType");
 		if (moveTypeJ)
-			moveType = json_integer_value(moveTypeJ);
+			moveType = clamp((int)json_integer_value(moveTypeJ), 0, 5);
 
 		json_t *weomJ = json_object_get(rootJ, "WEOM");
 		if (weomJ)
-			waitEOM = json_integer_value(weomJ);
+			waitEOM = clamp((int)json_integer_value(weomJ), 0, 2);
 
 		json_t *curveJ = json_object_get(rootJ, "CURVE");
 		if (curveJ)
@@ -416,19 +449,19 @@ struct PILOT : BidooModule {
 				}
 				json_t *typeJ = json_array_get(typesJ, i);
 				if (typeJ) {
-					controlTypes[i] = json_integer_value(typeJ);
+					controlTypes[i] = clamp((int)json_integer_value(typeJ), 0, 4);
 				}
 				json_t *voltageJ = json_array_get(voltagesJ, i);
 				if (voltageJ) {
-					voltageTypes[i] = json_integer_value(voltageJ);
+					voltageTypes[i] = clamp((int)json_integer_value(voltageJ), 0, 1);
 				}
 				json_t *rootJ = json_array_get(rootsJ, i);
 				if (rootJ) {
-					controlRootNotes[i] = json_integer_value(rootJ);
+					controlRootNotes[i] = clamp((int)json_integer_value(rootJ), -1, 11);
 				}
 				json_t *scaleJ = json_array_get(scalesJ, i);
 				if (scaleJ) {
-					controlScales[i] = json_integer_value(scaleJ);
+					controlScales[i] = clamp((int)json_integer_value(scaleJ), 0, quantizer::numScales - 1);
 				}
 				json_t *overrideJ = json_array_get(overridesJ, i);
 				if (overrideJ) {
@@ -436,6 +469,7 @@ struct PILOT : BidooModule {
 				}
 			}
 		}
+		syncWritten();
 	}
 
 };
@@ -460,6 +494,10 @@ void PILOT::process(const ProcessArgs &args) {
 		}
 		copyBankArmed = false;
 	}
+
+	int fillReq = ctrlFillRequest.exchange(-1);
+	if (fillReq >= 0)
+		fillCtrl(fillReq / 16, fillReq % 16);
 
 	if (moveTypeTrigger.process(params[MOVETYPE_PARAM].getValue())) {
 		moveType = (moveType+1)%6;
@@ -520,7 +558,7 @@ void PILOT::process(const ProcessArgs &args) {
 				if ((params[TOPSCENE_PARAM].getValue()==0.0f) && (recordingStatus>0)) {
 					recordingStatus=(recordingStatus+1)%4;
 					if (recordingStatus==0) {
-						controlFocused[currentFocus]=false;
+						if (currentFocus >= 0) controlFocused[currentFocus]=false;
 					}
 				}
 			}
@@ -571,7 +609,7 @@ void PILOT::process(const ProcessArgs &args) {
 				if ((params[BOTTOMSCENE_PARAM].getValue()==0.0f) && (recordingStatus>0)) {
 					recordingStatus=(recordingStatus+1)%4;
 					if (recordingStatus==0) {
-						controlFocused[currentFocus]=false;
+						if (currentFocus >= 0) controlFocused[currentFocus]=false;
 					}
 				}
 			}
@@ -771,7 +809,16 @@ void PILOT::process(const ProcessArgs &args) {
 	bool arrived = atEnd && !wasAtEnd;
 	wasAtEnd = atEnd;
 
+	// CURVE: the same shape for every control
+	const float curveMorph = curve ? getYBez(morph) : 0.0f;
+
 	for (int i = 0; i < 16; i++) {
+		// an outside move takes the control over, as a mouse grab does
+		if (!controlFocused[i] && std::fabs(params[CONTROLS_PARAMS+i].getValue() - lastWritten[i]) > 1e-4f) {
+			controlFocused[i] = true;
+			currentFocus = i;
+		}
+
 		if (recordingStatus==3 && i==currentFocus) {
 			if (params[MORPH_PARAM].getValue() == 0.0f) {
 				scenes[bank][bottomScene][i]=params[CONTROLS_PARAMS+i].getValue();
@@ -809,7 +856,7 @@ void PILOT::process(const ProcessArgs &args) {
 				}
 				else {
 					if (scenes[bank][bottomScene][i] != scenes[bank][topScene][i]) {
-						params[CONTROLS_PARAMS+i].setValue(rescale(getYBez(morph),0.0f,1.0f,scenes[bank][bottomScene][i],scenes[bank][topScene][i]));
+						params[CONTROLS_PARAMS+i].setValue(rescale(curveMorph,0.0f,1.0f,scenes[bank][bottomScene][i],scenes[bank][topScene][i]));
 					}
 					else {
 						params[CONTROLS_PARAMS+i].setValue(scenes[bank][bottomScene][i]);
@@ -825,6 +872,7 @@ void PILOT::process(const ProcessArgs &args) {
 				}
 			}
 		}
+		lastWritten[i] = params[CONTROLS_PARAMS+i].getValue();
 
 		pulses[i] = gatePulses[i].process(args.sampleTime) && (params[CONTROLS_PARAMS+i].getValue()>0.0f);
 
@@ -1121,32 +1169,22 @@ struct BidooLargeColoredKnob : RoundKnob {
 	}
 };
 
+// The fills run on the audio thread, at the top of process()
 struct CtrlRandMenuItem : ui::MenuItem {
 	ParamQuantity* param = NULL;
 	void onAction(const ActionEvent& e) override {
 		PILOT *module = dynamic_cast<PILOT*>(param->module);
-		for (int i = 0 ; i < 16; i++) {
-			module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = random::uniform();;
-		}
+		if (module)
+			module->requestCtrlFill(PILOT::FILL_RAND, param->paramId - PILOT::CONTROLS_PARAMS);
 	}
 };
-
 
 struct CtrlRampUpMenuItem : ui::MenuItem {
 	ParamQuantity* param = NULL;
 	void onAction(const ActionEvent& e) override {
 		PILOT *module = dynamic_cast<PILOT*>(param->module);
-		for (int i = 0 ; i < 16; i++) {
-			if (i==0) {
-				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
-			}
-			else if (i<=module->length) {
-				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = (float)i/(module->length);
-			}
-			else {
-				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
-			}
-		}
+		if (module)
+			module->requestCtrlFill(PILOT::FILL_RAMP_UP, param->paramId - PILOT::CONTROLS_PARAMS);
 	}
 };
 
@@ -1154,17 +1192,8 @@ struct CtrlRampDownMenuItem : ui::MenuItem {
 	ParamQuantity* param = NULL;
 	void onAction(const ActionEvent& e) override {
 		PILOT *module = dynamic_cast<PILOT*>(param->module);
-		for (int i = 0 ; i < 16; i++) {
-			if (i==0) {
-				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 1.0f;
-			}
-			else if (i<module->length) {
-				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = (float)(module->length-i)/(module->length);
-			}
-			else {
-				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
-			}
-		}
+		if (module)
+			module->requestCtrlFill(PILOT::FILL_RAMP_DOWN, param->paramId - PILOT::CONTROLS_PARAMS);
 	}
 };
 
@@ -1172,15 +1201,8 @@ struct CtrlSinMenuItem : ui::MenuItem {
 	ParamQuantity* param = NULL;
 	void onAction(const ActionEvent& e) override {
 		PILOT *module = dynamic_cast<PILOT*>(param->module);
-		for (int i = 0 ; i < 16; i++) {
-			if (i<=module->length) {
-				// one scene: the formula's ends are sin(pi) = 0, avoid 0/0
-				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = module->length > 0 ? sin((float)(module->length-i)*M_PI/(module->length)) : 0.0f;
-			}
-			else {
-				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
-			}
-		}
+		if (module)
+			module->requestCtrlFill(PILOT::FILL_SIN, param->paramId - PILOT::CONTROLS_PARAMS);
 	}
 };
 
@@ -1188,11 +1210,8 @@ struct CtrlInitMenuItem : ui::MenuItem {
 	ParamQuantity* param = NULL;
 	void onAction(const ActionEvent& e) override {
 		PILOT *module = dynamic_cast<PILOT*>(param->module);
-		for (int i = 0 ; i < 16; i++) {
-			if (i<=module->length) {
-				module->scenes[module->bank][i][param->paramId - PILOT::PILOT::CONTROLS_PARAMS] = 0.0f;
-			}
-		}
+		if (module)
+			module->requestCtrlFill(PILOT::FILL_INIT, param->paramId - PILOT::CONTROLS_PARAMS);
 	}
 };
 

@@ -61,9 +61,12 @@ struct ZouSeqExpander : BidooModule {
 	int rotShift[NUM_PATTERNS][8] = {{0}};
 	float trspType[8] = {1.0f,1.0f,1.0f,1.0f,1.0f,1.0f,1.0f,1.0f};
 	int currentPattern = 0;
+	// lights every 16 samples, as the main module
+	dsp::ClockDivider lightDivider;
 
 	ZouSeqExpander() {
 		config(NUM_PARAMS, NUM_INPUTS, 0, NUM_LIGHTS);
+		lightDivider.setDivision(16);
 
 		for (int i=0; i<NUM_PATTERNS; i++) {
 			for (int j=0; j<8;j++) {
@@ -209,21 +212,25 @@ struct ZouSeqExpander : BidooModule {
 			updateValues();
 
 			float *messagesToZou = (float*)leftExpander.module->rightExpander.producerMessage;
+			const bool lightsNow = lightDivider.process();
 			for (int i=0; i<8; i++) {
 				if (gateState(fillInput[i], fillTrigger[i], FILL_INPUT+i, FILL_PARAM+i, fills[i]))
 					fills[i] = !fills[i];
 				messagesToZou[i]=fills[i];
-				lights[FILL_LIGHT+i*3+1].setBrightness(fills[i]?1.0f:0.0f);
+				if (lightsNow)
+					lights[FILL_LIGHT+i*3+1].setBrightness(fills[i]?1.0f:0.0f);
 
 				if (gateState(forceInput[i], forceTrigger[i], FORCE_INPUT+i, FORCE_PARAM+i, forceTrigs[i]))
 					forceTrigs[i] = !forceTrigs[i];
 				messagesToZou[i+8]=forceTrigs[i];
-				lights[FORCE_LIGHT+i*3+1].setBrightness(forceTrigs[i]?1.0f:0.0f);
+				if (lightsNow)
+					lights[FORCE_LIGHT+i*3+1].setBrightness(forceTrigs[i]?1.0f:0.0f);
 
 				if (gateState(killInput[i], killTrigger[i], KILL_INPUT+i, KILL_PARAM+i, killTrigs[i]))
 					killTrigs[i] = !killTrigs[i];
 				messagesToZou[i+16]=killTrigs[i];
-				lights[KILL_LIGHT+i*3+1].setBrightness(killTrigs[i]?1.0f:0.0f);
+				if (lightsNow)
+					lights[KILL_LIGHT+i*3+1].setBrightness(killTrigs[i]?1.0f:0.0f);
 
 				if (trspTypeTrigger[i].process(params[TRSPTYPE_PARAM+i].getValue())) {
 					if (trspType[i] == 12.0f) {
@@ -233,8 +240,10 @@ struct ZouSeqExpander : BidooModule {
 						trspType[i] = 12.0f;
 					}
 				}
-				lights[TRSPTYPE_LIGHT+i*3+1].setBrightness(trspType[i] == 1.0f ? 0.0f : 1.0f);
-				lights[TRSPTYPE_LIGHT+i*3+2].setBrightness(trspType[i] == 1.0f ? 1.0f : 0.0f);
+				if (lightsNow) {
+					lights[TRSPTYPE_LIGHT+i*3+1].setBrightness(trspType[i] == 1.0f ? 0.0f : 1.0f);
+					lights[TRSPTYPE_LIGHT+i*3+2].setBrightness(trspType[i] == 1.0f ? 1.0f : 0.0f);
+				}
 
 				if (inputs[TRSP_INPUT+i].isConnected()) {
 					messagesToZou[i+24]=inputs[TRSP_INPUT+i].getVoltage()/trspType[i];

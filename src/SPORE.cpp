@@ -107,6 +107,7 @@ struct SPORE : BidooModule {
 		configInput(HOPSIZEANALYSIS_INPUT, "Analysis hop CV (0-10 V: +0-200 ms)");
 		configInput(HOPSIZESYNTHESIS_INPUT, "Synthesis hop CV (0-10 V: +0-200 ms)");
 		configOutput(OUTPUT, "Audio");
+		configBypass(INPUT, OUTPUT);
 		resize(48000.f);
 	}
 

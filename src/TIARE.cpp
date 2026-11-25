@@ -354,6 +354,20 @@ struct TIARE : BidooModule {
 	static constexpr float DIST_MAX = 0.99f;
 
 	int freqFactor = 1;
+
+	// in LFO mode the frequency is divided by freqFactor: the tooltip shows what plays
+	struct FreqQuantity : ParamQuantity {
+		float factor() {
+			TIARE *m = dynamic_cast<TIARE *>(module);
+			return m ? (float)m->freqFactor : 1.f;
+		}
+		float getDisplayValue() override {
+			return ParamQuantity::getDisplayValue() / factor();
+		}
+		void setDisplayValue(float v) override {
+			ParamQuantity::setDisplayValue(v * factor());
+		}
+	};
 	// Phase distortion point of channel 1, for the display.
 	float displayX = 0.5f;
 	float displayY = 0.5f;
@@ -363,7 +377,7 @@ struct TIARE : BidooModule {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configSwitch(MODE_PARAM, 0.f, 1.f, 1.f, "Engine mode", {"Digital", "Analog"});
 		configSwitch(SYNC_PARAM, 0.f, 1.f, 1.f, "Sync mode", {"Soft", "Hard"});
-		configParam(FREQ_PARAM, -54.f, 54.f, 0.f, "Frequency", " Hz", dsp::FREQ_SEMITONE, dsp::FREQ_C4);
+		configParam<FreqQuantity>(FREQ_PARAM, -54.f, 54.f, 0.f, "Frequency", " Hz", dsp::FREQ_SEMITONE, dsp::FREQ_C4);
 		configParam(FINE_PARAM, -1.f, 1.f, 0.f, "Fine frequency");
 		configParam(FM_PARAM, 0.f, 1.f, 0.f, "Frequency modulation", "%", 0.f, 100.f);
 		configParam(PW_PARAM, 0.01f, 0.99f, 0.5f, "Pulse width", "%", 0.f, 100.f);

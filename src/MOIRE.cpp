@@ -1,8 +1,6 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "dsp/digital.hpp"
-#include <sstream>
-#include <iomanip>
 
 using namespace std;
 
@@ -42,6 +40,8 @@ struct MOIRE : BidooModule {
 	float currentValues[16] = {0.0f};
 	int controlTypes[16] = {0};
 	bool controlFocused[16] = {false};
+	// what the widget last wrote to each control (UI thread): a param that differs was moved from outside (MIDI-Map, automation)
+	float lastWritten[16] = {0.0f};
 	dsp::ClockDivider lightDivider;
 
 	dsp::SchmittTrigger typeTriggers[16];
@@ -90,8 +90,14 @@ struct MOIRE : BidooModule {
 		}
 	}
 
+	void syncWritten() {
+		for (int i = 0; i < 16; i++)
+			lastWritten[i] = params[CONTROLS_PARAMS + i].getValue();
+	}
+
 	void onRandomize() override {
 		randomizeScenes();
+		syncWritten();
 	}
 
 	void onReset() override {
@@ -99,9 +105,10 @@ struct MOIRE : BidooModule {
 			for (int j=0; j<16; j++) {
 				scenes[i][j]=0.0f;
 			}
-			controlTypes[i] = 0.0f;
+			controlTypes[i] = 0;
 			controlFocused[i] = false;
 		}
+		syncWritten();
 	}
 
 	json_t *dataToJson() override {
@@ -142,10 +149,11 @@ struct MOIRE : BidooModule {
 				}
 				json_t *typeJ = json_array_get(typesJ, i);
 				if (typeJ) {
-					controlTypes[i] = json_integer_value(typeJ);
+					controlTypes[i] = json_integer_value(typeJ) ? 1 : 0;
 				}
 			}
 		}
+		syncWritten();
 	}
 };
 
@@ -226,10 +234,9 @@ struct MOIREDisplay : TransparentWidget {
       nvgFontSize(vg, 18);
   		nvgTextLetterSpacing(vg, -2);
   		nvgFillColor(vg, YELLOW_BIDOO);
-  		std::stringstream ss;
-  		ss << std::setw(2) << std::setfill('0') << *value + 1;
-  		std::string s = ss.str();
-  		nvgText(vg, pos.x + 2, pos.y + 2, s.c_str(), NULL);
+  		char s[8];
+  		snprintf(s, sizeof(s), "%02d", *value + 1);
+  		nvgText(vg, pos.x + 2, pos.y + 2, s, NULL);
     }
 	}
 
@@ -341,18 +348,25 @@ struct MoireItem : MenuItem {
 void MOIREWidget::appendContextMenu(ui::Menu *menu) {
 	BidooWidget::appendContextMenu(menu);
 	MOIRE *module = dynamic_cast<MOIRE*>(this->module);
-	assert(module);
+	if (!module)
+		return;
 	menu->addChild(new MenuSeparator());
 	menu->addChild(construct<MoireItem>(&MenuItem::text, "Randomize target scene only", &MoireItem::module, module));
 }
 
 void MOIREWidget::step() {
 	MOIRE *module = dynamic_cast<MOIRE*>(this->module);
-	for (int i = 0; i < 16; i++) {
-		if (module && !module->controlFocused[i]){
-			MOIREColoredKnob* knob = dynamic_cast<MOIREColoredKnob*>(controls[i]);
-      knob->getParamQuantity()->setValue(module->currentValues[i]);
+	for (int i = 0; module && i < 16; i++) {
+		ParamQuantity *pq = controls[i]->getParamQuantity();
+		float v = pq->getValue();
+		// an outside move takes the control over, as a mouse grab does
+		if (!module->controlFocused[i] && std::fabs(v - module->lastWritten[i]) > 1e-3f)
+			module->controlFocused[i] = true;
+		if (!module->controlFocused[i]) {
+			pq->setValue(module->currentValues[i]);
+			v = pq->getValue();
 		}
+		module->lastWritten[i] = v;
 	}
 	BidooWidget::step();
 }

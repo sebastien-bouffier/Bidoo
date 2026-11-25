@@ -38,18 +38,27 @@ struct LAMBDA : BidooModule {
 	}
 
 	void process(const ProcessArgs &args) override {
-		int channels = std::max(1, inputs[CV_INPUT].getChannels());
+		// the wider of IN and CLK; a mono IN or CLK feeds every channel
+		int channels = std::max({1, inputs[CV_INPUT].getChannels(), inputs[CLOCK_INPUT].getChannels()});
 		for (int c = 0; c < channels; c++) {
 			if (sampleTrigger[c].process(inputs[CLOCK_INPUT].getPolyVoltage(c))) {
 				for (int i = 5; i > 0; i--)
 					stages[i][c] = stages[i - 1][c];
-				stages[0][c] = inputs[CV_INPUT].getVoltage(c);
+				stages[0][c] = inputs[CV_INPUT].getPolyVoltage(c);
 			}
 			for (int i = 0; i < 6; i++)
 				outputs[ONE_OUTPUT + i].setVoltage(stages[i][c], c);
 		}
 		for (int i = 0; i < 6; i++)
 			outputs[ONE_OUTPUT + i].setChannels(channels);
+	}
+
+	void onReset() override {
+		for (int i = 0; i < 6; i++)
+			for (int c = 0; c < PORT_MAX_CHANNELS; c++)
+				stages[i][c] = 0.f;
+		for (int c = 0; c < PORT_MAX_CHANNELS; c++)
+			sampleTrigger[c].reset();
 	}
 
 	json_t *dataToJson() override {

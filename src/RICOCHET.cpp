@@ -72,10 +72,33 @@ struct RICOCHET : BidooModule {
 				return std::string("x") + ricochet::kRatioNames[ricochet::ratioOfKnob(getValue())] + " clock";
 			return ricochet::timeText(ricochet::secondsOfKnob(getValue()));
 		}
+		// a ratio name when clocked ("3/4", "x3/4"); else a time, "ms" or "s", a bare number in the unit shown
 		void setDisplayValueString(std::string s) override {
-			const double ms = std::atof(s.c_str());
-			if (ms > 0.0)
-				setValue(clamp((float)(std::log(ms * 0.001 / 0.002) / std::log(4000.0)), 0.f, 1.f));
+			RICOCHET *m = dynamic_cast<RICOCHET *>(module);
+			std::string t;
+			for (char c : s)
+				if (c != ' ' && c != 'x' && c != 'X')
+					t += (char)std::tolower((unsigned char)c);
+			if (m && m->clocked) {
+				if (t.size() > 5 && t.compare(t.size() - 5, 5, "clock") == 0)
+					t.resize(t.size() - 5);
+				for (int i = 0; i < ricochet::kNumRatios; i++)
+					if (t == ricochet::kRatioNames[i])
+						setValue((i + 0.5f) / ricochet::kNumRatios);
+				return;
+			}
+			const double v = std::atof(t.c_str());
+			if (!(v > 0.0))
+				return;
+			bool seconds;
+			if (t.find("ms") != std::string::npos)
+				seconds = false;
+			else if (t.find('s') != std::string::npos)
+				seconds = true;
+			else
+				seconds = ricochet::secondsOfKnob(getValue()) >= 1.0;
+			const double sec = seconds ? v : v * 0.001;
+			setValue(clamp((float)(std::log(sec / 0.002) / std::log(4000.0)), 0.f, 1.f));
 		}
 		std::string getUnit() override {
 			return "";

@@ -80,6 +80,8 @@ struct DFUZE : BidooModule {
 		configInput(FREEZE_INPUT, "Freeze toggle trigger");
 		configOutput(OUT_L_OUTPUT, "Left");
 		configOutput(OUT_R_OUTPUT, "Right");
+		configBypass(IN_INPUT, OUT_L_OUTPUT);
+		configBypass(IN_R_INPUT, OUT_R_OUTPUT);
 		build(48000.f);
 	}
 

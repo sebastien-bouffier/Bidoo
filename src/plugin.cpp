@@ -87,24 +87,41 @@ void InstantiateExpanderItem::onAction(const event::Action &e) {
 
 json_t *BidooModule::dataToJson() {
 	json_t *rootJ = json_object();
-	json_object_set_new(rootJ, "themeId", json_integer(themeId));
+	json_object_set_new(rootJ, "panelTheme", json_integer(themeId));
 	return rootJ;
 }
 
 void BidooModule::dataFromJson(json_t *rootJ) {
-	json_t *themeIdJ = json_object_get(rootJ, "themeId");
+	// the old "themeId" key is ignored: modules from older patches follow Rack
+	json_t *themeIdJ = json_object_get(rootJ, "panelTheme");
 	if (themeIdJ)
 		themeId = json_integer_value(themeIdJ);
 }
 
 void BidooWidget::appendContextMenu(Menu *menu) {
 	ModuleWidget::appendContextMenu(menu);
+	BidooModule *m = dynamic_cast<BidooModule*>(module);
+	if (!m)
+		return;
 	menu->addChild(new MenuSeparator());
 	menu->addChild(createSubmenuItem("Theme", "", [=](ui::Menu* menu) {
-		menu->addChild(construct<LightItem>(&MenuItem::text, dynamic_cast<BidooModule*>(module)->themeId == 0 ? "Light ✓" : "Light", &LightItem::module, dynamic_cast<BidooModule*>(module), &LightItem::pWidget, dynamic_cast<BidooWidget*>(this)));
-		menu->addChild(construct<DarkItem>(&MenuItem::text, dynamic_cast<BidooModule*>(module)->themeId == 1 ? "Dark ✓" : "Dark", &DarkItem::module, dynamic_cast<BidooModule*>(module), &DarkItem::pWidget, dynamic_cast<BidooWidget*>(this)));
-		menu->addChild(construct<BlackItem>(&MenuItem::text, dynamic_cast<BidooModule*>(module)->themeId == 2 ? "Black ✓" : "Black", &BlackItem::module, dynamic_cast<BidooModule*>(module), &BlackItem::pWidget, dynamic_cast<BidooWidget*>(this)));
+		static const std::pair<int, const char*> themes[] = {
+			{THEME_FOLLOW_RACK, "Follow Rack"}, {THEME_LIGHT, "Light"}, {THEME_DARK, "Dark"}, {THEME_BLACK, "Black"}};
+		for (const auto& t : themes) {
+			const int id = t.first;
+			menu->addChild(createCheckMenuItem(t.second, "",
+				[=]() { return m->themeId == id; },
+				[=]() { setTheme(id); }));
+		}
 	}));
+}
+
+// Chosen from the menu: this module's theme and the default for new ones.
+void BidooWidget::setTheme(int theme) {
+	if (bidooModule)
+		bidooModule->themeId = theme;
+	defaultPanelTheme = theme;
+	writeThemeAndContrastAsDefault();
 }
 
 unsigned int packedColor(int r, int g, int b, int a) {
@@ -115,11 +132,11 @@ unsigned int packedColor(int r, int g, int b, int a) {
 // cache, shared by every Bidoo widget (module browser previews included), and refreshed
 // whenever a theme is chosen from a context menu, so no widget touches the file per frame.
 static bool defaultThemeCached = false;
-static int defaultThemeCache = 0;
+static int defaultThemeCache = THEME_FOLLOW_RACK;
 
 static void writeDefaultThemeFile(int theme) {
 	json_t *settingsJ = json_object();
-	json_object_set_new(settingsJ, "themeDefault", json_integer(theme));
+	json_object_set_new(settingsJ, "panelThemeDefault", json_integer(theme));
 	std::string settingsFilename = asset::user("Bidoo.json");
 	FILE *file = fopen(settingsFilename.c_str(), "w");
 	if (file) {
@@ -133,23 +150,24 @@ static int loadDefaultTheme() {
 	if (defaultThemeCached)
 		return defaultThemeCache;
 	defaultThemeCached = true;
-	defaultThemeCache = 0;
+	// no file or no new key yet (old "themeDefault" ignored): follow Rack
+	defaultThemeCache = THEME_FOLLOW_RACK;
 	std::string settingsFilename = asset::user("Bidoo.json");
 	FILE *file = fopen(settingsFilename.c_str(), "r");
 	if (!file) {
-		writeDefaultThemeFile(0);
+		writeDefaultThemeFile(defaultThemeCache);
 		return defaultThemeCache;
 	}
 	json_error_t error;
 	json_t *settingsJ = json_loadf(file, 0, &error);
 	fclose(file);
 	if (!settingsJ) {
-		writeDefaultThemeFile(0);
+		writeDefaultThemeFile(defaultThemeCache);
 		return defaultThemeCache;
 	}
-	json_t *themeDefaultJ = json_object_get(settingsJ, "themeDefault");
+	json_t *themeDefaultJ = json_object_get(settingsJ, "panelThemeDefault");
 	if (themeDefaultJ)
-		defaultThemeCache = json_integer_value(themeDefaultJ);
+		defaultThemeCache = (int)json_integer_value(themeDefaultJ);
 	json_decref(settingsJ);
 	return defaultThemeCache;
 }
@@ -274,34 +292,32 @@ void BidooWidget::prepareThemes(const std::string& filename) {
 }
 
 void BidooWidget::showTheme(int theme) {
-	// 0 light, 1 dark, 2 black; anything else (the removed blue and green) is light
-	if (theme < 0 || theme > 2)
-		theme = 0;
+	// Follow Rack: dark when Rack prefers dark panels; unknown ids (the removed blue and green) are light
+	if (theme == THEME_FOLLOW_RACK)
+		theme = settings::preferDarkPanels ? THEME_DARK : THEME_LIGHT;
+	else if (theme < THEME_LIGHT || theme > THEME_BLACK)
+		theme = THEME_LIGHT;
+	if (theme == shownTheme)
+		return;
 	shownTheme = theme;
-	lightPanel->setVisible(theme == 0);
-	darkPanel->setVisible(theme == 1);
-	blackPanel->setVisible(theme == 2);
+	lightPanel->setVisible(theme == THEME_LIGHT);
+	darkPanel->setVisible(theme == THEME_DARK);
+	blackPanel->setVisible(theme == THEME_BLACK);
 }
 
 void BidooWidget::step() {
-	if (module) {
-		BidooModule *m = dynamic_cast<BidooModule*>(module);
-		if (m->loadDefault && m->themeId == -1) {
-			m->loadDefault = false;
-			readThemeAndContrastFromDefault();
-			m->themeId = defaultPanelTheme;
-			showTheme(defaultPanelTheme);
-		}
-		else if (m->themeChanged) {
-			m->themeChanged = false;
-			showTheme(m->themeId);
-		}
+	if (module != themeModule) {
+		themeModule = module;
+		bidooModule = dynamic_cast<BidooModule*>(module);
 	}
-	else {
-		// module browser preview: follow the cached default, no file access per frame
-		readThemeAndContrastFromDefault();
-		if (defaultPanelTheme != shownTheme)
-			showTheme(defaultPanelTheme);
+	// the cached default, no file access per frame; previews (no module) show it too
+	readThemeAndContrastFromDefault();
+	if (bidooModule) {
+		if (bidooModule->themeId == -1)
+			bidooModule->themeId = defaultPanelTheme;
+		showTheme(bidooModule->themeId);
 	}
+	else
+		showTheme(defaultPanelTheme);
 	ModuleWidget::step();
 }

@@ -34,7 +34,7 @@ struct BAR : BidooModule {
 		NUM_LIGHTS
 	};
 
-	// what the display reads
+	// what the display reads: the loudest channel and the deepest reduction
 	float rms_L = -96.3f, vu_L = -96.3f, peakL = -96.3f, in_L_dBFS = -96.3f;
 	float rms_R = -96.3f, vu_R = -96.3f, peakR = -96.3f, in_R_dBFS = -96.3f;
 	float SC_rms_L = -96.3f, SC_vu_L = -96.3f, SC_peakL = -96.3f, SC_in_L_dBFS = -96.3f;
@@ -43,12 +43,14 @@ struct BAR : BidooModule {
 	float attackTime = 10.0f, releaseTime = 10.0f, makeup = 0.0f, mix = 1.0f;
 	int lookAhead = 0;
 
+	// one stereo-linked compressor per channel
 	BarSettings settings;
-	BarPeakHold hold;
-	BarGain comp;
-	BarDelay delayL, delayR;
-	BarCatcher catcher;
+	BarPeakHold hold[PORT_MAX_CHANNELS];
+	BarGain comp[PORT_MAX_CHANNELS];
+	BarDelay delayL[PORT_MAX_CHANNELS], delayR[PORT_MAX_CHANNELS];
+	BarCatcher catcher[PORT_MAX_CHANNELS];
 	BarMeter meter[4];
+	int lastChannels = 1;
 	dsp::SchmittTrigger bypassTrigger;
 	bool bypass = false;
 	float bypassAmount = 0.0f;
@@ -71,24 +73,28 @@ struct BAR : BidooModule {
 		configParam(MIX_PARAM, 0.0f, 1.0f, 1.0f, "Mix", "%", 0.0f, 100.0f);
 		configParam(LOOKAHEAD_PARAM, 0.0f, 200.0f, 0.0f, "Lookahead", "% of the attack");
 		configButton(BYPASS_PARAM, "Bypass");
-		configInput(IN_L_INPUT, "Left");
+		configInput(IN_L_INPUT, "Left (polyphonic: one linked L/R compressor per channel)");
 		configInput(IN_R_INPUT, "Right (follows left when unpatched)");
-		configInput(SC_L_INPUT, "Sidechain left");
+		configInput(SC_L_INPUT, "Sidechain left (mono drives every channel)");
 		configInput(SC_R_INPUT, "Sidechain right (follows left when unpatched)");
-		configOutput(OUT_L_OUTPUT, "Left");
-		configOutput(OUT_R_OUTPUT, "Right");
+		configOutput(OUT_L_OUTPUT, "Left (polyphonic)");
+		configOutput(OUT_R_OUTPUT, "Right (polyphonic)");
 		configBypass(IN_L_INPUT, OUT_L_OUTPUT);
 		configBypass(IN_R_INPUT, OUT_R_OUTPUT);
-		delayL.resize(48000.0f);
-		delayR.resize(48000.0f);
-		catcher.resize(48000.0f);
+		for (int c = 0; c < PORT_MAX_CHANNELS; c++) {
+			delayL[c].resize(48000.0f);
+			delayR[c].resize(48000.0f);
+			catcher[c].resize(48000.0f);
+		}
 		settings.infiniteTop = true;
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent &e) override {
-		delayL.resize(e.sampleRate);
-		delayR.resize(e.sampleRate);
-		catcher.resize(e.sampleRate);
+		for (int c = 0; c < PORT_MAX_CHANNELS; c++) {
+			delayL[c].resize(e.sampleRate);
+			delayR[c].resize(e.sampleRate);
+			catcher[c].resize(e.sampleRate);
+		}
 	}
 
 	json_t *dataToJson() override {
@@ -122,56 +128,90 @@ void BAR::process(const ProcessArgs &args) {
 
 	bool inConnected = inputs[IN_L_INPUT].isConnected() || inputs[IN_R_INPUT].isConnected();
 	bool sc = inputs[SC_L_INPUT].isConnected() || inputs[SC_R_INPUT].isConnected();
-	float inL = inputs[IN_L_INPUT].getVoltage();
-	float inR = inputs[IN_R_INPUT].isConnected() ? inputs[IN_R_INPUT].getVoltage() : inL;
-	float scL = inputs[SC_L_INPUT].getVoltage();
-	float scR = inputs[SC_R_INPUT].isConnected() ? inputs[SC_R_INPUT].getVoltage() : scL;
-
-	// stereo linked: the louder side drives both
-	float detect = sc ? std::max(std::fabs(scL), std::fabs(scR)) : std::max(std::fabs(inL), std::fabs(inR));
-	float level = hold.process(detect, settings.fall);
-	float reduction = comp.process(barToDb(level), settings);
+	bool rConnected = inputs[IN_R_INPUT].isConnected(), scRConnected = inputs[SC_R_INPUT].isConnected();
+	int channels = std::max({1, inputs[IN_L_INPUT].getChannels(), inputs[IN_R_INPUT].getChannels()});
+	// channels coming back start from rest, not from audio left in their delays
+	for (int c = lastChannels; c < channels; c++) {
+		hold[c] = BarPeakHold();
+		comp[c] = BarGain();
+		delayL[c].resize(args.sampleRate);
+		delayR[c].resize(args.sampleRate);
+		catcher[c].reset();
+	}
+	lastChannels = channels;
 
 	// bypassed, the lookahead delay stays: the audio is neither skipped nor
 	// repeated when the bypass goes on or off
 	float fadeDelay = 1.0f / (0.01f * args.sampleRate);
 	int delay = settings.delay;
-	float dL = delayL.process(inL, delay, fadeDelay);
-	float dR = delayR.process(inR, delay, fadeDelay);
-
-	// at the top of the RATIO knob (the limit) with lookahead, the catcher follows the level
-	// ahead of the delayed audio and holds the delayed audio under the threshold
-	if (settings.limit && delayL.longest() > 0) {
-		catcher.running = true;
-		float catchGain = catcher.process(detect, settings.thresholdLin, delayL.longest() + 1,
-			std::min(delayL.shortest() + 1, settings.attackSamples), settings.cRel);
-		if (catchGain < 1.0f)
-			reduction = std::min(reduction, 6.02059991f * barFastLog2(catchGain));
-	}
-	else if (catcher.running) {
-		catcher.reset();
-	}
-	gaindB = settings.makeupNow + reduction;
-	float g = barDbToGain(gaindB) * settings.mixNow + (1.0f - settings.mixNow);
-
 	float fade = 1.0f / (0.005f * args.sampleRate);
 	bypassAmount = bypass ? std::min(bypassAmount + fade, 1.0f) : std::max(bypassAmount - fade, 0.0f);
-	g += (1.0f - g) * bypassAmount;
+	// the gain with no reduction (make-up and mix only): quiet channels skip the dB maths
+	float restGain = barDbToGain(settings.makeupNow) * settings.mixNow + (1.0f - settings.mixNow);
+	float mL = 0.0f, mR = 0.0f, mSL = 0.0f, mSR = 0.0f, deepest = 0.0f;
 
-	outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(dL * g));
-	outputs[OUT_R_OUTPUT].setVoltage(bidooSoftLimit(dR * g));
+	for (int c = 0; c < channels; c++) {
+		float inL = inputs[IN_L_INPUT].getNormalPolyVoltage(0.0f, c);
+		float inR = rConnected ? inputs[IN_R_INPUT].getPolyVoltage(c) : inL;
+		float scL = inputs[SC_L_INPUT].getNormalPolyVoltage(0.0f, c);
+		float scR = scRConnected ? inputs[SC_R_INPUT].getPolyVoltage(c) : scL;
+
+		// stereo linked: the louder side drives both
+		float detect = sc ? std::max(std::fabs(scL), std::fabs(scR)) : std::max(std::fabs(inL), std::fabs(inR));
+		float level = hold[c].process(detect, settings.fall);
+		float reduction;
+		if (level < settings.quietBelow && comp[c].reduction > -1e-4f) {
+			// under the threshold and the knee, nothing to release: no reduction
+			comp[c].reduction = 0.0f;
+			reduction = 0.0f;
+		}
+		else {
+			reduction = comp[c].process(barToDbFast(level), settings);
+		}
+
+		float dL = delayL[c].process(inL, delay, fadeDelay);
+		float dR = delayR[c].process(inR, delay, fadeDelay);
+
+		// at the top of the RATIO knob (the limit) with lookahead, the catcher follows the level
+		// ahead of the delayed audio and holds the delayed audio under the threshold
+		if (settings.limit && delayL[c].longest() > 0) {
+			catcher[c].running = true;
+			float catchGain = catcher[c].process(detect, settings.thresholdLin, delayL[c].longest() + 1,
+				std::min(delayL[c].shortest() + 1, settings.attackSamples), settings.cRel);
+			if (catchGain < 1.0f)
+				reduction = std::min(reduction, 6.02059991f * barFastLog2(catchGain));
+		}
+		else if (catcher[c].running) {
+			catcher[c].reset();
+		}
+		deepest = std::min(deepest, reduction);
+		float g = reduction == 0.0f ? restGain
+			: barDbToGain(settings.makeupNow + reduction) * settings.mixNow + (1.0f - settings.mixNow);
+		g += (1.0f - g) * bypassAmount;
+
+		outputs[OUT_L_OUTPUT].setVoltage(bidooSoftLimit(dL * g), c);
+		outputs[OUT_R_OUTPUT].setVoltage(bidooSoftLimit(dR * g), c);
+
+		if (std::fabs(inL) > std::fabs(mL)) mL = inL;
+		if (std::fabs(inR) > std::fabs(mR)) mR = inR;
+		if (std::fabs(scL) > std::fabs(mSL)) mSL = scL;
+		if (std::fabs(scR) > std::fabs(mSR)) mSR = scR;
+	}
+	outputs[OUT_L_OUTPUT].setChannels(channels);
+	outputs[OUT_R_OUTPUT].setChannels(channels);
+	gaindB = settings.makeupNow + deepest;
 
 	if (inConnected) {
-		meter[0].process(inL, args.sampleRate);
-		meter[1].process(inR, args.sampleRate);
+		meter[0].process(mL, args.sampleRate);
+		meter[1].process(mR, args.sampleRate);
 	}
 	else {
 		meter[0].clear();
 		meter[1].clear();
 	}
 	if (sc) {
-		meter[2].process(scL, args.sampleRate);
-		meter[3].process(scR, args.sampleRate);
+		meter[2].process(mSL, args.sampleRate);
+		meter[3].process(mSR, args.sampleRate);
 	}
 	else {
 		meter[2].clear();

@@ -9,81 +9,36 @@ using namespace std;
 #define BANDS4 4
 using simd::float_4;
 
-class ZBiquad {
-public:
-    ZBiquad();
-    ZBiquad(float_4 Fc, float_4 Q, float_4 peakGainDB);
-    ~ZBiquad();
-    void setQ(float_4 Q);
-    void setFc(float_4 Fc);
-    void setPeakGain(float_4 peakGainDB);
-    void setBiquad(float_4 Fc, float_4 Q, float_4 peakGain);
-    float_4 process(float_4 in);
+// Band-pass biquad coefficients, four bands per float_4; shared by every channel's state.
+struct ZBiquad {
+	float_4 a0 = 1.f, a1 = 0.f, a2 = 0.f, b1 = 0.f, b2 = 0.f;
 
-protected:
-    void calcBiquad(void);
-
-    float_4 a0, a1, a2, b1, b2;
-    float_4 Fc, Q, peakGain;
-    float_4 z1, z2;
+	void setBandPass(float_4 Fc, float_4 Q);
 };
 
-inline float_4 ZBiquad::process(float_4 in) {
-    float_4 out = in * a0 + z1;
-    z1 = in * a1 + z2 - b1 * out;
-    z2 = in * a2 - b2 * out;
-    return out;
+// out of line as before: inlined, -funsafe-math rounds the coefficients differently
+void ZBiquad::setBandPass(float_4 Fc, float_4 Q) {
+	float_4 norm;
+	float_4 K = tan(M_PI * Fc);
+	norm = 1 / (1 + K / Q + K * K);
+	a0 = K / Q * norm;
+	a1 = 0;
+	a2 = -a0;
+	b1 = 2 * (K * K - 1) * norm;
+	b2 = (1 - K / Q + K * K) * norm;
 }
 
-ZBiquad::ZBiquad() {
-    a0 = 1.0;
-    a1 = a2 = b1 = b2 = 0.0;
-    Fc = 0.50;
-    Q = 0.707;
-    peakGain = 0.0;
-    z1 = z2 = 0.0;
-}
+// One filter's state (transposed direct form II).
+struct ZBiquadState {
+	float_4 z1 = 0.f, z2 = 0.f;
 
-ZBiquad::ZBiquad(float_4 Fc, float_4 Q, float_4 peakGainDB) {
-    setBiquad(Fc, Q, peakGainDB);
-    z1 = z2 = 0.0;
-}
-
-ZBiquad::~ZBiquad() {
-}
-
-void ZBiquad::setQ(float_4 Q) {
-    this->Q = Q;
-    calcBiquad();
-}
-
-void ZBiquad::setFc(float_4 Fc) {
-    this->Fc = Fc;
-    calcBiquad();
-}
-
-void ZBiquad::setPeakGain(float_4 peakGainDB) {
-    this->peakGain = peakGainDB;
-    calcBiquad();
-}
-
-void ZBiquad::setBiquad(float_4 Fc, float_4 Q, float_4 peakGainDB) {
-    this->Q = Q;
-    this->Fc = Fc;
-    setPeakGain(peakGainDB);
-}
-
-void ZBiquad::calcBiquad(void) {
-    float_4 norm;
-    float_4 K = tan(M_PI * Fc);
-    norm = 1 / (1 + K / Q + K * K);
-    a0 = K / Q * norm;
-    a1 = 0;
-    a2 = -a0;
-    b1 = 2 * (K * K - 1) * norm;
-    b2 = (1 - K / Q + K * K) * norm;
-    return;
-}
+	inline float_4 process(const ZBiquad &f, float_4 in) {
+		float_4 out = in * f.a0 + z1;
+		z1 = in * f.a1 + z2 - f.b1 * out;
+		z2 = in * f.a2 - f.b2 * out;
+		return out;
+	}
+};
 
 struct ZINC : BidooModule {
 	enum ParamIds {
@@ -113,8 +68,12 @@ struct ZINC : BidooModule {
 		NUM_LIGHTS
 	};
 
-	ZBiquad* iFilter[BANDS2];
-	ZBiquad* cFilter[BANDS2];
+	// one modulator analysis; one carrier filter bank per carrier channel, same coefficients
+	ZBiquad iFilter[BANDS2];
+	ZBiquad cFilter[BANDS2];
+	ZBiquadState iState[BANDS2];
+	ZBiquadState cState[PORT_MAX_CHANNELS][BANDS2];
+	int carrierChannels = 1;
 	float_4 mem[BANDS4] = { 0.0f };
 	// 15 bands spread evenly on a log scale from 100 Hz to 10 kHz (0.47 octave
 	// apart), and a 16th for the air above them (13.9 kHz, the next step)
@@ -146,10 +105,10 @@ struct ZINC : BidooModule {
 			Q[k] = knobToQ(q[k]);
 		for (int i = 0; i < BANDS4; i++) {
 			float_4 fc = simd::fmin(freq[i], 0.45f * sampleRate) / sampleRate;
-			iFilter[i]->setBiquad(fc, Q[0], 0.f);
-			iFilter[i + BANDS4]->setBiquad(fc, Q[1], 0.f);
-			cFilter[i]->setBiquad(fc, Q[2], 0.f);
-			cFilter[i + BANDS4]->setBiquad(fc, Q[3], 0.f);
+			iFilter[i].setBandPass(fc, Q[0]);
+			iFilter[i + BANDS4].setBandPass(fc, Q[1]);
+			cFilter[i].setBandPass(fc, Q[2]);
+			cFilter[i + BANDS4].setBandPass(fc, Q[3]);
 		}
 		// two band-passes in a row pass a power about inversely proportional
 		// to their Q (geometric mean): the amplitude is scaled by the root back
@@ -197,46 +156,59 @@ struct ZINC : BidooModule {
 		configInput(IN_MOD, "Modulator");
 		configInput(IN_CARR, "Carrier");
 		configOutput(OUT, "Audio");
+		configBypass(IN_CARR, OUT);
 
 		for (int i = 0; i < BANDS; i++)
 			freq[i / 4][i % 4] = 100.f * std::pow(100.f, (float)i / 14.f);
-
-		// tuned on the first process(), once the sample rate is known
-		for (int i = 0; i < BANDS2; i++) {
-			iFilter[i] = new ZBiquad();
-			cFilter[i] = new ZBiquad();
-		}
-	}
-
-	~ZINC() override {
-		for (int i = 0; i < BANDS2; i++) {
-			delete iFilter[i];
-			delete cFilter[i];
-		}
+		// filters tuned on the first process(), once the sample rate is known
 	}
 
 	void process(const ProcessArgs &args) override {
-		float inM = inputs[IN_MOD].getVoltage() / 5.0f;
-		float inC = inputs[IN_CARR].getVoltage() / 5.0f;
-		float out = 0.0f;
+		if (!inputs[IN_MOD].isConnected() && !inputs[IN_CARR].isConnected()) {
+			// idle: where the envelopes would have decayed to
+			for (int i = 0; i < BANDS4; i++)
+				peaks[i] = mem[i] = 0.f;
+			outputs[OUT].setVoltage(0.f);
+			outputs[OUT].setChannels(1);
+			return;
+		}
+		// a polyphonic modulator is analysed as its sum (the mix you would hear); mono is unchanged
+		float inM = inputs[IN_MOD].getVoltageSum() / 5.0f;
+		const int channels = std::max(1, inputs[IN_CARR].getChannels());
+		// carrier channels that come back start from silence
+		for (int c = carrierChannels; c < channels; c++)
+			for (int i = 0; i < BANDS2; i++)
+				cState[c][i] = ZBiquadState();
+		carrierChannels = channels;
 		tune(args.sampleRate);
 		tuneEnvelope(args.sampleRate);
 		float gMod = params[GMOD_PARAM].getValue() * modNorm;
 		float gCarr = params[GCARR_PARAM].getValue() * carNorm;
+		float gOut = params[G_PARAM].getValue();
 
+		float_4 bgs[BANDS4];
 		for (int i = 0; i < BANDS4; i++) {
 			float_4 coeff = mem[i];
-			float_4 peak = abs(iFilter[i + BANDS4]->process(iFilter[i]->process(inM * gMod)));
+			float_4 peak = abs(iState[i + BANDS4].process(iFilter[i + BANDS4], iState[i].process(iFilter[i], inM * gMod)));
 			// the envelope: a one-pole, its attack or its decay
 			float_4 c = simd::ifelse(peak > coeff, float_4(cAttack), float_4(cDecay));
 			coeff += c * (peak - coeff);
 			peaks[i] = peak;
 			mem[i] = coeff;
-			float_4 bg = {params[BG_PARAM + i*4].getValue(), params[BG_PARAM + i*4+1].getValue(), params[BG_PARAM + i*4+2].getValue(), params[BG_PARAM + i*4+3].getValue()};
-			float_4 corr = cFilter[i + BANDS4]->process(cFilter[i]->process(inC * gCarr)) * coeff * bg;
-			out += corr[0]+corr[1]+corr[2]+corr[3];
+			bgs[i] = {params[BG_PARAM + i*4].getValue(), params[BG_PARAM + i*4+1].getValue(), params[BG_PARAM + i*4+2].getValue(), params[BG_PARAM + i*4+3].getValue()};
 		}
-		outputs[OUT].setVoltage(bidooSoftLimit(out * 5.0f * params[G_PARAM].getValue()));
+
+		for (int ch = 0; ch < channels; ch++) {
+			float inC = inputs[IN_CARR].getVoltage(ch) / 5.0f;
+			float out = 0.0f;
+			ZBiquadState *st = cState[ch];
+			for (int i = 0; i < BANDS4; i++) {
+				float_4 corr = st[i + BANDS4].process(cFilter[i + BANDS4], st[i].process(cFilter[i], inC * gCarr)) * mem[i] * bgs[i];
+				out += corr[0]+corr[1]+corr[2]+corr[3];
+			}
+			outputs[OUT].setVoltage(bidooSoftLimit(out * 5.0f * gOut), ch);
+		}
+		outputs[OUT].setChannels(channels);
 	}
 };
 
