@@ -378,6 +378,117 @@ struct ZouSeq : BidooModule {
 	static float distRampToKnob(const int ramp) {return (float)(std::log(ramp / 2500.0) / std::log(16.0));}
 	static float inSteps(const long long t) {return (float)((double)t / TICKS);}
 
+	// Trig lengths and pulse distances on their knobs (0..1). Musical, the default: the knob walks a
+	// table of step fractions (straight, dotted, triplets), each one exact in TICKS. Free (context
+	// menu): a cubic curve, fine at the short end. A pulse distance of 0 is Fit: the pulses share the
+	// trig's length evenly.
+	static const std::vector<Time> &timeTable(const bool distance) {
+		static const int frac[][2] = {{1, 32}, {1, 24}, {1, 16}, {1, 12}, {3, 32}, {1, 8}, {1, 6}, {3, 16}, {1, 4}, {1, 3}, {3, 8},
+			{1, 2}, {2, 3}, {3, 4}, {7, 8}, {1, 1}, {4, 3}, {3, 2}, {2, 1}, {3, 1}, {4, 1}, {6, 1}, {8, 1}, {12, 1}, {16, 1},
+			{24, 1}, {32, 1}, {48, 1}, {64, 1}};
+		static const std::vector<Time> tables[2] = {makeTable(frac, sizeof(frac) / sizeof(frac[0]), false),
+			makeTable(frac, sizeof(frac) / sizeof(frac[0]), true)};
+		return tables[distance ? 1 : 0];
+	}
+	static std::vector<Time> makeTable(const int frac[][2], const int n, const bool distance) {
+		std::vector<Time> t;
+		t.push_back(distance ? 0 : (Time)TRAITS::MIN_LENGTH);  // Fit, or the shortest length
+		const long long top = distance ? TRAITS::MAX_DISTANCE : TRAITS::MAX_LENGTH;
+		for (int i = 0; i < n; i++) {
+			const long long v = (long long)TICKS * frac[i][0];
+			if (v % frac[i][1] != 0)
+				continue;
+			const long long ticks = v / frac[i][1];
+			if (ticks > t.back() && ticks <= top)
+				t.push_back((Time)ticks);
+		}
+		return t;
+	}
+	// A time's name in steps: Fit, a fraction (1/3, 3/16...), a whole number, or two decimals.
+	static std::string timeName(const Time t, const bool distance) {
+		if (distance && t == 0)
+			return "Fit";
+		static const int dens[] = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32};
+		for (int d : dens) {
+			const long long v = (long long)t * d;
+			if (v % TICKS == 0) {
+				const long long n = v / TICKS;
+				char buf[24];
+				if (d == 1)
+					snprintf(buf, sizeof(buf), "%lld", n);
+				else
+					snprintf(buf, sizeof(buf), "%lld/%d", n, d);
+				return buf;
+			}
+		}
+		char buf[24];
+		snprintf(buf, sizeof(buf), "%.2f", (double)t / TICKS);
+		return buf;
+	}
+	float timeToKnob(const Time t, const bool distance) const {
+		const double top = distance ? TRAITS::MAX_DISTANCE : TRAITS::MAX_LENGTH;
+		if (freeTimes)
+			return (float)std::cbrt(clamp((double)t / top, 0.0, 1.0));
+		const std::vector<Time> &tab = timeTable(distance);
+		int best = 0;
+		for (int i = 1; i < (int)tab.size(); i++)
+			if (std::llabs((long long)tab[i] - t) < std::llabs((long long)tab[best] - t))
+				best = i;
+		return tab.size() > 1 ? (float)best / (float)(tab.size() - 1) : 0.f;
+	}
+	Time timeFromKnob(const float v, const bool distance) const {
+		const float x = clamp(v, 0.f, 1.f);
+		const long long top = distance ? TRAITS::MAX_DISTANCE : TRAITS::MAX_LENGTH;
+		if (freeTimes)
+			return (Time)clamp(std::llround((double)x * x * x * top), distance ? 0LL : (long long)TRAITS::MIN_LENGTH, top);
+		const std::vector<Time> &tab = timeTable(distance);
+		return tab[(size_t)std::lround(x * (tab.size() - 1))];
+	}
+	// Only a moved knob writes: the stored time may be one the knob cannot show exactly.
+	Time knobTimeOf(const float v, const Time current, const bool distance) const {
+		return (v == timeToKnob(current, distance)) ? current : timeFromKnob(v, distance);
+	}
+
+	// The length and distance knobs: their time's name (steps), typed as 1/3, 0.75 or Fit.
+	struct TimeQuantity : ParamQuantity {
+		bool distance = false;
+		Time shown() {
+			ZouSeq *m = dynamic_cast<ZouSeq*>(module);
+			if (!m)
+				return 0;
+			const Time cur = distance ? m->trigPulseDistance[m->currentPattern][m->currentTrack][m->currentTrig]
+				: m->trigLength[m->currentPattern][m->currentTrack][m->currentTrig];
+			return m->knobTimeOf(getValue(), cur, distance);
+		}
+		std::string getDisplayValueString() override {
+			const Time t = shown();
+			const std::string n = timeName(t, distance);
+			return (distance && t == 0) ? n : n + (t == TICKS ? " step" : " steps");
+		}
+		std::string getUnit() override {return "";}
+		void setDisplayValueString(std::string s) override {
+			ZouSeq *m = dynamic_cast<ZouSeq*>(module);
+			if (!m)
+				return;
+			s = rack::string::lowercase(rack::string::trim(s));
+			if (distance && s.rfind("fit", 0) == 0) {
+				setValue(m->timeToKnob(0, true));
+				return;
+			}
+			double steps = 0.0;
+			const size_t slash = s.find('/');
+			if (slash != std::string::npos) {
+				const double n = std::atof(s.substr(0, slash).c_str()), d = std::atof(s.substr(slash + 1).c_str());
+				if (d <= 0.0)
+					return;
+				steps = n / d;
+			}
+			else
+				steps = std::atof(s.c_str());
+			setValue(m->timeToKnob((Time)std::llround(steps * TICKS), distance));
+		}
+	};
+
 	enum ParamIds {
 		STEPS_PARAMS,
 		TRACKSONOFF_PARAMS = STEPS_PARAMS + 16,
@@ -503,6 +614,7 @@ struct ZouSeq : BidooModule {
 	float trigSlide[NUM_PATTERNS][NUM_TRACKS][NUM_TRIGS] = {{{0.0f}}};
   bool trigSlideType[NUM_PATTERNS][NUM_TRACKS][NUM_TRIGS] = {{{0}}};
 	Time trigTrim[NUM_PATTERNS][NUM_TRACKS][NUM_TRIGS] = {};
+	bool freeTimes = false;  // context menu: lengths and distances on a free curve instead of the musical table
 	Time trigLength[NUM_PATTERNS][NUM_TRACKS][NUM_TRIGS] = {};
 	Time trigPulseDistance[NUM_PATTERNS][NUM_TRACKS][NUM_TRIGS] = {};
 	float trigCV1[NUM_PATTERNS][NUM_TRACKS][NUM_TRIGS] = {{{0.0f}}};
@@ -675,9 +787,9 @@ struct ZouSeq : BidooModule {
 		configParam(TRIGCV2_PARAM, -10.0f, 10.0f, 0.0f, "Trig CV2", " V");
 		// ENCORE's knobs are in ticks, 32 per step; shown in steps.
 		const float toSteps = 1.f / TRAITS::KNOB_PER_STEP;
-		configParam(TRIGLENGTH_PARAM, toKnob(TRAITS::MIN_LENGTH), toKnob(TRAITS::MAX_LENGTH), toKnob(TRAITS::DEFAULT_LENGTH), "Trig length", " steps", 0.f, toSteps);
+		configParam<TimeQuantity>(TRIGLENGTH_PARAM, 0.f, 1.f, timeToKnob(TRAITS::DEFAULT_LENGTH, false), "Trig length (each pulse's, at most half the gap to the next one)")->distance = false;
 		configParam(TRIGPULSECOUNT_PARAM, 1.0f, 64.0f, 1.0f, "Pulse count")->snapEnabled = true;
-		configParam(TRIGPULSEDISTANCE_PARAM, 0.0f, toKnob(TRAITS::MAX_DISTANCE), toKnob(TRAITS::DEFAULT_DISTANCE), "Pulse distance", " steps", 0.f, toSteps);
+		configParam<TimeQuantity>(TRIGPULSEDISTANCE_PARAM, 0.f, 1.f, timeToKnob(TRAITS::DEFAULT_DISTANCE, true), "Pulse distance (Fit: the pulses share the trig length)")->distance = true;
 		configSwitch(TRIGTYPE_PARAM, 0.0f, 2.0f, 0.0f, "Trig type", {"INT. (internal gate)", "GATE1 (G1 input)", "GATE2 (G2 input)"});
 		configParam(TRIGTRIM_PARAM, -toKnob(TRAITS::MAX_TRIM), toKnob(TRAITS::MAX_TRIM), 0.0f, "Trim", " steps", 0.f, toSteps);
 		configParam(TRIGSLIDE_PARAM, 0.0f, 1.0f, 0.0f, "Slide");
@@ -788,12 +900,12 @@ struct ZouSeq : BidooModule {
 	}
 
 	void updateTrigToParams() {
-		params[TRIGLENGTH_PARAM].setValue(toKnob(trigLength[currentPattern][currentTrack][currentTrig]));
+		params[TRIGLENGTH_PARAM].setValue(timeToKnob(trigLength[currentPattern][currentTrack][currentTrig], false));
 		params[TRIGSLIDE_PARAM].setValue(trigSlide[currentPattern][currentTrack][currentTrig]);
 		params[TRIGTYPE_PARAM].setValue(nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigType());
 		params[TRIGTRIM_PARAM].setValue(toKnob(trigTrim[currentPattern][currentTrack][currentTrig]));
 		params[TRIGPULSECOUNT_PARAM].setValue(nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigPulseCount());
-		params[TRIGPULSEDISTANCE_PARAM].setValue(toKnob(trigPulseDistance[currentPattern][currentTrack][currentTrig]));
+		params[TRIGPULSEDISTANCE_PARAM].setValue(timeToKnob(trigPulseDistance[currentPattern][currentTrack][currentTrig], true));
 		params[TRIGCV1_PARAM].setValue(trigCV1[currentPattern][currentTrack][currentTrig]);
 		params[TRIGCV2_PARAM].setValue(trigCV2[currentPattern][currentTrack][currentTrig]);
 		params[TRIGPROBA_PARAM].setValue(nTrigsAttibutes[currentPattern][currentTrack][currentTrig].getTrigProba());
@@ -862,13 +974,13 @@ struct ZouSeq : BidooModule {
 	}
 
 	void updateParamsToTrig() {
-		trigLength[currentPattern][currentTrack][currentTrig] = knobTime(params[TRIGLENGTH_PARAM].getValue(), trigLength[currentPattern][currentTrack][currentTrig]);
+		trigLength[currentPattern][currentTrack][currentTrig] = knobTimeOf(params[TRIGLENGTH_PARAM].getValue(), trigLength[currentPattern][currentTrack][currentTrig], false);
     trigSlideType[currentPattern][currentTrack][currentTrig] = params[TRIGSLIDETYPE_PARAM].getValue();
 		trigSlide[currentPattern][currentTrack][currentTrig] =  params[TRIGSLIDE_PARAM].getValue();
 		nTrigsAttibutes[currentPattern][currentTrack][currentTrig].setTrigType(params[TRIGTYPE_PARAM].getValue());
 		trigTrim[currentPattern][currentTrack][currentTrig] = knobTime(params[TRIGTRIM_PARAM].getValue(), trigTrim[currentPattern][currentTrack][currentTrig]);
 		nTrigsAttibutes[currentPattern][currentTrack][currentTrig].setTrigPulseCount(params[TRIGPULSECOUNT_PARAM].getValue());
-		trigPulseDistance[currentPattern][currentTrack][currentTrig] = knobTime(params[TRIGPULSEDISTANCE_PARAM].getValue(), trigPulseDistance[currentPattern][currentTrack][currentTrig]);
+		trigPulseDistance[currentPattern][currentTrack][currentTrig] = knobTimeOf(params[TRIGPULSEDISTANCE_PARAM].getValue(), trigPulseDistance[currentPattern][currentTrack][currentTrig], true);
 		syncCvKnobs(trigCV1[currentPattern][currentTrack][currentTrig], trigCV1End[currentPattern][currentTrack][currentTrig], TRIGCV1_PARAM, TRIGCV1END_PARAM);
 		syncCvKnobs(trigCV2[currentPattern][currentTrack][currentTrig], trigCV2End[currentPattern][currentTrack][currentTrig], TRIGCV2_PARAM, TRIGCV2END_PARAM);
 		trigPitchRamp[currentPattern][currentTrack][currentTrig] = (int)std::lround(params[TRIGPITCHRAMP_PARAM].getValue());
@@ -914,6 +1026,9 @@ struct ZouSeq : BidooModule {
 		json_object_set_new(rootJ, "currentTrack", json_integer(currentTrack));
 		json_object_set_new(rootJ, "currentTrig", json_integer(currentTrig));
 		json_object_set_new(rootJ, "trigPage", json_integer(trigPage));
+		json_object_set_new(rootJ, "ticksPerStep", json_integer(TICKS));
+		if (freeTimes)
+			json_object_set_new(rootJ, "freeTimes", json_true());
     for(size_t i=0; i<NUM_TRACKS; i++) {
       json_object_set_new(rootJ, ("label" + to_string(i)).c_str(), json_string(labels[i].c_str()));
     }
@@ -1029,6 +1144,15 @@ struct ZouSeq : BidooModule {
 		json_t *trigPageJ = json_object_get(rootJ, "trigPage");
 		if (trigPageJ)
 			trigPage = json_integer_value(trigPageJ);
+		freeTimes = json_is_true(json_object_get(rootJ, "freeTimes"));
+		// ENCORE's times are ticks: a patch from the 32-tick grid is scaled up (exactly)
+		int timeScale = 1;
+		if constexpr (!INTERPOLATE) {
+			json_t *tpsJ = json_object_get(rootJ, "ticksPerStep");
+			const int saved = tpsJ ? (int)json_integer_value(tpsJ) : TRAITS::OLD_TICKS;
+			if (saved > 0 && TICKS % saved == 0)
+				timeScale = TICKS / saved;
+		}
 
     for(size_t i=0; i<NUM_TRACKS; i++) {
       json_t *labelJ=json_object_get(rootJ, ("label"+ to_string(i)).c_str());
@@ -1094,16 +1218,16 @@ struct ZouSeq : BidooModule {
 								nTrigsAttibutes[i][j][k].setTrigIndex(json_integer_value(indexJ));
 							json_t *trimJ = json_object_get(trigJ, "trim");
 							if (trimJ)
-								trigTrim[i][j][k] = timeFromJson(trimJ);
+								trigTrim[i][j][k] = timeFromJson(trimJ) * timeScale;
 							json_t *lengthJ = json_object_get(trigJ, "length");
 							if (lengthJ)
-								trigLength[i][j][k] = timeFromJson(lengthJ);
+								trigLength[i][j][k] = timeFromJson(lengthJ) * timeScale;
 							json_t *pulseCountJ = json_object_get(trigJ, "pulseCount");
 							if (pulseCountJ)
 								nTrigsAttibutes[i][j][k].setTrigPulseCount(json_integer_value(pulseCountJ));
 							json_t *pulseDistanceJ = json_object_get(trigJ, "pulseDistance");
 							if (pulseDistanceJ)
-								trigPulseDistance[i][j][k] = timeFromJson(pulseDistanceJ);
+								trigPulseDistance[i][j][k] = timeFromJson(pulseDistanceJ) * timeScale;
 							json_t *probaJ = json_object_get(trigJ, "proba");
 							if (probaJ)
 								nTrigsAttibutes[i][j][k].setTrigProba(json_integer_value(probaJ));
@@ -1222,7 +1346,7 @@ struct ZouSeq : BidooModule {
 			trigPulseDistance[currentPattern][track][trig]=random::uniform()*2.0*TICKS;
 		}
 		else {
-			trigLength[currentPattern][track][trig]=std::min(1+(int)(random::uniform()*TICKS),TICKS);
+			trigLength[currentPattern][track][trig]=std::max((int)TRAITS::SHORTEST_NOTE, std::min(1+(int)(random::uniform()*TICKS),TICKS));
 			trigPulseDistance[currentPattern][track][trig]=std::min((int)(random::uniform()*(TICKS+1)),TICKS);
 		}
 	}
@@ -1727,13 +1851,13 @@ struct ZouSeq : BidooModule {
 			case TRACKROOTNOTE_PARAM: rootNote[pattern][track] = v; break;
 			case TRACKSCALE_PARAM: scale[pattern][track] = v; break;
 			case TRACKQUANTIZECV1_PARAM: quantizeCV1[pattern][track] = v; break;
-			case TRIGLENGTH_PARAM: trigLength[pattern][track][trig] = fromKnob(v); break;
+			case TRIGLENGTH_PARAM: trigLength[pattern][track][trig] = timeFromKnob(v, false); break;
 			case TRIGSLIDETYPE_PARAM: trigSlideType[pattern][track][trig] = v; break;
 			case TRIGSLIDE_PARAM: trigSlide[pattern][track][trig] = v; break;
 			case TRIGTYPE_PARAM: g.setTrigType(v); break;
 			case TRIGTRIM_PARAM: trigTrim[pattern][track][trig] = fromKnob(v); break;
 			case TRIGPULSECOUNT_PARAM: g.setTrigPulseCount(v); break;
-			case TRIGPULSEDISTANCE_PARAM: trigPulseDistance[pattern][track][trig] = fromKnob(v); break;
+			case TRIGPULSEDISTANCE_PARAM: trigPulseDistance[pattern][track][trig] = timeFromKnob(v, true); break;
 			case TRIGCV1END_PARAM: trigCV1End[pattern][track][trig] = v; break;
 			case TRIGCV2END_PARAM: trigCV2End[pattern][track][trig] = v; break;
 			case TRIGPITCHRAMP_PARAM: trigPitchRamp[pattern][track][trig] = (int)std::lround(v); break;
@@ -1944,14 +2068,36 @@ struct ZouSeq : BidooModule {
 	}
 
 
-	// A ramp on the distance needs its pulses worked out; 100 % and one pulse do not.
-	bool trigHasPulseTable(const int track, const int trig) {
-		return trigDistRamp[currentPattern][track][trig] != 10000 && nTrigsAttibutes[currentPattern][track][trig].getTrigPulseCount() > 1 && trigPulseDistance[currentPattern][track][trig] > 0;
+	// The gap between two pulses: the Dist. knob, or with it on Fit (0) the trig's length shared by its
+	// pulses; never under 1/64 of a step.
+	Time trigGap(const int track, const int trig) {
+		const Time distance = trigPulseDistance[currentPattern][track][trig];
+		if (distance > 0)
+			return distance;
+		const int count = nTrigsAttibutes[currentPattern][track][trig].getTrigPulseCount();
+		if (count < 2)
+			return 0;
+		return std::max(trigLength[currentPattern][track][trig] / count, (Time)std::max(TICKS / 64, 2));
 	}
 
-	// The first gap is the Dist. knob, each next one is Distance % of it, to the nearest
-	// unit; no gap under 1/64 of a step or over MAX_DISTANCE. A pulse lasts its length, at
-	// most half the gap after it, so its gate falls before the next one rises.
+	// A pulse's gate: the trig's length when it plays once; with several pulses each one stays apart, at
+	// most half the gap after it (Fit: half the gap), so the gates fall before the next one rises.
+	Time pulseGate(const int track, const int trig, const long long gap) {
+		const Time length = trigLength[currentPattern][track][trig];
+		if (nTrigsAttibutes[currentPattern][track][trig].getTrigPulseCount() < 2)
+			return length;
+		const long long half = std::max(gap / 2, 1LL);
+		return (Time)(trigPulseDistance[currentPattern][track][trig] == 0 ? half : std::min((long long)length, half));
+	}
+
+	// A ramp on the distance needs its pulses worked out; 100 % and one pulse do not.
+	bool trigHasPulseTable(const int track, const int trig) {
+		return trigDistRamp[currentPattern][track][trig] != 10000 && nTrigsAttibutes[currentPattern][track][trig].getTrigPulseCount() > 1;
+	}
+
+	// The first gap is the Dist. knob (or Fit's), each next one is Distance % of it, to the
+	// nearest unit; no gap under 1/64 of a step or over MAX_DISTANCE. Each pulse's gate is
+	// pulseGate() of the gap after it (the last one: of the gap before it).
 	const PulseTable &trigPulseTable(const int track, const int trig) {
 		const int count = nTrigsAttibutes[currentPattern][track][trig].getTrigPulseCount();
 		const int ramp = trigDistRamp[currentPattern][track][trig];
@@ -1970,14 +2116,16 @@ struct ZouSeq : BidooModule {
 			t.distance = distance;
 			t.length = length;
 			const long long smallest = std::max(TICKS / 64, 2);
-			long long gap = clamp((long long)distance, smallest, (long long)TRAITS::MAX_DISTANCE);
+			long long gap = clamp((long long)trigGap(track, trig), smallest, (long long)TRAITS::MAX_DISTANCE);
+			long long last = gap;
 			t.position[0] = 0;
 			for (int i = 1; i < count; i++) {
 				t.position[i] = t.position[i-1] + gap;
-				t.pulse[i-1] = (Time)std::min((long long)length, gap / 2);
+				t.pulse[i-1] = pulseGate(track, trig, gap);
+				last = gap;
 				gap = clamp((gap * ramp + 5000) / 10000, smallest, (long long)TRAITS::MAX_DISTANCE);
 			}
-			t.pulse[count-1] = length;
+			t.pulse[count-1] = pulseGate(track, trig, last);
 		}
 		return t;
 	}
@@ -1992,8 +2140,8 @@ struct ZouSeq : BidooModule {
 			const PulseTable &t = trigPulseTable(track, trig);
 			return (int)(std::upper_bound(t.position, t.position + count, (long long)rTP) - t.position) - 1;
 		}
-		const Time distance = trigPulseDistance[currentPattern][track][trig];
-		return distance == 0 ? 0 : std::min(rTP / distance, count - 1);
+		const Time gap = trigGap(track, trig);
+		return gap == 0 ? 0 : std::min(rTP / gap, count - 1);
 	}
 
 	float trackGetGate(const int track, const int tPT) {
@@ -2007,14 +2155,12 @@ struct ZouSeq : BidooModule {
 			const int pulse = (int)(std::upper_bound(t.position, t.position + t.count, (long long)rTP) - t.position) - 1;
 			return (long long)rTP < t.position[pulse] + t.pulse[pulse] ? 10.0f : 0.0f;
 		}
-		const Time length = trigLength[currentPattern][track][tPT];
-		if (rTP < length)
-			return 10.0f;
-		const Time distance = trigPulseDistance[currentPattern][track][tPT];
-		if (distance == 0)
-			return 0.0f;
-		const int cPulses = rTP / distance;
-		return (cPulses < nTrigsAttibutes[currentPattern][track][tPT].getTrigPulseCount() && (long long)rTP < (long long)cPulses * distance + length) ? 10.0f : 0.0f;
+		const int count = nTrigsAttibutes[currentPattern][track][tPT].getTrigPulseCount();
+		const Time gap = trigGap(track, tPT);
+		if (count < 2 || gap == 0)
+			return rTP < trigLength[currentPattern][track][tPT] ? 10.0f : 0.0f;
+		const int cPulses = rTP / gap;
+		return (cPulses < count && (long long)rTP - (long long)cPulses * gap < pulseGate(track, tPT, gap)) ? 10.0f : 0.0f;
 	}
 
 	// A CV at the present pulse: equal steps from the first pulse to the last.
@@ -2035,9 +2181,11 @@ struct ZouSeq : BidooModule {
 			const PulseTable &t = trigPulseTable(track, trig);
 			return t.position[t.count-1] + t.pulse[t.count-1];
 		}
-		const Time length = trigLength[currentPattern][track][trig];
 		const int pulses = nTrigsAttibutes[currentPattern][track][trig].getTrigPulseCount();
-		return pulses == 1 ? length : (long long)pulses * trigPulseDistance[currentPattern][track][trig] + length;
+		const Time gap = trigGap(track, trig);
+		if (pulses < 2 || gap == 0)
+			return trigLength[currentPattern][track][trig];
+		return (long long)(pulses - 1) * gap + pulseGate(track, trig, gap);
 	}
 
 	bool trigGetIsRead(const int track, const int trig, const Time trackPosition) {
@@ -2053,7 +2201,7 @@ struct ZouSeq : BidooModule {
 		const Time trim = trigTrim[currentPattern][track][trig];
 		const Time swing = trackSwingUnits[currentPattern][track];
 		if (swing != 0 && (index & 1)) {
-			const Time room = INTERPOLATE ? TICKS / 64 : (nTracksAttibutes[currentPattern][track].getTrackSpeedEighths() + 7) / 8;
+			const Time room = INTERPOLATE ? TICKS / 64 : (nTracksAttibutes[currentPattern][track].getTrackSpeedEighths() * TRAITS::UNITS_PER_CLOCK + 7) / 8;
 			return index * TICKS + std::min(trim + swing, TICKS - room);
 		}
 		return index * TICKS + trim;
@@ -3323,9 +3471,9 @@ struct ZouSeqDisplay : TransparentWidget {
 					trigRowB = false;
 				}
 				else {
-					trigA[0] = {"Len.", fixed2(module->trigLength[p][t][g] / (float)M::TICKS)};
+					trigA[0] = {"Len.", M::timeName(module->trigLength[p][t][g], false)};
 					trigA[1] = {"Puls.", to_string(trig.getTrigPulseCount())};
-					trigA[2] = {"Dist.", fixed2(module->trigPulseDistance[p][t][g] / (float)M::TICKS)};
+					trigA[2] = {"Dist.", M::timeName(module->trigPulseDistance[p][t][g], true)};
 					trigA[3] = {"Type", displayTrigType(trig.getTrigType())};
 					trigA[4] = {"Trim", fixed2(module->trigTrim[p][t][g] / (float)M::TICKS)};
 					trigA[5] = {"Slide", fixed2(module->trigSlide[p][t][g])};
@@ -3781,6 +3929,13 @@ struct ZouSeqWidget : BidooWidget {
 		assert(module);
 
 		menu->addChild(new MenuSeparator());
+
+		menu->addChild(createBoolMenuItem("Free trig lengths and distances (off: musical values)", "",
+			[=]() {return module->freeTimes;},
+			[=](bool on) {
+				module->freeTimes = on;
+				module->updateTrigToParams();
+			}));
 
 		InstantiateExpanderItem *expItem = createMenuItem<InstantiateExpanderItem>("Add expander", "");
 		expItem->module = module;

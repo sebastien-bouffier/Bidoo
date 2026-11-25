@@ -11,6 +11,7 @@ struct ZouMaiTraits {
 	static constexpr int MIN_LENGTH = 0, MAX_LENGTH = 64 * TICKS, DEFAULT_LENGTH = TICKS / 10 * 9, SHORTEST_NOTE = TICKS / 100;
 	static constexpr int MAX_DISTANCE = 64 * TICKS, DEFAULT_DISTANCE = TICKS / 2;
 	static constexpr int MAX_TRIM = TICKS;
+	static constexpr int OLD_TICKS = TICKS;  // its times are saved in steps
 	static constexpr float PREVIEW_LENGTH = 0.99f, PREVIEW_DISTANCE = 1.0f;
 	static constexpr const char *QUANTIZED_LABEL = "Quant";
 	static constexpr const char *PANEL = "res/ZOUMAI.svg";
