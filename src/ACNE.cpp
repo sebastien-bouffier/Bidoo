@@ -626,7 +626,7 @@ ACNEWidget::ACNEWidget(ACNE *module) {
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
 		addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, ACNE::TRACKS_OUTPUTS + i), 482.0f, 79.0f+i*27.0f));
-		addChild(acneMeter(module ? &module->outLevel[i] : nullptr, 482.0f, 98.5f+i*27.0f, 15.f, 3.f));  // horizontal, centred under this jack
+		addChild(acneMeter(module ? &module->outLevel[i] : nullptr, 476.0f, 79.0f+i*27.0f, 3.f, 15.f));  // left of this jack, on the red zone (widened in ACNE.svg)
 
 		addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::OUT_MUTE_PARAMS + i), 10.0f, 77.0f+i*27.0f));
 		addChild(theme::atCorner(createLight<SmallLight<RedLight>>(Vec(), module, ACNE::OUT_MUTE_LIGHTS + i), 16.0f, 83.0f+i*27.0f));
