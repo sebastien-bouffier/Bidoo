@@ -28,6 +28,11 @@
 // responses: the tail's colour (deviation of its spectrum from a smooth one) down from 1.2-3.3 to 1.1-1.5
 // times that of noise, echo density reached in 20-115 ms instead of 20-165 ms, the same RT60 and energy
 // (within 0.5 dB). About twice the CPU of the FDN algorithms. Off by default: FadaBox and Potion bit for bit.
+// Stretch (Settings::stretch, for cabanon's Grotte, 2026-11-26; off by default, bit for bit): a decay time per frequency
+// on the network algorithms, Grotte's Stretch EQ: every line gets absorption filters (AttenuationFit, Grotte's: a
+// broadband gain, two shelves and eight octave bells, in double) fitted so the line loses what its own gain and damping
+// lose divided by the factor asked at each frequency. One fit at the mean loop, scaled per line; worked out again only
+// when the decay, the damping, the lengths or the curve change.
 
 #include <algorithm>
 #include <array>
@@ -40,6 +45,7 @@
 #include "../core/Trig.h" // sinF: per-sample sines, cheap on MinGW (VCV) too
 #include "../shaping/TanhPade.h"
 #include "../fft/PhaseVocoderShifter.h"
+#include "AttenuationFit.h"
 
 namespace bidoo::dsp::reverb
 {
@@ -105,6 +111,9 @@ public:
     static const std::vector<std::string>& algoNames();
     static const std::vector<std::string>& intervalNames(); // shimmer pitch
     static float intervalSemis (int index, int voice); // voice 0 or 1: the stacked intervals differ
+    // Settings::stretchLog2's points: 20 Hz to 20 kHz, a third of an octave apart
+    static constexpr int kStretchPoints = 31;
+    static double stretchFreq (int k) { return 20.0 * std::pow (1000.0, (double) k / (double) (kStretchPoints - 1)); }
 
     struct Settings
     {
@@ -134,6 +143,12 @@ public:
         float size = -1;
         float density = -1;
         float depth = -1;
+        // (for cabanon's Grotte, 2026-11-26; off, the default, bit for bit) a decay time per frequency on the network
+        // algorithms (HALL, ROOM, CHAMBER, PLATE, CLOUD), Grotte's Stretch EQ: stretchLog2[k] is the log2 of the factor on
+        // the decay time at stretchFreq (k), on top of DECAY and DAMP (1: twice as long, -1: half; held within -2..2).
+        // Nothing while frozen, nor on SPRING, NON-LIN or REVERSE (no decaying loop to stretch).
+        bool stretch = false;
+        std::array<float, kStretchPoints> stretchLog2 {};
     };
 
     // dense: the FDN algorithms' 16-line voicing (see the top of this file), fixed until the next prepare()
@@ -221,7 +236,8 @@ private:
     {
         return a.algo == b.algo && a.preMs == b.preMs && a.decay == b.decay && a.damp == b.damp && a.mod == b.mod && a.shimmer == b.shimmer
                && a.interval == b.interval && a.freeze == b.freeze && a.glideMs == b.glideMs && a.buildUp == b.buildUp
-               && a.shimmerTone == b.shimmerTone && a.size == b.size && a.density == b.density && a.depth == b.depth;
+               && a.shimmerTone == b.shimmerTone && a.size == b.size && a.density == b.density && a.depth == b.depth
+               && a.stretch == b.stretch && (! a.stretch || a.stretchLog2 == b.stretchLog2);
     }
     void clear(); // the buffers and the running state, for reset() and a change of algorithm
     void processFinite (const float* inL, const float* inR, float* outL, float* outR, int n, const Settings& s);
@@ -234,6 +250,7 @@ private:
     void fdn (float inL, float inR, float& outL, float& outR);
     void spring (float inL, float inR, float& outL, float& outR);
     void burst (float inL, float inR, float& outL, float& outR);
+    void designStretch (const Settings& s, float t60, float hfRatio);
 
     float sr = 48000;
     int algo = -1;
@@ -258,6 +275,18 @@ private:
     std::array<float, kLines> lens16 {}; // dense: the sixteen lengths (ms) of the algorithm
     float apGain = 0.3f, apBase = 0.3f, dampA = 0.5f, modDepth = 0, lenGlide = 0;
     bool snapLen = true;
+    // Settings::stretch: each line's absorption filters (double) and broadband gain; what they were designed from
+    AttenuationFit stretchFit;
+    std::array<std::array<DBiquad, AttenuationFit::kStages>, kLines> lineEq {};
+    std::array<double, kLines> lineEqGain {};
+    bool stretchOn = false;
+    struct StretchKey
+    {
+        float t60 = -1, hfRatio = -1;
+        std::array<float, kLines> len {};
+        std::array<float, kStretchPoints> curve {};
+        bool operator== (const StretchKey&) const = default;
+    } stretchKey;
     // spring tanks
     struct Tank
     {
@@ -603,6 +632,7 @@ inline void PrismReverb::prepare (float sampleRate, bool denseMode)
     }
     shiftL.prepare (sr);
     shiftR.prepare (sr);
+    stretchFit.prepare (sr);
     for (int i = 0; i < nLines; ++i)
     {
         lfoPhase[(size_t) i] = (float) i / (float) nLines;
@@ -641,6 +671,9 @@ inline void PrismReverb::clear()
         a.reset();
     dampZ.fill (0);
     dcZ.fill (0);
+    for (auto& line : lineEq)
+        for (auto& bq : line)
+            bq.reset();
     for (auto& t : tanks)
     {
         t.line.reset();
@@ -803,6 +836,8 @@ inline void PrismReverb::configure (const Settings& s)
     dampA = 1.0f - std::exp (-prism_detail::kTwoPiF * std::min (dampHz, sr * 0.45f) / sr);
     const float hfRatio = std::pow (0.07f, prism_detail::clampf (s.damp, 0.0f, 1.0f)); // high frequencies' share of the decay time
 
+    if (! prism_detail::isFdn (a))
+        stretchOn = false; // (Settings::stretch: the network algorithms only)
     if (prism_detail::isFdn (a))
     {
         const auto& d = prism_detail::fdnDef (a);
@@ -819,6 +854,7 @@ inline void PrismReverb::configure (const Settings& s)
             gain[(size_t) i] = freeze ? 1.0f : g;
             dampB[(size_t) i] = freeze ? 0.0f : (g - gHf) / (g + gHf);
         }
+        designStretch (s, t60, hfRatio);
         lenGlide = s.glideMs > 0.0f ? 1.0f - std::exp (-1.0f / (s.glideMs * 0.001f * sr)) : 0.0f;
         if (snapLen || lenGlide == 0.0f)
             curLen = baseLen;
@@ -930,6 +966,13 @@ inline void PrismReverb::fdn (float inL, float inR, float& outL, float& outR)
         auto& dc = dcZ[(size_t) i];
         dc += dcA * (z - dc);
         y[(size_t) i] = (z - dc) * gain[(size_t) i];
+        if (stretchOn) // Settings::stretch: the line's absorption filters
+        {
+            double v = (double) y[(size_t) i] * lineEqGain[(size_t) i];
+            for (auto& bq : lineEq[(size_t) i])
+                v = bq.process (v);
+            y[(size_t) i] = (float) v;
+        }
     }
     prism_detail::hadamard (y);
     constexpr float inK = N == 8 ? 0.5f : 0.3535534f; // the same input power into twice the lines
@@ -941,6 +984,79 @@ inline void PrismReverb::fdn (float inL, float inR, float& outL, float& outR)
     constexpr float outK = N == 8 ? 0.35355339f : 0.25f;
     outL = l * outK;
     outR = r * outK;
+}
+
+// Settings::stretch: the lines' absorption filters for the curve asked, from configure () once the lines' gains and
+// damping are set (their loss is what the filters scale).
+inline void PrismReverb::designStretch (const Settings& s, float t60, float hfRatio)
+{
+    if (! s.stretch || freeze)
+    {
+        stretchOn = false;
+        stretchKey = {};
+        return;
+    }
+    StretchKey key;
+    key.t60 = t60;
+    key.hfRatio = hfRatio;
+    for (int i = 0; i < nLines; ++i)
+        key.len[(size_t) i] = baseLen[(size_t) i];
+    for (int k = 0; k < kStretchPoints; ++k)
+        key.curve[(size_t) k] = prism_detail::clampf (s.stretchLog2[(size_t) k], -2.0f, 2.0f);
+    if (stretchOn && key == stretchKey)
+        return;
+    stretchKey = key;
+    // the mean loop, its gain and damping as configure () gives a line (Jot: DC g, Nyquist g_hf)
+    double ref = 0.0;
+    std::array<double, kLines> loop {};
+    for (int i = 0; i < nLines; ++i)
+    {
+        loop[(size_t) i] = (double) baseLen[(size_t) i] + (double) (lineAp[(size_t) i].len + lineAp2[(size_t) i].len);
+        ref += loop[(size_t) i];
+    }
+    ref /= nLines;
+    const double g = std::pow (10.0, -3.0 * ref / (sr * t60)), gHf = std::pow (10.0, -3.0 * ref / (sr * t60 * hfRatio));
+    const double b = (g - gHf) / (g + gHf);
+    constexpr int kPoints = AttenuationFit::kPoints;
+    double base[kPoints], target[kPoints], wanted[kPoints], gains[AttenuationFit::kFilters], got[kPoints];
+    for (int k = 0; k < kPoints; ++k)
+    {
+        const double f = stretchFit.freqAt (k), w = 2.0 * 3.14159265358979323846 * f / sr;
+        // the line's loss per pass now (dB, negative): its gain and its one-pole damping (1 - b) / (1 - b z^-1)
+        base[k] = 20.0 * std::log10 (g) + 20.0 * std::log10 ((1.0 - b) / std::sqrt (1.0 - 2.0 * b * std::cos (w) + b * b));
+        const double x = prism_detail::clampf ((float) ((kStretchPoints - 1) * std::log (f / 20.0) / std::log (1000.0)), 0.0f,
+                                               (float) (kStretchPoints - 1));
+        const int i0 = std::min ((int) x, kStretchPoints - 2);
+        const double l2 = key.curve[(size_t) i0] + (x - i0) * (key.curve[(size_t) (i0 + 1)] - key.curve[(size_t) i0]);
+        wanted[k] = base[k] * std::pow (2.0, -l2); // the time x 2^l2: the loss / 2^l2
+        target[k] = wanted[k] - base[k];
+    }
+    stretchFit.fit (target, gains, false);
+    // the loop stays lossy: no point closer to 0 dB than half the smallest loss asked
+    stretchFit.response (gains, got);
+    double excess = -1.0e9, leastLoss = -1.0e9;
+    for (int k = 0; k < kPoints; ++k)
+    {
+        excess = std::max (excess, base[k] + got[k]);
+        leastLoss = std::max (leastLoss, wanted[k]);
+    }
+    if (excess > 0.5 * leastLoss)
+        gains[0] -= excess - 0.5 * leastLoss;
+    for (int i = 0; i < nLines; ++i)
+    {
+        const double r = loop[(size_t) i] / ref; // a longer line loses more per pass
+        lineEqGain[(size_t) i] = std::pow (10.0, gains[0] * r / 20.0);
+        for (int st = 0; st < AttenuationFit::kStages; ++st)
+        {
+            const double gs = gains[st + 1] * r;
+            lineEq[(size_t) i][(size_t) st].set (std::abs (gs) < 1.0e-7 ? BiquadCoeffs::identity() : stretchFit.designStage (st + 1, gs));
+        }
+    }
+    if (! stretchOn)
+        for (auto& line : lineEq)
+            for (auto& bq : line)
+                bq.reset();
+    stretchOn = true;
 }
 
 inline void PrismReverb::spring (float inL, float inR, float& outL, float& outR)
