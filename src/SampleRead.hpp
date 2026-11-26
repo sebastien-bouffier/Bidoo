@@ -275,6 +275,19 @@ inline void readAA(const float *d0, int n0, const Mip<C> *mip, double pos, float
 	}
 }
 
+// log2 of the last speed above 1x, kept by whoever reads (a voice, a declick tail): the speed rarely changes, and a
+// View made afresh each sample would work it out again on every read.
+struct OctaveCache {
+	float speed = -1.f, o = 0.f;
+	float get(float absSpeed) {
+		if (absSpeed > 1.f && absSpeed != speed) {
+			speed = absSpeed;
+			o = std::log2(absSpeed);
+		}
+		return o;
+	}
+};
+
 // A view of a sample to read: full-rate data plus its mip copies (or none).
 template <int C>
 struct View {
@@ -289,6 +302,11 @@ struct View {
 			lastO = std::log2(absSpeed);
 		}
 		readAA<C>(d, n, mip, pos, absSpeed, lastO, out);
+	}
+
+	// the same read, with the reader's own log2 cache
+	void read(double pos, float absSpeed, float *out, OctaveCache &oc) const {
+		readAA<C>(d, n, mip, pos, absSpeed, oc.get(absSpeed), out);
 	}
 };
 
@@ -306,6 +324,7 @@ struct Declick {
 	double tPos = 0.0;
 	float tSpeed = 0.f, tGain = 0.f;
 	int tLeft = 0, tLen = 1;
+	OctaveCache oct;   // the tail's log2 of its speed
 
 	void reset() {
 		in = 1.f;
@@ -351,7 +370,7 @@ struct Declick {
 		if (tLeft <= 0)
 			return;
 		float o[C];
-		v.read(tPos, std::fabs(tSpeed), o);
+		v.read(tPos, std::fabs(tSpeed), o, oct);
 		float g = tGain * (float)tLeft / (float)tLen;
 		for (int c = 0; c < C; c++)
 			acc[c] += o[c] * g;

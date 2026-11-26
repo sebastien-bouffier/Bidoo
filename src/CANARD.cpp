@@ -92,6 +92,7 @@ struct CanardVoice {
 	float speed = 1.0f;
 	float speedOct = 0.f;    // speed = 2^speedOct, exp2 only when it moves
 	sampleread::Declick<2> dc;
+	sampleread::OctaveCache oct;   // log2 of its speed, for the band-limited read
 	sampleread::Declick<2> dc2;  // a tail still fading out when another jump comes (two jumps within 2 ms)
 	float lastStep = 0.f, lastGain = 0.f;  // of the last sample played
 	double lastPos = 0.0;
@@ -975,7 +976,7 @@ void CANARD::playVoice(int c, CanardVoice &v, int trigMode, int readMode, int fa
 		}
 		double p = std::min(std::max(v.samplePos, 0.0), totalSampleCount - 1.001);
 		const sampleread::View<2> view{(const float *)smp->frames.data(), totalSampleCount, smp->mip.get()};
-		view.read(p, std::fabs(step == 0.f ? v.speed : step), acc);
+		view.read(p, std::fabs(step == 0.f ? v.speed : step), acc, v.oct);
 		acc[0] *= fade;
 		acc[1] *= fade;
 		v.lastGain = fade;

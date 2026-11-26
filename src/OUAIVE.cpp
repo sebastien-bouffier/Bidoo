@@ -59,6 +59,7 @@ struct OuaiveVoice {
 	dsp::PulseGenerator eocPulse;
 	float scrubPos = 0.f;     // gate mode with a position CV: the CV, smoothed
 	sampleread::Declick<2> dc;
+	sampleread::OctaveCache oct;   // log2 of its speed, for the band-limited read
 	float lastStep = 0.f, lastGain = 0.f;  // of the last sample played
 	sampleread::Declick<2> fadeOld[2];     // its heads on a sample being replaced, fading out
 	double lastPos = 0.0;
@@ -564,7 +565,7 @@ void OUAIVE::playVoice(int c, OuaiveVoice &v, const sampleread::View<2> &view, i
 			if (left < fadeLen)
 				g *= std::max(left, 0.f) / fadeLen;
 		}
-		view.read(v.samplePos, std::fabs(step), acc);
+		view.read(v.samplePos, std::fabs(step), acc, v.oct);
 		acc[0] *= g;
 		acc[1] *= g;
 		v.lastGain = g;

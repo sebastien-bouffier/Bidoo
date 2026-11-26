@@ -3,6 +3,7 @@ Removed
 - µ and dFUZE: patches that use them open without them
 Improvements
 - aCiDe: a silent voice no longer computes anything (sound, filter or its settings): only the voices playing cost CPU; with zOù MAï's 8 tracks and 2 or 3 playing, about 2.4 times less. A note after a silence starts at another point of the oscillator's cycle; same level, no click
+- OUAIve, CANARD: about 10 % lighter when played above the sample's own speed (the band-limited read no longer works out the same logarithm on every sample); same sound, bit for bit
 - lIMbO: four channels computed at once: 16 channels 2.4 times lighter, 4 channels 2.4 times, mono a little lighter; same sound
 
 ### v2.7.4 (26/11/2026)
