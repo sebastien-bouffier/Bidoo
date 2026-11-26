@@ -1,19 +1,20 @@
-# REI's panel (26 HP, 2026-11-26): Grotte's controls on Prism, grouped by theme. The picture is the old hand-drawn
-# panel's (rei_parts.svg), stretched over the new width. Three rows of seven cells: a knob (or a button) on the left of
-# its cell and its small CV jack on the right at the same height, joined by a level line, the label above the cell; a
-# group's name above its cells, between two rules; then the small controls and the jacks in boxes. The cells, rows and offsets are the same in src/REI.cpp (kCells, kRowY, kKnobDx, kJackDx).
+# REI's panel (22 HP, 2026-11-26): Grotte's controls on Prism, grouped by theme. The picture is the old hand-drawn
+# panel's (rei_parts.svg), stretched over the new width. Three rows of seven cells: a knob (or a button) with its label
+# above and its small CV jack under it, joined by a vertical line; a group's name above its cells, between two rules;
+# then the small controls and the jacks in boxes. The cells, rows and offsets are the same in src/REI.cpp (kCells, kRowY,
+# kJackDy).
 import os, re
 import panel_kit as k
 
-PW = 390
+PW = 330
 K = k.K
 W = PW * K
 N = 7
-ROW_Y = (74.0, 146.0, 218.0)   # the knobs' centres (src/REI.cpp kRowY)
-KNOB_DX, JACK_DX = 12.0, 15.0   # a cell's knob left of its column, its jack right of it (src/REI.cpp kKnobDx, kJackDx)
-LABEL_SIZE = 7.5                # the columns are 52.9 px
+ROW_Y = (68.0, 148.0, 228.0)   # the knobs' centres (src/REI.cpp kRowY)
+JACK_DY = 28.0                  # a cell's jack under its knob (src/REI.cpp kJackDy)
+LABEL_SIZE = 7.5                # the columns are 44.3 px: PREDELAY is 39 px wide
 LABEL_ABOVE = 22.0              # kKnobLabelAbove
-GROUP_ABOVE = 38.0              # a group's name, above its row's knobs
+GROUP_ABOVE = 34.0              # a group's name, above its row's knobs
 GROUP_SIZE = 7.0
 
 # (column, row, label, has a jack); src/REI.cpp kCells in the same order
@@ -61,9 +62,9 @@ def build():
     for i, r, label, jack in CELLS:
         x, y = k.col(i, N, PW), ROW_Y[r]
         if jack:
-            # the link: level, from the knob's centre to the jack's (both drawn over it, so only the gap shows)
+            # the link: down from the knob's centre to the jack's (both drawn over it, so only the gap shows)
             out.append(f'<path style="fill:none;stroke:{k.INK};stroke-width:0.32" '
-                       f'd="M{(x-KNOB_DX)*K:.3f},{y*K:.3f}H{(x+JACK_DX)*K:.3f}"/>')
+                       f'd="M{x*K:.3f},{y*K:.3f}V{(y+JACK_DY)*K:.3f}"/>')
         out.append(k.text(label, x, y - LABEL_ABOVE, LABEL_SIZE, k.INK))
     # the second row: input level and pan, the clipping switch, output level and pan (small knobs)
     for i, label in ((0, 'INPUT'), (1, 'IN PAN'), (3, 'CLIP'), (5, 'OUTPUT'), (6, 'OUT PAN')):

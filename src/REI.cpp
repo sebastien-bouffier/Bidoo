@@ -12,7 +12,7 @@ using bidoo::dsp::reverb::DuckGate;
 
 // REI: the Prism reverb of FadaBox (eight algorithms and a shimmer), stereo, in Prism's dense mode: the
 // network algorithms on 16 lines with diffused early reflections.
-// Since 2026-11-26 (26 HP) it has Grotte's controls (cabanon plugins/Grotte): STYLE (Prism's algorithms), SIZE and
+// Since 2026-11-26 (22 HP) it has Grotte's controls (cabanon plugins/Grotte): STYLE (Prism's algorithms), SIZE and
 // STRETCH (the decay time: the size's own time x 25 % to 400 %), PREDELAY with SYNC and OFFSET, MOTION, DENSITY, DEPTH,
 // AIR, WIDTH, BUILD, MIX, the shimmer's amount, TONE and INTERVAL, DUCK, the auto GATE with HOLD and SYNC, FREEZE,
 // input and output levels and pans; a CLOCK input for the SYNCs (one pulse per quarter note). Grotte's decay and tail
@@ -485,13 +485,12 @@ struct REIWidget : BidooWidget {
 		theme::addScrews(this);
 
 		// Placed as tools/panels/rei.py draws them, grouped by theme (SPACE and FREEZE, CHARACTER and MIX, SHIMMER,
-		// DYNAMICS): three rows of seven cells (a control on the left of its cell and its small CV or trigger jack on the
-		// right at the same height, joined by the panel's level line; a control without a jack in the middle), then the
-		// levels on grid row 1 and the jacks in their boxes on row 0. The cells' rows are off the grid (three rows of 72 px
-		// under the title and the groups' names); their columns are the grid's.
+		// DYNAMICS): three rows of seven cells (a control and its small CV or trigger jack under it, joined by the panel's
+		// vertical line), then the levels on grid row 1 and the jacks in their boxes on row 0. The cells' rows are off the
+		// grid (three rows of 80 px under the title and the groups' names); their columns are the grid's.
 		const int n = 7;
-		const float kRowY[3] = {74.f, 146.f, 218.f};   // rei.py ROW_Y
-		const float kKnobDx = 12.f, kJackDx = 15.f;     // rei.py KNOB_DX, JACK_DX
+		const float kRowY[3] = {68.f, 148.f, 228.f};   // rei.py ROW_Y
+		const float kJackDy = 28.f;                     // rei.py JACK_DY
 		enum Kind { KNOB, SNAP, SMALL, SMALLSNAP, BUTTON };
 		struct Cell { int col, row, param, input; Kind kind; };
 		const Cell kCells[] = {   // rei.py CELLS, in the same order
@@ -510,7 +509,7 @@ struct REIWidget : BidooWidget {
 		};
 		for (const Cell &c : kCells) {
 			const theme::Pos cell = theme::sameCol(theme::at(c.col, n, 0, box.size.x), kRowY[c.row]);
-			const theme::Pos p = c.input >= 0 ? cell.right(-kKnobDx) : cell;
+			const theme::Pos &p = cell;
 			switch (c.kind) {
 				case KNOB: addParam(theme::param<BidooBlueKnob>(p, module, c.param)); break;
 				case SNAP: addParam(theme::param<BidooBlueSnapKnob>(p, module, c.param)); break;
@@ -519,7 +518,7 @@ struct REIWidget : BidooWidget {
 				case BUTTON: addParam(theme::param<BidooRoundButton>(p, module, c.param)); break;
 			}
 			if (c.input >= 0)
-				addInput(theme::input<TinyPJ301MPort>(cell.right(kJackDx), module, c.input));
+				addInput(theme::input<TinyPJ301MPort>(cell.down(kJackDy), module, c.input));
 		}
 
 		auto at = [&](float i, int k) { return theme::at(i, n, k, box.size.x); };
