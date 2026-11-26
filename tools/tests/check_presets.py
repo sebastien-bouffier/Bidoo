@@ -5,7 +5,7 @@ import json, os, re, sys
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 SOURCES = {"REI": "REI.cpp", "FILTRE": "FILTRE.cpp", "PARTICULES": "PARTICULES.cpp", "DIKTAT": "DIKTAT.cpp"}
-CONSTANTS = {"NUM_INTERVALS": 10, "filtre::kNumTypes": 71, "particules::kNumIntervals": 7, "quantizer::numNotes": 13,
+CONSTANTS = {"NUM_INTERVALS": 10, "PrismReverb::NumAlgos": 8, "filtre::kNumTypes": 71, "particules::kNumIntervals": 7, "quantizer::numNotes": 13,
 	"quantizer::numScales": 46}
 
 def number(expr):
@@ -20,6 +20,7 @@ def number(expr):
 def ranges(src):
 	text = open(src, encoding="utf-8-sig").read()
 	ids = re.search(r"enum ParamIds\s*\{(.*?)NUM_PARAMS", text, re.S).group(1)
+	ids = re.sub(r"//.*", "", ids)   # comments on the ids
 	names = [n.strip() for n in ids.split(",") if n.strip()]
 	r = {}
 	for m in re.finditer(r"config(Param|Switch|Button)(?:<\w+>)?\((\w+_PARAM)\s*,([^;]*)", text):

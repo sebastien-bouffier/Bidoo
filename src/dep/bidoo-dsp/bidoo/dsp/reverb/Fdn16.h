@@ -14,7 +14,7 @@
 //
 // The owner (a plugin's reverb) decides the room: per sub-block it sets the line length targets
 // (setLengthTargets), all-pass lengths, LFO rates, rotation, and calls designAbsorption () when the
-// decay or the lengths moved. See FdnReverb.h for a ready stereo reverb on top, and fab's Grotte
+// decay or the lengths moved. See FdnReverb.h for a ready stereo reverb on top, and cabanon's Grotte
 // for the full product (early reflections, diffusion, post EQ, ducking, gate).
 //
 // Per-sample cost is fixed by the structure; the filter design, the only expensive part, runs per

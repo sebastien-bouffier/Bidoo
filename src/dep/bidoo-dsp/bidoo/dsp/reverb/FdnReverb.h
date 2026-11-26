@@ -11,7 +11,7 @@
 // sample); the filter design runs per 32-sample sub-block and only while the time or size moves.
 //
 // For the whole product (early reflections, input saturation, post EQ, ducking, gate, styles)
-// see fab's Grotte, which uses the same core.
+// see cabanon's Grotte, which uses the same core.
 
 #include "../core/Math.h"
 #include "DecayModel.h"

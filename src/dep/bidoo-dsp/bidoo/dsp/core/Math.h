@@ -85,7 +85,7 @@ inline T gainToDb (T gain, T minusInfinityDb = (T) kMinusInfinityDb) noexcept
 //     not handled: floor the input first (std::max (x, 1e-5f)).
 //   pow2Approx (p): relative error < 2e-5 (2e-4 dB), p clamped to [-126, 126], so 2^-126 is the
 //     smallest result (never a denormal) and no overflow. Taylor coefficients of 2^f with the
-//     last one (0.00150407, from Fab's Portau) chosen so the sum at f = 1 is exactly 2.
+//     last one (0.00150407, from Cabanon's Portau) chosen so the sum at f = 1 is exactly 2.
 //     CharacterCompressor keeps its own pow2Approx (plain Taylor coefficient 0.00133336, error
 //     < 2e-4, not end-exact): its output must stay bit for bit.
 // Speed: in a scalar loop MSVC's float std::exp / std::exp2 (SVML-backed) is already about as

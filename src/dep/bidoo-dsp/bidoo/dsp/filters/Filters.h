@@ -279,7 +279,7 @@ private:
     int n = 0;
 };
 
-// Topology-preserving state variable filter with Fab's resonance mapping (res 0..1, 1 = the
+// Topology-preserving state variable filter with Cabanon's resonance mapping (res 0..1, 1 = the
 // self-oscillation edge), on TptSvf. One instance gives low, band and high pass outputs at once.
 class Svf
 {

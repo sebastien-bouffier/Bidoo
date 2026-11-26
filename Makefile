@@ -7,6 +7,9 @@ FLAGS += -Idep/include -I./src/dep/dr_wav -I./src/dep/filters -I./src/dep/minimp
 SOURCES = $(wildcard src/*.cpp src/dep/filters/*.cpp src/dep/lodepng/*.cpp src/dep/pffft/*.c src/dep/resampler/*.cpp src/dep/*.cpp src/dep/faad2/libfaad/*.c) src/dep/stb_vorbis/stb_vorbis_impl.c
 SOURCES := $(filter-out src/dep/resampler/main.cpp src/dep/resampler/StopWatch.cpp src/dep/pffft/test_pffft.c src/dep/lodepng/pngdetail.cpp src/dep/lodepng/lodepng_util.cpp, $(SOURCES))
 
+# bidoo-dsp's compiled sources (tools/sync-vcv.py copies them): before plugin.mk, which lists the objects
+SOURCES += $(wildcard src/dep/bidoo-dsp/src/*.cpp)
+
 include $(RACK_DIR)/plugin.mk
 
 # FAAD2 (antN's AAC decoder): its own config header and include paths, IEEE-exact maths,
@@ -28,3 +31,6 @@ build/src/FiltreEngine.cpp.o: CXXFLAGS += -std=c++20 -Isrc/dep/bidoo-dsp
 # rICOcHEt: bidoo-dsp headers (delay/WowFlutter.h) include from the library root
 build/src/RICOCHET.cpp.o: CXXFLAGS += -Isrc/dep/bidoo-dsp
 build/src/PARTICULES.cpp.o: CXXFLAGS += -Isrc/dep/bidoo-dsp
+
+# bidoo-dsp's Fft.cpp (REI's shimmer: Prism's PhaseVocoderShifter), on this plugin's own pffft
+build/src/dep/bidoo-dsp/src/%: CXXFLAGS += -std=c++20 -Isrc/dep/bidoo-dsp
