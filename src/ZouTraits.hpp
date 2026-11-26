@@ -5,7 +5,7 @@
 // build the engine with the module's own values.
 
 // One clock per step: the playhead moves between clocks at the measured clock rate (Step
-// mode; the enCORE clock mode is in ZouSeq.hpp). Units of 1/1008000 step.
+// mode; the Fast clock mode is in ZouSeq.hpp). Units of 1/1008000 step.
 struct ZouMaiTraits {
 	static constexpr bool INTERPOLATE = true;
 	static constexpr int TICKS = 1008000;

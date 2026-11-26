@@ -1,5 +1,5 @@
 // zOu MAi engine: pulse timing (Fit, detached ratchets), the musical knob table, the track speeds and the
-// conversion of a patch from an older grid, on an engine without interpolation on a grid of 96 ticks a step (the way the removed enCORE was built). Builds against the Rack SDK (MSYS2 MinGW64, after
+// conversion of a patch from an older grid, on an engine without interpolation on a grid of 96 ticks a step. Builds against the Rack SDK (MSYS2 MinGW64, after
 // a plugin build for quantizer.cpp.o) and runs next to a copy of the DLLs of an installed Rack:
 //   g++ -std=c++17 -O1 -Isrc/dep -I<SDK>/include -I<SDK>/dep/include -D_USE_MATH_DEFINES
 //       tools/tests/zouseq_pulses_test.cpp build/src/dep/quantizer.cpp.o -L<SDK> -lRack -static-libstdc++

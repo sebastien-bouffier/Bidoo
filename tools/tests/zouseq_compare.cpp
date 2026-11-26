@@ -1,5 +1,5 @@
 // zOu MAi: sample-exact comparison of the engine against an older one (a baseline commit), in Step mode,
-// and checks of the enCORE clock mode.
+// and checks of the Fast clock mode.
 // Both modules run side by side on the same random patches and the same clock, reset, RUN, pattern,
 // fill and track-reset events, each with its own copy of Rack's random generator; every output
 // (gate, V/O, CV1, CV2 of the 8 tracks and the 4 polyphonic ones) must be equal on every sample.
@@ -296,10 +296,10 @@ static bool compare(uint64_t seed, double seconds) {
 	return ok;
 }
 
-// ---- zOu MAi's enCORE clock mode: the head moves on clocks only, 32 a step (6 at x16/3), and a change of
+// ---- zOu MAi's Fast clock mode: the head moves on clocks only, 32 a step (6 at x16/3), and a change of
 // mode keeps every track where it is
 static int fastFailures = 0;
-#define FCHECK(c) do { if (!(c)) { printf("ENCORE MODE FAILED line %d: %s\n", __LINE__, #c); fastFailures++; } } while (0)
+#define FCHECK(c) do { if (!(c)) { printf("FAST CLOCK FAILED line %d: %s\n", __LINE__, #c); fastFailures++; } } while (0)
 
 static void fastClockChecks() {
 	Module::ProcessArgs args;
@@ -351,7 +351,7 @@ static void fastClockChecks() {
 		delete m;
 	}
 	{
-		// one clock a step, stopped half way between two clocks, then the enCORE mode: the head stays
+		// one clock a step, stopped half way between two clocks, then the Fast mode: the head stays
 		NewZ *m = new NewZ();
 		long long frame = 0;
 		run(*m, 4800 * 5 + 2400, 4800, frame, nullptr, nullptr);
@@ -381,7 +381,7 @@ int main(int argc, char **argv) {
 	}
 	printf("%lld runs of %g s, %lld gates played, %d with a difference\n", checked, seconds, gateEdges, failures);
 	fastClockChecks();
-	printf("enCORE clock mode checks: %d failures\n", fastFailures);
-	printf("%s\n", failures || fastFailures ? "FAILED" : "ok: every output equal on every sample, enCORE clock mode checked");
+	printf("Fast clock mode checks: %d failures\n", fastFailures);
+	printf("%s\n", failures || fastFailures ? "FAILED" : "ok: every output equal on every sample, Fast clock mode checked");
 	return failures || fastFailures ? 1 : 0;
 }

@@ -192,7 +192,7 @@
     <g
        id="text877-4"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;line-height:125%;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       transform="rotate(-90,-0.3755066,0.3755066)"
+       transform="translate(0,1.95792) rotate(-90,-0.3755066,0.3755066)"
        aria-label="VOL">
       <path
          inkscape:connector-curvature="0"
@@ -213,7 +213,7 @@
     <g
        id="text877-4-8"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;line-height:125%;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       transform="rotate(-90,-0.29566646,0.29566646)"
+       transform="translate(0,1.39977) rotate(-90,-0.29566646,0.29566646)"
        aria-label="PRE/POST">
       <path
          inkscape:connector-curvature="0"
@@ -259,7 +259,7 @@
     <g
        id="text877-4-9"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;line-height:125%;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       transform="rotate(-90,-0.39152605,0.39152605)"
+       transform="translate(0,0.58208) rotate(-90,-0.39152605,0.39152605)"
        aria-label="TYPE">
       <path
          inkscape:connector-curvature="0"
@@ -285,7 +285,7 @@
     <g
        id="text877-4-6"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;line-height:125%;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       transform="rotate(-90,-0.37705735,0.37705735)"
+       transform="translate(0,-0.10583) rotate(-90,-0.37705735,0.37705735)"
        aria-label="GAIN">
       <path
          inkscape:connector-curvature="0"
@@ -311,7 +311,7 @@
     <g
        id="text877-4-0"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:2.11666656px;line-height:125%;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       transform="rotate(-90,-0.28197252,0.28197252)"
+       transform="translate(0,-0.79375) rotate(-90,-0.28197252,0.28197252)"
        aria-label="Q">
       <path
          inkscape:connector-curvature="0"
@@ -373,4 +373,29 @@
          inkscape:connector-curvature="0" />
     </g>
   </g>
+<g id="cv-lines">
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M10.4510,14.6917L10.4510,16.1389"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M19.7115,14.6917L19.7115,16.1389"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M28.9719,14.6917L28.9719,16.1389"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M5.9531,27.9458L5.9531,29.2688"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M5.9531,40.2754L5.9531,41.5983"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M5.9531,52.6050L5.9531,53.9279"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M5.9531,64.5402L5.9531,66.2575"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M5.9531,77.2642L5.9531,78.5871"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M15.2135,27.9458L15.2135,29.2688"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M15.2135,40.2754L15.2135,41.5983"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M15.2135,52.6050L15.2135,53.9279"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M15.2135,64.5402L15.2135,66.2575"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M15.2135,77.2642L15.2135,78.5871"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M24.4740,27.9458L24.4740,29.2688"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M24.4740,40.2754L24.4740,41.5983"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M24.4740,52.6050L24.4740,53.9279"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M24.4740,64.5402L24.4740,66.2575"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M24.4740,77.2642L24.4740,78.5871"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M33.7344,27.9458L33.7344,29.2688"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M33.7344,40.2754L33.7344,41.5983"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M33.7344,52.6050L33.7344,53.9279"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M33.7344,64.5402L33.7344,66.2575"/>
+<path style="fill:none;stroke:#000000;stroke-width:0.26" d="M33.7344,77.2642L33.7344,78.5871"/>
+</g>
 </svg>

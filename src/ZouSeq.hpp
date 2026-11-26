@@ -16,12 +16,12 @@ using namespace std;
 
 // The engine, widgets and menus of zOu MAi (ZOUMAI): 16 patterns of 8 tracks of 64
 // trigs. TRAITS (ZouTraits.hpp) holds its constants. Two clock modes (context menu):
-// Step, one clock a step and the playhead also moving between clocks; enCORE
+// Step, one clock a step and the playhead also moving between clocks; Fast
 // (fastClock), 32 clocks a step (tOCAnTe's /128 output) and the head moving on clocks
-// only, the way the enCORE module did (removed in 2.7.8). The traits also allow an
+// only. The traits also allow an
 // engine whose head only moves on clocks (INTERPOLATE false, a grid of TICKS a step):
 // the tests use one. The rest is resolved at compile time, and in Step mode ZOUMAI
-// computes exactly what it did before the enCORE mode (tools/tests/zouseq_compare.cpp).
+// computes exactly what it did before the Fast mode (tools/tests/zouseq_compare.cpp).
 // Patches depend on the ids, the JSON keys and the expander messages here.
 //
 // Timing is exact: every position, trim, length and distance is an integer, in
@@ -284,7 +284,7 @@ struct TrigAttibutes {
 
 // Track speeds in knob order, slowest first, in 24ths of a step per clock (of a unit
 // on an engine without interpolation): 24ths so that x16/3 (6 clocks a step in the
-// enCORE clock mode, a 24 PPQN clock with 16th-note steps) is a whole number. The track keeps the index (TRACK_SPEED,
+// Fast clock mode, a 24 PPQN clock with 16th-note steps) is a whole number. The track keeps the index (TRACK_SPEED,
 // 4 bits); the patch keeps the factor.
 static constexpr int NUM_ZOU_SPEEDS = 14;
 static constexpr int zouSpeed24ths[16] = {3, 6, 12, 18, 24, 36, 48, 72, 96, 120, 128, 144, 168, 192, 192, 192};
@@ -381,7 +381,7 @@ struct ZouSeq : BidooModule {
 	static constexpr int TICKS = TRAITS::TICKS;
 	// Clocks a step lasts at x1.
 	static constexpr int CLOCKS_PER_STEP = TRAITS::TICKS / TRAITS::UNITS_PER_CLOCK;
-	// The enCORE clock mode: the clocks a step.
+	// The Fast clock mode: the clocks a step.
 	static constexpr int FAST_CLOCKS_PER_STEP = 32;
 	// A knob holds a trig's time as a float, in steps (ZOUMAI) or ticks (KNOB_PER_STEP a step).
 	static float toKnob(const Time t) {return (float)((double)t * TRAITS::KNOB_PER_STEP / TICKS);}
@@ -612,8 +612,8 @@ struct ZouSeq : BidooModule {
 	long clockCount = -1;
 	// Samples left in which a clock still belongs to the reset before it.
 	long resetHold = 0;
-	// The enCORE clock mode (context menu): 32 clocks a step and the head moving on clocks only
-	// (the way the enCORE module followed its clock), with ZOUMAI's grid and knobs. The engine takes a change on its next
+	// The Fast clock mode (context menu): 32 clocks a step and the head moving on clocks only,
+	// with ZOUMAI's grid and knobs. The engine takes a change on its next
 	// sample (fastClockApplied), keeping where every track is.
 	bool fastClock = false;
 	bool fastClockApplied = false;
@@ -2499,7 +2499,7 @@ struct ZouSeq : BidooModule {
 		}
 	}
 
-	// ZOUMAI: the enCORE clock mode turned on or off. Each track keeps its place: what it played since its
+	// ZOUMAI: the Fast clock mode turned on or off. Each track keeps its place: what it played since its
 	// last clock joins what it played at it, and the pattern's clock count is scaled to the new
 	// clocks a step.
 	void applyClockMode() {
@@ -2519,7 +2519,7 @@ struct ZouSeq : BidooModule {
 	// The CLK input's tooltip says what a clock is.
 	void updateClockInfo() {
 		if constexpr (INTERPOLATE)
-			inputInfos[EXTCLOCK_INPUT]->name = fastClock ? "enCORE clock (32 pulses per step at speed x1, as tOCAnTe's /128 output; the head moves on clocks only)" : "Clock (one pulse per step at speed x1)";
+			inputInfos[EXTCLOCK_INPUT]->name = fastClock ? "Fast clock (32 pulses per step at speed x1, as tOCAnTe's /128 output; the head moves on clocks only)" : "Clock (one pulse per step at speed x1)";
 	}
 
 	// The units played: at each clock `speed` more; between clocks floor(j * rate),
@@ -3573,7 +3573,7 @@ struct ZouSeqDisplay : TransparentWidget {
 					after = swing;
 				}
 				if (module->fastClock)
-					after += "  enCORE";
+					after += "  fast clock";
 				nvgFontSize(vg, 12.0f);
 				trackTitle = fitTitle(vg, "Pattern " + to_string(p + 1) + " : ", module->labels[t], after);
 				trigTitle = "Trig " + to_string(g + 1) + (module->trigPage2 ? " - page 2" : "");
@@ -4017,7 +4017,7 @@ struct ZouSeqWidget : BidooWidget {
 		if constexpr (M::INTERPOLATE) {
 			menu->addChild(createIndexSubmenuItem("Clock mode", {
 					"Step: one pulse a step, the head moves between clocks",
-					"enCORE: 32 pulses a step (tOCAnTe's /128 output), the head moves on clocks only"},
+					"Fast: 32 pulses a step (tOCAnTe's /128 output), the head moves on clocks only"},
 				[=]() {return module->fastClock ? 1 : 0;},
 				[=](size_t mode) {
 					std::lock_guard<std::recursive_mutex> lock(module->editMutex);

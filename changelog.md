@@ -1,10 +1,11 @@
 ### v2.7.8 (26/11/2026)
 Removed
-- enCORE and the enCORE Expander: zOù MAï's enCORE clock mode does what enCORE did. Patches that use them open without them
+- enCORE and the enCORE Expander: zOù MAï's Fast clock mode does what enCORE did. Patches that use them open without them
 Improvements
-- zOù MAï: two clock modes (right-click > Clock mode). Step, the default: one clock a step, the playhead moving between clocks at the measured rate, exactly as before (checked sample by sample against 2.7.7 on random patches, clocks, resets and pattern changes, tools/tests/zouseq_compare.cpp). enCORE: 32 clocks a step at Speed x1 (tOCAnTe's /128 output) and the playhead moving on clocks only, so the sequence follows the clock exactly, even one that swings or changes speed inside a step. The knobs, lengths and trims are the same in both; switching keeps every track where it is; the track title shows "enCORE" in that mode
-- zOù MAï: track speeds up to x8, with x5, x16/3 (6 clocks a step in the enCORE mode: a 24 PPQN clock with 16th-note steps), x6 and x7
-- tOCAnTe: the output that was labelled enCORE is now /128 (the same clock, 128 pulses per quarter, 32 per 16th-note step), the clock of zOù MAï's enCORE mode
+- zOù MAï: two clock modes (right-click > Clock mode). Step, the default: one clock a step, the playhead moving between clocks at the measured rate, exactly as before (checked sample by sample against 2.7.7 on random patches, clocks, resets and pattern changes, tools/tests/zouseq_compare.cpp). Fast: 32 clocks a step at Speed x1 (tOCAnTe's /128 output) and the playhead moving on clocks only, so the sequence follows the clock exactly, even one that swings or changes speed inside a step. The knobs, lengths and trims are the same in both; switching keeps every track where it is; the track title shows "fast clock" in that mode
+- zOù MAï: track speeds up to x8, with x5, x16/3 (6 clocks a step in the Fast mode: a 24 PPQN clock with 16th-note steps), x6 and x7
+- tOCAnTe: the output that was labelled enCORE is now /128 (the same clock, 128 pulses per quarter, 32 per 16th-note step), the clock of zOù MAï's Fast mode
+- bAFIs: each CV jack joined to its control by a short line, still 10 HP (the jacks a little lower under their controls, the rows a little closer, the frequency row 4 px higher); tOCAnTe's RESET and RUN output boxes fit their jacks
 
 ### v2.7.7 (26/11/2026)
 Improvements
