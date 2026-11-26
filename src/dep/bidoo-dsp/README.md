@@ -1,7 +1,7 @@
 # bidoo-dsp (excerpt)
 
 Headers copied unchanged from the author's bidoo-dsp library. Every header here is identical to the
-library's file at commit 8da9a94 (2026-11-25): no local edits. Brought up to date by bidoo-dsp's
+library's file at commit 0c271d3 (2026-11-26): no local edits. Brought up to date by bidoo-dsp's
 `tools/sync-vcv.py` (the headers the modules include, followed through their includes; `--check` lists
 any difference).
 

@@ -5,7 +5,11 @@
 // Hermite-interpolated reads, an allpass and frequency-dependent damping in every line); SPRING runs
 // two dispersive spring tanks (chains of allpasses in a delay loop, the chirp of a spring); NON-LIN
 // and REVERSE are dense tapped bursts with a gated or rising envelope. The shimmer is a pitch
-// shifter in the feedback path (a delay-line shifter that splices at the best correlation point).
+// shifter in the feedback path (since 2026-11-26 two phase vocoders, PhaseVocoderShifter, around the whole
+// reverb; before, a delay-line shifter that splices at the best correlation point, also inside three lines).
+// The 2026-11-26 voicing (repos/reverb-bench, measured against Valhalla): a modulation floor (no metallic ROOM
+// and PLATE, no still tail at MOD 0), dense mode no longer doubling the modulation, darker early reflections
+// (DAMP), body under 300 Hz where a snare's came back thin, and the shimmer's octaves fading pass after pass.
 // Moved from fadabox unchanged (bit-identical); header-only. It is a second, lighter network next to
 // the Grotte core (Fdn16 / FdnReverb): 8 lines with one-pole damping instead of 16 with fitted
 // absorption, but with the plate, spring, burst and shimmer voicings. Wet output only.
@@ -35,6 +39,7 @@
 #include "../core/Random.h"
 #include "../core/Trig.h" // sinF: per-sample sines, cheap on MinGW (VCV) too
 #include "../shaping/TanhPade.h"
+#include "../fft/PhaseVocoderShifter.h"
 
 namespace bidoo::dsp::reverb
 {
@@ -78,7 +83,6 @@ inline void hadamard (std::array<float, N>& x)
 }
 
 constexpr float kSignL[8] { 1, -1, 1, 1, -1, 1, -1, -1 };
-constexpr int kTankLines[3] { 1, 4, 6 }; // the lines that carry the shimmer
 constexpr float kSignR[8] { 1, 1, -1, -1, 1, 1, -1, -1 }; // orthogonal to kSignL: uncorrelated sides
 constexpr float kErMs[8] { 7.1f, 11.3f, 17.9f, 23.3f, 31.7f, 41.9f, 53.3f, 67.1f };
 constexpr float kErGain[8] { 0.85f, -0.7f, 0.62f, -0.55f, 0.46f, -0.38f, 0.3f, -0.24f };
@@ -257,14 +261,18 @@ private:
     float lastBurstDecay = -1;
     std::array<Allpass, 2> outDiffL, outDiffR;
     float burstDampZL = 0, burstDampZR = 0;
-    // shimmer
-    Shifter shiftL, shiftR; // SPRING, NON-LIN, REVERSE: around the whole reverb
-    static constexpr int kTankShifters = 3;
-    std::array<Shifter, kTankShifters> tankShift; // the FDN algorithms: inside the tank
-    std::array<float, kTankShifters> tankWindow {}, tankHp {}, tankLp {}, tankPowIn {}, tankPowOut {};
-    float tankMix = 0, tankHpA = 0.02f, tankLpA = 0.5f, tankPowA = 0.001f;
+    // shimmer: around the whole reverb, every algorithm (since 2026-11-26 two phase vocoders, and no more
+    // shifters inside the FDN's lines: their splices left junk between the octaves and their loss was made up,
+    // so the octaves outlived the note)
+    PhaseVocoderShifter shiftL, shiftR;
     float shimL = 0, shimR = 0, shimEnv = 0, inEnv = 0, shimHpL = 0, shimHpR = 0, shimLpL = 0, shimLpR = 0;
-    float shimRatio = 2, shimRatio2 = 2, shimLpA = 0.5f, inGate = 1, shimGain = 0, shimDirect = 0, shimWindow = 2000;
+    float shimLp2L = 0, shimLp2R = 0;
+    // the early reflections' high cut (since 2026-11-26: walls take the highs off; it followed DAMP nowhere)
+    float erLpA = 1, erLpL = 0, erLpR = 0;
+    // body: the wet lows lifted under about 300 Hz where an algorithm gave a snare's body back thinner than its top
+    // (since 2026-11-26; dB per algorithm in configure)
+    float warmGain = 0, warmA = 0, warmL = 0, warmR = 0;
+    float shimRatio = 2, shimRatio2 = 2, shimLpA = 0.5f, inGate = 1, shimGain = 0, shimDirect = 0;
     float outGain = 1;
     int preSamples = 0, preTarget = 0, preOld = 0; // the pre-delay read now, the one wanted, the one fading out
     float preFade = 1, preFadeInc = 0;             // below 1: a moved pre-delay crossfading (10 ms)
@@ -274,6 +282,11 @@ private:
     float shimHpA = 0, gateA = 0, envAtk = 0, envRel = 0, inRelA = 0;
     // the settings last configured: configure() returns at once when they are the same
     Settings lastSettings;
+    static constexpr float kModFloorMs = 0.3f; // the lines' least modulation depth (ROOM and PLATE 0.42: their lines are short)
+    static constexpr float kShimGain = 1.4f;   // the shimmer loop's gain at SHIMMER 1 (3.2 before the phase vocoders:
+                                               // at SHIMMER 0.5 the octave rang 5.7 dB over the note in the tail;
+                                               // now -3.6 / -10 / -31 dB for the first three octaves, dense -10 / -24 / -35)
+    static constexpr float kShimLpHz = 6000.0f; // its high cut with DAMP at 0
     bool configured = false;
     // a change of algorithm: the output fades out (the old algorithm playing on), the buffers are cleared
     // while silent, the new algorithm fades in; snapAlgo: just reset, nothing to fade
@@ -539,8 +552,6 @@ inline void PrismReverb::prepare (float sampleRate, bool denseMode)
     envAtk = 1.0f - std::exp (-1.0f / (0.005f * sr));
     envRel = 1.0f - std::exp (-1.0f / (0.3f * sr));
     inRelA = 1.0f - std::exp (-1.0f / (2.5f * sr));
-    tankHpA = 1.0f - std::exp (-prism_detail::kTwoPiF * 140.0f / sr);
-    tankPowA = 1.0f - std::exp (-1.0f / (0.08f * sr));
     preL.prepare ((int) (sr * 0.5f));
     preR.prepare ((int) (sr * 0.5f));
     for (int i = 0; i < 4; ++i)
@@ -576,8 +587,6 @@ inline void PrismReverb::prepare (float sampleRate, bool denseMode)
     }
     shiftL.prepare (sr);
     shiftR.prepare (sr);
-    for (auto& t : tankShift)
-        t.prepare (sr);
     for (int i = 0; i < nLines; ++i)
     {
         lfoPhase[(size_t) i] = (float) i / (float) nLines;
@@ -633,12 +642,7 @@ inline void PrismReverb::clear()
     burstDampZL = burstDampZR = 0;
     shiftL.reset();
     shiftR.reset();
-    for (auto& t : tankShift)
-        t.reset();
-    tankHp.fill (0);
-    tankLp.fill (0);
-    tankPowIn.fill (0);
-    tankPowOut.fill (0);
+    shimLp2L = shimLp2R = erLpL = erLpR = warmL = warmR = 0;
     inGate = 1;
     snapLen = true;
     snapPre = true;
@@ -781,9 +785,11 @@ inline void PrismReverb::configure (const Settings& s)
         if (snapLen || lenGlide == 0.0f)
             curLen = baseLen;
         snapLen = false;
-        modDepth = d.modMs * sr * 0.001f * prism_detail::clampf (s.mod, 0.0f, 1.0f);
-        if (dense) // deeper: the modes smeared (PLATE and ROOM, whose depths were the smallest, most)
-            modDepth *= 2.0f * (a == Plate ? 3.0f : a == Room ? 2.0f : 1.0f);
+        // MOD sets the depth over a floor (since 2026-11-26): below about 0.3 ms the modes stand still and the tail
+        // rings like metal (ROOM and PLATE gave 0.045 / 0.075 ms at MOD 0.3: 8.5 / 7.6 dB of ripple in the tail's
+        // spectrum against 5.6 for noise and Valhalla's). Dense mode no longer doubles it (up to 6 x for PLATE): a
+        // held note spread 51 Hz in HALL; its sixteen lines are smooth enough on the floor.
+        modDepth = std::max (kModFloorMs * (a == Room || a == Plate ? 1.4f : 1.0f), d.modMs * prism_detail::clampf (s.mod, 0.0f, 1.0f)) * sr * 0.001f;
     }
     else if (a == Spring)
     {
@@ -825,32 +831,30 @@ inline void PrismReverb::configure (const Settings& s)
     // shimmer
     shimRatio = std::pow (2.0f, intervalSemis (s.interval, 0) / 12.0f);
     shimRatio2 = std::pow (2.0f, intervalSemis (s.interval, 1) / 12.0f);
-    // DAMP also darkens the climbing octaves: 10 kHz open, 3 kHz dark
-    const float shimLpHz = 10000.0f * std::pow (0.3f, prism_detail::clampf (s.damp, 0.0f, 1.0f));
+    {
+        // one interval: the two sides a few cents apart (two voices, wide and soft)
+        const float detune = shimRatio == shimRatio2 ? std::pow (2.0f, 0.04f / 12.0f) : 1.0f;
+        shiftL.setRatio (shimRatio * detune);
+        shiftR.setRatio (shimRatio2 / detune);
+    }
+    // DAMP darkens the climbing octaves (two poles in the loop, each pass darker): 6 kHz open, 1.8 kHz dark
+    const float shimLpHz = kShimLpHz * std::pow (0.3f, prism_detail::clampf (s.damp, 0.0f, 1.0f));
     shimLpA = 1.0f - std::exp (-prism_detail::kTwoPiF * std::min (shimLpHz, sr * 0.45f) / sr);
-    tankLpA = 1.0f - std::exp (-prism_detail::kTwoPiF * std::min (shimLpHz * 0.92f, sr * 0.45f) / sr);
+    // the early reflections: 9 kHz open, 4 kHz dark
+    const float erHz = 9000.0f * std::pow (4000.0f / 9000.0f, prism_detail::clampf (s.damp, 0.0f, 1.0f));
+    erLpA = 1.0f - std::exp (-prism_detail::kTwoPiF * std::min (erHz, sr * 0.45f) / sr);
+    {
+        // measured on a snare against ValhallaRoom / VintageVerb (repos/reverb-bench, balance.py): 125 / 250 Hz back
+        // from -0.3..-2.8 dB to about +0.5..+2; HALL and ROOM (eight lines) were already full
+        static constexpr float warmDb[2][NumAlgos] { { 0, 0, 2.0f, 2.0f, 0, 0, 0, 1.5f }, { 3.0f, 1.5f, 2.0f, 1.0f, 0, 0, 0, 0.5f } };
+        const float db = warmDb[dense ? 1 : 0][a];
+        warmGain = std::pow (10.0f, db / 20.0f) - 1.0f;
+        warmA = 1.0f - std::exp (-prism_detail::kTwoPiF * 300.0f / sr);
+    }
     // frozen, the shimmer would climb forever: it holds what it has
     const float shim = freeze ? 0.0f : prism_detail::clampf (s.shimmer, 0.0f, 1.0f);
-    shimWindow = (a == Cloud ? 0.1f : 0.06f) * sr;
-    if (prism_detail::isFdn (a))
-    {
-        // in the tank: three of the eight lines are pitch shifted on every pass, so the shifted sound is
-        // diffused by the network like the rest of the tail while the root keeps ringing beside it
-        // a light touch: more and the climb outruns the tail
-        tankMix = shim * 0.2f;
-        // and around the whole reverb, as before, for the long climb
-        shimGain = shim * 3.2f;
-        shimDirect = shim * 0.5f;
-        static constexpr float windowMs[kTankShifters] { 53.0f, 71.0f, 89.0f }; // unequal grains: no common flutter
-        for (int k = 0; k < kTankShifters; ++k)
-            tankWindow[(size_t) k] = windowMs[k] * (a == Cloud ? 1.4f : 1.0f) * 0.001f * sr;
-    }
-    else
-    {
-        tankMix = 0;
-        shimGain = shim * 3.2f;
-        shimDirect = shim * 0.7f;
-    }
+    shimGain = shim * kShimGain;
+    shimDirect = shim * (prism_detail::isFdn (a) ? 0.5f : 0.7f);
 }
 
 // --- the algorithms, one stereo sample each
@@ -887,23 +891,6 @@ inline void PrismReverb::fdn (float inL, float inR, float& outL, float& outR)
         y[(size_t) i] = (z - dc) * gain[(size_t) i];
     }
     prism_detail::hadamard (y);
-    if (tankMix > 0.0f)
-        for (int k = 0; k < kTankShifters; ++k)
-        {
-            auto& v = y[(size_t) prism_detail::kTankLines[k]];
-            float sh = tankShift[(size_t) k].process (v, k == 1 ? shimRatio2 : shimRatio, tankWindow[(size_t) k]);
-            tankHp[(size_t) k] += tankHpA * (sh - tankHp[(size_t) k]);
-            sh -= tankHp[(size_t) k];
-            tankLp[(size_t) k] += tankLpA * (sh - tankLp[(size_t) k]);
-            // the grains partly cancel each other: give the shifted sound back the power of what went
-            // in, so the line keeps the decay the DEC knob set (never more: no runaway)
-            auto& pin = tankPowIn[(size_t) k];
-            auto& pout = tankPowOut[(size_t) k];
-            pin += tankPowA * (v * v - pin);
-            pout += tankPowA * (tankLp[(size_t) k] * tankLp[(size_t) k] - pout);
-            const float comp = std::min (1.5f, std::sqrt ((pin + 1.0e-12f) / (pout + 1.0e-12f)));
-            v += tankMix * (comp * tankLp[(size_t) k] - v);
-        }
     constexpr float inK = N == 8 ? 0.5f : 0.3535534f; // the same input power into twice the lines
     for (int i = 0; i < N; ++i)
     {
@@ -1113,6 +1100,10 @@ inline int PrismReverb::run (const float* inL, const float* inR, float* outL, fl
                 eL = preG * eL + (1.0f - preG) * oldL;
                 eR = preG * eR + (1.0f - preG) * oldR;
             }
+            erLpL += erLpA * (eL - erLpL);
+            erLpR += erLpA * (eR - erLpR);
+            eL = erLpL;
+            eR = erLpR;
             if (dense)
             {
                 eL = erApL[1].process (erApL[0].process (eL, 0.6f), 0.55f);
@@ -1120,6 +1111,13 @@ inline int PrismReverb::run (const float* inL, const float* inR, float* outL, fl
             }
             oL += inGate * erLevel * 0.5f * eL;
             oR += inGate * erLevel * 0.5f * eR;
+        }
+        if (warmGain > 0.0f)
+        {
+            warmL += warmA * (oL - warmL);
+            warmR += warmA * (oR - warmR);
+            oL += warmGain * warmL;
+            oR += warmGain * warmR;
         }
         oL *= outGain;
         oR *= outGain;
@@ -1135,13 +1133,15 @@ inline int PrismReverb::run (const float* inL, const float* inR, float* outL, fl
             shimEnv += (lvl > shimEnv ? envAtk : envRel) * (lvl - shimEnv);
             // the pitched tail may grow up to about the input's level, never past it
             const float agc = std::min (1.0f, (0.35f * inEnv + 1.0e-5f) / (shimEnv + 1.0e-5f));
-            float sL = shiftL.process (oL, shimRatio, shimWindow), sR = shiftR.process (oR, shimRatio2, shimWindow);
+            float sL = shiftL.process (oL), sR = shiftR.process (oR);
             shimHpL += hpA * (sL - shimHpL);
             shimHpR += hpA * (sR - shimHpR);
             sL -= shimHpL;
             sR -= shimHpR;
-            shimLpL += lpA * (sL - shimLpL);
-            shimLpR += lpA * (sR - shimLpR);
+            shimLp2L += lpA * (sL - shimLp2L);
+            shimLp2R += lpA * (sR - shimLp2R);
+            shimLpL += lpA * (shimLp2L - shimLpL);
+            shimLpR += lpA * (shimLp2R - shimLpR);
             shimL = prism_detail::prismFastTanh (shimLpL * shimGain * agc);
             shimR = prism_detail::prismFastTanh (shimLpR * shimGain * agc);
             oL += shimDirect * shimLpL;
