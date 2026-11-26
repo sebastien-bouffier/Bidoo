@@ -486,10 +486,11 @@ struct REIWidget : BidooWidget {
 
 		// Placed as tools/panels/rei.py draws them, grouped by theme (SPACE and FREEZE, CHARACTER and MIX, SHIMMER,
 		// DYNAMICS): three rows of seven cells (a control and its small CV or trigger jack under it, joined by the panel's
-		// vertical line), then the levels on grid row 1 and the jacks in their boxes on row 0. The cells' rows are off the
+		// vertical line), then the levels just under grid row 1 and the jacks in their boxes on row 0. The cells' rows are off the
 		// grid (three rows of 80 px under the title and the groups' names); their columns are the grid's.
 		const int n = 7;
-		const float kRowY[3] = {68.f, 148.f, 228.f};   // rei.py ROW_Y
+		const float kRowY[3] = {74.f, 154.f, 234.f};   // rei.py ROW_Y
+		const float kLevelsY = 300.f;                   // rei.py LEVELS_Y: 4 px under grid row 1, leaving the cells room
 		const float kJackDy = 28.f;                     // rei.py JACK_DY
 		enum Kind { KNOB, SNAP, SMALL, SMALLSNAP, BUTTON };
 		struct Cell { int col, row, param, input; Kind kind; };
@@ -521,7 +522,7 @@ struct REIWidget : BidooWidget {
 				addInput(theme::input<TinyPJ301MPort>(cell.down(kJackDy), module, c.input));
 		}
 
-		auto at = [&](float i, int k) { return theme::at(i, n, k, box.size.x); };
+		auto at = [&](float i, int) { return theme::sameCol(theme::at(i, n, 1, box.size.x), kLevelsY); };
 		addParam(theme::param<BidooBlueTrimpot>(at(0, 1), module, REI::INPUT_PARAM));
 		addParam(theme::param<BidooBlueTrimpot>(at(1, 1), module, REI::INPAN_PARAM));
 		addParam(theme::param<CKSS>(at(3, 1), module, REI::CLIPPING_PARAM));

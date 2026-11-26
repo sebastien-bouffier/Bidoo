@@ -10,7 +10,8 @@ PW = 330
 K = k.K
 W = PW * K
 N = 7
-ROW_Y = (68.0, 148.0, 228.0)   # the knobs' centres (src/REI.cpp kRowY)
+ROW_Y = (74.0, 154.0, 234.0)   # the knobs' centres (src/REI.cpp kRowY)
+LEVELS_Y = 300.0               # the levels row, 4 px under grid row 1 to leave the cells room (src/REI.cpp kLevelsY)
 JACK_DY = 28.0                  # a cell's jack under its knob (src/REI.cpp kJackDy)
 LABEL_SIZE = 7.5                # the columns are 44.3 px: PREDELAY is 39 px wide
 LABEL_ABOVE = 22.0              # kKnobLabelAbove
@@ -66,9 +67,9 @@ def build():
             out.append(f'<path style="fill:none;stroke:{k.INK};stroke-width:0.32" '
                        f'd="M{x*K:.3f},{y*K:.3f}V{(y+JACK_DY)*K:.3f}"/>')
         out.append(k.text(label, x, y - LABEL_ABOVE, LABEL_SIZE, k.INK))
-    # the second row: input level and pan, the clipping switch, output level and pan (small knobs)
+    # the levels row: input level and pan, the clipping switch, output level and pan (trimpots)
     for i, label in ((0, 'INPUT'), (1, 'IN PAN'), (3, 'CLIP'), (5, 'OUTPUT'), (6, 'OUT PAN')):
-        out.append(k.small_label(label, k.col(i, N, PW), k.row(1)))
+        out.append(k.small_label(label, k.col(i, N, PW), LEVELS_Y))
     # the jacks: the stereo input, the clock (for the two SYNCs), the stereo output
     out.append(k.grid_box(0, 1, N, 0, PW, k.INPUT))
     out.append(k.grid_box(3, 3, N, 0, PW, k.INPUT))
