@@ -113,6 +113,14 @@ struct REI : BidooModule {
 	static float predelayKnob(float ms) { return std::cbrt(clamp(ms, 0.f, MAX_PREDELAY_MS) / MAX_PREDELAY_MS); }
 	static float holdMs(float v) { return 10.f * std::pow(200.f, v); }
 
+	// knob <-> dB: DUCK 30 v^2 (VCV's levels are hot, so the dip is nearly always full: a linear knob went from none to too
+	// much in its first fifth; now 1.2 dB at 20 %, 7.5 dB at 50 %)
+	static float duckDb(float v) { return 30.f * v * v; }
+	struct DuckQuantity : ParamQuantity {
+		float getDisplayValue() override { return duckDb(getValue()); }
+		void setDisplayValue(float db) override { setValue(std::sqrt(clamp(db, 0.f, 30.f) / 30.f)); }
+	};
+
 	struct PredelayQuantity : ParamQuantity {
 		float getDisplayValue() override { return predelayMs(getValue()); }
 		void setDisplayValue(float ms) override { setValue(predelayKnob(ms)); }
@@ -172,7 +180,7 @@ struct REI : BidooModule {
 		configSwitch(INTERVAL_PARAM, 0.f, NUM_INTERVALS - 1, 4.f, "Shimmer interval", intervals);
 		configParam(SHIMMER_PARAM, 0.f, 1.f, 0.f, "Shimmer", "%", 0.f, 100.f);
 		configParam(TONE_PARAM, 0.f, 1.f, .4f, "Shimmer tone (its high cut, darker each pass)", " kHz", 12.f, 1.f);
-		configParam(DUCK_PARAM, 0.f, 30.f, 0.f, "Ducking (the reverb dips while the input plays)", " dB");
+		configParam<DuckQuantity>(DUCK_PARAM, 0.f, 1.f, 0.f, "Ducking (the reverb dips while the input plays)", " dB");
 		configSwitch(GATE_PARAM, 0.f, 1.f, 0.f, "Auto gate (the tail closes when the input stops)", {"Off", "On"});
 		configParam(HOLD_PARAM, 0.f, 1.f, std::log(25.f) / std::log(200.f), "Gate hold", " ms", 200.f, 10.f);
 		configSwitch(GATESYNC_PARAM, 0.f, 15.f, 0.f, "Gate hold sync (to CLOCK, or 120 BPM)", gateSyncNames());
@@ -198,7 +206,7 @@ struct REI : BidooModule {
 		configInput(INTERVAL_INPUT, "Shimmer interval CV (1 V per step)");
 		configInput(SHIMMER_INPUT, "Shimmer CV (0-10 V: full range)");
 		configInput(TONE_INPUT, "Shimmer tone CV (0-10 V: full range)");
-		configInput(DUCK_INPUT, "Ducking CV (3 dB per volt)");
+		configInput(DUCK_INPUT, "Ducking CV (0-10 V: full range)");
 		configInput(GATE_INPUT, "Auto gate toggle trigger");
 		configInput(HOLD_INPUT, "Gate hold CV (0-10 V: full range)");
 		configInput(FREEZE_INPUT, "Freeze toggle trigger");
@@ -423,7 +431,7 @@ struct REI : BidooModule {
 			// the ducking and the gate's settings, once per block (their gains glide per sample)
 			const int gateSync = (int)params[GATESYNC_PARAM].getValue();
 			const float hold = gateSync > 0 ? quarterMs() * gateSyncQuarters(gateSync) : holdMs(clamp(knob(HOLD_PARAM, HOLD_INPUT), 0.f, 1.f));
-			duckGate.set(clamp(knob(DUCK_PARAM, DUCK_INPUT, 3.f), 0.f, 30.f), params[GATE_PARAM].getValue() > .5f, hold);
+			duckGate.set(duckDb(clamp(knob(DUCK_PARAM, DUCK_INPUT), 0.f, 1.f)), params[GATE_PARAM].getValue() > .5f, hold);
 			if (idle || !heard) {
 				std::fill(wetL, wetL + BLOCK, 0.f);
 				std::fill(wetR, wetR + BLOCK, 0.f);
