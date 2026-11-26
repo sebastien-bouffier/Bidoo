@@ -127,6 +127,13 @@ public:
         // cut, 1 kHz (dark) to 12 kHz (bright), two poles, so each pass is darker; below 0 it follows DAMP as before
         float buildUp = 0;
         float shimmerTone = -1;
+        // (also for REI, Grotte's Size / Density / Depth; below 0, the default, each is as before, bit for bit)
+        // size 0..1: the FDN lines' lengths x 0.5 to x 1.5 (0.5: as the algorithm made them), no longer grown by DECAY.
+        // density 0..1: the input diffusers' and the lines' allpass gains x 0.5 to x 1.5 (0.5: the algorithm's).
+        // depth 0..1: the early reflections from close (louder, 9 kHz) to far (quieter, 4 kHz); 0.3 their usual level
+        float size = -1;
+        float density = -1;
+        float depth = -1;
     };
 
     // dense: the FDN algorithms' 16-line voicing (see the top of this file), fixed until the next prepare()
@@ -214,7 +221,7 @@ private:
     {
         return a.algo == b.algo && a.preMs == b.preMs && a.decay == b.decay && a.damp == b.damp && a.mod == b.mod && a.shimmer == b.shimmer
                && a.interval == b.interval && a.freeze == b.freeze && a.glideMs == b.glideMs && a.buildUp == b.buildUp
-               && a.shimmerTone == b.shimmerTone;
+               && a.shimmerTone == b.shimmerTone && a.size == b.size && a.density == b.density && a.depth == b.depth;
     }
     void clear(); // the buffers and the running state, for reset() and a change of algorithm
     void processFinite (const float* inL, const float* inR, float* outL, float* outR, int n, const Settings& s);
@@ -239,6 +246,7 @@ private:
     std::array<float, kEr> erGain {};
     std::array<Allpass, 2> erApL, erApR; // dense: the reflections smeared by two allpasses a side
     float erApG = 1;                     // their gains' scale (Build Up: less smearing)
+    float erLevelBase = 0;               // the algorithm's reflections level (Settings::depth scales it)
     bool dense = false;
     int nLines = 8, nEr = 8;
     float erLevel = 0;
@@ -699,7 +707,7 @@ inline void PrismReverb::configure (const Settings& s)
                 lineAp[(size_t) i].setLength ((int) (d.apMs * (0.62f + 0.11f * (float) i) * ms));
                 lineAp2[(size_t) i].setLength ((int) (d.apMs * (0.31f + 0.067f * (float) ((i * 3) % 8)) * ms));
             }
-            erLevel = d.er;
+            erLevelBase = d.er;
             apBase = d.apGain;
             outGain = d.level * 0.55f;
             if (dense)
@@ -750,7 +758,7 @@ inline void PrismReverb::configure (const Settings& s)
                 inDiffR[(size_t) i].setLength ((int) (diff[i] * 1.17f * ms));
             }
             inDiffBase = a == Spring ? 0.3f : 0.6f;
-            erLevel = 0;
+            erLevelBase = 0;
             outGain = a == Spring ? 0.7f : 0.7f;
             outDiffL[0].setLength ((int) (1.7f * ms));
             outDiffL[1].setLength ((int) (3.3f * ms));
@@ -768,6 +776,17 @@ inline void PrismReverb::configure (const Settings& s)
         inDiffGain = inDiffBase * (1.0f - 0.8f * bu);
         apGain = apBase * (1.0f - 0.7f * bu);
         erApG = 1.0f - bu;
+        // Density: more or less diffusion around the algorithm's (kept under the gains where allpasses ring)
+        if (s.density >= 0.0f)
+        {
+            const float fd = 0.5f + prism_detail::clampf (s.density, 0.0f, 1.0f);
+            inDiffGain = std::min (0.8f, inDiffGain * fd);
+            apGain = std::min (0.75f, apGain * fd);
+        }
+        // Depth: the reflections quieter as the source moves away (Grotte's 1.15 - 0.85 x distance, 1 at 0.3)
+        erLevel = erLevelBase;
+        if (s.depth >= 0.0f)
+            erLevel *= (1.15f - 0.85f * prism_detail::clampf (s.depth, 0.0f, 1.0f)) / (1.15f - 0.85f * 0.3f);
     }
 
     preTarget = std::max (1, (int) (prism_detail::clampf (s.preMs, 0.0f, 300.0f) * sr * 0.001f));
@@ -787,7 +806,8 @@ inline void PrismReverb::configure (const Settings& s)
     if (prism_detail::isFdn (a))
     {
         const auto& d = prism_detail::fdnDef (a);
-        const float size = 1.0f - d.sizeFromDecay * 0.15f + d.sizeFromDecay * 0.3f * s.decay;
+        const float size = s.size >= 0.0f ? 0.5f + prism_detail::clampf (s.size, 0.0f, 1.0f)
+                                          : 1.0f - d.sizeFromDecay * 0.15f + d.sizeFromDecay * 0.3f * s.decay;
         for (int i = 0; i < nLines; ++i)
         {
             baseLen[(size_t) i] = (dense ? lens16[(size_t) i] : d.lens[(size_t) i]) * size * sr * 0.001f;
@@ -860,8 +880,9 @@ inline void PrismReverb::configure (const Settings& s)
     const float shimLpHz = s.shimmerTone >= 0.0f ? 1000.0f * std::pow (12.0f, prism_detail::clampf (s.shimmerTone, 0.0f, 1.0f))
                                                  : kShimLpHz * std::pow (0.3f, prism_detail::clampf (s.damp, 0.0f, 1.0f));
     shimLpA = 1.0f - std::exp (-prism_detail::kTwoPiF * std::min (shimLpHz, sr * 0.45f) / sr);
-    // the early reflections: 9 kHz open, 4 kHz dark
-    const float erHz = 9000.0f * std::pow (4000.0f / 9000.0f, prism_detail::clampf (s.damp, 0.0f, 1.0f));
+    // the early reflections: 9 kHz open, 4 kHz dark (DAMP), or 9 kHz close, 4 kHz far (Settings::depth)
+    const float erHz = s.depth >= 0.0f ? 9000.0f - 5000.0f * prism_detail::clampf (s.depth, 0.0f, 1.0f)
+                                       : 9000.0f * std::pow (4000.0f / 9000.0f, prism_detail::clampf (s.damp, 0.0f, 1.0f));
     erLpA = 1.0f - std::exp (-prism_detail::kTwoPiF * std::min (erHz, sr * 0.45f) / sr);
     {
         // measured on a snare against ValhallaRoom / VintageVerb (repos/reverb-bench, balance.py): 125 / 250 Hz back
