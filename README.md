@@ -26,16 +26,16 @@ The plugin includes the following code, each under its own license, in `src/dep`
 | Code | Author | License | Used by |
 |---|---|---|---|
 | [Signalsmith Stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch) and Signalsmith Linear | Geraint Luff / Signalsmith Audio | MIT (`signalsmith/*/LICENSE.txt`) | sOUNAiRe |
-| [dr_flac and dr_wav](https://github.com/mackron/dr_libs) | David Reid | Public domain or MIT-0 (in the headers) | sOUNAiRe, cOPIA, liMonADe, the samplers |
+| [dr_flac and dr_wav](https://github.com/mackron/dr_libs) | David Reid | Public domain or MIT-0 (in the headers) | sOUNAiRe, cOPIA, pARtiCuLeS, liMonADe, the samplers |
 | [AudioFile](https://github.com/adamstark/AudioFile) | Adam Stark | MIT (`AudioFile/LICENSE`) | liMonADe, the samplers |
 | [minimp3](https://github.com/lieff/minimp3) | lieff | CC0 1.0 (`minimp3/LICENSE`) | antN |
 | [FAAD2](https://github.com/knik0/faad2) 2.11.4 | M. Bakker, Nero AG and contributors | GPL-2.0-or-later (`faad2/COPYING`) | antN (AAC) |
 | [stb_vorbis](https://github.com/nothings/stb) 1.22 | Sean Barrett | Public domain or MIT (end of `stb_vorbis/stb_vorbis.c`) | antN (Ogg Vorbis) |
-| [PFFFT](https://bitbucket.org/jpommier/pffft) | Julien Pommier | FFTPACK license, BSD-like (in `pffft.h`) | sOUNAiRe, fLAME, FiLTRe, HCTIP, ziNC, liMonADe |
+| [PFFFT](https://bitbucket.org/jpommier/pffft) | Julien Pommier | FFTPACK license, BSD-like (in `pffft.h`) | sOUNAiRe, fLAME, FiLTRe, HCTIP, liMonADe, EMILE |
 | [LodePNG](https://github.com/lvandeve/lodepng) | Lode Vandevenne | zlib (in `lodepng.h`) | EMILE, liMonADe |
-| Resampler | Laurent de Soras | LGPL-2.1 (`resampler/license.txt`) | antN, eDsaroS, fLAME, the samplers |
-| [Biquad](https://www.earlevel.com/main/2012/11/26/biquad-c-source-code/) | Nigel Redmon | free to use and modify (in `filters/biquad.h`) | the filters in `filters` |
-| bidoo-dsp (excerpt) | Sébastien Bouffier | GPL-3.0-or-later (`bidoo-dsp/README.md`) | REI, cOPIA, FiLTRe, bAFIs, lIMbO, aCiDe, rICOcHEt |
+| Resampler | Laurent de Soras | LGPL-2.1 (`resampler/license.txt`) | antN, eDsaroS, fLAME |
+| [Biquad](https://www.earlevel.com/main/2012/11/26/biquad-c-source-code/) | Nigel Redmon | free to use and modify (in `filters/biquad.h`) | built in, no module uses it now |
+| bidoo-dsp (excerpt) | Sébastien Bouffier | GPL-3.0-or-later (`bidoo-dsp/README.md`) | REI, rICOcHEt, cOPIA, aCiDe, bAFIs, lIMbO, fLAME, baR, mINIBar, zOù MAï, póUPrè, maGma, oAï |
 | Potion voice filter (excerpt) | Sébastien Bouffier | GPL-3.0-or-later (`potion/README.md`) | FiLTRe |
 
 ## Donate
