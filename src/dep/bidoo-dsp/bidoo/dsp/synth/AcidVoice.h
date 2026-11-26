@@ -219,6 +219,19 @@ public:
             tickControl (ctrlPeriod);
         }
 
+        // Silent: the VCA is shut (VEG off, the accent path under -125 dB), so nothing of the oscillator or the ladder
+        // can be heard: skip them. A poly cable gives every channel a voice, most of them silent. A new note opens the
+        // VCA only after its 4 ms delay, which the oscillator and ladder use to start again: no click, the same level;
+        // only the oscillator's phase at that note differs (it is free running anyway).
+        if (vegStage == VegOff && vcaAccent < 1.0e-8)
+        {
+            g = gTarget;
+            K = kTarget;
+            wave = waveTarget;
+            outGain += outStep;
+            return 0.f;
+        }
+
         // oscillator and filter, at the oversampled rate
         float o0 = 0.f, o1 = 0.f, o2 = 0.f, o3 = 0.f;
         double y;

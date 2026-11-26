@@ -4,7 +4,7 @@
 import json, os, re, sys
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
-SOURCES = {"REI": "REI.cpp", "dFUZE": "DFUZE.cpp", "FILTRE": "FILTRE.cpp", "PARTICULES": "PARTICULES.cpp", "DIKTAT": "DIKTAT.cpp"}
+SOURCES = {"REI": "REI.cpp", "FILTRE": "FILTRE.cpp", "PARTICULES": "PARTICULES.cpp", "DIKTAT": "DIKTAT.cpp"}
 CONSTANTS = {"NUM_INTERVALS": 10, "filtre::kNumTypes": 71, "particules::kNumIntervals": 7, "quantizer::numNotes": 13,
 	"quantizer::numScales": 46}
 

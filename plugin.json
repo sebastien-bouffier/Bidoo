@@ -1,6 +1,6 @@
 {
   "slug": "Bidoo",
-  "version": "2.7.4",
+  "version": "2.7.5",
   "license": "GPL-3.0-or-later",
   "name": "Bidoo",
   "brand": "Bidoo",
@@ -39,16 +39,6 @@
       "description": "Space/Strange trigger based on the\nfree fall and bouncing an object.\nYou can change the drop altitude\nbetween 1cm and 3m\n",
       "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki/ChUTE",
       "tags": [
-        "Sequencer"
-      ]
-    },
-    {
-      "slug": "MU",
-      "name": "µ",
-      "description": "Synced pulse generator",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki/MU",
-      "tags": [
-        "Logic",
         "Sequencer"
       ]
     },
@@ -315,16 +305,6 @@
       "tags": [
         "Dynamics"
         ,"Effect","Compressor"
-      ]
-    },
-    {
-      "slug": "dFUZE",
-      "name": "dFUZE",
-      "description": "Reverb",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki/dFUZE",
-      "tags": [
-        "Reverb"
-        ,"Effect"
       ]
     },
     {

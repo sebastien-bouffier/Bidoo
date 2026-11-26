@@ -3,36 +3,52 @@
 #include "plugin.hpp"
 #include "BidooComponents.hpp"
 #include "Svf.hpp"
-#include "dep/bidoo-dsp/bidoo/dsp/shaping/TanhPade.h"
 
 using namespace std;
+using simd::float_4;
+
+// The filter runs four channels at once: T is simd::float_4, one channel per lane, the same arithmetic in each lane
+// as the one-channel code it replaces (the same output with exact rounding; Rack's -funsafe-math-optimizations lets
+// the compiler reorder scalar and lane code differently, about -120 dB). A mono patch runs it in plain floats.
+
+// tanh by its Pade 7/6 approximant (bidoo-dsp's shaping/TanhPade.h, the same operations), for lanes.
+template <typename T>
+inline T tanhPadeT(T x) {
+	x = simd::fmin(simd::fmax(x, T(-4.97f)), T(4.97f));   // where the approximant reaches 1
+	const T x2 = x * x;
+	const T n = x * (135135.0f + x2 * (17325.0f + x2 * (378.0f + x2)));
+	const T d = 135135.0f + x2 * (62370.0f + x2 * (3150.0f + 28.0f * x2));
+	return simd::fmin(simd::fmax(n / d, T(-1.0f)), T(1.0f));
+}
 
 // One-pole zero-delay-feedback stage. G = g / (1 + g) with g = tan(pi fc / fs).
+template <typename T>
 struct FilterStage {
-	float mem = 0.0f;
+	T mem = 0.0f;
 
-	float filter(float in, float G) {
-		float v = (in - mem) * G;
-		float out = v + mem;
+	T filter(T in, T G) {
+		T v = (in - mem) * G;
+		T out = v + mem;
 		mem = out + v;
 		return out;
 	}
 };
 
-// What a channel's filter needs, worked out once per sample for all four
-// stages (and both sides): G, the feedback, and the saturation's scaling.
+// What the filter needs, worked out once per sample for all four stages (and both sides): G, the feedback, and the
+// saturation's scaling.
+template <typename T>
 struct LadderCoefs {
-	float G = 0.0f, inv = 1.0f, G4 = 0.0f, k = 0.0f;
-	float drive = 1.0f, invDrive = 1.0f;
+	T G = 0.0f, inv = 1.0f, G4 = 0.0f, k = 0.0f;
+	T drive = 1.0f, invDrive = 1.0f;
 	bool nonLinear = false;
 
-	void set(float g, float kk, float d, bool nl) {
+	void set(T g, T kk, T d, bool nl) {
 		G = g / (1.0f + g);
 		inv = 1.0f / (1.0f + g);
 		G4 = G * G * G * G;
 		k = kk;
 		nonLinear = nl;
-		if (nl && d != drive) {
+		if (nl) {
 			drive = d;
 			invDrive = 1.0f / d;
 		}
@@ -43,17 +59,18 @@ struct LadderCoefs {
 // S = G^3 s1 + G^2 s2 + G s3 + s4 (each s divided by 1 + g). Saturated, each
 // stage's input goes through tanh(d x) / d: a slope of 1 at rest whatever the
 // drive, so the gain boost no longer raises the resonance.
+template <typename T>
 struct LadderFilter {
-	FilterStage stages[4];
+	FilterStage<T> stages[4];
 
-	float process(float sample, const LadderCoefs &c) {
-		float S = 0.0f;
+	T process(T sample, const LadderCoefs<T> &c) {
+		T S = 0.0f;
 		for (int i = 0; i < 4; i++)
 			S = S * c.G + stages[i].mem * c.inv;
-		float u = (sample - c.k * S) / (1.0f + c.k * c.G4);
+		T u = (sample - c.k * S) / (1.0f + c.k * c.G4);
 		if (c.nonLinear) {
 			for (int i = 0; i < 4; i++)
-				u = stages[i].filter(bidoo::dsp::tanhPade(u * c.drive) * c.invDrive, c.G);
+				u = stages[i].filter(tanhPadeT(u * c.drive) * c.invDrive, c.G);
 		}
 		else {
 			for (int i = 0; i < 4; i++)
@@ -94,23 +111,47 @@ struct LIMBO : BidooModule {
 		NUM_LIGHTS
 	};
 
-	LadderFilter lFilter[16], rFilter[16];
-	// Saturated mode runs at twice the rate: the tanh's harmonics above
-	// Nyquist are filtered out instead of folding back
-	Halfband2x lOver[16], rOver[16];
+	// One group of channels: four in float_4 lanes, or the single channel of a mono patch in plain floats (as fast as
+	// the one-channel code was: lanes would cost more there).
+	template <typename T>
+	struct Side {
+		LadderFilter<T> filter, old;   // old: the mode a MODE change fades out from
+		// Saturated mode runs at twice the rate: the tanh's harmonics above
+		// Nyquist are filtered out instead of folding back
+		Halfband2xT<T> over;
+	};
+	template <typename T>
+	struct Group {
+		Side<T> l, r;
+		LadderCoefs<T> coefs, oldCoefs;
+	};
+	Group<float_4> groups[4];
+	Group<float> mono;
+	bool monoActive = true;   // channel 0's state is in mono, not in groups[0]'s first lane
+	static_assert(sizeof(Side<float_4>) == 4 * sizeof(Side<float>), "a side is floats only");
+
+	// channel 0's filter state, between mono and the first lane of groups[0]
+	static void moveLane(Side<float> &one, Side<float_4> &four, bool toFour) {
+		float *o = reinterpret_cast<float *>(&one);
+		float *f = reinterpret_cast<float *>(&four);
+		for (size_t i = 0; i < sizeof(Side<float>) / sizeof(float); i++) {
+			if (toFour)
+				f[4 * i] = o[i];
+			else
+				o[i] = f[4 * i];
+		}
+	}
+
 	SvfGainCache gainCache[16];
-	LadderCoefs coefs[16];
 	// the saturation's drive and output gain, worked out when the boost moves
 	float lastBoost[16], pre[16], post[16];
-	// the boost glides (about 3 ms): its gain jumped with a CV or a knob
-	float boostNow[16];
+	// the boost glides (about 3 ms): its gain jumped with a CV or a knob; its exp2, worked out when it moves
+	float boostNow[16], boostOf[16], boostGain[16];
 	bool wasNonLinear = false;
 	// a MODE change crossfades over 5 ms from the old mode, run on a copy of each filter
 	int modeFadeLen = 240;   // 5 ms at the rate of the change
 	int modeFadeLeft = 0;
 	bool oldNonLinear = false;
-	LadderFilter oldL[16], oldR[16];
-	LadderCoefs oldCoefs[16];
 
 	LIMBO() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -131,104 +172,156 @@ struct LIMBO : BidooModule {
 		for (int c = 0; c < 16; c++) {
 			lastBoost[c] = -1.0f;
 			boostNow[c] = -1.0f;
+			boostOf[c] = -1.0f;
+			boostGain[c] = 1.0f;
 			pre[c] = post[c] = 1.0f;
 		}
 	}
 
+	// what one sample's groups need from process()
+	struct Frame {
+		int channels;
+		bool rightIn, nonLinear, fading;
+		float fadeNew, rate, oldRate, fMax, knobOct, cmod, qKnob, boostKnob, boostGlide;
+	};
+
+	static float_4 loadT(const float *a, float_4) { return float_4::load(a); }
+	static float loadT(const float *a, float) { return a[0]; }
+	static float_4 voltsT(Input &in, int c, float_4) { return in.getPolyVoltageSimd<float_4>(c); }
+	static float voltsT(Input &in, int c, float) { return in.getPolyVoltage(c); }
+	static float laneT(float_4 v, int j) { return v[j]; }
+	static float laneT(float v, int) { return v; }
+
 	void process(const ProcessArgs &args) override {
-		int channels = std::max(std::max(inputs[IN_L].getChannels(), inputs[IN_R].getChannels()), 1);
-		bool rightIn = inputs[IN_R].isConnected();
-		bool nonLinear = params[MODE_PARAM].getValue() > 0.5f;
-		if (nonLinear != wasNonLinear) {
+		Frame f;
+		f.channels = std::max(std::max(inputs[IN_L].getChannels(), inputs[IN_R].getChannels()), 1);
+		f.rightIn = inputs[IN_R].isConnected();
+		f.nonLinear = params[MODE_PARAM].getValue() > 0.5f;
+		if (f.nonLinear != wasNonLinear) {
 			// the old mode carries on, on a copy of the filters, while the new one fades in; going saturated, the
 			// oversampling filters start from rest (the old, linear, path does not use them)
-			for (int c = 0; c < 16; c++) {
-				oldL[c] = lFilter[c];
-				oldR[c] = rFilter[c];
-				if (nonLinear) {
-					lOver[c].reset();
-					rOver[c].reset();
-				}
-			}
+			for (Group<float_4> &g : groups)
+				startFade(g, f.nonLinear);
+			startFade(mono, f.nonLinear);
 			oldNonLinear = wasNonLinear;
 			modeFadeLen = std::max(16, (int)(0.005f * args.sampleRate));
 			modeFadeLeft = modeFadeLen;
-			wasNonLinear = nonLinear;
+			wasNonLinear = f.nonLinear;
 		}
-		const bool fading = modeFadeLeft > 0;
-		const float fadeNew = fading ? 1.f - (float)modeFadeLeft / (float)modeFadeLen : 1.f;
-		if (fading)
+		f.fading = modeFadeLeft > 0;
+		f.fadeNew = f.fading ? 1.f - (float)modeFadeLeft / (float)modeFadeLen : 1.f;
+		if (f.fading)
 			modeFadeLeft--;
 		// saturated, the ladder runs at 2x
-		float rate = nonLinear ? 2.0f * args.sampleRate : args.sampleRate;
-		float fMax = 0.45f * args.sampleRate;
-		float knobOct = 4.5f + 9.5f * params[CUTOFF_PARAM].getValue();
-		float cmod = params[CMOD_PARAM].getValue();
-		float qKnob = params[Q_PARAM].getValue();
-		float boostKnob = params[MUG_PARAM].getValue();
-		const float boostGlide = std::min(1.f, 336.f / args.sampleRate);   // 0.007 a sample at 48 kHz
+		f.rate = f.nonLinear ? 2.0f * args.sampleRate : args.sampleRate;
+		f.oldRate = oldNonLinear ? 2.0f * args.sampleRate : args.sampleRate;
+		f.fMax = 0.45f * args.sampleRate;
+		f.knobOct = 4.5f + 9.5f * params[CUTOFF_PARAM].getValue();
+		f.cmod = params[CMOD_PARAM].getValue();
+		f.qKnob = params[Q_PARAM].getValue();
+		f.boostKnob = params[MUG_PARAM].getValue();
+		f.boostGlide = std::min(1.f, 336.f / args.sampleRate);   // 0.007 a sample at 48 kHz
 
-		for (int c = 0; c < channels; c++) {
-			float fc = clamp(dsp::exp2_taylor5(clamp(knobOct + cmod * inputs[CUTOFF_INPUT].getPolyVoltage(c), 3.0f, 15.0f)), 10.0f, fMax);
-			float g = gainCache[c].get(fc, rate);
-			float k = 3.5f * clamp(qKnob + inputs[Q_INPUT].getPolyVoltage(c) * 0.2f, 0.0f, 1.0f);
-			const float boostTarget = clamp(boostKnob + inputs[MUG_INPUT].getPolyVoltage(c) * 0.2f, 0.0f, 1.0f);
+		const bool monoNow = f.channels == 1;
+		if (monoNow != monoActive) {
+			moveLane(mono.l, groups[0].l, !monoNow);
+			moveLane(mono.r, groups[0].r, !monoNow);
+			monoActive = monoNow;
+		}
+		if (monoNow)
+			runGroup(mono, 0, f);
+		else
+			for (int c0 = 0; c0 < f.channels; c0 += 4)
+				runGroup(groups[c0 / 4], c0, f);
+		outputs[OUT_L].setChannels(f.channels);
+		outputs[OUT_R].setChannels(f.channels);
+	}
+
+	template <typename T>
+	static void startFade(Group<T> &g, bool toNonLinear) {
+		g.l.old = g.l.filter;
+		g.r.old = g.r.filter;
+		if (toNonLinear) {
+			g.l.over.reset();
+			g.r.over.reset();
+		}
+	}
+
+	// one group: its channels' controls, then the filters on all its lanes at once
+	template <typename T>
+	void runGroup(Group<T> &grp, int c0, const Frame &f) {
+		constexpr int W = sizeof(T) / sizeof(float);
+		const int lanes = std::min(W, f.channels - c0);
+		// each channel's controls (lanes past the last channel are worked out too, and play silence)
+		alignas(16) float gA[4], kA[4], dA[4], inA[4], outA[4], ogA[4], oInA[4], oOutA[4];
+		for (int j = 0; j < W; j++) {
+			const int c = c0 + j;
+			float fc = clamp(dsp::exp2_taylor5(clamp(f.knobOct + f.cmod * inputs[CUTOFF_INPUT].getPolyVoltage(c), 3.0f, 15.0f)), 10.0f, f.fMax);
+			gA[j] = gainCache[c].get(fc, f.rate);
+			kA[j] = 3.5f * clamp(f.qKnob + inputs[Q_INPUT].getPolyVoltage(c) * 0.2f, 0.0f, 1.0f);
+			const float boostTarget = clamp(f.boostKnob + inputs[MUG_INPUT].getPolyVoltage(c) * 0.2f, 0.0f, 1.0f);
 			if (boostNow[c] < 0.f || std::fabs(boostTarget - boostNow[c]) < 1e-5f)
 				boostNow[c] = boostTarget;
 			else
-				boostNow[c] += boostGlide * (boostTarget - boostNow[c]);
+				boostNow[c] += f.boostGlide * (boostTarget - boostNow[c]);
 			const float boostIn = boostNow[c];
-			float boost = dsp::exp2_taylor5(3.0f * boostIn);
+			if (boostIn != boostOf[c]) {
+				boostOf[c] = boostIn;
+				boostGain[c] = dsp::exp2_taylor5(3.0f * boostIn);
+			}
+			const float boost = boostGain[c];
 			// saturated: the stages saturate from 1 / d (d = boost / 3, as before);
 			// the input is raised by s^3 and the output by s, s = d / tanh(d): the
 			// gain and the ceiling of the old stages (each had a slope of s), the
 			// resonance of the linear filter
-			if ((nonLinear || fading) && boostIn != lastBoost[c]) {
+			if ((f.nonLinear || f.fading) && boostIn != lastBoost[c]) {
 				lastBoost[c] = boostIn;
 				float d = boost / 3.0f;
 				float s = d / std::tanh(d);
 				pre[c] = s * s * s;
 				post[c] = s;
 			}
-			coefs[c].set(g, k, boost / 3.0f, nonLinear);
-			float inGain = nonLinear ? 0.2f * pre[c] : 0.2f;
-			float outGain = 5.0f * (nonLinear ? post[c] : boost);
-
-			const float xL = inputs[IN_L].getPolyVoltage(c);
-			float yL = run(lFilter[c], lOver[c], xL * inGain, coefs[c]) * outGain;
-			const float xR = rightIn ? inputs[IN_R].getPolyVoltage(c) : 0.f;
-			float yR = rightIn ? run(rFilter[c], rOver[c], xR * inGain, coefs[c]) * outGain : 0.f;
-			if (fading) {
+			dA[j] = boost / 3.0f;
+			inA[j] = f.nonLinear ? 0.2f * pre[c] : 0.2f;
+			outA[j] = 5.0f * (f.nonLinear ? post[c] : boost);
+			if (f.fading) {
 				// the old mode, at its own rate and gains
-				const float oldRate = oldNonLinear ? 2.0f * args.sampleRate : args.sampleRate;
-				const float og = svfGain(fc, oldRate);
-				oldCoefs[c].set(og, k, boost / 3.0f, oldNonLinear);
-				const float oIn = oldNonLinear ? 0.2f * pre[c] : 0.2f;
-				const float oOut = 5.0f * (oldNonLinear ? post[c] : boost);
-				const float oL = run(oldL[c], lOver[c], xL * oIn, oldCoefs[c]) * oOut;
-				yL = oL + fadeNew * (yL - oL);
-				if (rightIn) {
-					const float oR = run(oldR[c], rOver[c], xR * oIn, oldCoefs[c]) * oOut;
-					yR = oR + fadeNew * (yR - oR);
-				}
-			}
-			outputs[OUT_L].setVoltage(softLimit(yL), c);
-			if (rightIn) {
-				outputs[OUT_R].setVoltage(softLimit(yR), c);
-			}
-			else {
-				// the right side would be the same filter on the same input
-				outputs[OUT_R].setVoltage(outputs[OUT_L].getVoltage(c), c);
+				ogA[j] = svfGain(fc, f.oldRate);
+				oInA[j] = oldNonLinear ? 0.2f * pre[c] : 0.2f;
+				oOutA[j] = 5.0f * (oldNonLinear ? post[c] : boost);
 			}
 		}
-		outputs[OUT_L].setChannels(channels);
-		outputs[OUT_R].setChannels(channels);
+		const T k = loadT(kA, T()), d = loadT(dA, T());
+		const T inGain = loadT(inA, T()), outGain = loadT(outA, T());
+		grp.coefs.set(loadT(gA, T()), k, d, f.nonLinear);
+
+		const T xL = voltsT(inputs[IN_L], c0, T());
+		T yL = run(grp.l.filter, grp.l.over, xL * inGain, grp.coefs) * outGain;
+		const T xR = f.rightIn ? voltsT(inputs[IN_R], c0, T()) : T(0.f);
+		T yR = f.rightIn ? run(grp.r.filter, grp.r.over, xR * inGain, grp.coefs) * outGain : T(0.f);
+		if (f.fading) {
+			grp.oldCoefs.set(loadT(ogA, T()), k, d, oldNonLinear);
+			const T oIn = loadT(oInA, T()), oOut = loadT(oOutA, T());
+			const T oL = run(grp.l.old, grp.l.over, xL * oIn, grp.oldCoefs) * oOut;
+			yL = oL + f.fadeNew * (yL - oL);
+			if (f.rightIn) {
+				const T oR = run(grp.r.old, grp.r.over, xR * oIn, grp.oldCoefs) * oOut;
+				yR = oR + f.fadeNew * (yR - oR);
+			}
+		}
+		for (int j = 0; j < lanes; j++) {
+			const float l = softLimit(laneT(yL, j));
+			outputs[OUT_L].setVoltage(l, c0 + j);
+			// without a right input, the right side would be the same filter on the same input
+			outputs[OUT_R].setVoltage(f.rightIn ? softLimit(laneT(yR, j)) : l, c0 + j);
+		}
 	}
 
-	static float run(LadderFilter &f, Halfband2x &over, float x, const LadderCoefs &c) {
+	template <typename T>
+	static T run(LadderFilter<T> &f, Halfband2xT<T> &over, T x, const LadderCoefs<T> &c) {
 		if (!c.nonLinear)
 			return f.process(x, c);
-		float a, b;
+		T a, b;
 		over.up(x, a, b);
 		a = f.process(a, c);
 		b = f.process(b, c);

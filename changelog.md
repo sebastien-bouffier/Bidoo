@@ -1,3 +1,10 @@
+### v2.7.5 (26/11/2026)
+Removed
+- µ and dFUZE: patches that use them open without them
+Improvements
+- aCiDe: a silent voice no longer computes anything: a polyphonic cable of 16 channels with 3 notes playing costs about 3 times less CPU. A note after a silence starts at another point of the oscillator's cycle; same level, no click
+- lIMbO: four channels computed at once: 16 channels 2.4 times lighter, 4 channels 2.4 times, mono a little lighter; same sound
+
 ### v2.7.4 (26/11/2026)
 Improvements
 - aCiDe: polyphonic, one voice per channel of V/OCT or GATE (up to 16), each with its own accent, slide and cutoff, resonance, env mod and decay CVs (a mono cable acts on every voice); OUT has one channel per voice. With mono cables it plays as before

@@ -19,7 +19,6 @@ void init(rack::Plugin *p) {
 	p->addModel(modelZOUMAIExpander);
 	p->addModel(modelENCORE);
 	p->addModel(modelENCOREExpander);
-	p->addModel(modelMU);
 	p->addModel(modelRATEAU);
   p->addModel(modelCHUTE);
 	p->addModel(modelLOURDE);
@@ -54,7 +53,6 @@ void init(rack::Plugin *p) {
 	p->addModel(modelFREIN);
 	p->addModel(modelHCTIP);
 	p->addModel(modelSPORE);
-	p->addModel(modelDFUZE);
 	p->addModel(modelREI);
 	p->addModel(modelSOUNAIRE);
 	p->addModel(modelCOPIA);

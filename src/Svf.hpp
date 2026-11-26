@@ -52,12 +52,14 @@ struct SvfGainCache {
 // 2x up / down sampler: a polyphase IIR halfband (two chains of first-order
 // allpasses in z^-2, Laurent de Soras' hiir design), 6 coefficients: flat to
 // 0.21 fs (20 kHz at 48 kHz), -95 dB from 0.29 fs. Six multiplies each way.
-struct Halfband2x {
+// T: float, or simd::float_4 for four channels at once (the same arithmetic per lane).
+template <typename T>
+struct Halfband2xT {
 	struct Chain {
-		float x[3] = {}, y[3] = {};
-		float process(float in, const float *k) {
+		T x[3] = {}, y[3] = {};
+		T process(T in, const float *k) {
 			for (int i = 0; i < 3; i++) {
-				float out = k[i] * (in - y[i]) + x[i];
+				T out = k[i] * (in - y[i]) + x[i];
 				x[i] = in;
 				y[i] = out;
 				in = out;
@@ -77,17 +79,18 @@ struct Halfband2x {
 	}
 
 	// one sample in, two out (in time order)
-	void up(float in, float &first, float &second) {
+	void up(T in, T &first, T &second) {
 		first = upA.process(in, coefA());
 		second = upB.process(in, coefB());
 	}
 
 	// two samples in (in time order), one out
-	float down(float first, float second) {
+	T down(T first, T second) {
 		return 0.5f * (downA.process(second, coefA()) + downB.process(first, coefB()));
 	}
 
 	void reset() {
-		*this = Halfband2x();
+		*this = Halfband2xT();
 	}
 };
+using Halfband2x = Halfband2xT<float>;
