@@ -278,11 +278,20 @@ struct TrigAttibutes {
 	}
 };
 
-// Track speeds in knob order, slowest first, in eighths of a step (ENCORE: of a
-// tick) per clock. The track keeps the index (TRACK_SPEED, 4 bits); the patch
-// keeps the factor. ZOUMAI goes up to x4, ENCORE to x8.
-static const int zouSpeedEighths[16] = {1, 2, 4, 6, 8, 12, 16, 24, 32, 40, 48, 56, 64, 64, 64, 64};
-static const char *const zouSpeedLabels[13] = {"x1/8", "x1/4", "x1/2", "x3/4", "x1", "x3/2", "x2", "x3", "x4", "x5", "x6", "x7", "x8"};
+// Track speeds in knob order, slowest first, in 24ths of a step (ENCORE: of a
+// tick) per clock: 24ths so that x16/3 (6 clocks a step on ENCORE, a 24 PPQN clock
+// with 16th-note steps) is a whole number. The track keeps the index (TRACK_SPEED,
+// 4 bits); the patch keeps the factor. ZOUMAI goes up to x4, ENCORE to x8.
+static constexpr int NUM_ZOU_SPEEDS = 14;
+static constexpr int zouSpeed24ths[16] = {3, 6, 12, 18, 24, 36, 48, 72, 96, 120, 128, 144, 168, 192, 192, 192};
+static const char *const zouSpeedLabels[NUM_ZOU_SPEEDS] = {"x1/8", "x1/4", "x1/2", "x3/4", "x1", "x3/2", "x2", "x3", "x4", "x5", "x16/3", "x6", "x7", "x8"};
+// The speeds up to a module's fastest.
+static constexpr int zouSpeedCount(const int maxSpeed) {
+	int n = 0;
+	while (n < NUM_ZOU_SPEEDS && zouSpeed24ths[n] <= maxSpeed * 24)
+		n++;
+	return n;
+}
 
 struct TrackAttibutes {
 
@@ -323,7 +332,7 @@ struct TrackAttibutes {
 	inline int getTrackLength() {return (mainAttributes & TRACK_LENGTH) >> trackLengthShift;}
 	inline int getTrackReadMode() {return (mainAttributes & TRACK_READMODE) >> trackReadModeShift;}
 	inline int getTrackSpeed() {return (mainAttributes & TRACK_SPEED) >> trackSpeedShift;}
-	inline int getTrackSpeedEighths() {return zouSpeedEighths[getTrackSpeed()];}
+	inline int getTrackSpeed24ths() {return zouSpeed24ths[getTrackSpeed()];}
 
 	inline int getTrackCurrentTrig() {return (refAttributes & TRACK_CURRENTTRIG);}
 	inline int getTrackPlayedTrig() {return (refAttributes & TRACK_PLAYEDTRIG) >> trackPlayedTrigShift;}
@@ -358,7 +367,7 @@ struct ZouSeq : BidooModule {
 	static constexpr int NUM_PATTERNS = 16;
 	static constexpr int NUM_TRACKS = 8;
 	static constexpr int NUM_TRIGS = 64;
-	static constexpr int NUM_SPEEDS = TrackAttibutes::SPEED_X1 + TRAITS::MAX_SPEED + 1;
+	static constexpr int NUM_SPEEDS = zouSpeedCount(TRAITS::MAX_SPEED);
 
 	using Traits = TRAITS;
 	using Time = int;
@@ -1001,13 +1010,18 @@ struct ZouSeq : BidooModule {
 
 	// The knob position of a whole speed.
 	static int wholeSpeed(const int speed) {
-		return speed + (speed > 1 ? TrackAttibutes::SPEED_X1 : TrackAttibutes::SPEED_X1 - 1);
+		for (int i=0; i<NUM_SPEEDS; i++) {
+			if (zouSpeed24ths[i] == speed * 24)
+				return i;
+		}
+		return TrackAttibutes::SPEED_X1;
 	}
 
-	// The knob position of the factor in a patch: 1..MAX_SPEED as ever, and the fractions.
+	// The knob position of the factor in a patch: 1..MAX_SPEED as ever, and the fractions
+	// (x16/3 is saved as 5.333...).
 	static int speedFromFactor(const double factor) {
 		for (int i=0; i<NUM_SPEEDS; i++) {
-			if (zouSpeedEighths[i] == factor * 8.0)
+			if (std::fabs(zouSpeed24ths[i] - factor * 24.0) < 0.01)
 				return i;
 		}
 		return wholeSpeed(clamp((int)factor, 1, (int)TRAITS::MAX_SPEED));
@@ -1045,7 +1059,7 @@ struct ZouSeq : BidooModule {
 				if (t.getTrackSolo())
 					json_object_set_new(trackJ, "isSolo", json_true());
 				if (t.getTrackSpeed() != TrackAttibutes::SPEED_X1)
-					json_object_set_new(trackJ, "speed", json_real(t.getTrackSpeedEighths() / 8.0));
+					json_object_set_new(trackJ, "speed", json_real(t.getTrackSpeed24ths() / 24.0));
 				if (t.getTrackReadMode() != 0)
 					json_object_set_new(trackJ, "readMode", json_integer(t.getTrackReadMode()));
 				if (t.getTrackLength() != 16)
@@ -2201,7 +2215,7 @@ struct ZouSeq : BidooModule {
 		const Time trim = trigTrim[currentPattern][track][trig];
 		const Time swing = trackSwingUnits[currentPattern][track];
 		if (swing != 0 && (index & 1)) {
-			const Time room = INTERPOLATE ? TICKS / 64 : (nTracksAttibutes[currentPattern][track].getTrackSpeedEighths() * TRAITS::UNITS_PER_CLOCK + 7) / 8;
+			const Time room = INTERPOLATE ? TICKS / 64 : (nTracksAttibutes[currentPattern][track].getTrackSpeed24ths() * TRAITS::UNITS_PER_CLOCK + 23) / 24;
 			return index * TICKS + std::min(trim + swing, TICKS - room);
 		}
 		return index * TICKS + trim;
@@ -2230,8 +2244,8 @@ struct ZouSeq : BidooModule {
 		int ticks = 1;
 		for (int i = 0; i < NUM_TRACKS; i++) {
 			TrackAttibutes &t = nTracksAttibutes[currentPattern][i];
-			int speed = t.getTrackSpeedEighths();
-			ticks = std::max(ticks, (t.getTrackLength() * CLOCKS_PER_STEP * 8 + speed - 1) / speed);
+			int speed = t.getTrackSpeed24ths();
+			ticks = std::max(ticks, (t.getTrackLength() * CLOCKS_PER_STEP * 24 + speed - 1) / speed);
 		}
 		return ticks;
 	}
@@ -2298,15 +2312,15 @@ struct ZouSeq : BidooModule {
 			return false;
 		TrackAttibutes &t = nTracksAttibutes[currentPattern][track];
 		const int len = t.getTrackLength();
-		const int speed = t.getTrackSpeedEighths();
-		// In eighths of a position, as clocks.
+		const int speed = t.getTrackSpeed24ths();
+		// In 24ths of a position, as clocks.
 		const int pass = (t.getTrackReadMode() == 2) ? std::max(2 * len - 2, 1) : len;
 		int left = (patternLengthTicks() - patternClock) * speed;
 		if constexpr (INTERPOLATE)
-			left -= (int)((long long)trackInterpolation[currentPattern][track].value * 8 / TICKS);
+			left -= (int)((long long)trackInterpolation[currentPattern][track].value * 24 / TICKS);
 		if (ahead)
-			left -= CLOCKS_PER_STEP * 8;
-		return left <= pass * CLOCKS_PER_STEP * 8;
+			left -= CLOCKS_PER_STEP * 24;
+		return left <= pass * CLOCKS_PER_STEP * 24;
 	}
 
 	// Decides whether a trig plays. A FIRST or LAST trig is decided again when the
@@ -2423,7 +2437,7 @@ struct ZouSeq : BidooModule {
 		Interpolation &in = trackInterpolation[currentPattern][track];
 		in = Interpolation();
 		if (clockInterval > 0) {
-			const long long perClock = (long long)nTracksAttibutes[currentPattern][track].getTrackSpeedEighths() * TRAITS::UNITS_PER_CLOCK / 8;
+			const long long perClock = (long long)nTracksAttibutes[currentPattern][track].getTrackSpeed24ths() * TRAITS::UNITS_PER_CLOCK / 24;
 			in.quotient = perClock / clockInterval;
 			in.remainder = perClock % clockInterval;
 			if (j > 0) {
@@ -2455,7 +2469,7 @@ struct ZouSeq : BidooModule {
 	long long trackPlayed(const int track, const bool step) {
 		long long &played = trackPlayedAtClock[currentPattern][track];
 		if (step)
-			played += (long long)nTracksAttibutes[currentPattern][track].getTrackSpeedEighths() * TRAITS::UNITS_PER_CLOCK;
+			played += (long long)nTracksAttibutes[currentPattern][track].getTrackSpeed24ths() * TRAITS::UNITS_PER_CLOCK;
 		if constexpr (INTERPOLATE) {
 			Interpolation &in = trackInterpolation[currentPattern][track];
 			if (step)
@@ -2468,10 +2482,10 @@ struct ZouSeq : BidooModule {
 					in.value++;
 				}
 			}
-			return (played >> 3) + (in.value < in.resetBoundary ? in.value - in.resetValue : in.value);
+			return played / 24 + (in.value < in.resetBoundary ? in.value - in.resetValue : in.value);
 		}
 		else
-			return played >> 3;
+			return played / 24;
 	}
 
 	// Wraps at the end of the track: the track starts again from the top, keeping
@@ -2481,7 +2495,7 @@ struct ZouSeq : BidooModule {
 		if (v < len)
 			return v;
 		const long long rest = v % len;
-		trackPlayedAtClock[currentPattern][track] -= (v - rest) * 8;
+		trackPlayedAtClock[currentPattern][track] -= (v - rest) * 24;
 		trackFirstPass[track] = false;
 		trackReset(track, fill, pNei, forceTrig, killTrig, dice);
 		return rest;
@@ -2514,7 +2528,7 @@ struct ZouSeq : BidooModule {
 		if (v >= period) {
 			const long long rest = v % period;
 			trackFirstPass[track] = false;
-			trackPlayedAtClock[currentPattern][track] -= (v - rest) * 8;
+			trackPlayedAtClock[currentPattern][track] -= (v - rest) * 24;
 			v = rest;
 		}
 		const bool forward = v < (long long)len * TICKS;
@@ -2535,7 +2549,7 @@ struct ZouSeq : BidooModule {
 		long long v = trackPlayed(track, step);
 		int &last = trackLastWhole[currentPattern][track];
 		if (v >= 1024LL * TICKS) {
-			trackPlayedAtClock[currentPattern][track] -= 1024LL * TICKS * 8;
+			trackPlayedAtClock[currentPattern][track] -= 1024LL * TICKS * 24;
 			last -= 1024;
 			v -= 1024LL * TICKS;
 		}

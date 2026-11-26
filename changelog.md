@@ -1,3 +1,7 @@
+### v2.7.7 (26/11/2026)
+Improvements
+- enCORE: a track Speed of x16/3, between x5 and x6: a step of 6 clocks, so a MIDI clock (24 PPQN) drives 16th-note steps. The speeds are counted in 24ths of a step inside (eighths before), the same timing at every other speed; patches keep their speeds
+
 ### v2.7.6 (26/11/2026)
 Improvements
 - REI: rebuilt around the controls of Bidoo's Grotte reverb, on the same Prism engine (now with Prism's new voicing: no metallic tail, calmer dense modulation, darker early reflections, a clean shimmer), 22 HP instead of 7. SPACE: STYLE (the eight algorithms, a knob instead of the menu), SIZE, STRETCH (the decay time against the size's own, 25 to 400 %), PREDELAY (0-300 ms) with SYNC (Off, 1/4 to 1/32 of the CLOCK) and OFFSET, FREEZE. CHARACTER: MOTION (the modulation, a knob instead of the menu), DENSITY, DEPTH, AIR, WIDTH, BUILD (sparse early reflections thickening into the tail), MIX. SHIMMER: SHIMMER, TONE (the shimmer's own high cut, darker each pass), INTERVAL. DYNAMICS: DUCK (up to 30 dB), an auto GATE with HOLD and SYNC. Input and output levels (+-24 dB) and pans, the clip switch, a CLOCK input (one pulse per quarter note, 120 BPM without it). Every continuous control has its CV input. Factory presets redone

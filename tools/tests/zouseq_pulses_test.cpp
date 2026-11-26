@@ -121,6 +121,44 @@ int main() {
 		delete o;
 	}
 
+	// speeds in 24ths: x16/3 (6 clocks a step) between x5 and x6; zOu MAi keeps x1/8 to x4
+	{
+		CHECK(E::NUM_SPEEDS == 14 && zouSpeedCount(4) == 9);
+		CHECK(std::string(zouSpeedLabels[10]) == "x16/3" && zouSpeed24ths[10] == 128);
+		auto clocksForStep = [&](int speedIndex) {
+			m->nTracksAttibutes[p][1].setTrackSpeed(speedIndex);
+			m->trackPlayedAtClock[p][1] = 0;
+			int clocks = 1;
+			while (m->trackPlayed(1, true) < 96)
+				clocks++;
+			return clocks;
+		};
+		CHECK(clocksForStep(10) == 6);     // x16/3
+		CHECK(clocksForStep(4) == 32);     // x1
+		CHECK(clocksForStep(0) == 256);    // x1/8
+		CHECK(clocksForStep(13) == 4);     // x8
+		m->nTracksAttibutes[p][1].setTrackSpeed(10);
+		m->trackPlayedAtClock[p][1] = 0;
+		for (int i = 0; i < 6; i++)
+			m->trackPlayed(1, true);
+		CHECK(m->trackPlayed(1, false) == 96);   // exactly one step, no remainder
+		for (int t = 0; t < E::NUM_TRACKS; t++)
+			m->nTracksAttibutes[p][t].setTrackSpeed(10);
+		CHECK(m->patternLengthTicks() == 16 * 6);
+		// the patch keeps the factor: x16/3, x6 and x3/4 come back on their knob positions
+		m->nTracksAttibutes[p][1].setTrackSpeed(11);
+		m->nTracksAttibutes[p][2].setTrackSpeed(3);
+		json_t *root = m->dataToJson();
+		E *o = new E();
+		o->dataFromJson(root);
+		CHECK(o->nTracksAttibutes[p][0].getTrackSpeed() == 10 && o->nTracksAttibutes[p][1].getTrackSpeed() == 11 && o->nTracksAttibutes[p][2].getTrackSpeed() == 3);
+		CHECK(E::speedFromFactor(6.0) == 11 && E::speedFromFactor(8.0) == 13 && E::speedFromFactor(0.125) == 0 && E::speedFromFactor(16.0 / 3.0) == 10);
+		json_decref(root);
+		delete o;
+		for (int t = 0; t < E::NUM_TRACKS; t++)
+			m->nTracksAttibutes[p][t].setTrackSpeed(TrackAttibutes::SPEED_X1);
+	}
+
 	delete m;
 	printf("%s (%d failures)\n", failures ? "FAILED" : "ok", failures);
 	return failures ? 1 : 0;
