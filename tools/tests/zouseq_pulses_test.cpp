@@ -1,5 +1,5 @@
-// zOù MAï / enCORE: pulse timing (Fit, detached ratchets), the musical knob table and the
-// 32 -> 96 tick conversion of enCORE patches. Builds against the Rack SDK (MSYS2 MinGW64, after
+// zOu MAi engine: pulse timing (Fit, detached ratchets), the musical knob table, the track speeds and the
+// conversion of a patch from an older grid, on an engine without interpolation on a grid of 96 ticks a step (the way the removed enCORE was built). Builds against the Rack SDK (MSYS2 MinGW64, after
 // a plugin build for quantizer.cpp.o) and runs next to a copy of the DLLs of an installed Rack:
 //   g++ -std=c++17 -O1 -Isrc/dep -I<SDK>/include -I<SDK>/dep/include -D_USE_MATH_DEFINES
 //       tools/tests/zouseq_pulses_test.cpp build/src/dep/quantizer.cpp.o -L<SDK> -lRack -static-libstdc++
@@ -8,12 +8,11 @@
 
 Plugin *pluginInstance = nullptr;
 Model *modelZOUMAIExpander = nullptr;
-Model *modelENCOREExpander = nullptr;
 // the theme part of BidooModule, not under test
 json_t *BidooModule::dataToJson() {return json_object();}
 void BidooModule::dataFromJson(json_t *) {}
 
-struct TestEncore {
+struct TestTicks {
 	static constexpr bool INTERPOLATE = false;
 	static constexpr int TICKS = 96;
 	static constexpr int UNITS_PER_CLOCK = 3;
@@ -25,10 +24,10 @@ struct TestEncore {
 	static constexpr int OLD_TICKS = 32;
 	static constexpr float PREVIEW_LENGTH = 0.5f, PREVIEW_DISTANCE = 0.03f;
 	static constexpr const char *QUANTIZED_LABEL = "Qnt.";
-	static constexpr const char *PANEL = "res/ENCORE.svg";
+	static constexpr const char *PANEL = "res/ZOUMAI.svg";
 	static Model *expanderModel() {return nullptr;}
 };
-using E = ZouSeq<TestEncore>;
+using E = ZouSeq<TestTicks>;
 
 static int failures = 0;
 #define CHECK(c) do { if (!(c)) { printf("FAILED line %d: %s\n", __LINE__, #c); failures++; } } while (0)
@@ -99,7 +98,7 @@ int main() {
 	for (int v : dist)
 		CHECK(m->timeFromKnob(m->timeToKnob(v, true), true) == v);
 
-	// an old enCORE patch (32 ticks a step) loads scaled by 3
+	// a patch from the older 32-tick grid loads scaled by 3
 	{
 		json_t *root = m->dataToJson();
 		json_object_del(root, "ticksPerStep");

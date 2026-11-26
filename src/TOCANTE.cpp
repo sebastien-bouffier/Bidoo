@@ -85,7 +85,7 @@ struct TOCANTE : BidooModule {
 		configOutput(OUT_SIXTEENTH, "Sixteenth");
 		configOutput(OUT_THIRTYSECOND, "Thirty-second");
 		configOutput(OUT_SIXTYFOURTH, "Sixty-fourth");
-		configOutput(OUT_ONEHUNDREDTWENTYEIGHTH, "Fast clock for zOù MAï (128 per quarter, 32 per 16th-note step)");
+		configOutput(OUT_ONEHUNDREDTWENTYEIGHTH, "/128: 128 pulses per quarter, 32 per 16th-note step, the clock of zOù MAï's enCORE clock mode");
 		configInput(RUN_INPUT, "Run toggle trigger");
 		configInput(RESET_INPUT, "Reset trigger");
 		configOutput(OUT_RESET, "Reset");
@@ -135,7 +135,7 @@ void TOCANTE::process(const ProcessArgs &args) {
 	bpm = clamp(base + fine, 1.f, 350.f);
 
 	// Grid of each output, in quarter notes. The bar and the beat follow the
-	// note value; the enCORE clock ticks 128 times per quarter (32 per step).
+	// note value; /128 ticks 128 times per quarter (32 per 16th-note step), for zOu MAi's enCORE clock mode.
 	double beatLength = 4.0 / ref;
 	double barLength = beats * beatLength;
 	const double grids[NUM_GRIDS] = {barLength, beatLength, 1.0 / 3.0, 1.0, 1.0 / 2.0, 1.0 / 4.0, 1.0 / 8.0, 1.0 / 16.0, 1.0 / 128.0};

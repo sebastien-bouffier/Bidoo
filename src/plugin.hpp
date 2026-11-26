@@ -19,8 +19,6 @@ extern Model *modelDTROY;
 extern Model *modelBORDL;
 extern Model *modelZOUMAI;
 extern Model *modelZOUMAIExpander;
-extern Model *modelENCORE;
-extern Model *modelENCOREExpander;
 extern Model *modelTOCANTE;
 extern Model *modelCHUTE;
 extern Model *modelRATEAU;

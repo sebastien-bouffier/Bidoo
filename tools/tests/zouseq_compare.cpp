@@ -1,4 +1,5 @@
-// zOu MAi / enCORE: sample-exact comparison of the engine against an older one (a baseline commit).
+// zOu MAi: sample-exact comparison of the engine against an older one (a baseline commit), in Step mode,
+// and checks of the enCORE clock mode.
 // Both modules run side by side on the same random patches and the same clock, reset, RUN, pattern,
 // fill and track-reset events, each with its own copy of Rack's random generator; every output
 // (gate, V/O, CV1, CV2 of the 8 tracks and the 4 polyphonic ones) must be equal on every sample.
@@ -19,11 +20,10 @@ namespace base {
 
 Plugin *pluginInstance = nullptr;
 Model *modelZOUMAIExpander = nullptr;
-Model *modelENCOREExpander = nullptr;
 json_t *BidooModule::dataToJson() {return json_object();}
 void BidooModule::dataFromJson(json_t *) {}
 
-// The traits of the baseline (Bidoo 2.7.7, src/ZOUMAI.cpp and src/ENCORE.cpp)
+// The traits of the baseline (Bidoo 2.7.7, src/ZOUMAI.cpp)
 namespace base {
 struct ZouMaiTraits {
 	static constexpr bool INTERPOLATE = true;
@@ -40,32 +40,14 @@ struct ZouMaiTraits {
 	static constexpr const char *PANEL = "res/ZOUMAI.svg";
 	static Model *expanderModel() {return nullptr;}
 };
-struct EncoreTraits {
-	static constexpr bool INTERPOLATE = false;
-	static constexpr int TICKS = 96;
-	static constexpr int UNITS_PER_CLOCK = 3;
-	static constexpr int KNOB_PER_STEP = 32;
-	static constexpr int MAX_SPEED = 8;
-	static constexpr int MIN_LENGTH = 3, MAX_LENGTH = 6144, DEFAULT_LENGTH = 45, SHORTEST_NOTE = 3;
-	static constexpr int MAX_DISTANCE = 96, DEFAULT_DISTANCE = 3;
-	static constexpr int MAX_TRIM = 95;
-	static constexpr int OLD_TICKS = 32;
-	static constexpr float PREVIEW_LENGTH = 0.5f, PREVIEW_DISTANCE = 0.03f;
-	static constexpr const char *QUANTIZED_LABEL = "Qnt.";
-	static constexpr const char *PANEL = "res/ENCORE.svg";
-	static Model *expanderModel() {return nullptr;}
-};
 }
 
-// The traits now (src/ZOUMAI.cpp and src/ENCORE.cpp), with no expander
+// The traits now (src/ZouTraits.hpp), with no expander
 #include "../../src/ZouTraits.hpp"
 struct NewZouMai : ZouMaiTraits {static Model *expanderModel() {return nullptr;}};
-struct NewEncore : EncoreTraits {static Model *expanderModel() {return nullptr;}};
 
 using BaseZ = base::ZouSeq<base::ZouMaiTraits>;
-using BaseE = base::ZouSeq<base::EncoreTraits>;
 using NewZ = ZouSeq<NewZouMai>;
-using NewE = ZouSeq<NewEncore>;
 
 // ---- random patches, as a patch file has them
 
@@ -74,10 +56,8 @@ static long long gateEdges = 0;   // rising gates seen, so that a run is known t
 static double uni() {return std::uniform_real_distribution<double>(0.0, 1.0)(gen);}
 static int irand(int lo, int hi) {return std::uniform_int_distribution<int>(lo, hi)(gen);}
 
-// a time in the patch's format: steps as reals (zOu MAi), ticks of 96 as integers (enCORE)
-static json_t *timeJ(bool encore, double steps) {
-	if (encore)
-		return json_integer((long long)std::llround(steps * 96.0));
+// a time in the patch's format: steps as reals
+static json_t *timeJ(double steps) {
 	return json_real(steps);
 }
 
@@ -88,12 +68,12 @@ static double musical(bool fine) {
 	return f[irand(0, 18)];
 }
 
-static json_t *makePatch(bool encore) {
+static json_t *makePatch() {
 	json_t *root = json_object();
 	json_object_set_new(root, "currentPattern", json_integer(0));
-	json_object_set_new(root, "ticksPerStep", json_integer(encore ? 96 : 1008000));
+	json_object_set_new(root, "ticksPerStep", json_integer(1008000));
 	static const double speeds[] = {0.125, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 16.0 / 3.0, 6, 7, 8};
-	const int nSpeeds = encore ? 14 : 9;   // the baseline zOu MAi stops at x4
+	const int nSpeeds = 9;   // the baseline zOu MAi stops at x4
 	const int patterns = irand(1, 3);
 	for (int p = 0; p < patterns; p++) {
 		json_t *patternJ = json_object();
@@ -128,15 +108,12 @@ static json_t *makePatch(bool encore) {
 				if (uni() < 0.2)
 					json_object_set_new(trigJ, "trigSlideType", json_true());
 				if (uni() < 0.3)
-					json_object_set_new(trigJ, "trim", timeJ(encore, (uni() * 2.0 - 1.0) * (encore ? 95.0 / 96.0 : 1.0)));
-				double len = musical(!encore);
-				if (encore)
-					len = std::max(len, 1 / 32.);
-				json_object_set_new(trigJ, "length", timeJ(encore, len));
+					json_object_set_new(trigJ, "trim", timeJ(uni() * 2.0 - 1.0));
+				json_object_set_new(trigJ, "length", timeJ(musical(true)));
 				if (uni() < 0.4) {
 					json_object_set_new(trigJ, "pulseCount", json_integer(irand(2, uni() < 0.8 ? 8 : 64)));
-					double dist = uni() < 0.3 ? 0.0 : std::min(musical(!encore), 1.0);
-					json_object_set_new(trigJ, "pulseDistance", timeJ(encore, dist));
+					double dist = uni() < 0.3 ? 0.0 : std::min(musical(true), 1.0);
+					json_object_set_new(trigJ, "pulseDistance", timeJ(dist));
 					if (uni() < 0.3)
 						json_object_set_new(trigJ, "distRamp", json_real(25.0 + uni() * 375.0));
 					if (uni() < 0.3)
@@ -194,16 +171,15 @@ static void setInputs(M &m, const std::vector<Event> &events, size_t &next, long
 }
 
 template <typename A, typename B>
-static bool compare(uint64_t seed, bool encore, double seconds, bool fastNew) {
+static bool compare(uint64_t seed, double seconds) {
 	gen.seed(seed);
 	const float sampleRates[] = {44100.f, 48000.f, 96000.f};
 	const float sr = sampleRates[irand(0, 2)];
-	json_t *patch = makePatch(encore);
+	json_t *patch = makePatch();
 	A *a = new A();
 	B *b = new B();
 	a->dataFromJson(patch);
 	b->dataFromJson(patch);
-	(void)fastNew;
 	json_decref(patch);
 
 	// track reset inputs: some patched
@@ -223,7 +199,7 @@ static bool compare(uint64_t seed, bool encore, double seconds, bool fastNew) {
 
 	// the clock: a period per clock that may drift, jump or jitter
 	const double step = sr * (0.08 + uni() * 0.3);               // samples a step
-	const double basePeriod = encore ? step / 32.0 : step;
+	const double basePeriod = step;
 	const int mode = irand(0, 3);                                // steady, drift, random, jitter
 	const long long total = (long long)(seconds * sr);
 	std::vector<long long> clocks;
@@ -306,7 +282,7 @@ static bool compare(uint64_t seed, bool encore, double seconds, bool fastNew) {
 				const float x = a->outputs[o].getVoltage(ci), y = b->outputs[o].getVoltage(ci);
 				if (std::memcmp(&x, &y, sizeof(float)) != 0 || a->outputs[o].getChannels() != b->outputs[o].getChannels()) {
 					printf("seed %llu (%s, %g Hz, clock mode %d): output %d channel %d differs at sample %lld: %g / %g\n",
-						(unsigned long long)seed, encore ? "enCORE" : "zOu MAi", sr, mode, o, ci, i, x, y);
+						(unsigned long long)seed, "zOu MAi", sr, mode, o, ci, i, x, y);
 					ok = false;
 					break;
 				}
@@ -320,10 +296,10 @@ static bool compare(uint64_t seed, bool encore, double seconds, bool fastNew) {
 	return ok;
 }
 
-// ---- zOu MAi's fast clock: the head moves on clocks only, 32 a step (6 at x16/3), and a change of
+// ---- zOu MAi's enCORE clock mode: the head moves on clocks only, 32 a step (6 at x16/3), and a change of
 // mode keeps every track where it is
 static int fastFailures = 0;
-#define FCHECK(c) do { if (!(c)) { printf("FAST CLOCK FAILED line %d: %s\n", __LINE__, #c); fastFailures++; } } while (0)
+#define FCHECK(c) do { if (!(c)) { printf("ENCORE MODE FAILED line %d: %s\n", __LINE__, #c); fastFailures++; } } while (0)
 
 static void fastClockChecks() {
 	Module::ProcessArgs args;
@@ -375,7 +351,7 @@ static void fastClockChecks() {
 		delete m;
 	}
 	{
-		// one clock a step, stopped half way between two clocks, then the fast clock: the head stays
+		// one clock a step, stopped half way between two clocks, then the enCORE mode: the head stays
 		NewZ *m = new NewZ();
 		long long frame = 0;
 		run(*m, 4800 * 5 + 2400, 4800, frame, nullptr, nullptr);
@@ -399,15 +375,13 @@ int main(int argc, char **argv) {
 	int failures = 0;
 	long long checked = 0;
 	for (int s = 1; s <= seeds; s++) {
-		if (!compare<BaseZ, NewZ>((uint64_t)s, false, seconds, false))
+		if (!compare<BaseZ, NewZ>((uint64_t)s, seconds))
 			failures++;
-		if (!compare<BaseE, NewE>((uint64_t)s, true, seconds, false))
-			failures++;
-		checked += 2;
+		checked++;
 	}
 	printf("%lld runs of %g s, %lld gates played, %d with a difference\n", checked, seconds, gateEdges, failures);
 	fastClockChecks();
-	printf("fast clock checks: %d failures\n", fastFailures);
-	printf("%s\n", failures || fastFailures ? "FAILED" : "ok: every output equal on every sample, fast clock checked");
+	printf("enCORE clock mode checks: %d failures\n", fastFailures);
+	printf("%s\n", failures || fastFailures ? "FAILED" : "ok: every output equal on every sample, enCORE clock mode checked");
 	return failures || fastFailures ? 1 : 0;
 }

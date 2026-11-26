@@ -272,7 +272,7 @@ struct ZouSeqExpanderWidget : BidooWidget {
 	ZouSeqExpanderWidget(E *module) {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, E::Traits::PANEL));
-		// The zOu MAi and ENCORE expanders share this widget: eight rows of fill, force and kill buttons with their CV
+		// The zOu MAi expander's widget: eight rows of fill, force and kill buttons with their CV
 		// jacks, the dice knob and jack, transpose, and the rotation trimpots and jacks. Every column already sits within
 		// 0.3 px of its label tag: each position keeps its old corner (specific), with the widget's own size.
 
