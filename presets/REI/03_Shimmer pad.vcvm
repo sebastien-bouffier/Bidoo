@@ -38,11 +38,22 @@
     {
       "value": 0.0,
       "id": 8
+    },
+    {
+      "value": 0.3,
+      "id": 9
+    },
+    {
+      "value": 0.5,
+      "id": 10
+    },
+    {
+      "value": 0.55,
+      "id": 11
     }
   ],
   "data": {
     "algo": 7,
-    "preDelay": 2,
-    "mod": 3
+    "preDelay": 2
   }
 }

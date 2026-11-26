@@ -12,6 +12,8 @@ using bidoo::dsp::reverb::PrismReverb;
 // network algorithms on 16 lines with diffused early reflections (smoother, less metallic tails than
 // FadaBox's eight lines, about twice the CPU).
 // Prism works on blocks: the wet signal comes 32 samples (0.7 ms at 48 kHz) late.
+// Since 2026-11-26 (10 HP, from Grotte): BUILD (sparse, distinct early reflections thickening into the tail), MOD
+// (the lines' modulation, a knob instead of a menu) and the shimmer's TONE (its loop's high cut, 1 to 12 kHz).
 struct REI : BidooModule {
 	enum ParamIds {
 		SIZE_PARAM,
@@ -23,6 +25,9 @@ struct REI : BidooModule {
 		SHIMM_PARAM,
 		SHIMMPITCH_PARAM,
 		CLIPPING_PARAM,
+		BUILDUP_PARAM,
+		MOD_PARAM,
+		TONE_PARAM,
 		NUM_PARAMS
 	};
 	enum InputIds {
@@ -36,6 +41,9 @@ struct REI : BidooModule {
 		SHIMMPITCH_INPUT,
 		DRY_INPUT,
 		WET_INPUT,
+		BUILDUP_INPUT,
+		MOD_INPUT,
+		TONE_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -54,6 +62,7 @@ struct REI : BidooModule {
 		static const std::vector<float> v {0.f, 10.f, 20.f, 40.f, 80.f, 150.f};
 		return v;
 	}
+	// the Modulation menu's values before MOD became a knob: a patch saved with the menu ("mod" in its data) gets its value
 	static const std::vector<float> &mods() {
 		static const std::vector<float> v {0.f, 0.15f, 0.3f, 0.5f, 0.75f, 1.f};
 		return v;
@@ -84,7 +93,6 @@ struct REI : BidooModule {
 	// context menu, saved with the patch
 	int algo = PrismReverb::Hall;
 	int preDelay = 1;
-	int mod = 2;
 
 	REI() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -100,6 +108,9 @@ struct REI : BidooModule {
 		configSwitch(SHIMMPITCH_PARAM, 0.f, NUM_INTERVALS - 1, 4.f, "Shimmer interval", intervals);
 		configButton(FREEZE_PARAM, "Freeze");
 		configSwitch(CLIPPING_PARAM, 0, 1, 0, "Output limit", {"Soft (under 10 V)", "Hard clip at 10 V"});
+		configParam(BUILDUP_PARAM, 0.f, 1.f, 0.f, "Build up (sparse early reflections first, thickening into the tail)", "%", 0.f, 100.f);
+		configParam(MOD_PARAM, 0.f, 1.f, mods()[2], "Modulation", "%", 0.f, 100.f);
+		configParam(TONE_PARAM, 0.f, 1.f, .4f, "Shimmer tone (its high cut, darker each pass)", " kHz", 12.f, 1.f);
 		configInput(IN_L_INPUT, "Left");
 		configInput(IN_R_INPUT, "Right (follows left when unpatched)");
 		configInput(SIZE_INPUT, "Decay CV (0-10 V: full range)");
@@ -110,6 +121,9 @@ struct REI : BidooModule {
 		configInput(SHIMMPITCH_INPUT, "Shimmer interval CV (1 V per step)");
 		configInput(DRY_INPUT, "Dry CV (0-10 V: full range)");
 		configInput(WET_INPUT, "Wet CV (0-10 V: full range)");
+		configInput(BUILDUP_INPUT, "Build up CV (0-10 V: full range)");
+		configInput(MOD_INPUT, "Modulation CV (0-10 V: full range)");
+		configInput(TONE_INPUT, "Shimmer tone CV (0-10 V: full range)");
 		configOutput(OUT_L_OUTPUT, "Left");
 		configOutput(OUT_R_OUTPUT, "Right");
 		configBypass(IN_L_INPUT, OUT_L_OUTPUT);
@@ -174,7 +188,6 @@ struct REI : BidooModule {
 	void onReset() override {
 		algo = PrismReverb::Hall;
 		preDelay = 1;
-		mod = 2;
 		freeze = false;
 		prism.reset();
 		prepareLoop(APP && APP->engine ? APP->engine->getSampleRate() : 48000.f);
@@ -186,7 +199,6 @@ struct REI : BidooModule {
 		json_t *rootJ = BidooModule::dataToJson();
 		json_object_set_new(rootJ, "algo", json_integer(algo));
 		json_object_set_new(rootJ, "preDelay", json_integer(preDelay));
-		json_object_set_new(rootJ, "mod", json_integer(mod));
 		return rootJ;
 	}
 
@@ -197,8 +209,9 @@ struct REI : BidooModule {
 			algo = clamp((int)json_integer_value(j), 0, PrismReverb::NumAlgos - 1);
 		if (json_t *j = json_object_get(rootJ, "preDelay"))
 			preDelay = clamp((int)json_integer_value(j), 0, (int)preDelays().size() - 1);
+		// MOD was a menu (saved as "mod", an index) until 2026-11-26; Rack reads the params first, so this wins
 		if (json_t *j = json_object_get(rootJ, "mod"))
-			mod = clamp((int)json_integer_value(j), 0, (int)mods().size() - 1);
+			params[MOD_PARAM].setValue(mods()[clamp((int)json_integer_value(j), 0, (int)mods().size() - 1)]);
 	}
 
 	// Patches of the gverb REI (2.1.1 and older, no "algo" in their data) keep
@@ -277,7 +290,9 @@ struct REI : BidooModule {
 			else {
 				settings.algo = algo;
 				settings.preMs = preDelays()[preDelay];
-				settings.mod = mods()[mod];
+				settings.mod = clamp(params[MOD_PARAM].getValue() + inputs[MOD_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
+				settings.buildUp = clamp(params[BUILDUP_PARAM].getValue() + inputs[BUILDUP_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
+				settings.shimmerTone = clamp(params[TONE_PARAM].getValue() + inputs[TONE_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
 				settings.decay = clamp(params[SIZE_PARAM].getValue() + inputs[SIZE_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
 				settings.damp = clamp(params[DAMP_PARAM].getValue() + inputs[DAMP_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
 				settings.shimmer = clamp(params[SHIMM_PARAM].getValue() + inputs[SHIMM_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
@@ -353,14 +368,27 @@ struct REIWidget : BidooWidget {
 			addInput(theme::input<TinyPJ301MPort>(leftCv.offset(kCvRight, kGroupPitch * i), module, rightCvIds[i]));
 		}
 
+		// 10 HP since 2026-11-26: a third column (BUILD, MOD, TONE, the panel's labels at the same x), each knob on the old
+		// rows with its CV jack straight under it, at the other CV jacks' height
+		const float kCol3X = 126.f;   // the panel's third column (its labels: the same x)
+		const int col3Ids[3] = {REI::BUILDUP_PARAM, REI::MOD_PARAM, REI::TONE_PARAM};
+		const int col3CvIds[3] = {REI::BUILDUP_INPUT, REI::MOD_INPUT, REI::TONE_INPUT};
+		for (int i = 0; i < 3; i++) {
+			addParam(theme::param<BidooBlueKnob>(theme::sameCol(theme::specific(kCol3X, 0), leftKnob.y).down(kGroupPitch * i), module, col3Ids[i]));
+			addInput(theme::input<TinyPJ301MPort>(theme::sameCol(theme::specific(kCol3X, 0), leftCv.y).down(kGroupPitch * i), module, col3CvIds[i]));
+		}
+
+		// the clipping switch and the stereo jacks: the 7 HP panel's places, moved to the middle of the 10 HP one (the
+		// panel's CLIPPING, IN and OUT moved with them)
+		const float kBottomRight = 22.5f;
 		const theme::Size kCKSSSize = {14.f, 20.64111f};   // CKSS
-		addParam(theme::param<CKSS>(theme::specificCorner(21, 289, kCKSSSize), module, REI::CLIPPING_PARAM));
+		addParam(theme::param<CKSS>(theme::specificCorner(21, 289, kCKSSSize).right(kBottomRight), module, REI::CLIPPING_PARAM));
 
 		const theme::Pos stereoRow = theme::specificCorner(8, 340, theme::kTinyJackSize);
-		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(14.594f, 0), stereoRow), module, REI::IN_L_INPUT));
-		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(38.125f, 0), stereoRow), module, REI::IN_R_INPUT));
-		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(67.281f, 0), stereoRow), module, REI::OUT_L_OUTPUT));
-		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(88.812f, 0), stereoRow), module, REI::OUT_R_OUTPUT));
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(14.594f, 0), stereoRow).right(kBottomRight), module, REI::IN_L_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(38.125f, 0), stereoRow).right(kBottomRight), module, REI::IN_R_INPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(67.281f, 0), stereoRow).right(kBottomRight), module, REI::OUT_L_OUTPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(88.812f, 0), stereoRow).right(kBottomRight), module, REI::OUT_R_OUTPUT));
 	}
 
 	void appendContextMenu(Menu *menu) override {
@@ -379,11 +407,6 @@ struct REIWidget : BidooWidget {
 			pre.push_back(rack::string::f("%g ms", ms));
 		menu->addChild(createIndexSubmenuItem("Pre-delay", pre,
 			[=]() { return module->preDelay; }, [=](size_t i) { module->preDelay = (int)i; }));
-		std::vector<std::string> mod;
-		for (float m : REI::mods())
-			mod.push_back(rack::string::f("%d%%", (int)std::round(m * 100.f)));
-		menu->addChild(createIndexSubmenuItem("Modulation", mod,
-			[=]() { return module->mod; }, [=](size_t i) { module->mod = (int)i; }));
 	}
 };
 

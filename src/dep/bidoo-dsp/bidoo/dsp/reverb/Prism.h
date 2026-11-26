@@ -121,6 +121,12 @@ public:
         // smooth to modulate (a short pitch bend in the tail instead of clicks)
         bool freeze = false;
         float glideMs = 0;
+        // (added for Bidoo VCV REI, 2026-11-26, from Grotte; the defaults keep the sound bit for bit) Build Up, 0..1:
+        // sparse, distinct early reflections that thicken into the tail (less input diffusion, less smearing of the
+        // dense mode's reflections, a weaker allpass in the FDN lines). shimmerTone, 0..1: the shimmer loop's high
+        // cut, 1 kHz (dark) to 12 kHz (bright), two poles, so each pass is darker; below 0 it follows DAMP as before
+        float buildUp = 0;
+        float shimmerTone = -1;
     };
 
     // dense: the FDN algorithms' 16-line voicing (see the top of this file), fixed until the next prepare()
@@ -207,7 +213,8 @@ private:
     static bool sameSettings (const Settings& a, const Settings& b)
     {
         return a.algo == b.algo && a.preMs == b.preMs && a.decay == b.decay && a.damp == b.damp && a.mod == b.mod && a.shimmer == b.shimmer
-               && a.interval == b.interval && a.freeze == b.freeze && a.glideMs == b.glideMs;
+               && a.interval == b.interval && a.freeze == b.freeze && a.glideMs == b.glideMs && a.buildUp == b.buildUp
+               && a.shimmerTone == b.shimmerTone;
     }
     void clear(); // the buffers and the running state, for reset() and a change of algorithm
     void processFinite (const float* inL, const float* inR, float* outL, float* outR, int n, const Settings& s);
@@ -226,11 +233,12 @@ private:
     // input
     Line preL, preR;
     std::array<Allpass, 4> inDiffL, inDiffR;
-    float inDiffGain = 0.6f;
+    float inDiffGain = 0.6f, inDiffBase = 0.6f; // the gain used, and the algorithm's (Build Up lowers it)
     // early reflections (from the predelayed input)
     std::array<int, kEr> erTimeL {}, erTimeR {};
     std::array<float, kEr> erGain {};
     std::array<Allpass, 2> erApL, erApR; // dense: the reflections smeared by two allpasses a side
+    float erApG = 1;                     // their gains' scale (Build Up: less smearing)
     bool dense = false;
     int nLines = 8, nEr = 8;
     float erLevel = 0;
@@ -240,7 +248,7 @@ private:
     std::array<float, kLines> baseLen {}, gain {}, dampB {}, dampZ {}, dcZ {}, lfoPhase {}, lfoInc {}, lfoNow {};
     std::array<float, kLines> curLen {}; // the lengths read now: baseLen, or gliding towards it (Settings::glideMs)
     std::array<float, kLines> lens16 {}; // dense: the sixteen lengths (ms) of the algorithm
-    float apGain = 0.3f, dampA = 0.5f, modDepth = 0, lenGlide = 0;
+    float apGain = 0.3f, apBase = 0.3f, dampA = 0.5f, modDepth = 0, lenGlide = 0;
     bool snapLen = true;
     // spring tanks
     struct Tank
@@ -680,7 +688,7 @@ inline void PrismReverb::configure (const Settings& s)
                 inDiffL[(size_t) i].setLength ((int) (d.diff[(size_t) i] * ms));
                 inDiffR[(size_t) i].setLength ((int) (d.diff[(size_t) i] * 1.13f * ms));
             }
-            inDiffGain = d.diffGain;
+            inDiffBase = d.diffGain;
             for (int i = 0; i < 8; ++i)
             {
                 if (dense)
@@ -692,7 +700,7 @@ inline void PrismReverb::configure (const Settings& s)
                 lineAp2[(size_t) i].setLength ((int) (d.apMs * (0.31f + 0.067f * (float) ((i * 3) % 8)) * ms));
             }
             erLevel = d.er;
-            apGain = d.apGain;
+            apBase = d.apGain;
             outGain = d.level * 0.55f;
             if (dense)
             {
@@ -741,7 +749,7 @@ inline void PrismReverb::configure (const Settings& s)
                 inDiffL[(size_t) i].setLength ((int) (diff[i] * ms));
                 inDiffR[(size_t) i].setLength ((int) (diff[i] * 1.17f * ms));
             }
-            inDiffGain = a == Spring ? 0.3f : 0.6f;
+            inDiffBase = a == Spring ? 0.3f : 0.6f;
             erLevel = 0;
             outGain = a == Spring ? 0.7f : 0.7f;
             outDiffL[0].setLength ((int) (1.7f * ms));
@@ -750,6 +758,16 @@ inline void PrismReverb::configure (const Settings& s)
             outDiffR[1].setLength ((int) (3.9f * ms));
         }
         lastBurstDecay = -1;
+    }
+
+    {
+        // Build Up (Grotte's, 2026-11-26): less input diffusion and less smearing of the reflections, so the first
+        // echoes stay distinct, and a weaker allpass in the lines, so density grows pass after pass through the
+        // matrix instead of at once (the same energy: allpasses only). 0 multiplies by exactly 1: as before
+        const float bu = prism_detail::clampf (s.buildUp, 0.0f, 1.0f);
+        inDiffGain = inDiffBase * (1.0f - 0.8f * bu);
+        apGain = apBase * (1.0f - 0.7f * bu);
+        erApG = 1.0f - bu;
     }
 
     preTarget = std::max (1, (int) (prism_detail::clampf (s.preMs, 0.0f, 300.0f) * sr * 0.001f));
@@ -837,8 +855,10 @@ inline void PrismReverb::configure (const Settings& s)
         shiftL.setRatio (shimRatio * detune);
         shiftR.setRatio (shimRatio2 / detune);
     }
-    // DAMP darkens the climbing octaves (two poles in the loop, each pass darker): 6 kHz open, 1.8 kHz dark
-    const float shimLpHz = kShimLpHz * std::pow (0.3f, prism_detail::clampf (s.damp, 0.0f, 1.0f));
+    // DAMP darkens the climbing octaves (two poles in the loop, each pass darker): 6 kHz open, 1.8 kHz dark; or
+    // shimmerTone sets it on its own, 1 to 12 kHz (Grotte's TONE)
+    const float shimLpHz = s.shimmerTone >= 0.0f ? 1000.0f * std::pow (12.0f, prism_detail::clampf (s.shimmerTone, 0.0f, 1.0f))
+                                                 : kShimLpHz * std::pow (0.3f, prism_detail::clampf (s.damp, 0.0f, 1.0f));
     shimLpA = 1.0f - std::exp (-prism_detail::kTwoPiF * std::min (shimLpHz, sr * 0.45f) / sr);
     // the early reflections: 9 kHz open, 4 kHz dark
     const float erHz = 9000.0f * std::pow (4000.0f / 9000.0f, prism_detail::clampf (s.damp, 0.0f, 1.0f));
@@ -1106,8 +1126,8 @@ inline int PrismReverb::run (const float* inL, const float* inR, float* outL, fl
             eR = erLpR;
             if (dense)
             {
-                eL = erApL[1].process (erApL[0].process (eL, 0.6f), 0.55f);
-                eR = erApR[1].process (erApR[0].process (eR, 0.6f), 0.55f);
+                eL = erApL[1].process (erApL[0].process (eL, 0.6f * erApG), 0.55f * erApG);
+                eR = erApR[1].process (erApR[0].process (eR, 0.6f * erApG), 0.55f * erApG);
             }
             oL += inGate * erLevel * 0.5f * eL;
             oR += inGate * erLevel * 0.5f * eR;
