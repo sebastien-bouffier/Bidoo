@@ -1,8 +1,7 @@
 # REI's panel (26 HP, 2026-11-26): Grotte's controls on Prism, grouped by theme. The picture is the old hand-drawn
 # panel's (rei_parts.svg), stretched over the new width. Three rows of seven cells: a knob (or a button) on the left of
 # its cell and its small CV jack on the right at the same height, joined by a level line, the label above the cell; a
-# group's name above its cells, between two rules, and a thin line between the groups of a row; then the small controls
-# and the jacks in boxes. The cells, rows and offsets are the same in src/REI.cpp (kCells, kRowY, kKnobDx, kJackDx).
+# group's name above its cells, between two rules; then the small controls and the jacks in boxes. The cells, rows and offsets are the same in src/REI.cpp (kCells, kRowY, kKnobDx, kJackDx).
 import os, re
 import panel_kit as k
 
@@ -26,7 +25,7 @@ CELLS = (
     (0, 2, 'SHIMMER', True), (1, 2, 'TONE', True), (2, 2, 'INTERVAL', True), (3, 2, 'DUCK', True),
     (4, 2, 'GATE', True), (5, 2, 'HOLD', True), (6, 2, 'SYNC', False),
 )
-# (first column, last column, row, name or None): the groups; a line separates two groups of a row
+# (first column, last column, row, name or None): the groups
 GROUPS = (
     (0, 5, 0, 'SPACE'), (6, 6, 0, None),
     (0, 5, 1, 'CHARACTER'), (6, 6, 1, None),
@@ -59,11 +58,6 @@ def build():
             mid, ym = (left + right) / 2, y - 2.5
             out.append(line(left, ym, mid - half, ym))
             out.append(line(mid + half, ym, right, ym))
-        if i0 > 0:
-            # a thin line between this group and the one on its left, from the name's height to the knobs' bottom
-            # (halfway between the left group's last jack and this group's first knob, 14.76 px its radius)
-            x = (k.col(i0 - 1, N, PW) + JACK_DX + 7.5 + k.col(i0, N, PW) - KNOB_DX - 14.76) / 2
-            out.append(line(x, y - 6, x, ROW_Y[r] + 15))
     for i, r, label, jack in CELLS:
         x, y = k.col(i, N, PW), ROW_Y[r]
         if jack:
