@@ -2,7 +2,7 @@
 Removed
 - µ and dFUZE: patches that use them open without them
 Improvements
-- aCiDe: a silent voice no longer computes anything: a polyphonic cable of 16 channels with 3 notes playing costs about 3 times less CPU. A note after a silence starts at another point of the oscillator's cycle; same level, no click
+- aCiDe: a silent voice no longer computes anything (sound, filter or its settings): only the voices playing cost CPU; with zOù MAï's 8 tracks and 2 or 3 playing, about 2.4 times less. A note after a silence starts at another point of the oscillator's cycle; same level, no click
 - lIMbO: four channels computed at once: 16 channels 2.4 times lighter, 4 channels 2.4 times, mono a little lighter; same sound
 
 ### v2.7.4 (26/11/2026)

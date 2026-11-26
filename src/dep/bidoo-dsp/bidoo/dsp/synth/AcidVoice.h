@@ -168,6 +168,8 @@ public:
     void setAccent (double a01) noexcept { accentAmount = clamp01 (a01); }
     void setSquare (bool square) noexcept { waveTarget = square ? 1.0 : 0.0; }
     void setTune (double volts) noexcept { tune = volts; lastVolts = 1.0e9; }
+    // A silent voice skips its work (on by default); off, it runs all the time as before 2026-11-26 (tests compare).
+    void setSkipWhenSilent (bool skip) noexcept { skipSilent = skip; }
 
     // ---- what a test or a screen may want to see
     double megValue() const noexcept { return meg; }
@@ -213,23 +215,24 @@ public:
         vcaAccent += cAccentVca * ((accentLatched ? accentAmount * meg : 0.0) - vcaAccent);
         stepVeg();
 
+        // Silent: the VCA is shut (VEG off, the accent path under -125 dB) and the accent sweep has drained, so nothing
+        // of the oscillator, the ladder or their control can be heard: skip them all. A poly cable gives every channel
+        // a voice, most of them silent. A new note opens the VCA only after its 4 ms delay, which the control (at once:
+        // tick 0), the oscillator and the ladder use to start again: no click, the same level; only the oscillator's
+        // phase at that note differs (it is free running anyway).
+        if (skipSilent && vegStage == VegOff && vcaAccent < 1.0e-8 && sweepCap < 1.0e-6)
+        {
+            tick = 0;
+            g = gTarget;
+            K = kTarget;
+            wave = waveTarget;
+            return 0.f;
+        }
+
         if (--tick <= 0)
         {
             tick = ctrlSamples;
             tickControl (ctrlPeriod);
-        }
-
-        // Silent: the VCA is shut (VEG off, the accent path under -125 dB), so nothing of the oscillator or the ladder
-        // can be heard: skip them. A poly cable gives every channel a voice, most of them silent. A new note opens the
-        // VCA only after its 4 ms delay, which the oscillator and ladder use to start again: no click, the same level;
-        // only the oscillator's phase at that note differs (it is free running anyway).
-        if (vegStage == VegOff && vcaAccent < 1.0e-8)
-        {
-            g = gTarget;
-            K = kTarget;
-            wave = waveTarget;
-            outGain += outStep;
-            return 0.f;
         }
 
         // oscillator and filter, at the oversampled rate
@@ -513,5 +516,6 @@ private:
     double K = 0.0, kTarget = 0.0, kStep = 0.0;
     double lastHz = 0.0;
     double outGain = 1.0, outStep = 0.0;
+    bool skipSilent = true;
 };
 } // namespace bidoo::dsp
