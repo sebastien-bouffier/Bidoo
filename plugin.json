@@ -43,16 +43,6 @@
       ]
     },
     {
-      "slug": "MU",
-      "name": "µ",
-      "description": "Synced pulse generator",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki/MU",
-      "tags": [
-        "Logic",
-        "Sequencer"
-      ]
-    },
-    {
       "slug": "RATEAU",
       "name": "ratEaU",
       "description": "Gate generator",
@@ -315,16 +305,6 @@
       "tags": [
         "Dynamics"
         ,"Effect","Compressor"
-      ]
-    },
-    {
-      "slug": "dFUZE",
-      "name": "dFUZE",
-      "description": "Reverb",
-      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki/dFUZE",
-      "tags": [
-        "Reverb"
-        ,"Effect"
       ]
     },
     {
