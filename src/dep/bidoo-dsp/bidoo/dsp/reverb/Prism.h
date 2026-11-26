@@ -285,7 +285,8 @@ private:
         float t60 = -1, hfRatio = -1;
         std::array<float, kLines> len {};
         std::array<float, kStretchPoints> curve {};
-        bool operator== (const StretchKey&) const = default;
+        // (by hand: the VCV copy builds as C++17, no defaulted comparison)
+        bool operator== (const StretchKey& o) const { return t60 == o.t60 && hfRatio == o.hfRatio && len == o.len && curve == o.curve; }
     } stretchKey;
     // spring tanks
     struct Tank
