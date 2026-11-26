@@ -360,38 +360,37 @@ struct BAFISWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel: three frequency knobs with their CV jacks over the filter-shape drawing; four
-		// columns of Q, gain, type, pre/post and volume, each with its tiny CV jack; IN and OUT. Old corners kept (each
-		// column's members within 0.5 px of each other; the rows have no labels to align to), except IN and OUT, now on
-		// their boxes' centres (OUT was 0.6 px left).
-		const float kFreqRight = 35.f;   // across, for the frequency knobs and the four columns
-		const theme::Size kSmallKnobSize = {mm2px(8.f), mm2px(8.f)};   // BidooSmallBlueKnob
-		const theme::Size kCKSSSize = {14.f, 20.64111f};               // CKSS
-		const theme::Pos freq = theme::specificCorner(25, 30, theme::kBlueKnobSize);
-		const theme::Pos freqCv = theme::specificCorner(32, 62, theme::kTinyJackSize);
-		for (int i = 0; i < 3; i++)
-			addParam(theme::param<BidooBlueKnob>(freq.right(kFreqRight * i), module, BAFIS::FREQ_PARAM + i));
-		for (int i = 0; i < 3; i++)
-			addInput(theme::input<TinyPJ301MPort>(freqCv.right(kFreqRight * i), module, BAFIS::FREQ_INPUT + i));
-		const theme::Pos q = theme::specificCorner(11, 85, kSmallKnobSize);
-		const theme::Pos qCv = theme::specificCorner(15, 111, theme::kTinyJackSize);
-		const theme::Pos prePost = theme::specificCorner(16, 218, kCKSSSize);
-		for (int i = 0; i < 4; i++) {
-			const float dx = kFreqRight * i;
-			addParam(theme::param<BidooSmallBlueKnob>(q.right(dx), module, BAFIS::Q_PARAM + i));
-			addInput(theme::input<TinyPJ301MPort>(qCv.right(dx), module, BAFIS::Q_INPUT + i));
-			addParam(theme::param<BidooSmallBlueKnob>(q.offset(dx, 44), module, BAFIS::GAIN_PARAM + i));
-			addInput(theme::input<TinyPJ301MPort>(qCv.offset(dx, 44), module, BAFIS::GAIN_INPUT + i));
-			addParam(theme::param<BidooSmallSnapBlueKnob>(q.offset(dx, 88), module, BAFIS::TYPE_PARAM + i));
-			addInput(theme::input<TinyPJ301MPort>(qCv.offset(dx, 88), module, BAFIS::TYPE_INPUT + i));
-			addParam(theme::param<CKSS>(prePost.right(dx), module, BAFIS::PREPOST_PARAM + i));
-			addInput(theme::input<TinyPJ301MPort>(qCv.offset(dx, 131), module, BAFIS::PREPOST_INPUT + i));
-			addParam(theme::param<BidooSmallBlueKnob>(q.offset(dx, 176), module, BAFIS::VOLUME_PARAM + i));
-			addInput(theme::input<TinyPJ301MPort>(qCv.offset(dx, 176), module, BAFIS::VOLUME_INPUT + i));
+		// Placed as tools/panels/bafis.py draws them (15 HP since 2026-11-26): every control with its small CV jack on its
+		// right, joined by the panel's level line. Three crossover knobs on the crossovers between the four bands; four
+		// columns of Q, gain, type, pre/post and volume at the old panel's row heights (off the grid, as before); IN and
+		// OUT in their boxes on the grid's bottom row.
+		const float kLeft = 14.f;                                         // bafis.py LEFT: the row names before it
+		const float kFreqY = 44.76f;                                      // bafis.py FREQ_Y
+		const float kRowY[5] = {96.81f, 140.81f, 184.81f, 228.32f, 272.81f};   // bafis.py ROW_Y
+		const float kKnobDx = 11.f, kJackDx = 13.f;                       // bafis.py KNOB_DX, JACK_DX
+		const float kFreqKnobDx = 12.f, kFreqJackDx = 14.5f;              // bafis.py FREQ_KNOB_DX, FREQ_JACK_DX
+		const float pitch = (box.size.x - kLeft - theme::kSideMargin) / 4.f;
+		auto bandX = [&](float i) { return kLeft + pitch * (i + 0.5f); };
+		for (int i = 0; i < 3; i++) {
+			const theme::Pos c = theme::specific(bandX(i + 0.5f), kFreqY);   // the crossover between bands i and i + 1
+			addParam(theme::param<BidooBlueKnob>(c.right(-kFreqKnobDx), module, BAFIS::FREQ_PARAM + i));
+			addInput(theme::input<TinyPJ301MPort>(c.right(kFreqJackDx), module, BAFIS::FREQ_INPUT + i));
 		}
-		const theme::Pos ioRow = theme::specificCorner(6.8f, 330, theme::kJackSize);
-		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(19.156f, 0), ioRow), module, BAFIS::IN));     // the IN box's centre
-		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(130.844f, 0), ioRow), module, BAFIS::OUT));  // the OUT box's centre
+		for (int i = 0; i < 4; i++) {
+			auto cell = [&](int row) { return theme::specific(bandX(i), kRowY[row]); };
+			addParam(theme::param<BidooSmallBlueKnob>(cell(0).right(-kKnobDx), module, BAFIS::Q_PARAM + i));
+			addInput(theme::input<TinyPJ301MPort>(cell(0).right(kJackDx), module, BAFIS::Q_INPUT + i));
+			addParam(theme::param<BidooSmallBlueKnob>(cell(1).right(-kKnobDx), module, BAFIS::GAIN_PARAM + i));
+			addInput(theme::input<TinyPJ301MPort>(cell(1).right(kJackDx), module, BAFIS::GAIN_INPUT + i));
+			addParam(theme::param<BidooSmallSnapBlueKnob>(cell(2).right(-kKnobDx), module, BAFIS::TYPE_PARAM + i));
+			addInput(theme::input<TinyPJ301MPort>(cell(2).right(kJackDx), module, BAFIS::TYPE_INPUT + i));
+			addParam(theme::param<CKSS>(cell(3).right(-kKnobDx), module, BAFIS::PREPOST_PARAM + i));
+			addInput(theme::input<TinyPJ301MPort>(cell(3).right(kJackDx), module, BAFIS::PREPOST_INPUT + i));
+			addParam(theme::param<BidooSmallBlueKnob>(cell(4).right(-kKnobDx), module, BAFIS::VOLUME_PARAM + i));
+			addInput(theme::input<TinyPJ301MPort>(cell(4).right(kJackDx), module, BAFIS::VOLUME_INPUT + i));
+		}
+		addInput(theme::input<PJ301MPort>(theme::jackAt(0, 4, 0, box.size.x), module, BAFIS::IN));
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(3, 4, 0, box.size.x), module, BAFIS::OUT));
 	}
 };
 
