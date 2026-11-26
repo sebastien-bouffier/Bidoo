@@ -1,6 +1,6 @@
 {
   "slug": "Bidoo",
-  "version": "2.7.7",
+  "version": "2.7.8",
   "license": "GPL-3.0-or-later",
   "name": "Bidoo",
   "brand": "Bidoo",
@@ -92,6 +92,7 @@
     },
     {
       "slug": "ENCORE",
+      "hidden": true,
       "name": "enCORE",
       "description": "Sequencer",
       "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki/ENCORE",
@@ -101,6 +102,7 @@
     },
     {
       "slug": "ENCORE-Expander",
+      "hidden": true,
       "name": "enCORE Expander",
       "description": "Expander for enCORE",
       "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki/ENCORE-Expander",

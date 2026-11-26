@@ -1,3 +1,11 @@
+### v2.7.8 (26/11/2026)
+Improvements
+- zOù MAï: a Fast clock (context menu): 32 clocks a step at Speed x1 and the playhead moving on clocks only, so it follows a fast clock exactly, even one that swings or changes speed inside a step (what enCORE did), with zOù MAï's own knobs, lengths and trims. Switching keeps every track where it is; the track title shows "fast clock". Off (the default), zOù MAï plays exactly as before: checked sample by sample against 2.7.7 on random patches, clocks, resets and pattern changes (tools/tests/zouseq_compare.cpp)
+- zOù MAï: track speeds up to x8, with x5, x16/3 (6 clocks a step with the Fast clock, a 24 PPQN clock with 16th-note steps), x6 and x7
+- tOCAnTe: the 128-per-quarter output's tooltip names it the clock for zOù MAï's Fast clock
+Hidden
+- enCORE and the enCORE Expander are hidden from the module browser: zOù MAï's Fast clock replaces them. Patches that use them still open and play exactly as before (checked sample by sample against 2.7.7)
+
 ### v2.7.7 (26/11/2026)
 Improvements
 - enCORE: a track Speed of x16/3, between x5 and x6: a step of 6 clocks, so a MIDI clock (24 PPQN) drives 16th-note steps. The speeds are counted in 24ths of a step inside (eighths before), the same timing at every other speed; patches keep their speeds

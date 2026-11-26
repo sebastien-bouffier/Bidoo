@@ -85,7 +85,7 @@ struct TOCANTE : BidooModule {
 		configOutput(OUT_SIXTEENTH, "Sixteenth");
 		configOutput(OUT_THIRTYSECOND, "Thirty-second");
 		configOutput(OUT_SIXTYFOURTH, "Sixty-fourth");
-		configOutput(OUT_ONEHUNDREDTWENTYEIGHTH, "enCORE clock (128 per quarter)");
+		configOutput(OUT_ONEHUNDREDTWENTYEIGHTH, "Fast clock for zOù MAï (128 per quarter, 32 per 16th-note step)");
 		configInput(RUN_INPUT, "Run toggle trigger");
 		configInput(RESET_INPUT, "Reset trigger");
 		configOutput(OUT_RESET, "Reset");

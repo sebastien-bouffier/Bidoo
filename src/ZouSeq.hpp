@@ -15,10 +15,13 @@
 using namespace std;
 
 // The engine, widgets and menus shared by ZOUMAI and ENCORE: 16 patterns of 8
-// tracks of 64 trigs. TRAITS holds what differs: ZOUMAI's playhead also moves
-// between clocks, ENCORE's only moves on a clock. Everything is resolved at
-// compile time: no virtual call and no test per sample. Patches depend on the
-// ids, the JSON keys and the expander messages here.
+// tracks of 64 trigs. TRAITS (ZouTraits.hpp) holds what differs: ZOUMAI's playhead
+// also moves between clocks, ENCORE's only moves on a clock. ZOUMAI also has a fast
+// clock (context menu, fastClock): 32 clocks a step and the head moving on clocks
+// only, as ENCORE's, on ZOUMAI's own grid and knobs; ENCORE is hidden since then and
+// kept for its patches. The rest is resolved at compile time, and with the fast clock
+// off ZOUMAI computes exactly what it did before it (tools/tests/zouseq_compare.cpp).
+// Patches depend on the ids, the JSON keys and the expander messages here.
 //
 // Timing is exact: every position, trim, length and distance is an integer, in
 // units of 1/TICKS of a step (ZOUMAI 1/1008000, which holds tenths, thousandths,
@@ -367,7 +370,8 @@ struct ZouSeq : BidooModule {
 	static constexpr int NUM_PATTERNS = 16;
 	static constexpr int NUM_TRACKS = 8;
 	static constexpr int NUM_TRIGS = 64;
-	static constexpr int NUM_SPEEDS = zouSpeedCount(TRAITS::MAX_SPEED);
+	// Every speed on the knob, x1/8 to x8, also on ZOUMAI (MAX_SPEED: the fastest a randomize picks).
+	static constexpr int NUM_SPEEDS = NUM_ZOU_SPEEDS;
 
 	using Traits = TRAITS;
 	using Time = int;
@@ -376,6 +380,8 @@ struct ZouSeq : BidooModule {
 	static constexpr int TICKS = TRAITS::TICKS;
 	// Clocks a step lasts at x1.
 	static constexpr int CLOCKS_PER_STEP = TRAITS::TICKS / TRAITS::UNITS_PER_CLOCK;
+	// ZOUMAI's fast clock: the clocks a step.
+	static constexpr int FAST_CLOCKS_PER_STEP = 32;
 	// A knob holds a trig's time as a float, in steps (ZOUMAI) or ticks (ENCORE).
 	static float toKnob(const Time t) {return (float)((double)t * TRAITS::KNOB_PER_STEP / TICKS);}
 	static Time fromKnob(const float v) {return (Time)std::llround((double)v * TICKS / TRAITS::KNOB_PER_STEP);}
@@ -605,6 +611,28 @@ struct ZouSeq : BidooModule {
 	long clockCount = -1;
 	// Samples left in which a clock still belongs to the reset before it.
 	long resetHold = 0;
+	// ZOUMAI's context menu: 32 clocks a step and the head moving on clocks only (ENCORE's way of
+	// following the clock), with ZOUMAI's grid and knobs. The engine takes a change on its next
+	// sample (fastClockApplied), keeping where every track is.
+	bool fastClock = false;
+	bool fastClockApplied = false;
+	// The head moves between clocks: ZOUMAI without its fast clock.
+	bool interpolating() const {
+		if constexpr (INTERPOLATE)
+			return !fastClock;
+		else
+			return false;
+	}
+	// Units a clock plays at x1, and the clocks a step.
+	int unitsPerClock() const {
+		if constexpr (INTERPOLATE)
+			return fastClock ? TICKS / FAST_CLOCKS_PER_STEP : TRAITS::UNITS_PER_CLOCK;
+		else
+			return TRAITS::UNITS_PER_CLOCK;
+	}
+	int clocksPerStep() const {
+		return TICKS / unitsPerClock();
+	}
 	bool noteIncoming = false;
 	bool globalReset = false;
 	bool clockTrigged = false;
@@ -636,8 +664,8 @@ struct ZouSeq : BidooModule {
 	int trigPitchRamp[NUM_PATTERNS][NUM_TRACKS][NUM_TRIGS] = {{{0}}};
 	int trigDistRamp[NUM_PATTERNS][NUM_TRACKS][NUM_TRIGS] = {{{0}}};
 	Time trackHead[NUM_PATTERNS][NUM_TRACKS] = {};
-	// What the track has played: at its last clock, in eighths of a unit, as a
-	// speed is in eighths; and since that clock, see Interpolation.
+	// What the track has played: at its last clock, in 24ths of a unit, as a
+	// speed is in 24ths; and since that clock, see Interpolation.
 	long long trackPlayedAtClock[NUM_PATTERNS][NUM_TRACKS] = {{0}};
 	int trackLastWhole[NUM_PATTERNS][NUM_TRACKS] = {{0}};
 	// ZOUMAI: floor(j * perClock / clockInterval) units j samples after a clock,
@@ -1043,6 +1071,8 @@ struct ZouSeq : BidooModule {
 		json_object_set_new(rootJ, "ticksPerStep", json_integer(TICKS));
 		if (freeTimes)
 			json_object_set_new(rootJ, "freeTimes", json_true());
+		if (fastClock)
+			json_object_set_new(rootJ, "fastClock", json_true());
     for(size_t i=0; i<NUM_TRACKS; i++) {
       json_object_set_new(rootJ, ("label" + to_string(i)).c_str(), json_string(labels[i].c_str()));
     }
@@ -1159,6 +1189,10 @@ struct ZouSeq : BidooModule {
 		if (trigPageJ)
 			trigPage = json_integer_value(trigPageJ);
 		freeTimes = json_is_true(json_object_get(rootJ, "freeTimes"));
+		if constexpr (INTERPOLATE) {
+			fastClock = fastClockApplied = json_is_true(json_object_get(rootJ, "fastClock"));
+			updateClockInfo();
+		}
 		// ENCORE's times are ticks: a patch from the 32-tick grid is scaled up (exactly)
 		int timeScale = 1;
 		if constexpr (!INTERPOLATE) {
@@ -2215,7 +2249,7 @@ struct ZouSeq : BidooModule {
 		const Time trim = trigTrim[currentPattern][track][trig];
 		const Time swing = trackSwingUnits[currentPattern][track];
 		if (swing != 0 && (index & 1)) {
-			const Time room = INTERPOLATE ? TICKS / 64 : (nTracksAttibutes[currentPattern][track].getTrackSpeed24ths() * TRAITS::UNITS_PER_CLOCK + 23) / 24;
+			const Time room = interpolating() ? TICKS / 64 : (nTracksAttibutes[currentPattern][track].getTrackSpeed24ths() * unitsPerClock() + 23) / 24;
 			return index * TICKS + std::min(trim + swing, TICKS - room);
 		}
 		return index * TICKS + trim;
@@ -2245,7 +2279,7 @@ struct ZouSeq : BidooModule {
 		for (int i = 0; i < NUM_TRACKS; i++) {
 			TrackAttibutes &t = nTracksAttibutes[currentPattern][i];
 			int speed = t.getTrackSpeed24ths();
-			ticks = std::max(ticks, (t.getTrackLength() * CLOCKS_PER_STEP * 24 + speed - 1) / speed);
+			ticks = std::max(ticks, (t.getTrackLength() * clocksPerStep() * 24 + speed - 1) / speed);
 		}
 		return ticks;
 	}
@@ -2316,11 +2350,11 @@ struct ZouSeq : BidooModule {
 		// In 24ths of a position, as clocks.
 		const int pass = (t.getTrackReadMode() == 2) ? std::max(2 * len - 2, 1) : len;
 		int left = (patternLengthTicks() - patternClock) * speed;
-		if constexpr (INTERPOLATE)
+		if (interpolating())
 			left -= (int)((long long)trackInterpolation[currentPattern][track].value * 24 / TICKS);
 		if (ahead)
-			left -= CLOCKS_PER_STEP * 24;
-		return left <= pass * CLOCKS_PER_STEP * 24;
+			left -= clocksPerStep() * 24;
+		return left <= pass * clocksPerStep() * 24;
 	}
 
 	// Decides whether a trig plays. A FIRST or LAST trig is decided again when the
@@ -2437,7 +2471,7 @@ struct ZouSeq : BidooModule {
 		Interpolation &in = trackInterpolation[currentPattern][track];
 		in = Interpolation();
 		if (clockInterval > 0) {
-			const long long perClock = (long long)nTracksAttibutes[currentPattern][track].getTrackSpeed24ths() * TRAITS::UNITS_PER_CLOCK / 24;
+			const long long perClock = (long long)nTracksAttibutes[currentPattern][track].getTrackSpeed24ths() * unitsPerClock() / 24;
 			in.quotient = perClock / clockInterval;
 			in.remainder = perClock % clockInterval;
 			if (j > 0) {
@@ -2456,7 +2490,7 @@ struct ZouSeq : BidooModule {
 		trackPassSteps[track] = 0;
 		trackPlayedAtClock[currentPattern][track] = 0;
 		trackLastWhole[currentPattern][track] = 0;
-		if constexpr (INTERPOLATE) {
+		if (interpolating()) {
 			trackInterpolationStart(track, std::max(clockCount, 0L));
 			Interpolation &in = trackInterpolation[currentPattern][track];
 			in.resetValue = in.value;
@@ -2464,13 +2498,36 @@ struct ZouSeq : BidooModule {
 		}
 	}
 
+	// ZOUMAI: the fast clock turned on or off. Each track keeps its place: what it played since its
+	// last clock joins what it played at it, and the pattern's clock count is scaled to the new
+	// clocks a step.
+	void applyClockMode() {
+		for (int p = 0; p < NUM_PATTERNS; p++) {
+			for (int t = 0; t < NUM_TRACKS; t++) {
+				Interpolation &in = trackInterpolation[p][t];
+				if (fastClock)
+					trackPlayedAtClock[p][t] += 24LL * (in.value < in.resetBoundary ? in.value - in.resetValue : in.value);
+				in = Interpolation();
+			}
+		}
+		patternClock = fastClock ? patternClock * FAST_CLOCKS_PER_STEP : patternClock / FAST_CLOCKS_PER_STEP;
+		resetHold = 0;
+		fastClockApplied = fastClock;
+	}
+
+	// The CLK input's tooltip says what a clock is.
+	void updateClockInfo() {
+		if constexpr (INTERPOLATE)
+			inputInfos[EXTCLOCK_INPUT]->name = fastClock ? "Fast clock (32 pulses per step at speed x1; the head moves on clocks only)" : "Clock (one pulse per step at speed x1)";
+	}
+
 	// The units played: at each clock `speed` more; between clocks floor(j * rate),
 	// held at the last sample if the clock is late, so it never passes the next clock.
 	long long trackPlayed(const int track, const bool step) {
 		long long &played = trackPlayedAtClock[currentPattern][track];
 		if (step)
-			played += (long long)nTracksAttibutes[currentPattern][track].getTrackSpeed24ths() * TRAITS::UNITS_PER_CLOCK;
-		if constexpr (INTERPOLATE) {
+			played += (long long)nTracksAttibutes[currentPattern][track].getTrackSpeed24ths() * unitsPerClock();
+		if (interpolating()) {
 			Interpolation &in = trackInterpolation[currentPattern][track];
 			if (step)
 				trackInterpolationStart(track, 0);
@@ -2580,6 +2637,10 @@ struct ZouSeq : BidooModule {
 
 template <typename TRAITS>
 void ZouSeq<TRAITS>::process(const ProcessArgs &args) {
+	if constexpr (INTERPOLATE) {
+		if (fastClock != fastClockApplied)
+			applyClockMode();
+	}
 	requestedPattern = (int)clamp((inputs[PATTERN_INPUT].isConnected() ? rescale(clamp(inputs[PATTERN_INPUT].getVoltage(), 0.0f, 10.0f),0.0f,10.0f,0.0f,(float)NUM_PATTERNS) : 0) + (int)params[PATTERN_PARAM].getValue(), 0.0f, NUM_PATTERNS - 1.0f);
 	// Stopped: switch at once. Running: at the end of the pattern, below.
 	if (!run)
@@ -2784,7 +2845,7 @@ void ZouSeq<TRAITS>::process(const ProcessArgs &args) {
 		// the tracks with their own RST input, which the reset input leaves alone.
 		globalReset = resetTrigger.process(inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f) || runStarted;
 		bool step = clockTrigged;
-		if constexpr (INTERPOLATE) {
+		if (interpolating()) {
 			// A clock up to 1 ms after a reset belongs to it: it does not move on, but
 			// the time between clocks counts from it.
 			step = clockTrigged && resetHold <= 0 && !globalReset;
@@ -3510,6 +3571,8 @@ struct ZouSeqDisplay : TransparentWidget {
 					snprintf(swing, sizeof(swing), "  swing %.4g%%", swingNow / 100.0);
 					after = swing;
 				}
+				if (module->fastClock)
+					after += "  fast clock";
 				nvgFontSize(vg, 12.0f);
 				trackTitle = fitTitle(vg, "Pattern " + to_string(p + 1) + " : ", module->labels[t], after);
 				trigTitle = "Trig " + to_string(g + 1) + (module->trigPage2 ? " - page 2" : "");
@@ -3950,6 +4013,15 @@ struct ZouSeqWidget : BidooWidget {
 				module->freeTimes = on;
 				module->updateTrigToParams();
 			}));
+		if constexpr (M::INTERPOLATE) {
+			menu->addChild(createBoolMenuItem("Fast clock: 32 pulses a step, the head moves on clocks only (off: one pulse a step)", "",
+				[=]() {return module->fastClock;},
+				[=](bool on) {
+					std::lock_guard<std::recursive_mutex> lock(module->editMutex);
+					module->fastClock = on;
+					module->updateClockInfo();
+				}));
+		}
 
 		InstantiateExpanderItem *expItem = createMenuItem<InstantiateExpanderItem>("Add expander", "");
 		expItem->module = module;
