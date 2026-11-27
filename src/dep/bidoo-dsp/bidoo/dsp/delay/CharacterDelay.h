@@ -5,7 +5,7 @@
 //
 //  - Digital: exact repeats. A whole-sample delay is read with no interpolation at all, so with
 //    CHARACTER at 0 and TONE centred a repeat is the input bit for bit (below the limiter's knee and
-//    apart from the 5 Hz DC blocker). CHARACTER adds an early rack unit: fewer bits, a lower rate, less top.
+//    apart from the 5 Hz DC blocker). CHARACTER adds an early rack unit: fewer bits (down to 8), a lower rate (down to 10 kHz, aliasing), less top (down to 3.5 kHz).
 //    A time change crossfades two heads.
 //  - Tape: wow and flutter (TapeWowFlutter), the record side's pre-emphasis and saturation, head and
 //    gap losses, hiss and dropouts. New tape at CHARACTER 0 (a 5 V kick barely saturates and keeps its
@@ -565,9 +565,12 @@ private:
         cacheCh = ch;
         if (chMoved)
         {
-            digitalK = digitalOn ? coef (18000.0f * std::pow (7000.0f / 18000.0f, ch)) : 1.0f;
-            digitalQ = std::exp2 ((22.0f - 11.0f * std::sqrt (ch)) - 1.0f);
-            digitalInc = digitalOn ? std::min (1.0f, 44100.0f * std::pow (20000.0f / 44100.0f, ch) / rate) : 1.0f;
+            // an early rack unit, heard on a kick too at the top (2026-11-27; it stopped at 7 kHz, 20 kHz and 11
+            // bits, nearly inaudible): the top down to 3.5 kHz, the rate down to 10 kHz with no anti-alias filter,
+            // 8 bits
+            digitalK = digitalOn ? coef (18000.0f * std::pow (3500.0f / 18000.0f, ch)) : 1.0f;
+            digitalQ = std::exp2 ((22.0f - 14.0f * std::sqrt (ch)) - 1.0f);
+            digitalInc = digitalOn ? std::min (1.0f, 44100.0f * std::pow (10000.0f / 44100.0f, ch) / rate) : 1.0f;
             tapeLossK = coef (24000.0f * std::pow (5000.0f / 24000.0f, ch));
             tapePreK = coef (3000.0f);
             tapeDeK = coef (1500.0f); // the exact inverse of a +6 dB shelf at 3 kHz has its pole an octave down
