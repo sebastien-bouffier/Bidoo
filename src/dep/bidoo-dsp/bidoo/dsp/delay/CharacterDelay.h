@@ -8,7 +8,8 @@
 //    apart from the 5 Hz DC blocker). CHARACTER adds an early rack unit: fewer bits, a lower rate, less top.
 //    A time change crossfades two heads.
 //  - Tape: wow and flutter (TapeWowFlutter), the record side's pre-emphasis and saturation, head and
-//    gap losses, hiss and dropouts. A time change moves the head: the pitch swoops.
+//    gap losses, hiss and dropouts. New tape at CHARACTER 0 (a 5 V kick barely saturates and keeps its
+//    click and its body), worn at 1. A time change moves the head: the pitch swoops.
 //  - Bbd: a bucket brigade: its clock is stages / (2 time), so long times get darker and dirtier
 //    (hold at the clock's rate, anti-alias and reconstruction filters tied to it, a clock leak,
 //    noise that follows the signal as a compander's does). A time change swoops.
@@ -37,6 +38,7 @@
 #include "../core/Math.h"
 #include "../core/Random.h"
 #include "../shaping/Adaa.h"
+#include "../shaping/AdaaCentred.h"
 #include "../shaping/AdaaTanhTable.h"
 #include "../shaping/TanhPade.h"
 
@@ -342,7 +344,7 @@ private:
         float drop = 1.0f, dropTarget = 1.0f; // Tape's dropouts
         int dropLeft = 0;
         float leak = 1.0f;                    // Bbd's clock leak, a square at the clock
-        AdaaState sat;
+        AdaaCentred sat;   // the saturations of Tape and Bbd: centred ADAA, no half-sample average dulling the top
     };
 
     struct Grain
@@ -552,9 +554,10 @@ private:
             tapeLossK = coef (24000.0f * std::pow (5000.0f / 24000.0f, ch));
             tapePreK = coef (3000.0f);
             tapeDeK = coef (1500.0f); // the exact inverse of a +6 dB shelf at 3 kHz has its pole an octave down
-            tapeHpK = coef (35.0f);
+            // the head bump's low cut: hardly any on new tape (a kick keeps its body over the repeats)
+            tapeHpK = coef (12.0f + 28.0f * ch);
             cacheStages = 16384.0f * std::pow (2048.0f / 16384.0f, ch);
-            bbdHpK = coef (50.0f);
+            bbdHpK = coef (15.0f + 35.0f * ch);
             lofiInc = std::min (1.0f, 32000.0f * std::pow (4000.0f / 32000.0f, ch) / rate);
             lofiQ = std::exp2 ((12.0f - 8.0f * ch) - 1.0f);
             lofiK = coef (std::min (0.5f * 32000.0f * std::pow (4000.0f / 32000.0f, ch), 15000.0f));
@@ -562,7 +565,9 @@ private:
         }
 
         // Tape: new at 0, worn at 1
-        tapeDrive = 1.15f + 1.85f * ch;
+        // the drive into the tape: at 0 a 5 V peak loses under 1 dB (it used to saturate a kick at 1.15, its
+        // click and its top gone), at 1 as hard as before
+        tapeDrive = 0.5f + 2.5f * ch;
         tapeHiss = 1.5e-4f + 3.0e-3f * ch * ch;
         tapeDropChance = ch > 0.35f ? (ch - 0.35f) * (ch - 0.35f) * 6.0f * (float) kControl / rate : 0.0f;
 
@@ -575,11 +580,13 @@ private:
             {
                 c.bbdKeySeconds = seconds;
                 const float clock = stages / (2.0f * std::max (seconds, 0.001f));
-                c.bbdK = coef (std::clamp (clock / 1.6f, 900.0f, 24000.0f));
+                // the anti-alias and reconstruction filters: at the clock on a new unit (16384 stages, bright),
+                // down to the clock / 1.6 as CHARACTER takes stages away
+                c.bbdK = coef (std::clamp (clock / (1.0f + 0.6f * ch), 900.0f, 24000.0f));
                 c.bbdInc = std::min (1.0f, std::max (clock, 1500.0f) / rate);
             }
         }
-        bbdDrive = 1.0f + 1.4f * ch;
+        bbdDrive = 0.6f + 1.8f * ch;
         bbdNoise = 3.0e-4f + 4.0e-3f * ch;
         bbdLeak = 1.2e-3f * ch;
 
@@ -675,7 +682,8 @@ private:
         {
             case Tape:
             {
-                float y = readHermite (c.line, c.glide + (double) c.modOffset);
+                // a 6-point read (readAt): a Hermite read dulled the top, more at some fractions of the wow
+                float y = readAt (c.line, c.glide + (double) c.modOffset);
                 y += tapeHiss * std::min (1.0f, v.env * 30.0f) * (2.0f * rng.uniform() - 1.0f);
                 if (tick == kControl && --v.dropLeft <= 0)
                 {
@@ -694,7 +702,8 @@ private:
             }
             case Bbd:
             {
-                float y = readHermite (c.line, c.glide + (double) c.modOffset);
+                // a 6-point read (readAt): a Hermite read dulled the top, more at some fractions of the wow
+                float y = readAt (c.line, c.glide + (double) c.modOffset);
                 y += bbdNoise * std::min (1.0f, v.env * 8.0f) * (2.0f * rng.uniform() - 1.0f);
                 if (bbdLeak > 0.0f)
                 {
@@ -753,12 +762,12 @@ private:
                 // the top is pushed up before the saturation and brought back after the head:
                 // high frequencies saturate first, as on tape
                 const float pushed = x + (x - onePole (v.rec1, x, tapePreK));
-                return (float) adaa (v.sat, (double) (pushed * tapeDrive), 1, AdaaTanhTable<64> {}) / tapeDrive;
+                return v.sat.step ((double) (pushed * tapeDrive), AdaaTanhTable<64> {}, 2.0e-3) / tapeDrive;
             }
             case Bbd:
             {
                 const float filtered = onePole (v.rec2, onePole (v.rec1, x, c.bbdK), c.bbdK);
-                const float driven = (float) adaa (v.sat, (double) (filtered * bbdDrive), 1, AdaaTanhTable<64> {}) / bbdDrive;
+                const float driven = v.sat.step ((double) (filtered * bbdDrive), AdaaTanhTable<64> {}, 2.0e-3) / bbdDrive;
                 v.holdPhase += c.bbdInc;
                 if (v.holdPhase >= 1.0f)
                 {

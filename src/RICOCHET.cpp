@@ -126,12 +126,12 @@ struct RICOCHET : BidooModule {
 
 	RICOCHET() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
-		configSwitch(TYPE_PARAM, 0.f, 5.f, 1.f, "Type", {"Digital", "Tape", "BBD", "Lo-fi", "Diffuse", "Reverse"});
+		configSwitch(TYPE_PARAM, 0.f, 5.f, 0.f, "Type", {"Digital", "Tape", "BBD", "Lo-fi", "Diffuse", "Reverse"});
 		configParam<TimeQuantity>(TIME_PARAM, 0.f, 1.f, 0.62f, "Time");
 		configParam(FEEDBACK_PARAM, 0.f, 1.f, 0.45f, "Feedback", "%", 0.f, 100.f);
 		configParam(MIX_PARAM, 0.f, 1.f, 0.35f, "Mix", "%", 0.f, 100.f);
 		configParam(TONE_PARAM, -1.f, 1.f, 0.f, "Tone (dark, centre flat, thin)", "%", 0.f, 100.f);
-		configParam(CHARACTER_PARAM, 0.f, 1.f, 0.4f, "Character", "%", 0.f, 100.f);
+		configParam(CHARACTER_PARAM, 0.f, 1.f, 0.f, "Character", "%", 0.f, 100.f);
 		configParam(SPREAD_PARAM, -1.f, 1.f, 0.f, "Spread (one side up to 1.5 x longer)", "%", 0.f, 100.f);
 		configSwitch(MODE_PARAM, 0.f, 1.f, 0.f, "Stereo", {"Stereo", "Ping-pong"});
 		configSwitch(FREEZE_PARAM, 0.f, 1.f, 0.f, "Freeze", {"Off", "On"});
@@ -380,7 +380,7 @@ struct RicochetScreen : TransparentWidget {
 		nvgFontSize(vg, 13.f);
 		nvgFillColor(vg, theme::kScreenYellow);
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
-		const int type = module ? module->shownType : 1;
+		const int type = module ? module->shownType : 0;
 		nvgText(vg, 5.f, 3.f, ricochet::kTypes[clamp(type, 0, 5)], nullptr);
 		nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_TOP);
 		std::string time = "291 ms";
