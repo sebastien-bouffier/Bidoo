@@ -28,8 +28,7 @@ The plugin includes the following code, each under its own license, in `src/dep`
 | Code | Author | License | Used by |
 |---|---|---|---|
 | [Signalsmith Stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch) and Signalsmith Linear | Geraint Luff / Signalsmith Audio | MIT (`signalsmith/*/LICENSE.txt`) | sOUNAiRe |
-| [dr_flac and dr_wav](https://github.com/mackron/dr_libs) | David Reid | Public domain or MIT-0 (in the headers) | dr_flac: sOUNAiRe, cOPIA, pARtiCuLeS (FLAC); dr_wav: sOUNAiRe, liMonADe, pARtiCuLeS, OUAIve, eDsaroS, póUPrè, maGma, oAï, cANARd (WAV) |
-| [AudioFile](https://github.com/adamstark/AudioFile) | Adam Stark | MIT (`AudioFile/LICENSE`) | liMonADe, pARtiCuLeS, OUAIve, eDsaroS, póUPrè, maGma, oAï, cANARd (AIFF) |
+| [dr_flac and dr_wav](https://github.com/mackron/dr_libs) | David Reid | Public domain or MIT-0 (in the headers) | dr_flac: sOUNAiRe, cOPIA, pARtiCuLeS (FLAC); dr_wav: sOUNAiRe, liMonADe, pARtiCuLeS, OUAIve, eDsaroS, póUPrè, maGma, oAï, cANARd (WAV and AIFF) |
 | [minimp3](https://github.com/lieff/minimp3) | lieff | CC0 1.0 (`minimp3/LICENSE`) | antN |
 | [FAAD2](https://github.com/knik0/faad2) 2.11.4 | M. Bakker, Nero AG and contributors | GPL-2.0-or-later (`faad2/COPYING`) | antN (AAC) |
 | [stb_vorbis](https://github.com/nothings/stb) 1.22 | Sean Barrett | Public domain or MIT (end of `stb_vorbis/stb_vorbis.c`) | antN (Ogg Vorbis) |

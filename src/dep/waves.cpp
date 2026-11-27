@@ -1,5 +1,4 @@
 #include "waves.hpp"
-#include "AudioFile/AudioFile.h"
 #define DR_WAV_IMPLEMENTATION
 #include "dr_wav/dr_wav.h"
 #include <dsp/resampler.hpp>
@@ -73,7 +72,9 @@ namespace waves {
       return (size_t)std::ceil(maxSeconds * sr) + 1024;
     };
 
-    if (ext == ".WAV" && maxSeconds > 0.0) {
+    // dr_wav reads WAV, AIFF and AIFC alike
+    const bool known = ext == ".WAV" || ext == ".AIFF" || ext == ".AIF";
+    if (known && maxSeconds > 0.0) {
       drwav wav;
       if (drwav_init_file(&wav, path.c_str(), NULL)) {
         unsigned int c = wav.channels;
@@ -94,7 +95,7 @@ namespace waves {
         drwav_uninit(&wav);
       }
     }
-    else if (ext == ".WAV") {
+    else if (known) {
       unsigned int c;
       unsigned int sr;
       drwav_uint64 frames;
@@ -113,21 +114,8 @@ namespace waves {
         drwav_free(pSampleData, NULL);
       }
     }
-    else if ((ext == ".AIFF") || (ext == ".AIF")) {
-      AudioFile<float> audioFile;
-      if (audioFile.load (path.c_str()))  {
-        sampleChannels = audioFile.getNumChannels();
-        sampleRate = audioFile.getSampleRate();
-        int frames = audioFile.getNumSamplesPerChannel();
-        if (sampleChannels > 0) {
-          result.reserve(frames);
-          for (int i = 0; i < frames; i++)
-            push(audioFile.samples[0][i], sampleChannels >= 2 ? audioFile.samples[1][i] : audioFile.samples[0][i]);
-        }
-      }
-    }
     if (maxSeconds > 0.0 && sampleRate > 0 && result.size() > capFrames(sampleRate))
-      result.resize(capFrames(sampleRate));  // AIFF is decoded whole, only resampled up to the cap
+      result.resize(capFrames(sampleRate));
     sampleCount = result.size();
 
     if ((sampleCount > 0) && (sampleRate > 0) && (sampleRate != currentSampleRate)) {

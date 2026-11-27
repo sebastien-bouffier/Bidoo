@@ -2,7 +2,7 @@ RACK_DIR ?= ../..
 
 DISTRIBUTABLES += $(wildcard LICENSE*) res presets
 
-FLAGS += -Idep/include -I./src/dep/dr_wav -I./src/dep/filters -I./src/dep/minimp3 -I./src/dep/lodepng -I./src/dep/pffft -I./src/dep/signalsmith -I./src/dep/AudioFile -I./src/dep/resampler -I./src/dep
+FLAGS += -Idep/include -I./src/dep/dr_wav -I./src/dep/filters -I./src/dep/minimp3 -I./src/dep/lodepng -I./src/dep/pffft -I./src/dep/signalsmith -I./src/dep/resampler -I./src/dep
 
 SOURCES = $(wildcard src/*.cpp src/dep/filters/*.cpp src/dep/lodepng/*.cpp src/dep/pffft/*.c src/dep/resampler/*.cpp src/dep/*.cpp src/dep/faad2/libfaad/*.c) src/dep/stb_vorbis/stb_vorbis_impl.c
 SOURCES := $(filter-out src/dep/resampler/main.cpp src/dep/resampler/StopWatch.cpp src/dep/pffft/test_pffft.c src/dep/lodepng/pngdetail.cpp src/dep/lodepng/lodepng_util.cpp, $(SOURCES))
@@ -22,7 +22,7 @@ build/src/dep/faad2/%: CFLAGS += -DHAVE_CONFIG_H -Isrc/dep/faad2/include -Isrc/d
 # stb_vorbis (antN's Ogg Vorbis decoder)
 build/src/dep/stb_vorbis/%: CFLAGS += -fno-unsafe-math-optimizations -w
 
-# AudioFile 1.1.x needs C++17
+# The plugin needs C++17 (if constexpr in the sequencers, among others)
 CXXFLAGS := $(filter-out -std=c++11,$(CXXFLAGS)) -std=c++17
 
 # FiLTRe: Potion's Filter.h, kept unchanged, needs C++20; only this file sees it

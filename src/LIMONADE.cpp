@@ -5,7 +5,6 @@
 #include "dep/dr_wav/dr_wav.h"
 #include "dep/osc/wtOsc.h"
 #include "dep/lodepng/lodepng.h"
-#include "dep/AudioFile/AudioFile.h"
 #include <atomic>
 #include <condition_variable>
 #include <deque>
@@ -139,19 +138,21 @@ static std::vector<float> readMonoAudio(const std::string &path, size_t &cycle) 
 		}
 	}
 	else if (ext == ".aif" || ext == ".aiff") {
-		AudioFile<float> audioFile;
-		if (!audioFile.load(path)) {
+		unsigned channels = 0, rate = 0;
+		drwav_uint64 frames = 0;
+		float *data = drwav_open_file_and_read_pcm_frames_f32(path.c_str(), &channels, &rate, &frames, NULL);
+		if (!data || channels == 0) {
 			WARN("liMonADe: cannot read %s", path.c_str());
+			drwav_free(data, NULL);
 			return mono;
 		}
-		int frames = audioFile.getNumSamplesPerChannel();
-		int channels = audioFile.getNumChannels();
 		mono.resize(frames);
-		for (int i = 0; i < frames; i++) {
+		for (drwav_uint64 i = 0; i < frames; i++) {
 			float sum = 0.f;
-			for (int c = 0; c < channels; c++) sum += audioFile.samples[c][i];
+			for (unsigned c = 0; c < channels; c++) sum += data[i * channels + c];
 			mono[i] = sum / channels;
 		}
+		drwav_free(data, NULL);
 	}
 	else {
 		WARN("liMonADe: unsupported file %s", path.c_str());
