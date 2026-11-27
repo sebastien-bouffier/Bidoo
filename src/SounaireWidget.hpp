@@ -374,51 +374,20 @@ struct SounaireDisplay : OpaqueWidget {
 			nvgFillColor(args.vg, module->waveBlue ? nvgTransRGBA(BLUE, 0x40) : wavestyle::kLoop);
 			nvgFill(args.vg);
 		}
-		// waveform, normalized as it plays: from the overview when a pixel
-		// covers more than an overview bin, from the frames when zoomed in; one
-		// path for the part that plays, one for the rest
+		// waveform, normalized as it plays: peaks and RMS core, one column per screen pixel, from the overview when
+		// a column covers a bin or more, from the frames when zoomed in; the part that plays bright (src/WaveStyle.hpp)
 		float norm = (module->autoNormalize && s->peak > 1e-6f) ? 0.891f / s->peak : 1.f;
-		int n = (int)s->ovMin.size();
-		double bin = F / n;
-		int cols = std::max(0, (int)W);
-		std::vector<float> los((size_t)cols), his((size_t)cols);
-		for (int i = 0; i < cols; i++) {
-			double f0 = (v0 + (v1 - v0) * i / W) * F, f1 = (v0 + (v1 - v0) * (i + 1) / W) * F;
-			float lo = 1.f, hi = -1.f;
-			if (f1 - f0 >= bin) {
-				int k0 = (int)(f0 / bin), k1 = std::max(k0 + 1, (int)(f1 / bin));
-				for (int k = k0; k < k1 && k < n; k++) {
-					lo = std::min(lo, s->ovMin[k]);
-					hi = std::max(hi, s->ovMax[k]);
-				}
-			}
-			else {
-				int64_t j0 = (int64_t)f0, j1 = std::max(j0 + 1, (int64_t)std::ceil(f1));
-				for (int64_t j = j0; j <= j1 && j < s->frames; j++) {
-					float x = s->mono(j);
-					lo = std::min(lo, x);
-					hi = std::max(hi, x);
-				}
-			}
-			los[(size_t)i] = lo;
-			his[(size_t)i] = hi;
+		wavestyle::Palette pal;
+		if (module->waveBlue) {
+			pal.activePeak = nvgTransRGBA(BLUE, 0xA0);
+			pal.activeCore = nvgLerpRGBA(BLUE, nvgRGB(0xFF, 0xFF, 0xFF), 0.35f);
+			pal.idlePeak = nvgTransRGBA(BLUE, 0x40);
+			pal.idleCore = nvgTransRGBA(BLUE, 0x70);
 		}
-		for (int pass = 0; pass < 2; pass++) {
-			nvgBeginPath(args.vg);
-			for (int i = 0; i < cols; i++) {
-				float lo = los[(size_t)i], hi = his[(size_t)i];
-				if (hi < lo || (i >= a && i <= b) != (pass == 0))
-					continue;
-				lo = clamp(lo * norm, -1.f, 1.f);
-				hi = clamp(hi * norm, -1.f, 1.f);
-				nvgRect(args.vg, i, mid - hi * amp, 1.f, std::max(1.f, (hi - lo) * amp));
-			}
-			if (module->waveBlue)
-				nvgFillColor(args.vg, pass == 0 ? BLUE : nvgTransRGBA(BLUE, 0x55));
-			else
-				nvgFillColor(args.vg, pass == 0 ? wavestyle::kActive : wavestyle::kIdle);
-			nvgFill(args.vg);
-		}
+		wavestyle::wave(args.vg, W, mid, amp, a, b, [&](float x0, float x1) {
+			return wavestyle::colOfSample((v0 + (v1 - v0) * x0 / W) * F, (v0 + (v1 - v0) * x1 / W) * F, s->frames, s->ovMin.data(), s->ovMax.data(),
+				s->ovRms.data(), (int)s->ovMin.size(), true, [&](int64_t j) { return s->mono(j); });
+		}, norm, pal);
 		// SLICES mode: the cuts, each slice numbered
 		if (slicing) {
 			nvgBeginPath(args.vg);

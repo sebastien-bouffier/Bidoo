@@ -29,19 +29,13 @@ struct OuaiveSample {
 	float sampleRate = 0.f;
 	float overviewMin[2][OVERVIEW] = {};
 	float overviewMax[2][OVERVIEW] = {};
+	float overviewRms[2][OVERVIEW] = {};
 
 	void buildOverview() {
 		for (int b = 0; b < OVERVIEW; b++) {
-			int i0 = (int)((long long)b * count / OVERVIEW), i1 = std::max((int)((long long)(b + 1) * count / OVERVIEW), i0 + 1);
-			for (int c = 0; c < 2; c++) {
-				float lo = 0.f, hi = 0.f;
-				for (int i = i0; i < i1 && i < count; i++) {
-					lo = std::min(lo, frames[i].samples[c]);
-					hi = std::max(hi, frames[i].samples[c]);
-				}
-				overviewMin[c][b] = lo;
-				overviewMax[c][b] = hi;
-			}
+			int i0 = (int)((long long)b * count / OVERVIEW), i1 = std::min(std::max((int)((long long)(b + 1) * count / OVERVIEW), i0 + 1), count);
+			for (int c = 0; c < 2; c++)
+				wavestyle::binOf(i0, i1, [&](int64_t i) { return frames[i].samples[c]; }, overviewMin[c][b], overviewMax[c][b], overviewRms[c][b]);
 		}
 	}
 };
@@ -232,6 +226,7 @@ struct OUAIVE : BidooModule {
 				shown->channels = s->channels;
 				std::copy(&s->overviewMin[0][0], &s->overviewMin[0][0] + 2 * OuaiveSample::OVERVIEW, &shown->overviewMin[0][0]);
 				std::copy(&s->overviewMax[0][0], &s->overviewMax[0][0] + 2 * OuaiveSample::OVERVIEW, &shown->overviewMax[0][0]);
+				std::copy(&s->overviewRms[0][0], &s->overviewRms[0][0] + 2 * OuaiveSample::OVERVIEW, &shown->overviewRms[0][0]);
 				uiSample = shown;
 				waveFileName = name;
 			}
@@ -661,38 +656,13 @@ struct OUAIVEDisplay : OpaqueWidget {
 	void drawWave(const DrawArgs& args, const OuaiveSample &s, int c, float top, float activeX0, float activeX1) {
 		Rect b = Rect(Vec(zoomLeftAnchor, top), Vec(zoomWidth, height));
 		nvgScissor(args.vg, 0, b.pos.y, width, height);
-		// filled: one column per pixel, from its lowest to its highest value; from the overview when
-		// a pixel covers more than one of its bins, from the frames when zoomed in
-		const int total = s.count, bins = OuaiveSample::OVERVIEW;
-		const double perPixel = (double)total / b.size.x, binFrames = (double)total / bins;
-		// two passes: the part that plays in hot pink, the rest dimmed (src/WaveStyle.hpp)
-		for (int pass = 0; pass < 2; pass++) {
-		nvgBeginPath(args.vg);
-		for (int px = 0; px < (int)width; px++) {
-			if ((px >= activeX0 && px <= activeX1) != (pass == 0))
-				continue;
-			const double f0 = (px - b.pos.x) * perPixel, f1 = f0 + perPixel;
-			if (f1 <= 0.0 || f0 >= total)
-				continue;
-			float lo = 1.f, hi = -1.f;
-			if (perPixel >= binFrames || !s.frames) {
-				const int k0 = clamp((int)(f0 / binFrames), 0, bins - 1), k1 = clamp((int)(f1 / binFrames), k0 + 1, bins);
-				for (int k = k0; k < k1; k++) {
-					lo = std::min(lo, s.overviewMin[c][k]);
-					hi = std::max(hi, s.overviewMax[c][k]);
-				}
-			}
-			else {
-				const int j0 = clamp((int)f0, 0, total - 1), j1 = clamp((int)std::ceil(f1), j0, total - 1);
-				for (int j = j0; j <= j1; j++) {
-					lo = std::min(lo, s.frames[j].samples[c]);
-					hi = std::max(hi, s.frames[j].samples[c]);
-				}
-			}
-			wavestyle::column(args.vg, px, lo, hi, b.pos.y + b.size.y * 0.5f, b.size.y * 0.5f);
-		}
-		wavestyle::fill(args.vg, pass == 0);
-		}
+		// peaks and RMS core, one column per screen pixel; the part that plays in hot pink, the rest dimmed
+		// (src/WaveStyle.hpp)
+		const double perUnit = (double)s.count / b.size.x;
+		wavestyle::wave(args.vg, width, b.pos.y + b.size.y * 0.5f, b.size.y * 0.5f, activeX0, activeX1, [&](float x0, float x1) {
+			return wavestyle::colOfSample((x0 - b.pos.x) * perUnit, (x1 - b.pos.x) * perUnit, s.count, s.overviewMin[c], s.overviewMax[c],
+				s.overviewRms[c], OuaiveSample::OVERVIEW, s.frames != nullptr, [&](int64_t j) { return s.frames[j].samples[c]; });
+		});
 	}
 
 	void drawLayer(const DrawArgs& args, int layer) override {

@@ -115,10 +115,13 @@ struct RICOCHET : BidooModule {
 	double shownSeconds = 0.3;
 	int shownRatio = -1;
 
-	// the screen: a rolling peak of the echoes, one column per slice of time
+	// the screen: a rolling peak and RMS of the echoes, one column per slice of time
 	float peaks[2][ricochet::kColumns] = {};
+	float rms[2][ricochet::kColumns] = {};
 	float peakNow[2] = {};
+	double sqNow[2] = {};
 	int peakWrite = 0, peakCount = 0, peakLength = 1000;
+	double shownSpan = 1.2;   // the seconds the screen shows
 
 	RICOCHET() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -204,6 +207,7 @@ struct RICOCHET : BidooModule {
 		// the screen shows about four repeats, half a second at least
 		const double span = clamp(seconds * 4.0, 0.5, 16.0);
 		peakLength = std::max(16, (int)(span * sampleRate / ricochet::kColumns));
+		shownSpan = (double)peakLength * ricochet::kColumns / sampleRate;
 	}
 
 	void process(const ProcessArgs &args) override {
@@ -226,13 +230,19 @@ struct RICOCHET : BidooModule {
 		outputs[L_OUTPUT].setVoltage(bidooSoftLimit(outL * kVolts));
 		outputs[R_OUTPUT].setVoltage(bidooSoftLimit(outR * kVolts));
 
-		peakNow[0] = std::max(peakNow[0], std::fabs(delay.getWet(0)));
-		peakNow[1] = std::max(peakNow[1], std::fabs(delay.getWet(1)));
+		for (int c = 0; c < 2; c++) {
+			const float w = delay.getWet(c);
+			peakNow[c] = std::max(peakNow[c], std::fabs(w));
+			sqNow[c] += (double)w * w;
+		}
 		if (++peakCount >= peakLength) {
+			for (int c = 0; c < 2; c++) {
+				peaks[c][peakWrite] = peakNow[c];
+				rms[c][peakWrite] = (float)std::sqrt(sqNow[c] / peakCount);
+				peakNow[c] = 0.f;
+				sqNow[c] = 0.0;
+			}
 			peakCount = 0;
-			peaks[0][peakWrite] = peakNow[0];
-			peaks[1][peakWrite] = peakNow[1];
-			peakNow[0] = peakNow[1] = 0.f;
 			peakWrite = (peakWrite + 1) % ricochet::kColumns;
 		}
 	}
@@ -260,28 +270,57 @@ struct RicochetScreen : TransparentWidget {
 			nvgFontFaceId(vg, font->handle);
 		nvgScissor(vg, 0, 0, w, h);
 
-		// the echoes
+		// the echoes, left channel up and right down, newest on the right: peaks with their RMS as a brighter core
+		// (src/WaveStyle.hpp), in dB over kRangeDb, so every repeat of a decaying train shows, not only the first
 		const float top = 19.f, mid = (top + h) * 0.5f, reach = (h - top) * 0.5f - 2.f;
 		const float colW = w / ricochet::kColumns;
+		static constexpr float kRangeDb = 48.f;
+		auto level = [](float a) { return a > 0.f ? clamp(1.f + 20.f * std::log10(a) / kRangeDb, 0.f, 1.f) : 0.f; };
+		// the dB lines: -12, -24 and -36 dB
 		nvgBeginPath(vg);
-		for (int c = 0; c < ricochet::kColumns; c++) {
-			float a, b;
-			if (module) {
-				const int i = (module->peakWrite + c) % ricochet::kColumns;
-				a = module->peaks[0][i];
-				b = module->peaks[1][i];
-			}
-			else {
-				// in the module browser: a train of echoes
-				const float at = (float)c / ricochet::kColumns * 5.f;
-				a = b = std::pow(0.6f, std::floor(at)) * std::exp(-(at - std::floor(at)) * 7.f);
-			}
-			const float x = c * colW;
-			nvgRect(vg, x, mid - clamp(a, 0.f, 1.f) * reach, colW + 0.2f, clamp(a, 0.f, 1.f) * reach);
-			nvgRect(vg, x, mid, colW + 0.2f, clamp(b, 0.f, 1.f) * reach);
+		for (float db : {12.f, 24.f, 36.f}) {
+			const float y = (1.f - db / kRangeDb) * reach;
+			nvgRect(vg, 0, mid - y - 0.25f, w, 0.5f);
+			nvgRect(vg, 0, mid + y - 0.25f, w, 0.5f);
 		}
-		nvgFillColor(vg, theme::kWavePink);
+		nvgFillColor(vg, nvgRGBA(0xff, 0xff, 0xff, 0x14));
 		nvgFill(vg);
+		// a mark at every repeat of the delay time back from now: the echoes of a sound fall on them
+		const double span = module ? module->shownSpan : 1.2, sec = module ? module->shownSeconds : 0.291;
+		if (sec > 0.0 && span / sec < 64.0) {
+			nvgBeginPath(vg);
+			for (int k = 1; k * sec < span; k++) {
+				const float x = w * (float)(1.0 - k * sec / span);
+				for (float y = top; y < h; y += 4.f)
+					nvgRect(vg, x - 0.25f, y, 0.5f, 2.f);
+			}
+			nvgFillColor(vg, nvgTransRGBA(theme::kScreenYellow, 0x50));
+			nvgFill(vg);
+		}
+		for (int layer = 0; layer < 2; layer++) {
+			nvgBeginPath(vg);
+			for (int c = 0; c < ricochet::kColumns; c++) {
+				float a, b;
+				if (module) {
+					const int i = (module->peakWrite + c) % ricochet::kColumns;
+					a = layer == 0 ? module->peaks[0][i] : std::min(module->rms[0][i], module->peaks[0][i]);
+					b = layer == 0 ? module->peaks[1][i] : std::min(module->rms[1][i], module->peaks[1][i]);
+				}
+				else {
+					// in the module browser: a train of echoes, each on its mark
+					const double rep = sec / span, first = 1.0 - std::floor(span / sec) * rep;
+					const float at = (float)(((double)c / ricochet::kColumns - first) / rep);
+					a = b = at < 0.f ? 0.f : std::pow(0.6f, std::floor(at)) * std::exp(-(at - std::floor(at)) * 7.f) * (layer == 0 ? 1.f : 0.5f);
+				}
+				const float x = c * colW, la = level(a) * reach, lb = level(b) * reach;
+				if (la > 0.f)
+					nvgRect(vg, x, mid - la, colW + 0.2f, la);
+				if (lb > 0.f)
+					nvgRect(vg, x, mid, colW + 0.2f, lb);
+			}
+			nvgFillColor(vg, layer == 0 ? wavestyle::kActivePeak : wavestyle::kActiveCore);
+			nvgFill(vg);
+		}
 
 		nvgFontSize(vg, 13.f);
 		nvgFillColor(vg, theme::kScreenYellow);

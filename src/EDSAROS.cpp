@@ -55,6 +55,7 @@ struct EdsarosSample {
 	rspl::MipMapFlt mip, revMip;
 	float overviewMin[OVERVIEW] = {};
 	float overviewMax[OVERVIEW] = {};
+	float overviewRms[OVERVIEW] = {};
 
 	bool build(const std::vector<dsp::Frame<1>> &frames) {
 		count = frames.size();
@@ -91,14 +92,8 @@ struct EdsarosSample {
 		}
 
 		for (int b = 0; b < OVERVIEW; b++) {
-			int i0 = (int)((long long)b * count / OVERVIEW), i1 = std::max((int)((long long)(b + 1) * count / OVERVIEW), i0 + 1);
-			float lo = 0.f, hi = 0.f;
-			for (int i = i0; i < i1 && i < count; i++) {
-				lo = std::min(lo, data[i]);
-				hi = std::max(hi, data[i]);
-			}
-			overviewMin[b] = lo;
-			overviewMax[b] = hi;
+			int i0 = (int)((long long)b * count / OVERVIEW), i1 = std::min(std::max((int)((long long)(b + 1) * count / OVERVIEW), i0 + 1), count);
+			wavestyle::binOf(i0, i1, [&](int64_t i) { return data[i]; }, overviewMin[b], overviewMax[b], overviewRms[b]);
 		}
 		return true;
 	}
@@ -109,6 +104,7 @@ struct EdsarosOverview {
 	int count = 0;
 	float overviewMin[EdsarosSample::OVERVIEW] = {};
 	float overviewMax[EdsarosSample::OVERVIEW] = {};
+	float overviewRms[EdsarosSample::OVERVIEW] = {};
 	std::vector<float> data;   // the sample itself, for the display zoomed in
 };
 
@@ -355,6 +351,7 @@ struct EDSAROS : BidooModule {
 				o->data = s->data;
 				std::copy(s->overviewMin, s->overviewMin + EdsarosSample::OVERVIEW, o->overviewMin);
 				std::copy(s->overviewMax, s->overviewMax + EdsarosSample::OVERVIEW, o->overviewMax);
+				std::copy(s->overviewRms, s->overviewRms + EdsarosSample::OVERVIEW, o->overviewRms);
 				{
 					std::lock_guard<std::mutex> ui(uiMutex);
 					uiOverview = o;
@@ -1085,37 +1082,15 @@ struct EDSAROSDisplay : OpaqueWidget {
 		if ((int)module->params[EDSAROS::LOOPMODE_PARAM].getValue() > 0)
 			wavestyle::band(args.vg, px(module->loopStart), px(module->loopEnd), 0, height);
 
-		// The waveform, filled as in cANARd: one column per pixel, from its lowest to its highest value; from the
-		// overview when a pixel covers more than one of its bins, from the sample when zoomed in. Hot pink between
-		// S STRT and S END (what plays), dimmed elsewhere
-		for (int pass = 0; pass < 2; pass++) {
-			const int total = o->count, bins = EdsarosSample::OVERVIEW;
-			const double perPixel = (double)total / b.size.x, binFrames = (double)total / bins;
-			nvgBeginPath(args.vg);
-			for (int x = 0; x < (int)width; x++) {
-				if ((x >= playX0 && x <= playX1) != (pass == 0))
-					continue;
-				const double f0 = (x - b.pos.x) * perPixel, f1 = f0 + perPixel;
-				if (f1 <= 0.0 || f0 >= total)
-					continue;
-				float lo = 1.f, hi = -1.f;
-				if (perPixel >= binFrames || (int)o->data.size() < total) {
-					const int k0 = clamp((int)(f0 / binFrames), 0, bins - 1), k1 = clamp((int)(f1 / binFrames), k0 + 1, bins);
-					for (int k = k0; k < k1; k++) {
-						lo = std::min(lo, o->overviewMin[k]);
-						hi = std::max(hi, o->overviewMax[k]);
-					}
-				}
-				else {
-					const int j0 = clamp((int)f0, 0, total - 1), j1 = clamp((int)std::ceil(f1), j0, total - 1);
-					for (int j = j0; j <= j1; j++) {
-						lo = std::min(lo, o->data[j]);
-						hi = std::max(hi, o->data[j]);
-					}
-				}
-				wavestyle::column(args.vg, x, lo * g, hi * g, b.pos.y + b.size.y * 0.5f, b.size.y * 0.5f);
-			}
-			wavestyle::fill(args.vg, pass == 0);
+		// The waveform as in cANARd: peaks and RMS core, one column per screen pixel, scaled by GAIN; hot pink between
+		// S STRT and S END (what plays), dimmed elsewhere (src/WaveStyle.hpp)
+		{
+			const int total = o->count;
+			const double perUnit = (double)total / b.size.x;
+			wavestyle::wave(args.vg, width, b.pos.y + b.size.y * 0.5f, b.size.y * 0.5f, playX0, playX1, [&](float x0, float x1) {
+				return wavestyle::colOfSample((x0 - b.pos.x) * perUnit, (x1 - b.pos.x) * perUnit, total, o->overviewMin, o->overviewMax,
+					o->overviewRms, EdsarosSample::OVERVIEW, (int)o->data.size() >= total, [&](int64_t j) { return o->data[j]; });
+			}, g);
 		}
 
 		// The points as yellow bars: the loop's flags at the top, the sample's and the release's lower

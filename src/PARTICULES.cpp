@@ -581,19 +581,26 @@ struct ParticulesScreen : TransparentWidget {
 			return false;
 		};
 		if (b && b->length > 0) {
+			// peaks and RMS core, one column per screen pixel; the grains' window bright (src/WaveStyle.hpp)
 			const int64_t old = b->oldest();
-			for (int pass = 0; pass < 2; pass++) {
-				nvgBeginPath(vg);
-				for (int x = 0; x < (int)w; x++) {
-					const float p = (float)x / w;
-					if (inWindow(p) != (pass == 1))
-						continue;
-					const int64_t idx = (old + (int64_t)(p * (double)b->length)) % b->cap;
-					const float pk = b->peaks[b->bin(idx)];
-					wavestyle::column(vg, (float)x, -pk, pk, mid, amp);
+			const float step = wavestyle::pixelStep(vg);
+			const int n = (int)std::ceil(w / step);
+			for (int pass = 0; pass < 2; pass++)
+				for (int layer = 0; layer < 2; layer++) {
+					nvgBeginPath(vg);
+					for (int i = 0; i < n; i++) {
+						const float x = i * step, p = x / w;
+						if (inWindow(p) != (pass == 1))
+							continue;
+						const int64_t idx = (old + (int64_t)(p * (double)b->length)) % b->cap;
+						const int k = b->bin(idx);
+						const float v = clamp(layer == 0 ? b->peaks[k] : std::min(b->rms[k], b->peaks[k]), 0.f, 1.f);
+						if (layer == 0 || v > 0.f)
+							nvgRect(vg, x, mid - v * amp, step, std::max(layer == 0 ? step : 0.f, 2.f * v * amp));
+					}
+					nvgFillColor(vg, layer == 0 ? (pass == 1 ? wavestyle::kActivePeak : wavestyle::kIdlePeak) : (pass == 1 ? wavestyle::kActiveCore : wavestyle::kIdleCore));
+					nvgFill(vg);
 				}
-				wavestyle::fill(vg, pass == 1);
-			}
 			for (float o : {-1.f, 0.f, 1.f})
 				if (hi + o > 0.f && lo + o < 1.f)
 					wavestyle::band(vg, std::max(0.f, lo + o) * w, std::min(1.f, hi + o) * w, top, bottom);

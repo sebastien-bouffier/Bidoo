@@ -131,6 +131,7 @@ struct Loop {
 	float rate = 0.f;        // the sample rate it was made at
 	std::atomic<bool> valid {false};
 	float peaks[kPeaks] = {};
+	float rms[kPeaks] = {};   // the RMS of each bin, the display's core inside the peaks
 
 	void allocate() {
 		l.assign((size_t)kLoopFrames, 0.f);
@@ -242,6 +243,7 @@ public:
 	// for the display: what CAPTURE would take, written in place over LENGTH (inPhase: the write head, -1 stopped),
 	// and the remix alone, written at the loop's phase (loopPhase); peaks 0..1 (racy reads are harmless)
 	float inPeaks[kPeaks] = {};
+	float inRms[kPeaks] = {};
 	float outPeaks[kPeaks] = {};
 	std::atomic<float> inPhase {-1.f};
 
@@ -338,6 +340,13 @@ public:
 					lp.r[(size_t)at] = capR[i];
 					const int b = std::clamp((int)((double)capFrames / capExpected * kPeaks), 0, kPeaks - 1);
 					lp.peaks[b] = std::max(lp.peaks[b], std::max(std::fabs(capL[i]), std::fabs(capR[i])));
+					if (b != capBin) {
+						capBin = b;
+						capSq = 0.0;
+						capN = 0;
+					}
+					capSq += 0.5 * ((double)capL[i] * capL[i] + (double)capR[i] * capR[i]);
+					lp.rms[b] = (float)std::sqrt(capSq / ++capN);
 					capFrames++;
 					capProgress = (float)std::clamp((pos - capStartPpq) / capBeats, 0.0, 1.0);
 				}
@@ -356,8 +365,12 @@ public:
 				if (b != inBin) {
 					inBin = b;
 					inPeaks[b] = 0.f;
+					inSq = 0.0;
+					inN = 0;
 				}
 				inPeaks[b] = std::max(inPeaks[b], std::max(std::fabs(capL[i]), std::fabs(capR[i])));
+				inSq += 0.5 * ((double)capL[i] * capL[i] + (double)capR[i] * capR[i]);
+				inRms[b] = (float)std::sqrt(inSq / ++inN);
 				inPhaseNow = (float)ph;
 			}
 
@@ -516,9 +529,18 @@ public:
 		lp.bpm = bpm;
 		lp.rate = rate;
 		std::fill(lp.peaks, lp.peaks + kPeaks, 0.f);
-		for (int64_t i = 0; i < lp.frames; i++) {
-			const int b = (int)(i * kPeaks / std::max<int64_t>(1, lp.frames));
-			lp.peaks[b] = std::max(lp.peaks[b], std::max(std::fabs(lp.l[(size_t)(lp.pre + i)]), std::fabs(lp.r[(size_t)(lp.pre + i)])));
+		{
+			double sq[kPeaks] = {};
+			int64_t n[kPeaks] = {};
+			for (int64_t i = 0; i < lp.frames; i++) {
+				const int b = (int)(i * kPeaks / std::max<int64_t>(1, lp.frames));
+				const float l = lp.l[(size_t)(lp.pre + i)], r = lp.r[(size_t)(lp.pre + i)];
+				lp.peaks[b] = std::max(lp.peaks[b], std::max(std::fabs(l), std::fabs(r)));
+				sq[b] += 0.5 * ((double)l * l + (double)r * r);
+				n[b]++;
+			}
+			for (int b = 0; b < kPeaks; b++)
+				lp.rms[b] = n[b] > 0 ? (float)std::sqrt(sq[b] / (double)n[b]) : 0.f;
 		}
 		if (lp.frames < 64)
 			return;
@@ -615,6 +637,8 @@ private:
 		}
 		lp.pre = xf;
 		std::fill(lp.peaks, lp.peaks + kPeaks, 0.f);
+		std::fill(lp.rms, lp.rms + kPeaks, 0.f);
+		capBin = -1;
 		capFrames = 0;
 		capBeats = (double)(bars * bpb);
 		capStartPpq = std::floor(pos / bpb + 1e-9) * bpb;
@@ -722,6 +746,9 @@ private:
 	float playGain = 0.f;            // the loop, faded out while the clock stops
 	float mixNow = -1.f, mixCoef = 0.01f;
 	int inBin = -1, outBin = -1;
+	int capBin = -1;                 // the display's RMS: the bin being written, its sum of squares and count
+	double capSq = 0.0, inSq = 0.0;
+	int64_t capN = 0, inN = 0;
 	float inPhaseNow = 0.f;
 
 	// IN/OUT, scenes

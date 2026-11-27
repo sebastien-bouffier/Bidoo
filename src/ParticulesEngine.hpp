@@ -47,7 +47,10 @@ struct Buffer {
 	int64_t write = 0;      // where the next recorded frame goes
 	double rate = 48000.0;  // the rate it was recorded or loaded at
 	float peaks[kPeaks] = {};
+	float rms[kPeaks] = {};   // the RMS of each bin, the display's core inside the peaks
 	int peakBin = -1;
+	double peakSq = 0.0;      // the bin being recorded: its sum of squares and count
+	int64_t peakN = 0;
 
 	void allocate(int64_t frames, double sampleRate) {
 		cap = std::max<int64_t>(64, frames);
@@ -57,6 +60,8 @@ struct Buffer {
 		write = 0;
 		rate = sampleRate;
 		std::fill(peaks, peaks + kPeaks, 0.f);
+		std::fill(rms, rms + kPeaks, 0.f);
+		peakBin = -1;
 	}
 	// a file: all of it, from the start
 	void fill(const float *fl, const float *fr, int64_t frames, double sampleRate) {
@@ -65,10 +70,16 @@ struct Buffer {
 		std::copy(fr, fr + frames, r.begin());
 		length = frames;
 		write = frames % cap;
+		std::vector<double> sq(kPeaks, 0.0);
+		std::vector<int64_t> n(kPeaks, 0);
 		for (int64_t i = 0; i < frames; i++) {
 			const int b = bin(i);
 			peaks[b] = std::max(peaks[b], std::max(std::fabs(fl[i]), std::fabs(fr[i])));
+			sq[(size_t)b] += 0.5 * ((double)fl[i] * fl[i] + (double)fr[i] * fr[i]);
+			n[(size_t)b]++;
 		}
+		for (int b = 0; b < kPeaks; b++)
+			rms[b] = n[(size_t)b] > 0 ? (float)std::sqrt(sq[(size_t)b] / (double)n[(size_t)b]) : 0.f;
 	}
 	int64_t oldest() const {
 		return length < cap ? 0 : write;
@@ -85,8 +96,12 @@ struct Buffer {
 		if (pb != peakBin) {
 			peakBin = pb;
 			peaks[pb] = 0.f;
+			peakSq = 0.0;
+			peakN = 0;
 		}
 		peaks[pb] = std::max(peaks[pb], std::max(std::fabs(a), std::fabs(b)));
+		peakSq += 0.5 * ((double)a * a + (double)b * b);
+		rms[pb] = (float)std::sqrt(peakSq / (double)++peakN);
 		if (++write >= cap)
 			write = 0;
 		if (length < cap)

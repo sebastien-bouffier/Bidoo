@@ -408,6 +408,20 @@ struct CopiaDisplay : OpaqueWidget {
 			const float h = std::min(1.f, peak) * half;
 			nvgRect(args.vg, LABEL + ww * i / copia::kPeaks, WAVE / 2 - h, bw, 2 * h + 0.5f);
 		};
+		// bins i0..i1-1 of a waveform: the peaks, then the RMS core over them (src/WaveStyle.hpp)
+		auto peaksAndCore = [&](int i0, int i1, const float *peaks, const float *rms, bool active) {
+			nvgBeginPath(args.vg);
+			for (int i = i0; i < i1; i++)
+				column(i, peaks[i]);
+			nvgFillColor(args.vg, active ? wavestyle::kActivePeak : wavestyle::kIdlePeak);
+			nvgFill(args.vg);
+			nvgBeginPath(args.vg);
+			for (int i = i0; i < i1; i++)
+				if (rms[i] > 0.f)
+					column(i, std::min(rms[i], peaks[i]));
+			nvgFillColor(args.vg, active ? wavestyle::kActiveCore : wavestyle::kIdleCore);
+			nvgFill(args.vg);
+		};
 		auto barLines = [&](double beats) {
 			const int bars = std::max(1, (int)std::round(beats / std::max(1, module->beatsPerBar)));
 			for (int b = 1; b < bars; b++) {
@@ -441,16 +455,9 @@ struct CopiaDisplay : OpaqueWidget {
 			const float p = clamp(e.capProgress.load(), 0.f, 1.f);
 			const int upTo = (int)(p * copia::kPeaks);
 			const copia::Loop &rec = e.loops[e.capturingLoop()];
-			if (fr >= 0) {
-				nvgBeginPath(args.vg);
-				for (int i = upTo; i < copia::kPeaks; i++)
-					column(i, e.loops[fr].peaks[i]);
-				wavestyle::fill(args.vg, false);
-			}
-			nvgBeginPath(args.vg);
-			for (int i = 0; i < upTo; i++)
-				column(i, rec.peaks[i]);
-			wavestyle::fill(args.vg, true);
+			if (fr >= 0)
+				peaksAndCore(upTo, copia::kPeaks, e.loops[fr].peaks, e.loops[fr].rms, false);
+			peaksAndCore(0, upTo, rec.peaks, rec.rms, true);
 			if (fr >= 0)
 				barLines(e.loops[fr].beats);
 			wavestyle::head(args.vg, LABEL + ww * p, 0, WAVE, 1.f, theme::kLitOrange);
@@ -462,7 +469,9 @@ struct CopiaDisplay : OpaqueWidget {
 				inHead = ph;
 			if (inHead >= 0.f) {
 				byAge(inHead, 0.98f, [&](int i) { column(i, e.inPeaks[i]); },
-				      [&](float age) { return nvgTransRGBAf(wavestyle::kActive, std::max(0.25f, 1.f - age)); });
+				      [&](float age) { return nvgTransRGBAf(wavestyle::kActive, 0.55f * std::max(0.25f, 1.f - age)); });
+				byAge(inHead, 0.98f, [&](int i) { column(i, std::min(e.inRms[i], e.inPeaks[i])); },
+				      [&](float age) { return nvgTransRGBAf(wavestyle::kActiveCore, std::max(0.25f, 1.f - age)); });
 				static const int lengths[4] = {1, 2, 4, 8};
 				barLines((double)(lengths[clamp((int)std::round(module->params[COPIA::LENGTH_PARAM].getValue()), 0, 3)] * std::max(1, module->beatsPerBar)));
 				if (ph >= 0.f)
@@ -472,10 +481,7 @@ struct CopiaDisplay : OpaqueWidget {
 		else {
 			// the loop in hot pink and the remix's outline in cyan over it, fading over one turn of the loop
 			const copia::Loop &lp = e.loops[fr];
-			nvgBeginPath(args.vg);
-			for (int i = 0; i < copia::kPeaks; i++)
-				column(i, lp.peaks[i]);
-			wavestyle::fill(args.vg, true);
+			peaksAndCore(0, copia::kPeaks, lp.peaks, lp.rms, true);
 			barLines(lp.beats);
 			const float ph = e.loopPhase.load();
 			if (ph >= 0.f)

@@ -86,7 +86,7 @@ struct Sample {
 	float peak = 0.f;
 	std::string name;
 	static constexpr int OVERVIEW = 2048;
-	std::vector<float> ovMin, ovMax;
+	std::vector<float> ovMin, ovMax, ovRms;   // the overview: lowest, highest and RMS of each bin (mono)
 	// a copy made for playback (resampled to the engine's rate) points at the
 	// sample it was made from; slices and markers are in that one's frames
 	const Sample *origin = this;
@@ -226,18 +226,23 @@ struct Sample {
 				peak = std::max(peak, std::fabs(v));
 		ovMin.assign(OVERVIEW, 0.f);
 		ovMax.assign(OVERVIEW, 0.f);
+		ovRms.assign(OVERVIEW, 0.f);
 		if (frames <= 0)
 			return;
 		for (int b = 0; b < OVERVIEW; b++) {
 			int64_t a = frames * b / OVERVIEW, e = std::max(a + 1, frames * (b + 1) / OVERVIEW);
 			float lo = 1e9f, hi = -1e9f;
-			for (int64_t i = a; i < e && i < frames; i++) {
+			double sq = 0.0;
+			int64_t n = 0;
+			for (int64_t i = a; i < e && i < frames; i++, n++) {
 				float v = mono(i);
 				lo = std::min(lo, v);
 				hi = std::max(hi, v);
+				sq += (double)v * v;
 			}
 			ovMin[b] = lo > hi ? 0.f : lo;
 			ovMax[b] = lo > hi ? 0.f : hi;
+			ovRms[b] = n > 0 ? (float)std::sqrt(sq / (double)n) : 0.f;
 		}
 	}
 	// nearest zero crossing (mono sign change) to `i`, within `radius` frames
