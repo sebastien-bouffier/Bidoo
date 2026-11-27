@@ -1,3 +1,9 @@
+### v2.7.9 (27/11/2026)
+Improvements
+- AIFF files are read by dr_wav, as WAV files are, in liMonADe and the samplers (OUAIve, eDsaroS, póUPrè, maGma, oAï, cANARd, pARtiCuLeS). AIFC files in 64-bit float and in little-endian 16-bit (sowt) now load (they failed or played as noise), and 8 to 24-bit AIFF come in a little closer to the file
+General
+- AudioFile removed (dr_wav does its work), and unused filter code (Biquad, FFTFilter, FFTSynth); the README names the modules that use each third-party library and shows the version
+
 ### v2.7.8 (26/11/2026)
 Removed
 - enCORE and the enCORE Expander: zOù MAï's Fast clock mode does what enCORE did. Patches that use them open without them

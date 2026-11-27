@@ -5,7 +5,7 @@
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
-Version **2.7.8**: 54 modules. What changed in each version: [changelog](changelog.md).
+Version **2.7.9**: 54 modules. What changed in each version: [changelog](changelog.md).
 
 ![All the modules of the plugin](docs/modules.png)
 
