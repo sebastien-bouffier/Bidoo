@@ -1,8 +1,10 @@
 ### v2.7.9 (27/11/2026)
 Improvements
 - The samplers' screens (sOUNAiRe, cOPIA, pARtiCuLeS, OUAIve, eDsaroS, cANARd): each column shows its RMS as a brighter core inside the peaks, so the loud parts and the tails read at a glance, and the waveform is drawn one column per pixel of the screen, so it stays sharp when Rack is zoomed in
-- rICOcHEt: the echoes on the screen in dB (48 dB, lines at -12, -24 and -36 dB), so every repeat of a decaying train shows and not only the first, with their RMS as a core and a dotted mark at each repeat of the delay time
+- rICOcHEt: the screen in dB (48 dB, lines at -12, -24 and -36 dB), so every repeat of a decaying train shows and not only the first; the input in blue (filled behind, outlined on top) and the echoes in pink with their RMS as a core, labelled IN / ECHOES; a dotted mark at each repeat of the delay time
 - AIFF files are read by dr_wav, as WAV files are, in liMonADe and the samplers (OUAIve, eDsaroS, póUPrè, maGma, oAï, cANARd, pARtiCuLeS). AIFC files in 64-bit float and in little-endian 16-bit (sowt) now load (they failed or played as noise), and 8 to 24-bit AIFF come in a little closer to the file
+Fixes
+- ACnE: Shift + scroll over a grid knob moves its pair too (the paired output row, or the linked input's), as Shift + drag does; it moved only the knob under the mouse
 General
 - AudioFile removed (dr_wav does its work), and unused filter code (Biquad, FFTFilter, FFTSynth); the README names the modules that use each third-party library and shows the version
 

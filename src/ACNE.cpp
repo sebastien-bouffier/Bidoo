@@ -86,6 +86,15 @@ struct ACNE : BidooModule {
 	int eFader = -1;
 	bool shifted = false;
 
+	// The fader that Shift moves with fader f: the same input on the other output of its pair (1-2, 3-4...), and
+	// with the input's stereo link on, the other input of that pair too (the diagonal)
+	int pairOf(int f) const {
+		int index = f%ACNE_NB_TRACKS;
+		int outOffset = (f/ACNE_NB_TRACKS)%2==0?1:-1;
+		int inOffset = links[index/2]?(index%2==0?1:-1):0;
+		return f+ACNE_NB_TRACKS*outOffset+inOffset;
+	}
+
 	// Gains actually applied: they glide to the scene over the morph time,
 	// then follow every change through a 5 ms smoother.
 	float_4 gains[ACNE_NB_OUTS][ACNE_NB_TRACKS/4] = {{0.0f}};
@@ -399,13 +408,8 @@ void ACNE::process(const ProcessArgs &args) {
 		for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++)
 			lights[SNAPSHOT_LIGHTS + i].setBrightness(i == currentSnapshot ? 1 : 0);
 
-		if ((eFader>-1) && shifted) {
-			int index = eFader%ACNE_NB_TRACKS;
-			int outOffset = (eFader/ACNE_NB_TRACKS)%2==0?1:-1;
-			int inOffset = links[index/2]?(index%2==0?1:-1):0;
-			int relative=eFader+ACNE_NB_TRACKS*outOffset+inOffset;
-			params[FADERS_PARAMS+relative].setValue(params[FADERS_PARAMS+eFader].getValue());
-		}
+		if ((eFader>-1) && shifted)
+			params[FADERS_PARAMS+pairOf(eFader)].setValue(params[FADERS_PARAMS+eFader].getValue());
 
 		if (clearMutesTrigger.process(params[MUTE_PARAM].getValue())) {
 			for (int i = 0; i < ACNE_NB_TRACKS; i++)
@@ -623,6 +627,15 @@ struct AcneBidooColoredTrimpot : BidooColoredTrimpot {
 					acne->shifted=true;
 		}
 		BidooColoredTrimpot::onButton(e);
+	}
+
+	// Shift + scroll moves the pair too, as Shift + drag does
+	void onHoverScroll(const event::HoverScroll& e) override {
+		BidooColoredTrimpot::onHoverScroll(e);
+		ParamQuantity *pq = getParamQuantity();
+		ACNE* acne = pq ? dynamic_cast<ACNE*>(pq->module) : nullptr;
+		if (acne && (APP->window->getMods() & RACK_MOD_MASK) == GLFW_MOD_SHIFT)
+			acne->params[ACNE::FADERS_PARAMS+acne->pairOf(index)].setValue(pq->getValue());
 	}
 };
 
