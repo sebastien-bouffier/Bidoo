@@ -21,6 +21,7 @@ const NVGcolor kIdleCore = nvgRGBA(0xC2, 0x1C, 0x86, 0xA6);   // and where it do
 // One column: the lowest and highest values it covers (-1..1) and their RMS (0..1). Empty while hi < lo.
 struct Col {
 	float lo = 1.f, hi = -1.f, rms = 0.f;
+	bool line = false;   // it covers less than a cycle of a low note: the wave itself shows, drawn bright, no core
 	bool empty() const { return hi < lo; }
 };
 
@@ -49,6 +50,23 @@ void wave(NVGcontext *vg, float width, float mid, float amp, float activeX0, flo
 	std::vector<Col> cols((size_t)n);
 	for (int i = 0; i < n; i++)
 		cols[(size_t)i] = get(i * step, std::min(width, (i + 1) * step));
+	// joined: where the wave moves faster than a column, two neighbours would not touch (dots instead of a line);
+	// each grows to meet the other halfway
+	for (int i = 1; i < n; i++) {
+		Col &a = cols[(size_t)i - 1], &b = cols[(size_t)i];
+		if (a.empty() || b.empty())
+			continue;
+		if (b.lo > a.hi) {
+			const float m = 0.5f * (a.hi + b.lo);
+			a.hi = m;
+			b.lo = m;
+		}
+		else if (b.hi < a.lo) {
+			const float m = 0.5f * (a.lo + b.hi);
+			a.lo = m;
+			b.hi = m;
+		}
+	}
 	for (int pass = 0; pass < 2; pass++) {
 		const bool active = pass == 1;
 		for (int layer = 0; layer < 2; layer++) {
@@ -59,7 +77,12 @@ void wave(NVGcontext *vg, float width, float mid, float amp, float activeX0, flo
 				if (c.empty() || (x >= activeX0 && x <= activeX1) != active)
 					continue;
 				const float lo = clamp(c.lo * gain, -1.f, 1.f), hi = clamp(c.hi * gain, -1.f, 1.f);
-				if (layer == 0)
+				if (c.line) {
+					// zoomed in to the wave itself: one bright line, no core
+					if (layer == 1)
+						nvgRect(vg, x, mid - hi * amp, step, std::max(step, (hi - lo) * amp));
+				}
+				else if (layer == 0)
 					nvgRect(vg, x, mid - hi * amp, step, std::max(step, (hi - lo) * amp));
 				else {
 					// the core: +-RMS, inside the peaks (a column with an offset keeps its core inside)
@@ -105,6 +128,10 @@ inline Col colOfBins(const float *mn, const float *mx, const float *rms, int k0,
 	return c;
 }
 
+// A column of fewer frames (about 20 ms, a cycle of 47 Hz) shows the wave itself: it is drawn as a line, without the
+// RMS core, which over so few frames would follow the wave and light up in grains (a short kick, or a zoom)
+constexpr double kLineFrames = 1024.0;
+
 // One channel of a sample at frames f0..f1 (fractional): from its overview (`bins` bins over `total` frames) when a
 // column covers a bin or more, from the frames themselves (`at(j)`) when zoomed in
 template <class At>
@@ -113,12 +140,17 @@ inline Col colOfSample(double f0, double f1, int64_t total, const float *mn, con
 	if (f1 <= 0.0 || f0 >= (double)total || total <= 0)
 		return Col();
 	const double binFrames = (double)total / bins;
-	if (f1 - f0 >= binFrames || !haveFrames) {
-		const int k0 = clamp((int)(f0 / binFrames), 0, bins - 1), k1 = clamp((int)(f1 / binFrames), k0 + 1, bins);
-		return colOfBins(mn, mx, rms, k0, k1);
-	}
-	const int64_t j0 = std::max<int64_t>(0, (int64_t)f0), j1 = std::min<int64_t>(total - 1, std::max<int64_t>(j0, (int64_t)std::ceil(f1)));
-	return colOf(j0, j1, at);
+	auto range = [&](double g0, double g1) {
+		if (g1 - g0 >= binFrames || !haveFrames) {
+			const int k0 = clamp((int)(g0 / binFrames), 0, bins - 1), k1 = clamp((int)(g1 / binFrames), k0 + 1, bins);
+			return colOfBins(mn, mx, rms, k0, k1);
+		}
+		const int64_t j0 = std::clamp<int64_t>((int64_t)g0, 0, total - 1), j1 = std::min<int64_t>(total - 1, std::max<int64_t>(j0, (int64_t)std::ceil(g1)));
+		return colOf(j0, j1, at);
+	};
+	Col c = range(f0, f1);
+	c.line = f1 - f0 < kLineFrames;
+	return c;
 }
 
 // Fills one overview bin from frames i0..i1-1 read by `at(i)`
