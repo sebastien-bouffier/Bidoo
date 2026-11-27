@@ -15,7 +15,7 @@ namespace particules {
 
 constexpr int kBlock = 16;
 constexpr int kGrains = 64;
-constexpr int kPeaks = 460;                 // the buffer's waveform for the display
+constexpr int kPeaks = 1380;                // the buffer's waveform for the display (finer than the screen up to a 300 % zoom)
 constexpr double kLiveSeconds = 20.0;
 
 // Rhythmic divisions of the clock, in beats

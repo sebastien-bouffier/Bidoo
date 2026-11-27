@@ -402,23 +402,51 @@ struct CopiaDisplay : OpaqueWidget {
 		const int fr = e.front.load();
 		const int cs = e.capState.load();
 		const float ww = W - LABEL;
-		const float bw = std::max(1.f, ww / copia::kPeaks);
 		const float half = WAVE / 2 - 2;
-		auto column = [&](int i, float peak) {
-			const float h = std::min(1.f, peak) * half;
-			nvgRect(args.vg, LABEL + ww * i / copia::kPeaks, WAVE / 2 - h, bw, 2 * h + 0.5f);
+		// one column per screen pixel (src/WaveStyle.hpp), each over the bins it covers
+		const float step = wavestyle::pixelStep(args.vg);
+		const int cols = std::max(1, (int)std::ceil(ww / step));
+		auto binsOf = [&](int c, int &k0, int &k1) {
+			k0 = clamp((int)((double)c * step / ww * copia::kPeaks), 0, copia::kPeaks - 1);
+			k1 = clamp((int)std::ceil((double)(c + 1) * step / ww * copia::kPeaks), k0 + 1, copia::kPeaks);
 		};
-		// bins i0..i1-1 of a waveform: the peaks, then the RMS core over them (src/WaveStyle.hpp)
+		auto colOf = [&](int c) { return clamp((int)(((double)c + 0.5) * step / ww * copia::kPeaks), 0, copia::kPeaks - 1); };
+		auto maxOf = [&](const float *v, int c) {
+			int k0, k1;
+			binsOf(c, k0, k1);
+			float m = 0.f;
+			for (int k = k0; k < k1; k++)
+				m = std::max(m, v[k]);
+			return m;
+		};
+		auto rmsOf = [&](const float *rms, int c) {
+			int k0, k1;
+			binsOf(c, k0, k1);
+			double sq = 0.0;
+			for (int k = k0; k < k1; k++)
+				sq += (double)rms[k] * rms[k];
+			return (float)std::sqrt(sq / (k1 - k0));
+		};
+		auto column = [&](int c, float peak) {
+			const float h = std::min(1.f, peak) * half;
+			nvgRect(args.vg, LABEL + c * step, WAVE / 2 - h, step, std::max(step, 2 * h));
+		};
+		// the columns from bin i0 to bin i1: the peaks, then the RMS core over them
 		auto peaksAndCore = [&](int i0, int i1, const float *peaks, const float *rms, bool active) {
+			auto in = [&](int c) { const int k = colOf(c); return k >= i0 && k < i1; };
 			nvgBeginPath(args.vg);
-			for (int i = i0; i < i1; i++)
-				column(i, peaks[i]);
+			for (int c = 0; c < cols; c++)
+				if (in(c))
+					column(c, maxOf(peaks, c));
 			nvgFillColor(args.vg, active ? wavestyle::kActivePeak : wavestyle::kIdlePeak);
 			nvgFill(args.vg);
 			nvgBeginPath(args.vg);
-			for (int i = i0; i < i1; i++)
-				if (rms[i] > 0.f)
-					column(i, std::min(rms[i], peaks[i]));
+			for (int c = 0; c < cols; c++)
+				if (in(c)) {
+					const float r = std::min(rmsOf(rms, c), maxOf(peaks, c));
+					if (r > 0.f)
+						column(c, r);
+				}
 			nvgFillColor(args.vg, active ? wavestyle::kActiveCore : wavestyle::kIdleCore);
 			nvgFill(args.vg);
 		};
@@ -431,17 +459,17 @@ struct CopiaDisplay : OpaqueWidget {
 				nvgFill(args.vg);
 			}
 		};
-		// bins drawn by age behind a head (0 at the head, a whole turn at kPeaks), in 16 shades
-		auto byAge = [&](float headPhase, float upTo, auto &&drawBin, auto &&colourFor) {
+		// columns drawn by age behind a head (0 at the head, a whole turn at kPeaks), in 16 shades
+		auto byAge = [&](float headPhase, float upTo, auto &&drawCol, auto &&colourFor) {
 			const int hb = clamp((int)(headPhase * copia::kPeaks), 0, copia::kPeaks - 1);
 			for (int g = 15; g >= 0; g--) {
 				nvgBeginPath(args.vg);
 				bool any = false;
-				for (int i = 0; i < copia::kPeaks; i++) {
-					const int age = (hb - i + copia::kPeaks) % copia::kPeaks;
+				for (int c = 0; c < cols; c++) {
+					const int age = (hb - colOf(c) + copia::kPeaks) % copia::kPeaks;
 					if (age > upTo * copia::kPeaks || age * 16 / copia::kPeaks != g)
 						continue;
-					drawBin(i);
+					drawCol(c);
 					any = true;
 				}
 				if (any) {
@@ -468,9 +496,9 @@ struct CopiaDisplay : OpaqueWidget {
 			if (ph >= 0.f)
 				inHead = ph;
 			if (inHead >= 0.f) {
-				byAge(inHead, 0.98f, [&](int i) { column(i, e.inPeaks[i]); },
+				byAge(inHead, 0.98f, [&](int c) { column(c, maxOf(e.inPeaks, c)); },
 				      [&](float age) { return nvgTransRGBAf(wavestyle::kActive, 0.55f * std::max(0.25f, 1.f - age)); });
-				byAge(inHead, 0.98f, [&](int i) { column(i, std::min(e.inRms[i], e.inPeaks[i])); },
+				byAge(inHead, 0.98f, [&](int c) { column(c, std::min(rmsOf(e.inRms, c), maxOf(e.inPeaks, c))); },
 				      [&](float age) { return nvgTransRGBAf(wavestyle::kActiveCore, std::max(0.25f, 1.f - age)); });
 				static const int lengths[4] = {1, 2, 4, 8};
 				barLines((double)(lengths[clamp((int)std::round(module->params[COPIA::LENGTH_PARAM].getValue()), 0, 3)] * std::max(1, module->beatsPerBar)));
@@ -487,11 +515,11 @@ struct CopiaDisplay : OpaqueWidget {
 			if (ph >= 0.f)
 				outHead = ph;
 			if (outHead >= 0.f)
-				byAge(outHead, 0.9f, [&](int i) {
-					const float h = std::min(1.f, e.outPeaks[i]) * half;
-					const float x = LABEL + ww * i / copia::kPeaks;
-					nvgRect(args.vg, x, WAVE / 2 - h - 0.5f, bw, 1.f);
-					nvgRect(args.vg, x, WAVE / 2 + h - 0.5f, bw, 1.f);
+				byAge(outHead, 0.9f, [&](int c) {
+					const float h = std::min(1.f, maxOf(e.outPeaks, c)) * half;
+					const float x = LABEL + c * step;
+					nvgRect(args.vg, x, WAVE / 2 - h - 0.5f, step, 1.f);
+					nvgRect(args.vg, x, WAVE / 2 + h - 0.5f, step, 1.f);
 				}, [&](float age) { return nvgTransRGBAf(REMIX, 1.f - 0.8f * age); });
 			if (ph >= 0.f)
 				wavestyle::head(args.vg, LABEL + ww * ph, 0, WAVE);

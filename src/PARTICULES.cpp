@@ -592,9 +592,18 @@ struct ParticulesScreen : TransparentWidget {
 						const float x = i * step, p = x / w;
 						if (inWindow(p) != (pass == 1))
 							continue;
-						const int64_t idx = (old + (int64_t)(p * (double)b->length)) % b->cap;
-						const int k = b->bin(idx);
-						const float v = clamp(layer == 0 ? b->peaks[k] : std::min(b->rms[k], b->peaks[k]), 0.f, 1.f);
+						// the bins the column covers (the ring wraps): their highest peak and their RMS
+						const int k0 = b->bin((old + (int64_t)(p * (double)b->length)) % b->cap);
+						const int k1 = b->bin((old + (int64_t)(std::min(1.f, (x + step) / w) * (double)b->length)) % b->cap);
+						const int count = std::max(1, (k1 - k0 + particules::kPeaks) % particules::kPeaks);
+						float pk = 0.f;
+						double sq = 0.0;
+						for (int j = 0; j < count; j++) {
+							const int k = (k0 + j) % particules::kPeaks;
+							pk = std::max(pk, b->peaks[k]);
+							sq += (double)b->rms[k] * b->rms[k];
+						}
+						const float v = clamp(layer == 0 ? pk : std::min((float)std::sqrt(sq / count), pk), 0.f, 1.f);
 						if (layer == 0 || v > 0.f)
 							nvgRect(vg, x, mid - v * amp, step, std::max(layer == 0 ? step : 0.f, 2.f * v * amp));
 					}

@@ -24,7 +24,7 @@ constexpr int kLanes = g::Pattern::kLanes;   // the eight slots' lanes and the C
 constexpr int kChance = g::Pattern::kChanceLane;
 constexpr int kScenes = 8;
 constexpr int kBlock = 32;
-constexpr int kPeaks = 512;                  // the loop's waveform for the display
+constexpr int kPeaks = 1536;                 // the loop's waveform for the display (finer than the screen up to a 400 % zoom)
 constexpr double kLoopSeconds = 32.0;        // each loop's room at 96 kHz (16 s at 192 kHz)
 constexpr int kLoopFrames = (int)(kLoopSeconds * 96000.0);
 
@@ -530,8 +530,8 @@ public:
 		lp.rate = rate;
 		std::fill(lp.peaks, lp.peaks + kPeaks, 0.f);
 		{
-			double sq[kPeaks] = {};
-			int64_t n[kPeaks] = {};
+			std::vector<double> sq(kPeaks, 0.0);
+			std::vector<int64_t> n(kPeaks, 0);
 			for (int64_t i = 0; i < lp.frames; i++) {
 				const int b = (int)(i * kPeaks / std::max<int64_t>(1, lp.frames));
 				const float l = lp.l[(size_t)(lp.pre + i)], r = lp.r[(size_t)(lp.pre + i)];
