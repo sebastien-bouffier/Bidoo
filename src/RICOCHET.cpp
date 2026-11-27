@@ -8,9 +8,14 @@
 
 namespace ricochet {
 static const char *const kTypes[] = {"DIGITAL", "TAPE", "BBD", "LO-FI", "DIFFUSE", "REVERSE"};
-// With a clock, TIME picks a ratio of the clock's period
+// With a clock, TIME picks a note value: a ratio of the beat (a quarter note), the beat being the clock's pulses per
+// beat (context menu) times its period; names as notes, T for triplets and . for dotted ones
 static const double kRatios[] = {1.0 / 8.0, 1.0 / 6.0, 1.0 / 4.0, 1.0 / 3.0, 3.0 / 8.0, 1.0 / 2.0, 2.0 / 3.0, 3.0 / 4.0, 1.0, 4.0 / 3.0, 3.0 / 2.0, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 16.0};
-static const char *const kRatioNames[] = {"1/8", "1/6", "1/4", "1/3", "3/8", "1/2", "2/3", "3/4", "1", "4/3", "3/2", "2", "3", "4", "6", "8", "12", "16"};
+static const char *const kRatioNames[] = {"1/32", "1/16T", "1/16", "1/8T", "1/16.", "1/8", "1/4T", "1/8.", "1/4", "1/2T", "1/4.", "1/2", "1/2.", "1/1", "1/1.", "2/1", "3/1", "4/1"};
+// the ratios of the beat as they were named before 2.7.9 (still typed into the TIME field)
+static const char *const kOldRatioNames[] = {"1/8", "1/6", "1/4", "1/3", "3/8", "1/2", "2/3", "3/4", "1", "4/3", "3/2", "2", "3", "4", "6", "8", "12", "16"};
+static const int kPpqns[] = {1, 2, 4, 8, 12, 16, 24, 32, 48, 96};
+static constexpr int kNumPpqns = 10;
 // How many pulses a whole number of slices takes: the numerator of the ratio
 static const int kRatioPulses[] = {1, 1, 1, 1, 3, 1, 2, 3, 1, 4, 3, 2, 3, 4, 6, 8, 12, 16};
 static constexpr int kNumRatios = 18;
@@ -69,7 +74,7 @@ struct RICOCHET : BidooModule {
 		std::string getDisplayValueString() override {
 			RICOCHET *m = dynamic_cast<RICOCHET *>(module);
 			if (m && m->clocked)
-				return std::string("x") + ricochet::kRatioNames[ricochet::ratioOfKnob(getValue())] + " clock";
+				return ricochet::kRatioNames[ricochet::ratioOfKnob(getValue())];
 			return ricochet::timeText(ricochet::secondsOfKnob(getValue()));
 		}
 		// a ratio name when clocked ("3/4", "x3/4"); else a time, "ms" or "s", a bare number in the unit shown
@@ -82,9 +87,13 @@ struct RICOCHET : BidooModule {
 			if (m && m->clocked) {
 				if (t.size() > 5 && t.compare(t.size() - 5, 5, "clock") == 0)
 					t.resize(t.size() - 5);
-				for (int i = 0; i < ricochet::kNumRatios; i++)
-					if (t == ricochet::kRatioNames[i])
+				for (int i = 0; i < ricochet::kNumRatios; i++) {
+					std::string note = ricochet::kRatioNames[i];
+					for (char &c : note)
+						c = (char)std::tolower((unsigned char)c);
+					if (t == note || t == ricochet::kOldRatioNames[i])
 						setValue((i + 0.5f) / ricochet::kNumRatios);
+				}
 				return;
 			}
 			const double v = std::atof(t.c_str());
@@ -115,6 +124,7 @@ struct RICOCHET : BidooModule {
 	double shownSeconds = 0.3;
 	int shownRatio = -1;
 	double clockedSamples = -1.0;   // the clocked time held, in whole samples (see control())
+	int clockPpqn = 4;              // the clock's pulses per beat (a patch from before 2.7.9 loads as 1: its pulse was the beat)
 
 	// the screen: a rolling peak and RMS of the echoes, and the input's peak, one column per slice of time
 	float peaks[2][ricochet::kColumns] = {};
@@ -142,7 +152,8 @@ struct RICOCHET : BidooModule {
 		configInput(MIX_INPUT, "Mix CV (10 V = full range)");
 		configInput(CHARACTER_INPUT, "Character CV (10 V = full range)");
 		configInput(TYPE_INPUT, "Type CV (10 V = all six types)");
-		configInput(CLOCK_INPUT, "Clock: TIME then picks a ratio of its period");
+		configInput(CLOCK_INPUT, "Clock");
+		updateClockName();
 		configInput(FREEZE_INPUT, "Freeze gate");
 		configInput(L_INPUT, "Left");
 		configInput(R_INPUT, "Right (the left when not connected)");
@@ -170,6 +181,25 @@ struct RICOCHET : BidooModule {
 		pulses = 0;
 	}
 
+	void updateClockName() {
+		inputInfos[CLOCK_INPUT]->name = rack::string::f("Clock (%d pulses per beat, right-click to change): TIME then picks a note value", clockPpqn);
+	}
+
+	json_t *dataToJson() override {
+		json_t *rootJ = BidooModule::dataToJson();
+		json_object_set_new(rootJ, "clockPpqn", json_integer(clockPpqn));
+		return rootJ;
+	}
+
+	void dataFromJson(json_t *rootJ) override {
+		BidooModule::dataFromJson(rootJ);
+		// before 2.7.9 TIME was a ratio of the clock's pulse: those patches play as they did with 1 pulse per beat
+		json_t *j = json_object_get(rootJ, "clockPpqn");
+		clockPpqn = j ? clamp((int)json_integer_value(j), 1, 96) : 1;
+		clockedSamples = -1.0;
+		updateClockName();
+	}
+
 	float cv(int input) {
 		const float v = inputs[input].getVoltage();
 		return std::isfinite(v) ? v : 0.f;
@@ -185,7 +215,7 @@ struct RICOCHET : BidooModule {
 			// held on a whole sample, moved only past 2 samples or 0.2 %: a clock whose pulses fall a sample apart
 			// (120 BPM at 44.1 kHz: 5512.5 samples a 16th) moved the time at every pulse, and Digital crossfaded two
 			// heads a sample apart over and over, a low pass; a real tempo change still moves it
-			const double wanted = clock.samplesPerPulse() * ricochet::kRatios[shownRatio];
+			const double wanted = clock.samplesPerPulse() * clockPpqn * ricochet::kRatios[shownRatio];
 			if (clockedSamples < 0.0 || std::fabs(wanted - clockedSamples) > std::max(2.0, 0.002 * clockedSamples))
 				clockedSamples = std::round(wanted);
 			seconds = clockedSamples / sampleRate;
@@ -393,7 +423,7 @@ struct RicochetScreen : TransparentWidget {
 		nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_TOP);
 		std::string time = "291 ms";
 		if (module) {
-			time = module->shownRatio >= 0 ? std::string("x") + ricochet::kRatioNames[module->shownRatio] : ricochet::timeText(module->shownSeconds);
+			time = module->shownRatio >= 0 ? std::string(ricochet::kRatioNames[module->shownRatio]) : ricochet::timeText(module->shownSeconds);
 		}
 		nvgText(vg, w - 5.f, 3.f, time.c_str(), nullptr);
 		if (module && module->frozen) {
@@ -453,6 +483,19 @@ struct RICOCHETWidget : BidooWidget {
 		addInput(theme::input<PJ301MPort>(jack(3, 0), module, RICOCHET::R_INPUT));
 		addOutput(theme::output<PJ301MPort>(jack(4, 0), module, RICOCHET::L_OUTPUT));
 		addOutput(theme::output<PJ301MPort>(jack(5, 0), module, RICOCHET::R_OUTPUT));
+	}
+
+	void appendContextMenu(Menu *menu) override {
+		BidooWidget::appendContextMenu(menu);
+		RICOCHET *m = dynamic_cast<RICOCHET *>(module);
+		if (!m)
+			return;
+		menu->addChild(new MenuSeparator);
+		// the beat the note values count in: e.g. 4 for a 16th-note clock, 16 for tOCAnTe's 1/64, 24 for a MIDI clock
+		menu->addChild(createIndexSubmenuItem("Clock pulses per beat",
+			{"1 (quarter notes)", "2 (8th notes)", "4 (16th notes)", "8 (32nd notes)", "12", "16 (64th notes)", "24 (MIDI clock)", "32", "48", "96"},
+			[=]() { for (int i = 0; i < ricochet::kNumPpqns; i++) if (ricochet::kPpqns[i] == m->clockPpqn) return (size_t)i; return (size_t)0; },
+			[=](size_t i) { m->clockPpqn = ricochet::kPpqns[i]; m->clockedSamples = -1.0; m->updateClockName(); }));
 	}
 };
 
