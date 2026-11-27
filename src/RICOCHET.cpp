@@ -114,6 +114,7 @@ struct RICOCHET : BidooModule {
 	int shownType = 0;
 	double shownSeconds = 0.3;
 	int shownRatio = -1;
+	double clockedSamples = -1.0;   // the clocked time held, in whole samples (see control())
 
 	// the screen: a rolling peak and RMS of the echoes, and the input's peak, one column per slice of time
 	float peaks[2][ricochet::kColumns] = {};
@@ -181,10 +182,17 @@ struct RICOCHET : BidooModule {
 		double seconds;
 		if (clocked) {
 			shownRatio = ricochet::ratioOfKnob(clamp(timeKnob + cv(TIME_INPUT) * 0.1f, 0.f, 1.f));
-			seconds = clock.samplesPerPulse() * ricochet::kRatios[shownRatio] / sampleRate;
+			// held on a whole sample, moved only past 2 samples or 0.2 %: a clock whose pulses fall a sample apart
+			// (120 BPM at 44.1 kHz: 5512.5 samples a 16th) moved the time at every pulse, and Digital crossfaded two
+			// heads a sample apart over and over, a low pass; a real tempo change still moves it
+			const double wanted = clock.samplesPerPulse() * ricochet::kRatios[shownRatio];
+			if (clockedSamples < 0.0 || std::fabs(wanted - clockedSamples) > std::max(2.0, 0.002 * clockedSamples))
+				clockedSamples = std::round(wanted);
+			seconds = clockedSamples / sampleRate;
 		}
 		else {
 			shownRatio = -1;
+			clockedSamples = -1.0;
 			seconds = ricochet::secondsOfKnob(timeKnob) * std::pow(2.0, -(double)clamp(cv(TIME_INPUT), -10.f, 10.f));
 			// a free time on a whole sample: Digital then reads with no interpolation at all
 			seconds = std::round(seconds * sampleRate) / sampleRate;

@@ -5,6 +5,7 @@ Improvements
 - AIFF files are read by dr_wav, as WAV files are, in liMonADe and the samplers (OUAIve, eDsaroS, póUPrè, maGma, oAï, cANARd, pARtiCuLeS). AIFC files in 64-bit float and in little-endian 16-bit (sowt) now load (they failed or played as noise), and 8 to 24-bit AIFF come in a little closer to the file
 - rICOcHEt: a new rICOcHEt starts in Digital with CHARACTER at 0 (it started in Tape at 40 %: a kick came back muffled). Tape and BBD at CHARACTER 0 are now nearly clean, a new tape and a new unit: a 5 V kick barely saturates and keeps its click and its body (Tape: -0.6 dB at 8 kHz, -2.3 dB at 16 kHz, were -2 and -8.4 dB); the colour comes with CHARACTER (drive, losses, wow, noise) as before. Patches that use Tape or BBD sound a little cleaner and brighter at the same settings
 Fixes
+- rICOcHEt with a clock: the time is held on a whole sample and follows only a real tempo change (over 2 samples or 0.2 %). A clock whose pulses fall a sample apart (tOCAnTe's 1/64 at 64 BPM, 2812.5 samples) moved it at every pulse, and Digital crossfaded two heads a sample apart over and over: each repeat a little duller
 - ACnE: Shift + scroll over a grid knob moves its pair too (the paired output row, or the linked input's), as Shift + drag does; it moved only the knob under the mouse
 General
 - AudioFile removed (dr_wav does its work), and unused filter code (Biquad, FFTFilter, FFTSynth); the README names the modules that use each third-party library and shows the version
