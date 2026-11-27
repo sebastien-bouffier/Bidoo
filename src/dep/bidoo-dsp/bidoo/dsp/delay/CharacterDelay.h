@@ -383,6 +383,20 @@ private:
         z += k * (x - z);
         return z;
     }
+    // A TPT one-pole's G = g / (1 + g), g = tan (pi f / sr): see tptLow
+    float coefTpt (float hz) const noexcept
+    {
+        const float g = std::tan (3.14159265f * std::min (hz, 0.49f * (float) sr) / (float) sr);
+        return g / (1.0f + g);
+    }
+    // A trapezoidal one-pole low pass (zero at Nyquist): x - tptLow (...) is a high pass that is flat at the top
+    static BIDOO_DSP_INLINE float tptLow (float& s, float x, float G) noexcept
+    {
+        const float v = (x - s) * G;
+        const float y = v + s;
+        s = y + v;
+        return y;
+    }
     float coef (float hz) const noexcept
     {
         return 1.0f - std::exp (-6.2831853f * std::min (hz, 0.49f * (float) sr) / (float) sr);
@@ -512,15 +526,18 @@ private:
         charSmoothed += 0.05f * (settings.character - charSmoothed);
         const float ch = charSmoothed;
 
-        // TONE: a low pass below the centre, the DC blocker rises above it
+        // TONE: a low pass below the centre (down to 400 Hz), the DC blocker rises above it (5 Hz to 800 Hz)
         const float t = settings.tone;
         // the logs and exponentials below are computed again only when what they depend on moves (the
         // same values: MinGW's pow / exp cost about 30 ns, a fifth of the delay's time in VCV)
         if (! (t == cacheTone))
         {
             cacheTone = t;
-            cacheLpTarget = t < 0.0f ? coef (22000.0f * std::pow (400.0f / 22000.0f, -t)) : 1.0f;
-            cacheHpTarget = coef (5.0f * std::pow (400.0f, std::max (t, 0.0f)));
+            // trapezoidal (TPT) one-poles: their high pass reaches full level at the top (the plain one-pole's
+            // x - low pass lost 1.2 dB at Nyquist and 1.8 dB at 5 kHz at 2 kHz, on every repeat: a kick's click
+            // went with its body); the high pass up to 800 Hz (it went to 2 kHz, past a kick's click)
+            cacheLpTarget = t < 0.0f ? coefTpt (22000.0f * std::pow (400.0f / 22000.0f, -t)) : 1.0f;
+            cacheHpTarget = coefTpt (5.0f * std::pow (160.0f, std::max (t, 0.0f)));
         }
         const float lpTarget = cacheLpTarget, hpTarget = cacheHpTarget;
         toneLpK = toneLpK < 0.0f ? lpTarget : toneLpK + 0.2f * (lpTarget - toneLpK);
@@ -670,8 +687,8 @@ private:
         if (! on)
             return x;
         // bypassed, the low pass follows its input, so it starts from there when TONE goes dark again
-        const float lp = toneLpK >= 1.0f ? (v.toneLp = x) : onePole (v.toneLp, x, toneLpK);
-        return lp - onePole (v.toneHp, lp, toneHpK);
+        const float lp = toneLpK >= 1.0f ? (v.toneLp = x) : tptLow (v.toneLp, x, toneLpK);
+        return lp - tptLow (v.toneHp, lp, toneHpK);
     }
 
     BIDOO_DSP_INLINE float readSide (int t, int ch) noexcept
