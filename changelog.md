@@ -1,3 +1,7 @@
+### v2.7.10 (28/11/2026)
+Back
+- enCORE and the enCORE Expander are back in the module browser: patches that use them open and play as before (2.7.8 opened them without these modules). zOù MAï's Fast clock mode stays, for those who prefer zOù MAï's grid
+
 ### v2.7.9 (27/11/2026)
 Improvements
 - The samplers' screens (sOUNAiRe, cOPIA, pARtiCuLeS, OUAIve, eDsaroS, cANARd): each column shows its RMS as a brighter core inside the peaks, so the loud parts and the tails read at a glance, and the waveform is drawn one column per pixel of the screen, so it stays sharp when Rack is zoomed in. A short sample, or a zoom in to the wave itself, is drawn as one continuous bright line (no core, the columns joined). cOPIA and pARtiCuLeS keep three times more points of their waveform (1536 and 1380), drawn one column per screen pixel
@@ -15,7 +19,7 @@ General
 
 ### v2.7.8 (26/11/2026)
 Removed
-- enCORE and the enCORE Expander: zOù MAï's Fast clock mode does what enCORE did. Patches that use them open without them
+- enCORE and the enCORE Expander: zOù MAï's Fast clock mode does what enCORE did. Patches that use them open without them (they are back in 2.7.10)
 Improvements
 - zOù MAï: two clock modes (right-click > Clock mode). Step, the default: one clock a step, the playhead moving between clocks at the measured rate, exactly as before (checked sample by sample against 2.7.7 on random patches, clocks, resets and pattern changes, tools/tests/zouseq_compare.cpp). Fast: 32 clocks a step at Speed x1 (tOCAnTe's /128 output) and the playhead moving on clocks only, so the sequence follows the clock exactly, even one that swings or changes speed inside a step. The knobs, lengths and trims are the same in both; switching keeps every track where it is; the track title shows "fast clock" in that mode
 - zOù MAï: track speeds up to x8, with x5, x16/3 (6 clocks a step in the Fast mode: a 24 PPQN clock with 16th-note steps), x6 and x7

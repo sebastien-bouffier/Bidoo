@@ -20,7 +20,7 @@ using namespace std;
 // (fastClock), 32 clocks a step (tOCAnTe's /128 output) and the head moving on clocks
 // only. The traits also allow an
 // engine whose head only moves on clocks (INTERPOLATE false, a grid of TICKS a step):
-// the tests use one. The rest is resolved at compile time, and in Step mode ZOUMAI
+// enCORE (EncoreTraits) and the tests use one. The rest is resolved at compile time, and in Step mode ZOUMAI
 // computes exactly what it did before the Fast mode (tools/tests/zouseq_compare.cpp).
 // Patches depend on the ids, the JSON keys and the expander messages here.
 //

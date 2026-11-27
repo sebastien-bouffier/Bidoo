@@ -5,7 +5,7 @@
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg?style=flat-square)
 ![Language](https://img.shields.io/badge/language-C++-yellow.svg?style=flat-square)
 
-Version **2.7.9**: 54 modules. What changed in each version: [changelog](changelog.md).
+Version **2.7.10**: 56 modules. What changed in each version: [changelog](changelog.md).
 
 ![All the modules of the plugin](docs/modules.png)
 
@@ -35,7 +35,7 @@ The plugin includes the following code, each under its own license, in `src/dep`
 | [PFFFT](https://bitbucket.org/jpommier/pffft) | Julien Pommier | FFTPACK license, BSD-like (in `pffft.h`) | sOUNAiRe, fLAME, FiLTRe, HCTIP, liMonADe, EMILE |
 | [LodePNG](https://github.com/lvandeve/lodepng) | Lode Vandevenne | zlib (in `lodepng.h`) | EMILE, liMonADe |
 | Resampler | Laurent de Soras | LGPL-2.1 (`resampler/license.txt`) | antN, eDsaroS, fLAME |
-| bidoo-dsp (excerpt) | Sébastien Bouffier | GPL-3.0-or-later (`bidoo-dsp/README.md`) | REI, rICOcHEt, cOPIA, aCiDe, bAFIs, lIMbO, fLAME, baR, mINIBar, zOù MAï, póUPrè, maGma, oAï |
+| bidoo-dsp (excerpt) | Sébastien Bouffier | GPL-3.0-or-later (`bidoo-dsp/README.md`) | REI, rICOcHEt, cOPIA, aCiDe, bAFIs, lIMbO, fLAME, baR, mINIBar, zOù MAï, enCORE, póUPrè, maGma, oAï |
 | Potion voice filter (excerpt) | Sébastien Bouffier | GPL-3.0-or-later (`potion/README.md`) | FiLTRe |
 
 ## Donate
