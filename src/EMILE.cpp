@@ -35,6 +35,42 @@ struct EmileImage {
 	// thread when the curve moves.
 	std::vector<float> shape;
 	float shapeCurve = -1.f;
+	// Per pixel column: log(1 - x / width), worked out once by the worker, so a
+	// moving curve costs one exp per column instead of a pow.
+	std::vector<float> logBase;
+};
+
+// What the display shows: the image shrunk by the worker to 512 px at most (8-bit RGBA), so the UI thread neither
+// decodes the PNG nor uploads a 25 MP texture.
+struct EmileThumb {
+	int width = 0, height = 0;
+	std::vector<unsigned char> rgba;
+
+	static constexpr unsigned kMax = 512;
+	// box average of the 16-bit image (big endian: the high byte first)
+	static std::shared_ptr<EmileThumb> of(const EmileImage &im) {
+		auto t = std::make_shared<EmileThumb>();
+		const unsigned big = std::max(im.width, im.height);
+		const unsigned step = std::max(1u, (big + kMax - 1) / kMax);
+		t->width = (int)((im.width + step - 1) / step);
+		t->height = (int)((im.height + step - 1) / step);
+		t->rgba.resize((size_t)t->width * t->height * 4);
+		for (int ty = 0; ty < t->height; ty++)
+			for (int tx = 0; tx < t->width; tx++) {
+				unsigned sum[4] = {0, 0, 0, 0}, n = 0;
+				for (unsigned y = ty * step; y < std::min(im.height, (ty + 1) * step); y++)
+					for (unsigned x = tx * step; x < std::min(im.width, (tx + 1) * step); x++) {
+						const unsigned char *p = &im.rgba[((size_t)y * im.width + x) * 8];
+						for (int c = 0; c < 4; c++)
+							sum[c] += p[2 * c];
+						n++;
+					}
+				unsigned char *q = &t->rgba[((size_t)ty * t->width + tx) * 4];
+				for (int c = 0; c < 4; c++)
+					q[c] = (unsigned char)(sum[c] / std::max(1u, n));
+			}
+		return t;
+	}
 };
 
 // tanh, close enough for a soft clip (Pade, exact at 0 and at +-3).
@@ -98,6 +134,8 @@ struct EMILE : BidooModule {
 	std::string lastPath;      // under uiMutex: the file asked for (saved)
 	std::string shownPath;     // under uiMutex: the file loaded, empty if none (displayed)
 	std::atomic<unsigned> shownWidth{0}, shownHeight{0};
+	std::shared_ptr<EmileThumb> shownThumb;   // under uiMutex: null if none
+	std::atomic<unsigned> thumbGen{0};        // bumped with each new thumb, so the display knows to upload it
 
 	std::atomic<unsigned> samplePos{0};
 	float *magn;
@@ -203,6 +241,11 @@ struct EMILE : BidooModule {
 		return shownPath;
 	}
 
+	std::shared_ptr<EmileThumb> getThumb() {
+		std::lock_guard<std::mutex> lock(uiMutex);
+		return shownThumb;
+	}
+
 	void workerLoop() {
 		std::unique_lock<std::mutex> lock(jobMutex);
 		while (!quit) {
@@ -228,12 +271,20 @@ struct EMILE : BidooModule {
 				delete im;
 				im = nullptr;
 			}
-			if (im)
+			if (im) {
 				im->shape.assign(im->width, 0.f);
+				im->logBase.resize(im->width);
+				const float iWidth = 1.0f / im->width;
+				for (unsigned x = 0; x < im->width; x++)
+					im->logBase[x] = std::log(1.0f - x * iWidth);
+			}
+			std::shared_ptr<EmileThumb> thumb = im ? EmileThumb::of(*im) : nullptr;
 			{
 				std::lock_guard<std::mutex> ui(uiMutex);
 				shownPath = im ? path : "";
+				shownThumb = thumb;
 			}
+			thumbGen++;
 			shownWidth = im ? im->width : 0;
 			shownHeight = im ? im->height : 0;
 			while (pendingSet.load() && !quit) {
@@ -264,7 +315,9 @@ struct EMILE : BidooModule {
 		Module::processBypass(args);
 	}
 
-	void onReset() override {
+	void onReset(const ResetEvent &e) override {
+		// the params back to their defaults first, then the colour buttons
+		BidooModule::onReset(e);
 		r = g = b = a = true;
 	}
 
@@ -336,10 +389,10 @@ void EMILE::process(const ProcessArgs &args) {
 		float scale = 5.0f * dsp::exp2_taylor5(clamp(params[TUNE_PARAM].getValue() + inputs[TUNE_INPUT].getVoltage(), -10.f, 10.f)) * FS2 * (48000.f / args.sampleRate);
 		int channels = r + g + b + a;
 		const unsigned char *row = img->rgba.data() + (size_t)pos * 8 * width;
-		if (img->shapeCurve != curve && img->shape.size() == width) {
-			float iWidth = 1.0f/width;
+		if (img->shapeCurve != curve && img->shape.size() == width && img->logBase.size() == width) {
+			// (1 - x / width)^curve as exp(curve * log(...)), the log kept from the load
 			for (unsigned x = 0; x < width; x++)
-				img->shape[x] = 1.0f - std::pow(1.0f - x * iWidth, curve);
+				img->shape[x] = 1.0f - std::exp(curve * img->logBase[x]);
 			img->shapeCurve = curve;
 		}
 		for (unsigned x = 0; x < width; x++) {
@@ -392,21 +445,40 @@ struct EMILEDisplay : OpaqueWidget {
 	EMILE *module;
 	const float width = 125.0f;
 	const float height = 130.0f;
-	std::string path = "";
+	unsigned gen = ~0u;   // the thumb generation uploaded, ~0: none yet
 	int img = 0;
 
 	EMILEDisplay() {
 
 	}
 
+	// The texture is the window's: freed with the widget, or the GPU keeps it
+	// for each module deleted.
+	~EMILEDisplay() {
+		if (img && APP && APP->window && APP->window->vg)
+			nvgDeleteImage(APP->window->vg, img);
+	}
+
+	// The context goes away (window recreated): its textures with it, so the
+	// image is loaded again on the next draw.
+	void onContextDestroy(const ContextDestroyEvent &e) override {
+		if (img)
+			nvgDeleteImage(e.vg, img);
+		img = 0;
+		gen = ~0u;
+		OpaqueWidget::onContextDestroy(e);
+	}
+
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1 && module) {
-			std::string p = module->getShownPath();
-			if (p != path) {
+			// the worker's thumbnail: only an upload here, no file read or decode on the UI thread
+			const unsigned g = module->thumbGen.load();
+			if (g != gen) {
 				if (img)
 					nvgDeleteImage(args.vg, img);
-				img = p.empty() ? 0 : nvgCreateImage(args.vg, p.c_str(), 0);
-				path = p;
+				std::shared_ptr<EmileThumb> t = module->getThumb();
+				img = t ? nvgCreateImageRGBA(args.vg, t->width, t->height, 0, t->rgba.data()) : 0;
+				gen = g;
 			}
 			float w = module->shownWidth, h = module->shownHeight;
 			if (img && w > 0 && h > 0) {

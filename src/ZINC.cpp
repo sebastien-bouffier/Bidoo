@@ -78,7 +78,6 @@ struct ZINC : BidooModule {
 	// 15 bands spread evenly on a log scale from 100 Hz to 10 kHz (0.47 octave
 	// apart), and a 16th for the air above them (13.9 kHz, the next step)
 	float_4 freq[BANDS4];
-	float_4 peaks[BANDS4] = { 0.0f };
 	// the Q at which a band's -3 dB width meets its neighbours' (0.47 octave)
 	static constexpr float Q_SPACING = 3.03f;
 	float tunedRate = 0.f;
@@ -167,7 +166,7 @@ struct ZINC : BidooModule {
 		if (!inputs[IN_MOD].isConnected() && !inputs[IN_CARR].isConnected()) {
 			// idle: where the envelopes would have decayed to
 			for (int i = 0; i < BANDS4; i++)
-				peaks[i] = mem[i] = 0.f;
+				mem[i] = 0.f;
 			outputs[OUT].setVoltage(0.f);
 			outputs[OUT].setChannels(1);
 			return;
@@ -193,7 +192,6 @@ struct ZINC : BidooModule {
 			// the envelope: a one-pole, its attack or its decay
 			float_4 c = simd::ifelse(peak > coeff, float_4(cAttack), float_4(cDecay));
 			coeff += c * (peak - coeff);
-			peaks[i] = peak;
 			mem[i] = coeff;
 			bgs[i] = {params[BG_PARAM + i*4].getValue(), params[BG_PARAM + i*4+1].getValue(), params[BG_PARAM + i*4+2].getValue(), params[BG_PARAM + i*4+3].getValue()};
 		}
@@ -245,14 +243,14 @@ struct ZINCDisplay : TransparentWidget {
 
 
 struct BidooziNCColoredKnob : RoundKnob {
-	float corrCoef = 0;
 	NSVGshape *tShape = NULL;
 	NSVGshape *tShapeInterior = NULL;
 	int index = 0;
 
 	BidooziNCColoredKnob() {
 		setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueKnobBidoo.svg")));
-		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/BlueKnobBidoo-bg.svg")));
+		bg->setSvg(Svg::load(asset::plugin(pluginInstance,"res/ComponentLibrary/ziNCBlueKnobBidoo-bg.svg")));
+		// its own copy of the blue knob: draw() recolours the cached SVG, which BidooBlueKnob must not share
 		shadow->opacity = 0.0f;
 		box.size = Vec(28, 28);
 
@@ -269,28 +267,47 @@ struct BidooziNCColoredKnob : RoundKnob {
 		}
 	}
 
-	void draw(const DrawArgs& args) override {
+	// The tint shows the band's envelope (what multiplies the carrier's band), in dB: from kFloorDb (the plain blue)
+	// to kTopDb (the red of the output boxes). Measured with the default Q and times: pink noise peaking at 5 V gives
+	// about -32 dB a band, a 110 Hz saw at 5 V -10 dB in its lowest band, a 5 V sine on a band's centre -4 dB.
+	static constexpr float kFloorDb = -48.f, kTopDb = -6.f;
+	static constexpr int kSteps = 255;
+	float level = 0.f;   // 0..kSteps
+
+	// render again only when the tint moved by a step
+	void step() override {
 		if (getParamQuantity() && getParamQuantity()->module) {
 			ZINC* zinc = dynamic_cast<ZINC*>(getParamQuantity()->module);
-			corrCoef = rescale(clamp(zinc->peaks[(getParamQuantity()->paramId-ZINC::BG_PARAM)/4][(getParamQuantity()->paramId-ZINC::BG_PARAM)%4],0.f,2.f),0.f,2.f,0.f,255.f);
+			const int band = getParamQuantity()->paramId - ZINC::BG_PARAM;
+			const float env = zinc->mem[band / 4][band % 4];
+			const float db = 20.f * std::log10(std::max(env, 1e-6f));
+			const float l = std::round(clamp((db - kFloorDb) / (kTopDb - kFloorDb), 0.f, 1.f) * kSteps);
+			if (l != level) {
+				level = l;
+				fb->dirty = true;
+			}
 		}
+		RoundKnob::step();
+	}
 
-		if (tShape) {
-			tShape->fill.color = (((unsigned int)clamp(42.f+corrCoef,0.f,255.f)) | ((unsigned int)clamp(87.f-corrCoef,0.f,255.f) << 8) | ((unsigned int)clamp(117.f-corrCoef,0.f,255.f) << 16));
-			tShape->fill.color |= (unsigned int)(255) << 24;
-		}
-
-		if (tShapeInterior) {
-			tShapeInterior->fill.color = (((unsigned int)clamp(42.f+corrCoef,0.f,255.f)) | ((unsigned int)clamp(87.f-corrCoef,0.f,255.f) << 8) | ((unsigned int)clamp(117.f-corrCoef,0.f,255.f) << 16));
-			tShapeInterior->fill.color |= (unsigned int)(255) << 24;
-		}
+	void draw(const DrawArgs& args) override {
+		// the 16 knobs share the SVG: set this knob's colour just before its framebuffer renders.
+		// From the knob's blue (42, 87, 117) to the output boxes' red (205, 31, 0), straight across
+		const float t = level / kSteps;
+		const unsigned r = (unsigned)std::round(42.f + t * (205.f - 42.f));
+		const unsigned g = (unsigned)std::round(87.f + t * (31.f - 87.f));
+		const unsigned b = (unsigned)std::round(117.f + t * (0.f - 117.f));
+		const unsigned colour = r | (g << 8) | (b << 16) | (255u << 24);
+		if (tShape)
+			tShape->fill.color = colour;
+		if (tShapeInterior)
+			tShapeInterior->fill.color = colour;
 		RoundKnob::draw(args);
 	}
 
 };
 
 struct ZINCWidget : BidooWidget {
-	ParamWidget *controls[16];
 
 	ZINCWidget(ZINC *module) {
 		setModule(module);
@@ -311,8 +328,7 @@ struct ZINCWidget : BidooWidget {
 		const float kBandBelow = 45.f;
 		const theme::Pos firstBand = theme::specificCorner(19, 41, kBandKnobSize);
 		for (int i = 0; i < BANDS; i++) {
-			controls[i] = theme::param<BidooziNCColoredKnob>(firstBand.offset(kBandRight[i % (BANDS / 4)], kBandBelow * (i / 4)), module, ZINC::BG_PARAM + i);
-			addParam(controls[i]);
+			addParam(theme::param<BidooziNCColoredKnob>(firstBand.offset(kBandRight[i % (BANDS / 4)], kBandBelow * (i / 4)), module, ZINC::BG_PARAM + i));
 		}
 
 		const float kTrimpotRight = 32.f;
@@ -332,15 +348,6 @@ struct ZINCWidget : BidooWidget {
 		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(175.844f, 0), jackRow), module, ZINC::OUT));
 	}
 
-	void step() override;
 };
-
-void ZINCWidget::step() {
-	for (int i = 0; i < BANDS; i++) {
-			BidooziNCColoredKnob* knob = dynamic_cast<BidooziNCColoredKnob*>(controls[i]);
-			knob->fb->dirty = true;
-	}
-	BidooWidget::step();
-}
 
 Model *modelZINC = createModel<ZINC, ZINCWidget>("ziNC");

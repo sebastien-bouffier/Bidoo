@@ -1,4 +1,4 @@
-RACK_DIR ?= ../..
+RACK_DIR ?= G:/Rack-SDK
 
 DISTRIBUTABLES += $(wildcard LICENSE*) res presets
 

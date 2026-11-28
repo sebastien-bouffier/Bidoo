@@ -75,7 +75,9 @@ struct BORDL : MetroModule<BORDL> {
 	static constexpr bool EXTENDED = true;
 
 	// as dTrOY: Rack runs it under the engine lock and keeps it in its undo
-	void onRandomize() override {
+	void onRandomize(const RandomizeEvent &e) override {
+		// the knobs first, as Rack does, then the slides and skips
+		MetroModule<BORDL>::onRandomize(e);
 		randomizeSlidesSkips();
 	}
 

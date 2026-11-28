@@ -130,6 +130,12 @@ struct SPORE : BidooModule {
 		resize(e.sampleRate);
 	}
 
+	// Initialize: the params back to their defaults, the grains and the history emptied
+	void onReset(const ResetEvent &e) override {
+		BidooModule::onReset(e);
+		resize(APP && APP->engine ? APP->engine->getSampleRate() : 48000.f);
+	}
+
 	void buildTable(int type, float alpha) {
 		std::fill_n(table, TableSize + 1, 1.f);
 		if (type == 0)
@@ -173,8 +179,11 @@ struct SPORE : BidooModule {
 
 		int type = clamp((int)params[WINDOW_PARAM].getValue(), 0, 5);
 		float alpha = params[ATTACKRELEASE_PARAM].getValue();
-		// a moving shape knob rebuilds the window at most every 64 samples
-		if (type != tableType || (alpha != tableAlpha && ++tableCount >= 64)) {
+		// a moving shape knob rebuilds the window (1025 points) at most every 512 samples,
+		// and only for the windows it shapes (Tukey, Blackman); once it stops, the last
+		// rebuild lands on its exact value
+		const bool shaped = type == 1 || type == 3;
+		if (type != tableType || (shaped && alpha != tableAlpha && ++tableCount >= 512)) {
 			buildTable(type, alpha);
 			tableCount = 0;
 		}

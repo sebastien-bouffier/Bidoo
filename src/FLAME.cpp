@@ -1,5 +1,6 @@
 #include "plugin.hpp"
 #include "BidooTheme.hpp"
+#include "BidooComponents.hpp"
 #include "dsp/resampler.hpp"
 #include "dsp/filter.hpp"
 #include "dep/pffft/pffft.h"
@@ -229,6 +230,9 @@ struct FLAME : BidooModule {
 	int liveHop = 0;
 	// a size asked for by a loaded patch, applied by the audio thread
 	std::atomic<int> pendingSize {0};
+	// history rows still to clear after a size change, one per sample: all are
+	// clear before the first new row (N2 >= 256 samples > H)
+	int rowsToClear = 0;
 
 	// the box, in display px (set by the display)
 	float xBox = 0.f, yBox = 0.f, wBox = 0.f, hBox = 0.f;
@@ -258,6 +262,8 @@ struct FLAME : BidooModule {
 		configOutput(BAND_R_OUTPUT, "Right: audio in the box's band");
 		configOutput(AMP_L_OUTPUT, "Left: amplitude inside the box (a 5 V sine gives 5 V)");
 		configOutput(AMP_R_OUTPUT, "Right: amplitude inside the box (a 5 V sine gives 5 V)");
+		configBypass(IN_L_INPUT, BAND_L_OUTPUT);
+		configBypass(IN_R_INPUT, BAND_R_OUTPUT);
 		for (int i = 0; i < 3; i++)
 			setups[i] = pffft_new_setup(512 << i, PFFFT_REAL);
 		work = (float *)pffft_aligned_malloc(MAXN * sizeof(float));
@@ -277,11 +283,16 @@ struct FLAME : BidooModule {
 		N2 = n / 2;
 		for (int k = 0; k < N; k++)
 			hann[k] = 0.5f - 0.5f * std::cos(2.0f * M_PI * k / N);
-		std::memset(input, 0, sizeof(input));
-		std::memset(rows, 0, sizeof(rows));
-		std::memset(cum, 0, sizeof(cum));
+		// only what is read at the new size, and the rows spread over the next
+		// samples: clearing everything at once was ~3.6 MB on the audio thread.
+		// cum is not cleared: a row is read only once written (bandAmp of the
+		// rows not filled yet is 0, see updateBand)
+		for (int c = 0; c < 2; c++) {
+			std::memset(input[c], 0, N * sizeof(float));
+			std::memset(live[c], 0, (N2 + 2) * sizeof(float));
+		}
 		std::memset(rowAmp, 0, sizeof(rowAmp));
-		std::memset(live, 0, sizeof(live));
+		rowsToClear = H;
 		inPos = hop = liveHop = head = filled = 0;
 		boxChanged = true;
 	}
@@ -381,9 +392,15 @@ struct FLAME : BidooModule {
 		binHi = clamp((int)std::ceil(pxToBin(x1)), 0, N2);
 		if (std::fabs(wBox) < 1.f)
 			binHi = binLo - 1;
+		// rows not written since the last size change hold no band (their cum is stale)
 		for (int c = 0; c < 2; c++)
 			for (int i = 0; i < H; i++)
+				rowAmp[c][i] = 0.f;
+		for (int c = 0; c < 2; c++)
+			for (int a = 0; a < filled; a++) {
+				const int i = (head - a + H) % H;
 				rowAmp[c][i] = bandAmp(c, i);
+			}
 		// BAND's edges: the frequencies of the box's first and last bins. A box from bin 0 has
 		// no high-pass, one up to Nyquist no low-pass, no box is silence
 		const double binHz = (double)sampleRate / N;
@@ -450,6 +467,12 @@ struct FLAME : BidooModule {
 		for (int i = 0; i < 3; i++) {
 			if (sizeTriggers[i].process(params[MIN_PARAM + i].getValue()) && N != (512 << i))
 				setSize(512 << i);
+		}
+		if (rowsToClear > 0) {
+			std::memset(rows[--rowsToClear], 0, (N2 + 2) * sizeof(float));
+			// the display caches each row once it comes in: make it take them all again
+			if (rowsToClear == 0)
+				rowCount.fetch_add(H, std::memory_order_release);
 		}
 		lights[MIN_LIGHT].setBrightness(N == 512 ? 1.0f : 0.0f);
 		lights[MED_LIGHT].setBrightness(N == 1024 ? 1.0f : 0.0f);
@@ -965,20 +988,21 @@ struct FLAMEWidget : BidooWidget {
 		display->setup();
 		addChild(display);
 
-		// The six buttons in one row on the 6-column grid, the FFT sizes then the colours, each under its label, with
-		// its light at the old offset inside. The row sits one box gap above the jack boxes.
+		// The six buttons in one row on the 6-column grid, the FFT sizes then the colours, each under its label,
+		// orange on the choice in use (the house BidooRoundButton, momentary). The row sits one box gap above the jack
+		// boxes, where the old 18 px LEDButtons were centred.
 		const float w = box.size.x;
-		const theme::Size kButtonSize = {17.9996f, 18.f};                 // LEDButton
-		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
-		const float kLightIn = 6.f;      // from a button's corner to its light's
+		const theme::Size kButtonSize = {17.9996f, 18.f};                 // the old LEDButton: the row's place
 		const float kButtonRowY = theme::boxTop(1) - theme::kBoxGap - kButtonSize.h * 0.5f;
 		const int buttonIds[6] = {FLAME::MIN_PARAM, FLAME::MED_PARAM, FLAME::MAX_PARAM, FLAME::YELLOW_PARAM, FLAME::BLUE_PARAM, FLAME::GREEN_PARAM};
 		const int lightIds[6] = {FLAME::MIN_LIGHT, FLAME::MED_LIGHT, FLAME::MAX_LIGHT, FLAME::YELLOW_LIGHT, FLAME::BLUE_LIGHT, FLAME::GREEN_LIGHT};
 		for (int i = 0; i < 6; i++) {
 			const theme::Pos button = theme::sameCol(theme::at(i, 6, 0, w), kButtonRowY);
-			const theme::Pos light = theme::specificCorner(button.x - kButtonSize.w * 0.5f + kLightIn, button.y - kButtonSize.h * 0.5f + kLightIn, kSmallLightSize);
-			addParam(theme::param<LEDButton>(button, module, buttonIds[i]));
-			addChild(theme::light<SmallLight<BlueLight>>(light, module, lightIds[i]));
+			BidooRoundButton *b = theme::param<BidooRoundButton>(button, module, buttonIds[i]);
+			b->momentary = true;
+			const int lightId = lightIds[i];
+			b->litBy = [=]() { return module && module->lights[lightId].getBrightness() > 0.5f; };
+			addParam(b);
 		}
 
 		// The jacks: three boxed columns on the grid (IN, BAND, AMP), left above right in one tall box per column

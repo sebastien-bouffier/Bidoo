@@ -380,7 +380,9 @@ struct ANTN : BidooModule {
     buffered = false;
   }
 
-  void onReset() override {
+  void onReset(const ResetEvent &e) override {
+    // the params back to their defaults first, then the stream
+    BidooModule::onReset(e);
     playing = false;
 		setUrl("");
     setStationName("");

@@ -197,8 +197,8 @@ struct PARTICULES : BidooModule {
 		configInput(TRIG_INPUT, "Trigger: starts COUNT grains");
 		configInput(REC_INPUT, "Record gate (replaces the button)");
 		configInput(FREEZE_INPUT, "Freeze gate");
-		configInput(L_INPUT, "Left");
-		configInput(R_INPUT, "Right (the left when not connected)");
+		configInput(L_INPUT, "Left (polyphonic: the channels are summed)");
+		configInput(R_INPUT, "Right (the left when not connected; polyphonic: the channels are summed)");
 		configInput(VOCT_INPUT, "V/O (polyphonic: the grains take the channels in turn)");
 		configInput(CLOCK_INPUT, "Clock");
 		configInput(RESET_INPUT, "Reset");
@@ -355,7 +355,9 @@ struct PARTICULES : BidooModule {
 		while (!quit) {
 			// the audio thread can't notify without locking: poll for `retired`
 			jobCv.wait_for(lock, std::chrono::milliseconds(50));
-			delete engine.retired.exchange(nullptr, std::memory_order_acq_rel);
+			engine.freeRetired();
+			if (engine.rateMismatch.exchange(false) && !jobRequested && !loading && !quit)
+				resampleView();
 			if (!jobRequested || quit)
 				continue;
 			Job j = job;
@@ -379,6 +381,18 @@ struct PARTICULES : BidooModule {
 			if (j.gen == loadGen)
 				loading = false;
 		}
+	}
+
+	// worker, under jobMutex: REC is on and the buffer is at another rate. The worker is the only one that frees
+	// buffers, so it may read `view` without a ViewLock
+	void resampleView() {
+		const particules::Buffer *src = engine.view.load();
+		const double rate = APP->engine->getSampleRate();
+		if (!src || src->rate == rate || engine.pending.load())
+			return;
+		particules::Buffer *b = new particules::Buffer;
+		b->resampleFrom(*src, rate);
+		install(b);
 	}
 
 	bool stale(uint32_t gen) {
@@ -479,7 +493,8 @@ struct PARTICULES : BidooModule {
 	// the buffer, oldest to newest, while it doesn't record (a recording one would change while it's written)
 	void onSave(const SaveEvent &e) override {
 		// while a load runs, the storage keeps what it has (it may be the file being read)
-		const particules::Buffer *b = engine.view.load();
+		particules::Engine::ViewLock view(engine);
+		const particules::Buffer *b = view.b;
 		if (!b || engine.recording.load() || !dirty || loading)
 			return;
 		std::string path = storagePath();
@@ -570,7 +585,8 @@ struct ParticulesScreen : TransparentWidget {
 			return;
 		}
 		particules::Engine &e = module->engine;
-		const particules::Buffer *b = e.view.load();
+		particules::Engine::ViewLock view(e);
+		const particules::Buffer *b = view.b;
 		const float top = 15.f, bottom = h - 15.f, mid = 0.5f * (top + bottom), amp = 0.5f * (bottom - top) - 1.f;
 		// the window the grains come from, wrapping round
 		const float lo = e.windowLo.load(), hi = e.windowHi.load();
@@ -732,14 +748,6 @@ struct PARTICULESWidget : BidooWidget {
 		static const int outs[4] = {PARTICULES::GRAIN_OUTPUT, PARTICULES::ENV_OUTPUT, PARTICULES::L_OUTPUT, PARTICULES::R_OUTPUT};
 		for (int i = 0; i < 4; i++)
 			addOutput(theme::output<PJ301MPort>(jack(6 + i, 0), module, outs[i]));
-	}
-
-	// the old buffer, once the audio thread has let go of it, is freed here (off the audio thread)
-	void step() override {
-		PARTICULES *m = dynamic_cast<PARTICULES *>(module);
-		if (m)
-			delete m->engine.retired.exchange(nullptr);
-		BidooWidget::step();
 	}
 
 	void onPathDrop(const PathDropEvent &e) override {

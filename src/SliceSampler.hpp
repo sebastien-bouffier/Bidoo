@@ -90,6 +90,23 @@ struct SliceBank {
 		jobCv.notify_all();
 	}
 
+	// UI thread: empty a slot (a patch or preset saved with no sample). Queued
+	// as a load with no path: the worker hands over an empty sample and frees
+	// the old one, as for any load. Nothing to do when no file was asked for.
+	void clear(int slot) {
+		if (slot < 0 || slot >= slots)
+			return;
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			if (paths[slot].empty())
+				return;
+			paths[slot].clear();
+			jobs.push_back({slot, std::string(), engineRate()});
+			busy++;
+		}
+		jobCv.notify_all();
+	}
+
 	std::string path(int slot) {
 		std::lock_guard<std::mutex> lock(jobMutex);
 		return (slot >= 0 && slot < slots) ? paths[slot] : std::string();
@@ -106,8 +123,9 @@ struct SliceBank {
 					current[i] = s;
 				}
 			}
-			// The engine rate changed: load the files again at the new rate.
-			if (current[i] && current[i]->sampleRate != sampleRate && busy.load() == 0)
+			// The engine rate changed: load the files again at the new rate
+			// (an emptied slot has nothing to load).
+			if (current[i] && current[i]->size() > 0 && current[i]->sampleRate != sampleRate && busy.load() == 0)
 				reloadRate = sampleRate;
 		}
 	}
@@ -135,15 +153,18 @@ struct SliceBank {
 			jobs.pop_front();
 			lock.unlock();
 
-			std::string name, ext;
-			int ch = 0, sr = 0, cnt = 0;
-			std::vector<dsp::Frame<1>> frames = waves::getMonoWav(job.path, job.rate, name, ext, ch, sr, cnt);
 			SliceSample *s = new SliceSample();
 			s->sampleRate = job.rate;
-			s->data.resize(frames.size());
-			for (size_t k = 0; k < frames.size(); k++)
-				s->data[k] = frames[k].samples[0];
-			s->mip.build(s->data.data(), s->size());
+			// no path: a clear, the slot gets an empty sample (silence)
+			if (!job.path.empty()) {
+				std::string name, ext;
+				int ch = 0, sr = 0, cnt = 0;
+				std::vector<dsp::Frame<1>> frames = waves::getMonoWav(job.path, job.rate, name, ext, ch, sr, cnt);
+				s->data.resize(frames.size());
+				for (size_t k = 0; k < frames.size(); k++)
+					s->data[k] = frames[k].samples[0];
+				s->mip.build(s->data.data(), s->size());
+			}
 			// Wait until the audio thread has taken the slot's previous sample.
 			while (pending[job.slot].load() && !quit)
 				std::this_thread::sleep_for(std::chrono::milliseconds(5));

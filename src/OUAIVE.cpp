@@ -199,6 +199,7 @@ struct OUAIVE : BidooModule {
 				jobPath = lastPath;
 				jobRate = rr;
 				jobRequested = true;
+				loading = true;   // the audio thread stops asking while this reload runs
 			}
 			if (!jobRequested || quit)
 				continue;
@@ -210,7 +211,9 @@ struct OUAIVE : BidooModule {
 			OuaiveSample *s = new OuaiveSample();
 			std::string name, ext;
 			int sr = 0;
-			auto buf = std::make_shared<std::vector<dsp::Frame<2>>>(waves::getStereoWav(path, rate, name, ext, s->channels, sr, s->count));
+			// no path: a clear, the module gets an empty sample (silence)
+			auto buf = path.empty() ? std::make_shared<std::vector<dsp::Frame<2>>>()
+				: std::make_shared<std::vector<dsp::Frame<2>>>(waves::getStereoWav(path, rate, name, ext, s->channels, sr, s->count));
 			s->count = buf->size();
 			s->frames = buf->data();
 			s->buf = buf;
@@ -310,11 +313,17 @@ struct OUAIVE : BidooModule {
 		if (json_t *j = json_object_get(rootJ, "trigMode")) trigMode = clamp((int)json_integer_value(j), 0, 2);
 		if (json_t *j = json_object_get(rootJ, "readMode")) readMode = clamp((int)json_integer_value(j), 0, 2);
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
-		if (lastPathJ) {
-			std::string p = json_string_value(lastPathJ);
-			if (!p.empty())
-				loadFile(p);
-		}
+		std::string p = json_is_string(lastPathJ) ? json_string_value(lastPathJ) : "";
+		if (!p.empty())
+			loadFile(p);
+		else
+			clearFile();   // saved with no sample: not the one loaded before
+	}
+
+	void onReset(const ResetEvent &e) override {
+		BidooModule::onReset(e);
+		trigMode = 0;
+		readMode = 0;
 	}
 
 	std::string getPath() {
@@ -379,13 +388,25 @@ struct OUAIVE : BidooModule {
 		}
 		requestLoad(path, engineRate());
 	}
+
+	// UI thread: empty the module, through the loader like a load (the worker
+	// frees the old sample). Nothing to do when no file was asked for.
+	void clearFile() {
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			if (lastPath.empty())
+				return;
+			lastPath.clear();
+		}
+		requestLoad(std::string(), engineRate());
+	}
 };
 
 void OUAIVE::process(const ProcessArgs &args) {
 	finishFading(false);
 	takePending(sampleread::declickLength(args.sampleRate));
 	// The engine rate changed: load the file again at the new rate.
-	if (sample && sample->count > 0 && sample->sampleRate != args.sampleRate && !loading)
+	if (sample && sample->count > 0 && sample->sampleRate != args.sampleRate && !loading && !pending.load())
 		reloadRate = args.sampleRate;
 
 	const int total = sample ? sample->count : 0;
@@ -460,7 +481,8 @@ void OUAIVE::playVoice(int c, OuaiveVoice &v, const sampleread::View<2> &view, i
 	float e = clamp(params[SPEED_PARAM].getValue() + params[CVSPEED_PARAM].getValue() + inputs[SPEED_INPUT].getPolyVoltage(c), -4.f, 4.f);
 	if (e != v.speedExp) {
 		v.speedExp = e;
-		v.speed = std::exp2(e);
+		// within 6e-6 of exp2 (0.01 cent), exact on whole octaves
+		v.speed = dsp::exp2_taylor5(e);
 	}
 	const float speed = v.speed;
 

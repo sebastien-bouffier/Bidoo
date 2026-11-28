@@ -107,6 +107,22 @@ struct Buffer {
 		if (length < cap)
 			length++;
 	}
+	// another buffer's sound, oldest to newest, at a new rate (the grains and the recording then agree on the rate);
+	// room for at least the live buffer's length
+	void resampleFrom(const Buffer &src, double sampleRate) {
+		const double ratio = src.rate / sampleRate;
+		const int64_t frames = (int64_t)((double)src.length / ratio);
+		const int64_t live = (int64_t)(kLiveSeconds * std::max(48000.0, sampleRate));
+		allocate(std::max<int64_t>({(int64_t)((double)src.cap / ratio), live, frames}), sampleRate);
+		const int64_t old = src.oldest();
+		for (int64_t i = 0; i < frames; i++) {
+			float a = 0.f, b = 0.f;
+			double pos = (double)old + (double)i * ratio;
+			pos -= std::floor(pos / (double)src.cap) * (double)src.cap;
+			src.read(pos, a, b);
+			record(a, b, 1.f);
+		}
+	}
 	// Hermite read at a ring position (wraps)
 	void read(double pos, float &outL, float &outR) const {
 		const int64_t i = (int64_t)std::floor(pos);
@@ -183,6 +199,27 @@ public:
 	std::atomic<bool> recording {false};
 	std::atomic<int> active {0};
 	std::atomic<const Buffer *> view {nullptr};   // the buffer the grains read, for the UI (freed only through `retired`)
+	std::atomic<bool> rateMismatch {false};       // REC is on but the buffer is at another rate: the worker resamples it
+	std::atomic<int> uiReaders {0};               // UI code holding `view` (ViewLock): the worker frees nothing meanwhile
+
+	// The UI reads `view` through one of these: a retired buffer is not freed while one is alive. The count goes up
+	// before `view` is read, and `view` moves off a buffer before it is retired, so a buffer read here can't be freed.
+	struct ViewLock {
+		Engine &e;
+		const Buffer *b;
+		explicit ViewLock(Engine &engine) : e(engine) {
+			e.uiReaders.fetch_add(1);
+			b = e.view.load();
+		}
+		~ViewLock() {
+			e.uiReaders.fetch_sub(1);
+		}
+	};
+	// worker thread only: the old buffer, unless the UI is reading (then at the next call)
+	void freeRetired() {
+		if (uiReaders.load() == 0)
+			delete retired.exchange(nullptr, std::memory_order_acq_rel);
+	}
 
 	Engine() {
 		std::fill(grainPos, grainPos + kGrains, -1.f);
@@ -230,6 +267,10 @@ public:
 		const int n = kBlock;
 		Buffer &b = *cur;
 		recording = c.record;
+		// a buffer at another rate (a FLAC file, or Rack's rate changed) is not recorded on until it is resampled
+		const bool rateOk = b.rate == sr;
+		if (c.record && !rateOk)
+			rateMismatch.store(true, std::memory_order_relaxed);
 		// what the grains will read: the window, where the scan has got to
 		const double seconds = (double)b.length / b.rate;
 		if (seconds > 0.0) {
@@ -247,7 +288,7 @@ public:
 		for (int i = 0; i < n; i++) {
 			// ---- record (fading in and out over 5 ms, so a stop or a start leaves no step in the buffer)
 			recGain = std::clamp(recGain + (c.record ? recStep : -recStep), 0.f, 1.f);
-			if (recGain > 0.f && b.cap > 0)
+			if (recGain > 0.f && b.cap > 0 && rateOk)
 				b.record(inL[i], inR[i], recGain);
 
 			// ---- grains asked for: the clock, the free timer, TRIG

@@ -49,8 +49,8 @@ static constexpr float kSecondBoxBottom = kSecondRowY + kBoxBelowJack;   // 313,
 // ---- Panel
 static constexpr float kSideMargin = 10.f;      // a screen's left and right edges; the boxes line up with them
 static constexpr float kScreenTop = 34.f;
-static constexpr float kTitleY = 25.f;          // baseline of the title, centred on the panel
-static constexpr float kTitleSize = 20.f;
+static constexpr float kTitleY = 16.875f;      // baseline of the title, centred on the panel: the older panels' 4.4648 mm
+static constexpr float kTitleSize = 16.f;       // the older panels' 4.2333 mm, so every title sits at one height
 static constexpr float kKnobLabelAbove = 22.f;  // a label's baseline above the centre of a normal knob
 static constexpr float kKnobLabelSize = 8.5f;
 static constexpr float kSmallLabelAbove = 18.f; // a label above a small knob or a round button

@@ -206,9 +206,10 @@ struct MetroPattern {
 		if (json_t *j = json_object_get(pJ, "numSteps")) numberOfStepsParam = clamp((int)json_integer_value(j), 1, 16);
 		if (json_t *j = json_object_get(pJ, "rootNote")) rootNote = clamp((int)json_integer_value(j), 0, 11);
 		if (json_t *j = json_object_get(pJ, "scale")) scale = clamp((int)json_integer_value(j), 0, quantizer::numScales - 1);
-		if (json_t *j = json_object_get(pJ, "gateTime")) gateTime = json_number_value(j);
-		if (json_t *j = json_object_get(pJ, "slideTime")) slideTime = json_number_value(j);
-		if (json_t *j = json_object_get(pJ, "sensitivity")) sensitivity = json_number_value(j);
+		// 0..1, what the engine accepts (older patches may hold values under the knobs' 0.1), so a damaged file cannot push them outside
+		if (json_t *j = json_object_get(pJ, "gateTime")) gateTime = clamp((float)json_number_value(j), 0.f, 1.f);
+		if (json_t *j = json_object_get(pJ, "slideTime")) slideTime = clamp((float)json_number_value(j), 0.f, 1.f);
+		if (json_t *j = json_object_get(pJ, "sensitivity")) sensitivity = clamp((float)json_number_value(j), 0.f, 1.f);
 		json_t *stagesJ = json_object_get(pJ, "stages");
 		for (int s = 0; s < 8 && stagesJ; s++) {
 			json_t *sJ = json_array_get(stagesJ, s);
@@ -776,7 +777,10 @@ struct MetroEngine {
 			target = quantizeCached(m, pl, s.pitch + rndPitch);
 		if (s.slide && pulse == 0 && started) {
 			float curve = clamp(pl.slideTime + m.inputs[M::SLIDE_TIME_INPUT].getVoltage() * 0.1f, 0.f, 0.99f);
-			pitch = slideFrom + (target - slideFrom) * std::pow((float)std::min(phase, 1.0), curve);
+			// x^curve as exp2(curve * log2 x): the same curve within a float rounding, cheaper than pow per sample
+			const float x = (float)std::min(phase, 1.0);
+			const float shaped = x > 0.f ? std::exp2(curve * std::log2(x)) : (curve > 0.f ? 0.f : 1.f);
+			pitch = slideFrom + (target - slideFrom) * shaped;
 		}
 		else
 			pitch = target;
@@ -840,7 +844,9 @@ struct MetroModule : BidooModule {
 		engine.fromJson(rootJ);
 	}
 
-	void onReset() override {
+	void onReset(const ResetEvent &e) override {
+		// the params back to their defaults first, then the patterns
+		BidooModule::onReset(e);
 		engine.reset();
 	}
 

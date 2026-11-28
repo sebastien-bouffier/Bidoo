@@ -192,6 +192,18 @@ struct LIMBO : BidooModule {
 	static float laneT(float_4 v, int j) { return v[j]; }
 	static float laneT(float v, int) { return v; }
 
+	// Bypassed: the routes of configBypass, plus the normalling of process(). Without a right input, OUT R carries
+	// the left as when the module runs, so a mono source stays on both sides instead of losing its right.
+	void processBypass(const ProcessArgs &args) override {
+		Module::processBypass(args);
+		if (!inputs[IN_R].isConnected()) {
+			const int channels = inputs[IN_L].getChannels();
+			for (int c = 0; c < channels; c++)
+				outputs[OUT_R].setVoltage(inputs[IN_L].getVoltage(c), c);
+			outputs[OUT_R].setChannels(channels);
+		}
+	}
+
 	void process(const ProcessArgs &args) override {
 		Frame f;
 		f.channels = std::max(std::max(inputs[IN_L].getChannels(), inputs[IN_R].getChannels()), 1);

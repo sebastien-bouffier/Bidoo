@@ -496,7 +496,7 @@ struct EDSAROS : BidooModule {
 		json_t *triggerModeJ = json_object_get(rootJ, "triggerMode");
 		triggerMode = triggerModeJ && json_is_true(triggerModeJ);
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
-		if (lastPathJ) {
+		if (json_is_string(lastPathJ)) {
 			std::string p = json_string_value(lastPathJ);
 			if (!p.empty())
 				loadFile(p);

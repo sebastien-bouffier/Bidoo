@@ -94,11 +94,11 @@ struct OAI : BidooModule {
 		for (int i = 0; i < 16; i++) {
 			json_t *channelJ = json_object_get(rootJ, ("channel" + to_string(i)).c_str());
 			settings[i].fromJson(channelJ);
-			if (channelJ) {
-				json_t *lastPathJ = json_object_get(channelJ, "lastPath");
-				if (lastPathJ && json_string_value(lastPathJ)[0])
-					bank.load(i, json_string_value(lastPathJ));
-			}
+			json_t *lastPathJ = channelJ ? json_object_get(channelJ, "lastPath") : nullptr;
+			if (json_is_string(lastPathJ) && json_string_value(lastPathJ)[0])
+				bank.load(i, json_string_value(lastPathJ));
+			else
+				bank.clear(i);   // saved with no sample: not the one loaded before
 		}
 		json_t *currentChannelJ = json_object_get(rootJ, "currentChannel");
 		currentChannel = currentChannelJ ? clamp((int)json_integer_value(currentChannelJ), 0, 15) : 0;

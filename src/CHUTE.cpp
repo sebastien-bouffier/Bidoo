@@ -144,8 +144,8 @@ struct CHUTEDisplay : TransparentWidget {
 		if (layer == 1) {
 			nvgSave(args.vg);
 			nvgScissor(args.vg,-1,-1,box.size.x+2,box.size.y+1);
-			nvgFillColor(args.vg, BLUE_BIDOO);
-			nvgStrokeColor(args.vg, BLUE_BIDOO);
+			nvgFillColor(args.vg, theme::kScreenBlack);
+			nvgStrokeColor(args.vg, theme::kScreenBlack);
 			nvgStrokeWidth(args.vg, 1);
 			nvgBeginPath(args.vg);
 			nvgRoundedRect(args.vg,0,0,box.size.x+2,box.size.y,0.0f);

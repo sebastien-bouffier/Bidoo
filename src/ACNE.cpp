@@ -252,6 +252,10 @@ struct ACNE : BidooModule {
 		}
 		else
 			loadScene();   // older patches
+		// targetGain reads solo, which process() only works out at control rate
+		solo = false;
+		for (int i = 0; i < ACNE_NB_TRACKS; i++)
+			solo = solo || inSolo[i];
 		// Start at the stored levels instead of fading in.
 		morphPhase = 1.f;
 		for (int i = 0; i < ACNE_NB_OUTS; i++)
@@ -308,7 +312,9 @@ struct ACNE : BidooModule {
 		return g;
 	}
 
-	void onReset() override {
+	void onReset(const ResetEvent &e) override {
+		// the params back to their defaults first, then the scenes over them
+		BidooModule::onReset(e);
 		for (int k = 0; k < ACNE_NB_SNAPSHOTS; k++) {
 			for (int i = 0; i < ACNE_NB_OUTS; i++)
 				for (int j = 0; j < ACNE_NB_TRACKS/4; j++)
@@ -608,22 +614,31 @@ struct ACNEWidget : BidooWidget {
 struct AcneBidooColoredTrimpot : BidooColoredTrimpot {
 	int index=0;
 
+	// no module in the library browser
+	ACNE *acneModule() {
+		ParamQuantity *pq = getParamQuantity();
+		return pq ? dynamic_cast<ACNE*>(pq->module) : nullptr;
+	}
+
 	void onDragStart(const event::DragStart& e) override {
-		ACNE* acne = dynamic_cast<ACNE*>(getParamQuantity()->module);
-		acne->eFader=index;
+		ACNE* acne = acneModule();
+		if (acne)
+			acne->eFader=index;
 		BidooColoredTrimpot::onDragStart(e);
 	}
 
 	void onDragEnd(const event::DragEnd& e) override {
-		ACNE* acne = dynamic_cast<ACNE*>(getParamQuantity()->module);
-		acne->eFader=-1;
-		acne->shifted=false;
+		ACNE* acne = acneModule();
+		if (acne) {
+			acne->eFader=-1;
+			acne->shifted=false;
+		}
 		BidooColoredTrimpot::onDragEnd(e);
 	}
 
 	void onButton(const event::Button &e) override {
-		ACNE* acne = dynamic_cast<ACNE*>(getParamQuantity()->module);
-		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
+		ACNE* acne = acneModule();
+		if (acne && e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && (e.mods & RACK_MOD_MASK) == (GLFW_MOD_SHIFT)) {
 					acne->shifted=true;
 		}
 		BidooColoredTrimpot::onButton(e);

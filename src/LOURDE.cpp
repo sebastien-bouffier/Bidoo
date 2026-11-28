@@ -55,8 +55,12 @@ static const float LOURDE_HYSTERESIS = 0.1f;
 
 void LOURDE::process(const ProcessArgs &args) {
 	int channels = 1;
-	for (int i = 0; i < 3; i++)
+	// as many channels as the widest input, weight and threshold CVs included
+	for (int i = 0; i < 3; i++) {
 		channels = std::max(channels, inputs[IN1 + i].getChannels());
+		channels = std::max(channels, inputs[INWEIGHT1 + i].getChannels());
+	}
+	channels = std::max(channels, inputs[INFLOOR].getChannels());
 	for (int c = 0; c < channels; c++) {
 		float w[3], sum = 0.f;
 		for (int i = 0; i < 3; i++) {

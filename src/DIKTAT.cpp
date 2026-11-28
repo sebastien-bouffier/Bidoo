@@ -99,7 +99,9 @@ struct DIKTAT : BidooModule {
 		editedSlot = 0;
 	}
 
-	void onReset() override {
+	void onReset(const ResetEvent &e) override {
+		// the params back to their defaults first, then the slots
+		BidooModule::onReset(e);
 		resetSlots();
 	}
 
@@ -158,8 +160,9 @@ void DIKTAT::process(const ProcessArgs &args) {
 		params[SCALE_PARAM].setValue(scale[slot]);
 	}
 	else {
-		rootNote[slot] = params[ROOT_NOTE_PARAM].getValue();
-		scale[slot] = params[SCALE_PARAM].getValue();
+		// rounded, not truncated: a knob value a hair under a step (or -0.5 on the root) must not pick the step below
+		rootNote[slot] = (int)std::round(params[ROOT_NOTE_PARAM].getValue());
+		scale[slot] = (int)std::round(params[SCALE_PARAM].getValue());
 	}
 
 	int c = std::max(inputs[NOTE_INPUT].getChannels(), 1);

@@ -259,16 +259,24 @@ struct MOIREColoredKnob : BidooColoredKnob {
 
 	void onDragStart(const event::DragStart &e) override {
 		RoundKnob::onDragStart(e);
-		MOIRE *module = dynamic_cast<MOIRE*>(this->getParamQuantity()->module);
+		// no module in the library browser
+		ParamQuantity *pq = this->getParamQuantity();
+		MOIRE *module = pq ? dynamic_cast<MOIRE*>(pq->module) : nullptr;
+		if (!module)
+			return;
 		module->controlFocused[this->getParamQuantity()->paramId - MOIRE::MOIRE::CONTROLS_PARAMS] = true;
 	}
 };
 
 struct MOIREMorphKnob : BidooMorphKnob {
 	void onButton(const event::Button &e) override {
-			MOIRE *module = dynamic_cast<MOIRE*>(this->getParamQuantity()->module);
-			for (int i = 0 ; i < 16; i++) {
-				module->controlFocused[i] = false;
+			// no module in the library browser
+			ParamQuantity *pq = this->getParamQuantity();
+			MOIRE *module = pq ? dynamic_cast<MOIRE*>(pq->module) : nullptr;
+			if (module) {
+				for (int i = 0 ; i < 16; i++) {
+					module->controlFocused[i] = false;
+				}
 			}
 			BidooMorphKnob::onButton(e);
 		}

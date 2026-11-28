@@ -340,6 +340,8 @@ struct LIMONADE : BidooModule {
 	dsp::SchmittTrigger recWtTrigger, recFrameTrigger, displayModeTrigger, morphWtTrigger, morphSpectrumTrigger, morphSpectrumPhaseConstantTrigger,
 	removeMorphingTrigger, normalizeWtTrigger, normalizeFrameTrigger, normalizeAllFramesTrigger, removeDCTrigger, windowWtTrigger, windowFrameTrigger, smoothWtTrigger, smoothFrameTrigger,
 	addFrameTrigger, removeFrameTrigger, displayEditedFrameTrigger, displayPlayedFrameTrigger;
+	// the panel buttons are read every 16 samples: a press lasts far longer
+	dsp::ClockDivider buttonDivider;
 
 	// Audio thread: (channel, unison voice) pairs packed 4 per oscillator.
 	wtOscillator<float_4> oscillators[MAX_GROUPS];
@@ -395,6 +397,7 @@ struct LIMONADE : BidooModule {
 		configButton(ADDFRAME_PARAM, "Add frame");
 		configButton(REMOVEFRAME_PARAM, "Remove frame");
 
+		buttonDivider.setDivision(16);
 		iRec.resize(MAX_FRAME_SIZE * NF);
 		worker = std::thread(&LIMONADE::workerLoop, this);
 	}
@@ -605,17 +608,22 @@ struct LIMONADE : BidooModule {
 		json_object_set_new(rootJ, "displayEditedFrame", json_integer(displayEditedFrame));
 		json_object_set_new(rootJ, "displayPlayedFrame", json_integer(displayPlayedFrame));
 		json_object_set_new(rootJ, "frameSize", json_integer(frameSize));
+		// the folder the file dialogs open in
+		json_object_set_new(rootJ, "lastPath", json_string(lastPath.c_str()));
 		return rootJ;
 	}
 
 	void dataFromJson(json_t *rootJ) override {
 		BidooModule::dataFromJson(rootJ);
 		json_t *displayModeJ = json_object_get(rootJ, "displayMode");
-		if (displayModeJ) displayMode = json_integer_value(displayModeJ);
+		// on / off flags: anything else from a hand-edited patch counts as off
+		if (displayModeJ) displayMode = json_integer_value(displayModeJ) == 0 ? 0 : 1;
 		json_t *displayEditedFrameJ = json_object_get(rootJ, "displayEditedFrame");
-		if (displayEditedFrameJ) displayEditedFrame = json_integer_value(displayEditedFrameJ);
+		if (displayEditedFrameJ) displayEditedFrame = json_integer_value(displayEditedFrameJ) == 0 ? 0 : 1;
 		json_t *displayPlayedFrameJ = json_object_get(rootJ, "displayPlayedFrame");
-		if (displayPlayedFrameJ) displayPlayedFrame = json_integer_value(displayPlayedFrameJ);
+		if (displayPlayedFrameJ) displayPlayedFrame = json_integer_value(displayPlayedFrameJ) == 0 ? 0 : 1;
+		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
+		if (lastPathJ && json_string_value(lastPathJ)) lastPath = json_string_value(lastPathJ);
 		json_t *frameSizeJ = json_object_get(rootJ, "frameSize");
 		if (frameSizeJ) frameSize = std::max((size_t)1, std::min((size_t)json_integer_value(frameSizeJ), MAX_FRAME_SIZE));
 
@@ -669,35 +677,39 @@ void LIMONADE::process(const ProcessArgs &args) {
 		}
 	}
 
-	if (displayModeTrigger.process(params[DISPLAYMODE_PARAM].getValue()))
-		displayMode = (displayMode == 0) ? 1 : 0;
-	if (displayEditedFrameTrigger.process(params[DISPLAYEDITEDFRAME_PARAM].getValue()))
-		displayEditedFrame = (displayEditedFrame == 0) ? 1 : 0;
-	if (displayPlayedFrameTrigger.process(params[DISPLAYPLAYEDFRAME_PARAM].getValue()))
-		displayPlayedFrame = (displayPlayedFrame == 0) ? 1 : 0;
-
 	uint32_t ops = 0;
-	auto button = [&](dsp::SchmittTrigger &trigger, int param, uint32_t op) {
-		if (trigger.process(params[param].getValue()))
-			ops |= op;
-	};
-	button(morphWtTrigger, MORPHWT_PARAM, OP_MORPH_WT);
-	button(morphSpectrumTrigger, MORPHSPECTRUM_PARAM, OP_MORPH_SPECTRUM);
-	button(morphSpectrumPhaseConstantTrigger, MORPHSPECTRUMCONSTANTPHASE_PARAM, OP_MORPH_SPECTRUM_CONSTANT_PHASE);
-	button(removeMorphingTrigger, REMOVEMORPH_PARAM, OP_REMOVE_MORPH);
-	button(normalizeWtTrigger, NORMALIZEWT_PARAM, OP_NORMALIZE_WT);
-	button(normalizeFrameTrigger, NORMALIZEFRAME_PARAM, OP_NORMALIZE_FRAME);
-	button(normalizeAllFramesTrigger, NORMALIZEALLFRAMES_PARAM, OP_NORMALIZE_ALL_FRAMES);
-	button(removeDCTrigger, REMOVEDC_PARAM, OP_REMOVE_DC);
-	button(windowWtTrigger, WINDOWWT_PARAM, OP_WINDOW_WT);
-	button(windowFrameTrigger, WINDOWFRAME_PARAM, OP_WINDOW_FRAME);
-	button(smoothWtTrigger, SMOOTHWT_PARAM, OP_SMOOTH_WT);
-	button(smoothFrameTrigger, SMOOTHFRAME_PARAM, OP_SMOOTH_FRAME);
-	button(addFrameTrigger, ADDFRAME_PARAM, OP_ADD_FRAME);
-	button(removeFrameTrigger, REMOVEFRAME_PARAM, OP_REMOVE_FRAME);
+	bool recWtPressed = false;
+	bool recFramePressed = false;
+	if (buttonDivider.process()) {
+		if (displayModeTrigger.process(params[DISPLAYMODE_PARAM].getValue()))
+			displayMode = (displayMode == 0) ? 1 : 0;
+		if (displayEditedFrameTrigger.process(params[DISPLAYEDITEDFRAME_PARAM].getValue()))
+			displayEditedFrame = (displayEditedFrame == 0) ? 1 : 0;
+		if (displayPlayedFrameTrigger.process(params[DISPLAYPLAYEDFRAME_PARAM].getValue()))
+			displayPlayedFrame = (displayPlayedFrame == 0) ? 1 : 0;
 
-	bool recWtPressed = recWtTrigger.process(params[RECWT_PARAM].getValue());
-	bool recFramePressed = recFrameTrigger.process(params[RECFRAME_PARAM].getValue());
+		auto button = [&](dsp::SchmittTrigger &trigger, int param, uint32_t op) {
+			if (trigger.process(params[param].getValue()))
+				ops |= op;
+		};
+		button(morphWtTrigger, MORPHWT_PARAM, OP_MORPH_WT);
+		button(morphSpectrumTrigger, MORPHSPECTRUM_PARAM, OP_MORPH_SPECTRUM);
+		button(morphSpectrumPhaseConstantTrigger, MORPHSPECTRUMCONSTANTPHASE_PARAM, OP_MORPH_SPECTRUM_CONSTANT_PHASE);
+		button(removeMorphingTrigger, REMOVEMORPH_PARAM, OP_REMOVE_MORPH);
+		button(normalizeWtTrigger, NORMALIZEWT_PARAM, OP_NORMALIZE_WT);
+		button(normalizeFrameTrigger, NORMALIZEFRAME_PARAM, OP_NORMALIZE_FRAME);
+		button(normalizeAllFramesTrigger, NORMALIZEALLFRAMES_PARAM, OP_NORMALIZE_ALL_FRAMES);
+		button(removeDCTrigger, REMOVEDC_PARAM, OP_REMOVE_DC);
+		button(windowWtTrigger, WINDOWWT_PARAM, OP_WINDOW_WT);
+		button(windowFrameTrigger, WINDOWFRAME_PARAM, OP_WINDOW_FRAME);
+		button(smoothWtTrigger, SMOOTHWT_PARAM, OP_SMOOTH_WT);
+		button(smoothFrameTrigger, SMOOTHFRAME_PARAM, OP_SMOOTH_FRAME);
+		button(addFrameTrigger, ADDFRAME_PARAM, OP_ADD_FRAME);
+		button(removeFrameTrigger, REMOVEFRAME_PARAM, OP_REMOVE_FRAME);
+
+		recWtPressed = recWtTrigger.process(params[RECWT_PARAM].getValue());
+		recFramePressed = recFrameTrigger.process(params[RECFRAME_PARAM].getValue());
+	}
 	if (!recWt && !recFrame && !recBusy) {
 		size_t fsz = frameSize;
 		if (recWtPressed) {
@@ -915,11 +927,15 @@ struct LIMONADEBinsDisplay : OpaqueWidget {
 		size_t p = frameAt(module->playedPos, n);
 		if (copiedOnce && version == copiedVersion && e == copiedEdited && p == copiedPlayed)
 			return false;
+		// the worker holds the lock through whole edits: keep the last copy
+		// (our own buffers) and try again at the next frame
+		std::unique_lock<std::mutex> lock(module->tableMutex, std::try_to_lock);
+		if (!lock.owns_lock())
+			return false;
 		copiedOnce = true;
 		copiedVersion = version;
 		copiedEdited = e;
 		copiedPlayed = p;
-		std::lock_guard<std::mutex> lock(module->tableMutex);
 		const wtTable &table = module->table;
 		nFrames = table.nFrames;
 		if (nFrames == 0)
@@ -1145,11 +1161,15 @@ struct LIMONADEWavDisplay : OpaqueWidget {
 		size_t p = LIMONADEBinsDisplay::frameAt(module->playedPos, n);
 		if (copiedOnce && version == copiedVersion && e == copiedEdited && p == copiedPlayed)
 			return;
+		// the worker holds the lock through whole edits: draw the last copy
+		// (our own buffers) and try again at the next frame
+		std::unique_lock<std::mutex> lock(module->tableMutex, std::try_to_lock);
+		if (!lock.owns_lock())
+			return;
 		copiedOnce = true;
 		copiedVersion = version;
 		copiedEdited = e;
 		copiedPlayed = p;
-		std::lock_guard<std::mutex> lock(module->tableMutex);
 		const wtTable &table = module->table;
 		nFrames = table.nFrames;
 		lineFrames.clear();
@@ -1534,6 +1554,9 @@ struct LIMONADEWidget : BidooWidget {
 	void appendContextMenu(Menu *menu) override {
 		BidooWidget::appendContextMenu(menu);
 		LIMONADE *m = dynamic_cast<LIMONADE*>(this->module);
+		// no module in the library browser
+		if (!m)
+			return;
 		menu->addChild(new MenuSeparator());
 		moduleDisplayModeItem *modeItem = new moduleDisplayModeItem;
 		modeItem->text = "Wavetable display: ";
@@ -1550,29 +1573,34 @@ struct LIMONADEWidget : BidooWidget {
 		playedFrameItem->rightText = (m->displayPlayedFrame == 0) ? "ON✔ OFF" : "ON  OFF✔";
 		playedFrameItem->module = m;
 		menu->addChild(playedFrameItem);
-		size_t nFrames, editedFrame;
+		// the worker may hold the table through a long morph or FFT: don't wait for it, show the exports as busy
+		size_t nFrames = 0, editedFrame = 0;
+		bool busy = false;
 		{
-			std::lock_guard<std::mutex> lock(m->tableMutex);
-			nFrames = m->table.nFrames;
-			editedFrame = m->table.frameAt(m->params[LIMONADE::INDEX_PARAM].getValue());
+			std::unique_lock<std::mutex> lock(m->tableMutex, std::try_to_lock);
+			busy = !lock.owns_lock();
+			if (!busy) {
+				nFrames = m->table.nFrames;
+				editedFrame = m->table.frameAt(m->params[LIMONADE::INDEX_PARAM].getValue());
+			}
 		}
 		menu->addChild(new MenuSeparator());
 		menu->addChild(createMenuLabel("Export"));
 		moduleSaveWavetableAsWavItem *saveWavetableAsWavItem = new moduleSaveWavetableAsWavItem;
 		saveWavetableAsWavItem->text = "Wavetable (all frames) to WAV...";
-		saveWavetableAsWavItem->rightText = std::to_string(nFrames) + " x " + std::to_string(FS);
+		saveWavetableAsWavItem->rightText = busy ? "busy" : std::to_string(nFrames) + " x " + std::to_string(FS);
 		saveWavetableAsWavItem->disabled = nFrames == 0;
 		saveWavetableAsWavItem->module = m;
 		menu->addChild(saveWavetableAsWavItem);
 		moduleSaveFrameAsWavItem *saveFrameAsWavItem = new moduleSaveFrameAsWavItem;
 		saveFrameAsWavItem->text = "Edited frame (single cycle) to WAV...";
-		saveFrameAsWavItem->rightText = nFrames ? "frame " + std::to_string(editedFrame + 1) + "/" + std::to_string(nFrames) : "";
+		saveFrameAsWavItem->rightText = busy ? "busy" : nFrames ? "frame " + std::to_string(editedFrame + 1) + "/" + std::to_string(nFrames) : "";
 		saveFrameAsWavItem->disabled = nFrames == 0;
 		saveFrameAsWavItem->module = m;
 		menu->addChild(saveFrameAsWavItem);
 		moduleSaveWavetableAsPngItem *saveWavetableAsPngItem = new moduleSaveWavetableAsPngItem;
 		saveWavetableAsPngItem->text = "Wavetable to PNG image...";
-		saveWavetableAsPngItem->rightText = "8-bit";
+		saveWavetableAsPngItem->rightText = busy ? "busy" : "8-bit";
 		saveWavetableAsPngItem->disabled = nFrames == 0;
 		saveWavetableAsPngItem->module = m;
 		menu->addChild(saveWavetableAsPngItem);

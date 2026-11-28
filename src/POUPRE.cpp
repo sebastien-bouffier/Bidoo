@@ -89,8 +89,10 @@ struct POUPRE : BidooModule {
 	void dataFromJson(json_t *rootJ) override {
 		BidooModule::dataFromJson(rootJ);
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
-		if (lastPathJ && json_string_value(lastPathJ)[0])
+		if (json_is_string(lastPathJ) && json_string_value(lastPathJ)[0])
 			bank.load(0, json_string_value(lastPathJ));
+		else
+			bank.clear(0);   // saved with no sample: not the one loaded before
 		for (int i = 0; i < 16; i++) {
 			json_t *channelJ = json_object_get(rootJ, ("channel" + to_string(i)).c_str());
 			settings[i].fromJson(channelJ);

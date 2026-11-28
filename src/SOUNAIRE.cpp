@@ -953,6 +953,10 @@ struct SOUNAIRE : BidooModule {
 		if (json_t *j = json_object_get(rootJ, "clockPpqn")) clockPpqn = clamp((int)json_integer_value(j), 1, 24);
 		if (json_t *j = json_object_get(rootJ, "loopBeats")) loopBeats = clamp((int)json_integer_value(j), 0, 64);
 		if (json_t *slicesJ = json_object_get(rootJ, "slices")) {
+			// the sample shown now, if any (a preset loaded on a module that
+			// holds one): cuts past its end are dropped
+			std::shared_ptr<Sample> shownNow = displaySample();
+			const int64_t knownFrames = shownNow ? shownNow->frames : 0;
 			std::lock_guard<std::mutex> lock(sliceMutex);
 			Slices &u = uiSlices;
 			u.count = 0;
@@ -974,6 +978,30 @@ struct SOUNAIRE : BidooModule {
 			}
 			if (u.count == 0)
 				u.count = 1;
+			// a hand-edited or old file may hold cuts out of order or too close:
+			// end() and at() need them ascending, 64 frames apart as the edits keep them
+			int order[MAX_SLICES];
+			for (int k = 0; k < u.count; k++)
+				order[k] = k;
+			std::stable_sort(order + 1, order + u.count, [&](int a, int b) { return u.start[a] < u.start[b]; });
+			Slices r;
+			r.count = 0;
+			for (int k = 0; k < u.count; k++) {
+				int64_t p = u.start[order[k]];
+				if (r.count > 0 && (p < r.start[r.count - 1] + 64 || (knownFrames > 0 && p > knownFrames - 64)))
+					continue;
+				r.start[r.count] = p;
+				const int o = order[k], n = r.count;
+				r.type[n] = u.type[o];
+				r.choke[n] = u.choke[o];
+				r.level[n] = u.level[o];
+				r.tune[n] = u.tune[o];
+				r.pan[n] = u.pan[o];
+				r.attack[n] = u.attack[o];
+				r.release[n] = u.release[o];
+				r.count++;
+			}
+			u = r;
 		}
 		publishSlices();
 		if (json_t *j = json_object_get(rootJ, "selectedSlice")) selectedSlice = clamp((int)json_integer_value(j), 0, MAX_SLICES - 1);

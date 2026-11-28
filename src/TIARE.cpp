@@ -423,7 +423,11 @@ struct TIARE : BidooModule {
 		freqParam += dsp::quadraticBipolar(params[FINE_PARAM].getValue()) * 3.f / 12.f;
 		float fmParam = dsp::quadraticBipolar(params[FM_PARAM].getValue());
 
-		int channels = std::max(inputs[PITCH_INPUT].getChannels(), 1);
+		// as many voices as the widest input, so a poly sync, FM, PW or
+		// distortion cable with a mono pitch still plays every voice
+		int channels = 1;
+		for (int i : {PITCH_INPUT, SYNC_INPUT, FM_INPUT, PW_INPUT, DIST_X_INPUT, DIST_Y_INPUT})
+			channels = std::max(channels, inputs[i].getChannels());
 		int waves = 0;
 		for (int w = 0; w < TIARE_WAVES; w++)
 			if (outputs[SIN_OUTPUT + w].isConnected())
@@ -436,7 +440,7 @@ struct TIARE : BidooModule {
 			oscillator->soft = params[SYNC_PARAM].getValue() <= 0.f;
 
 			float_4 pitch = freqParam;
-			pitch += inputs[PITCH_INPUT].getVoltageSimd<float_4>(c);
+			pitch += inputs[PITCH_INPUT].getPolyVoltageSimd<float_4>(c);
 			if (inputs[FM_INPUT].isConnected()) {
 				pitch += fmParam * inputs[FM_INPUT].getPolyVoltageSimd<float_4>(c);
 			}

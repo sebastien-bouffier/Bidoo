@@ -51,7 +51,7 @@ def build():
         X2 = W * .5 + (X - W * .5) * (1.05 + .2 * V) + V * V * 3.5 + math.sin(V * 5.0) * 1.9
         return X2 + p.shift(Y2) * 1.5, Y2
 
-    out = [k.header(PW, W), k.background(W), p.path(warp, .5), k.title('rICOcHEt', PW, 26)]
+    out = [k.header(PW, W), k.background(W), p.path(warp, .5), k.title('rICOcHEt', PW)]
     for lab, c, r in (('TYPE', 0, 0), ('TIME', 1, 0), ('FEEDBACK', 2, 0), ('MIX', 3, 0), ('TONE', 0, 1), ('CHARACTER', 1, 1), ('SPREAD', 2, 1)):
         out.append(k.knob_label(lab, KX[c], KY[r]))
     out.append(k.text('PING', 165, KY[1] - k.KNOB_LABEL_ABOVE, k.BOX_LABEL_SIZE, k.INK))

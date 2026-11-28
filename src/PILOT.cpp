@@ -123,6 +123,9 @@ struct PILOT : BidooModule {
 	enum CtrlFill { FILL_RAND, FILL_RAMP_UP, FILL_RAMP_DOWN, FILL_SIN, FILL_INIT };
 	std::atomic<int> ctrlFillRequest {-1};
 	float fillValues[16] = {};
+	// UI -> audio thread: paste or full-randomize one scene of the current bank (kind * 16 + scene, -1 none)
+	enum SceneReq { SCENE_PASTE, SCENE_FRANDOM };
+	std::atomic<int> sceneRequest {-1};
 	int copySceneId = -1;
 	int copySceneBankId = -1;
 	bool showTapes = false;
@@ -352,10 +355,14 @@ struct PILOT : BidooModule {
 		}
 	}
 
+	// UI thread: process() applies it, as scenes and controlTypes belong to the audio thread
+	void requestScene(int kind, int scene) {
+		sceneRequest.store(kind * 16 + clamp(scene, 0, 15));
+	}
+
 	void randomizeTargetScene() {
-		for (int i = 0; i < 16; i++) {
-				frandomizeScene(topScene);
-		}
+		// one pass already randomizes every control of the scene
+		requestScene(SCENE_FRANDOM, topScene);
 	}
 
 	void onRandomize() override {
@@ -437,7 +444,7 @@ struct PILOT : BidooModule {
 
 		for(size_t i=0; i<16; i++) {
       json_t *labelJ=json_object_get(rootJ, ("label"+ to_string(i)).c_str());
-      if (labelJ) {
+      if (json_is_string(labelJ)) {
         labels[i] = json_string_value(labelJ);
       }
     }
@@ -514,6 +521,14 @@ void PILOT::process(const ProcessArgs &args) {
 	int fillReq = ctrlFillRequest.exchange(-1);
 	if (fillReq >= 0)
 		fillCtrl(fillReq / 16, fillReq % 16);
+
+	int sceneReq = sceneRequest.exchange(-1);
+	if (sceneReq >= 0) {
+		if (sceneReq / 16 == SCENE_PASTE)
+			pasteScene(sceneReq % 16);
+		else
+			frandomizeScene(sceneReq % 16);
+	}
 
 	if (moveTypeTrigger.process(params[MOVETYPE_PARAM].getValue())) {
 		moveType = (moveType+1)%6;
@@ -1106,23 +1121,25 @@ struct PILOTMorphKnob : BidooHugeRedKnob {
 	}
 
 	void onDragStart(const DragStartEvent& e) override {
-		PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
-		module->morphFocused = true;
+		// no module in the library browser
+		if (PILOT *module = getParamQuantity() ? dynamic_cast<PILOT*>(getParamQuantity()->module) : nullptr)
+			module->morphFocused = true;
 		//e.consume(this);
 		BidooHugeRedKnob::onDragStart(e);
 	}
 
 	void onDragEnd(const DragEndEvent& e) override {
-		PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
-		module->morphFocused = false;
+		if (PILOT *module = getParamQuantity() ? dynamic_cast<PILOT*>(getParamQuantity()->module) : nullptr)
+			module->morphFocused = false;
 		//e.consume(this);
 		BidooHugeRedKnob::onDragEnd(e);
 	}
 
 	void onButton(const event::Button &e) override {
-			PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
-			for (int i = 0 ; i < 16; i++) {
-				module->controlFocused[i] = false;
+			if (PILOT *module = getParamQuantity() ? dynamic_cast<PILOT*>(getParamQuantity()->module) : nullptr) {
+				for (int i = 0 ; i < 16; i++) {
+					module->controlFocused[i] = false;
+				}
 			}
 			//e.consume(this);
 			BidooHugeRedKnob::onButton(e);
@@ -1361,7 +1378,9 @@ struct PILOTColoredKnob : BidooLargeColoredKnob {
 		RoundKnob::onButton(e);
 
 		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT) {
-			PILOT *module = dynamic_cast<PILOT*>(this->getParamQuantity()->module);
+			PILOT *module = getParamQuantity() ? dynamic_cast<PILOT*>(getParamQuantity()->module) : nullptr;
+			if (!module)
+				return;
 			module->controlFocused[this->getParamQuantity()->paramId - PILOT::PILOT::CONTROLS_PARAMS] = true;
 			module->currentFocus = this->getParamQuantity()->paramId - PILOT::PILOT::CONTROLS_PARAMS;
 		}
@@ -1372,15 +1391,11 @@ struct PILOTColoredKnob : BidooLargeColoredKnob {
 struct PilotBankBtn : BidooBlueSnapKnob {
 	void onHoverKey(const HoverKeyEvent& e) override {
 		if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
-			if (e.key == GLFW_KEY_C) {
-				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
+			PILOT *mod = getParamQuantity() ? static_cast<PILOT*>(getParamQuantity()->module) : nullptr;
+			if (mod && e.key == GLFW_KEY_C)
 				mod->copyBankId = mod->bank;
-			}
-
-			if (e.key == GLFW_KEY_V) {
-				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
+			if (mod && e.key == GLFW_KEY_V)
 				mod->copyBankArmed = true;
-			}
 		}
 		BidooBlueSnapKnob::onHoverKey(e);
 	}
@@ -1397,22 +1412,22 @@ struct PILOTCopyTopSceneItem : MenuItem {
 struct PILOTPasteTopSceneItem : MenuItem {
 	PILOT *module;
 	void onAction(const event::Action &e) override {
-		module->pasteScene(module->topScene);
+		module->requestScene(PILOT::SCENE_PASTE, module->topScene);
 	}
 };
 
 struct PilotTopSceneBtn : BidooBlueSnapTrimpot {
 	void onHoverKey(const HoverKeyEvent& e) override {
 		if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
-			if (e.key == GLFW_KEY_C) {
-				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
+			// no module in the library browser
+			PILOT *mod = getParamQuantity() ? static_cast<PILOT*>(getParamQuantity()->module) : nullptr;
+			if (mod && e.key == GLFW_KEY_C) {
 				mod->copySceneBankId = mod->bank;
 				mod->copySceneId = mod->topScene;
 			}
 
-			if (e.key == GLFW_KEY_V) {
-				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
-				mod->pasteScene(mod->topScene);
+			if (mod && e.key == GLFW_KEY_V) {
+				mod->requestScene(PILOT::SCENE_PASTE, mod->topScene);
 			}
 		}
 		BidooBlueSnapTrimpot::onHoverKey(e);
@@ -1439,22 +1454,22 @@ struct PILOTCopyBottomSceneItem : MenuItem {
 struct PILOTPasteBottomSceneItem : MenuItem {
 	PILOT *module;
 	void onAction(const event::Action &e) override {
-		module->pasteScene(module->bottomScene);
+		module->requestScene(PILOT::SCENE_PASTE, module->bottomScene);
 	}
 };
 
 struct PilotBottomSceneBtn : BidooBlueSnapTrimpot {
 	void onHoverKey(const HoverKeyEvent& e) override {
 		if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
-			if (e.key == GLFW_KEY_C) {
-				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
+			// no module in the library browser
+			PILOT *mod = getParamQuantity() ? static_cast<PILOT*>(getParamQuantity()->module) : nullptr;
+			if (mod && e.key == GLFW_KEY_C) {
 				mod->copySceneBankId = mod->bank;
 				mod->copySceneId = mod->bottomScene;
 			}
 
-			if (e.key == GLFW_KEY_V) {
-				PILOT *mod = static_cast<PILOT*>(getParamQuantity()->module);
-				mod->pasteScene(mod->bottomScene);
+			if (mod && e.key == GLFW_KEY_V) {
+				mod->requestScene(PILOT::SCENE_PASTE, mod->bottomScene);
 			}
 		}
 		BidooBlueSnapTrimpot::onHoverKey(e);

@@ -38,19 +38,25 @@ struct HCTIP : BidooModule {
 			p = true;
 		configOutput(OUTPUT, "Audio (37 ms late: the analysis window)");
 		configBypass(INPUT, OUTPUT);
+		// made now too, so the module plays without waiting for a rate change
+		makeShifters(APP->engine->getSampleRate());
 	}
 
-	void onSampleRateChange(const SampleRateChangeEvent &e) override {
+	void makeShifters(float sampleRate) {
 		// the same frequency resolution and hop time at any rate: 2048 at 44.1 /
 		// 48 kHz, 4096 at 88.2 / 96 kHz, 8192 at 176.4 / 192 kHz
-		int size = e.sampleRate >= 160000.f ? 8192 : (e.sampleRate >= 80000.f ? 4096 : 2048);
+		int size = sampleRate >= 160000.f ? 8192 : (sampleRate >= 80000.f ? 4096 : 2048);
 		for (int c = 0; c < 16; c++) {
 			delete pShifter[c];
 			pShifter[c] = new PitchShifter();
-			pShifter[c]->init(size, 8, e.sampleRate);
+			pShifter[c]->init(size, 8, sampleRate);
 			pShifter[c]->phaseLock = true;
 			paused[c] = true;
 		}
+	}
+
+	void onSampleRateChange(const SampleRateChangeEvent &e) override {
+		makeShifters(e.sampleRate);
 	}
 
 	// the phase-locked shifter's gain per semitone from -12 to +24, measured

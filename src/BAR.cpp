@@ -268,7 +268,7 @@ struct BARDisplay : TransparentWidget {
 				nvgSave(args.vg);
 				nvgStrokeWidth(args.vg, 0.0f);
 
-				nvgFillColor(args.vg, BLUE_BIDOO);
+				nvgFillColor(args.vg, theme::kWavePink);
 				nvgBeginPath(args.vg);
 				nvgRoundedRect(args.vg,0.0f,height-vuL,width2,vuL,0.0f);
 				nvgRoundedRect(args.vg,3.0f*widthSpacer+width2,height-vuR,width2,vuR,0.0f);
@@ -282,7 +282,7 @@ struct BARDisplay : TransparentWidget {
 				nvgFill(args.vg);
 				nvgClosePath(args.vg);
 
-				nvgFillColor(args.vg, ORANGE_BIDOO);
+				nvgFillColor(args.vg, theme::kLitOrange);
 				nvgBeginPath(args.vg);
 				if (inL>rmsL+3.0f)
 					nvgRoundedRect(args.vg,width+spacer2-width2,max(height-inL+1.0f,0.f),width2,inL-rmsL-2.0f,0.0f);
@@ -291,7 +291,7 @@ struct BARDisplay : TransparentWidget {
 				nvgFill(args.vg);
 				nvgClosePath(args.vg);
 
-				nvgFillColor(args.vg, LIGHTBLUE_BIDOO);
+				nvgFillColor(args.vg, theme::kKeyWhite);
 				nvgBeginPath(args.vg);
 				nvgRoundedRect(args.vg,width+spacer2-width2,height-rmsL,width2,rmsL,0.0f);
 				nvgRoundedRect(args.vg,3.0f*widthSpacer-spacer2,height-rmsR,width2,rmsR,0.0f);
@@ -300,7 +300,7 @@ struct BARDisplay : TransparentWidget {
 
 
 
-				nvgFillColor(args.vg, BLUE_BIDOO);
+				nvgFillColor(args.vg, theme::kWavePink);
 				nvgBeginPath(args.vg);
 				nvgRoundedRect(args.vg,widthSpacer,height-SC_vuL,width2,SC_vuL,0.0f);
 				nvgRoundedRect(args.vg,2.0f*widthSpacer+width2,height-SC_vuR,width2,SC_vuR,0.0f);
@@ -314,7 +314,7 @@ struct BARDisplay : TransparentWidget {
 				nvgFill(args.vg);
 				nvgClosePath(args.vg);
 
-				nvgFillColor(args.vg, ORANGE_BIDOO);
+				nvgFillColor(args.vg, theme::kLitOrange);
 				nvgBeginPath(args.vg);
 				if (SC_inL>SC_rmsL+3.0f)
 					nvgRoundedRect(args.vg,widthSpacer+width2+spacer2,max(height-SC_inL+1.0f,0.f),width2,SC_inL-SC_rmsL-2.0f,0.0f);
@@ -323,7 +323,7 @@ struct BARDisplay : TransparentWidget {
 				nvgFill(args.vg);
 				nvgClosePath(args.vg);
 
-				nvgFillColor(args.vg, LIGHTBLUE_BIDOO);
+				nvgFillColor(args.vg, theme::kKeyWhite);
 				nvgBeginPath(args.vg);
 				nvgRoundedRect(args.vg,widthSpacer+width2+spacer2,height-SC_rmsL,width2,SC_rmsL,0.0f);
 				nvgRoundedRect(args.vg,2.0f*widthSpacer-spacer2,height-SC_rmsR,width2,SC_rmsR,0.0f);
@@ -335,7 +335,7 @@ struct BARDisplay : TransparentWidget {
 				nvgSave(args.vg);
 				nvgStrokeWidth(args.vg, 0.0f);
 
-				nvgFillColor(args.vg, BLUE_BIDOO);
+				nvgFillColor(args.vg, theme::kWavePink);
 				nvgBeginPath(args.vg);
 				nvgRoundedRect(args.vg,0.0f,height-vuL,width,vuL,0.0f);
 				nvgRoundedRect(args.vg,3.0f*widthSpacer,height-vuR,width,vuR,0.0f);
@@ -349,7 +349,7 @@ struct BARDisplay : TransparentWidget {
 				nvgFill(args.vg);
 				nvgClosePath(args.vg);
 
-				nvgFillColor(args.vg, ORANGE_BIDOO);
+				nvgFillColor(args.vg, theme::kLitOrange);
 				nvgBeginPath(args.vg);
 				if (inL>rmsL+3.0f)
 					nvgRoundedRect(args.vg,widthSpacer,max(height-inL+1.0f,0.f),width,inL-rmsL-2.0f,0.0f);
@@ -358,7 +358,7 @@ struct BARDisplay : TransparentWidget {
 				nvgFill(args.vg);
 				nvgClosePath(args.vg);
 
-				nvgFillColor(args.vg, LIGHTBLUE_BIDOO);
+				nvgFillColor(args.vg, theme::kKeyWhite);
 				nvgBeginPath(args.vg);
 				nvgRoundedRect(args.vg,widthSpacer,height-rmsL,width,rmsL,0.0f);
 				nvgRoundedRect(args.vg,2.0f*widthSpacer,height-rmsR,width,rmsR,0.0f);

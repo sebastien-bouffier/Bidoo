@@ -168,6 +168,8 @@ struct RICOCHET : BidooModule {
 		delay.prepare(fs);
 		clock.clear();
 		tick = 0;
+		// held in samples of the old rate: picked again from the clock
+		clockedSamples = -1.0;
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent &e) override {

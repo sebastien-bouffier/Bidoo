@@ -1205,7 +1205,7 @@ struct ZouSeq : BidooModule {
 
     for(size_t i=0; i<NUM_TRACKS; i++) {
       json_t *labelJ=json_object_get(rootJ, ("label"+ to_string(i)).c_str());
-      if (labelJ) {
+      if (json_is_string(labelJ)) {
         labels[i] = json_string_value(labelJ);
       }
     }
@@ -1224,7 +1224,7 @@ struct ZouSeq : BidooModule {
 							nTracksAttibutes[i][j].setTrackSolo(json_boolean_value(isSoloJ));
 						json_t *lengthJ = json_object_get(trackJ, "length");
 						if (lengthJ)
-							nTracksAttibutes[i][j].setTrackLength(json_integer_value(lengthJ));
+							nTracksAttibutes[i][j].setTrackLength(clamp((int)json_integer_value(lengthJ), 1, 64));   // the shifts do length - 1
 						json_t *speedJ = json_object_get(trackJ, "speed");
 						if (speedJ)
 							nTracksAttibutes[i][j].setTrackSpeed(speedFromFactor(json_number_value(speedJ)));

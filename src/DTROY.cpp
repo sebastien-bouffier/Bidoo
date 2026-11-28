@@ -70,11 +70,11 @@ struct DTROY : MetroModule<DTROY> {
 	DTROY() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 		configMetro(*this);
-		for (int i = 0; i < 8; i++) {
-		}
 	}
 
-	void onRandomize() override {
+	void onRandomize(const RandomizeEvent &e) override {
+		// the knobs first, as Rack does, then the slides and skips
+		MetroModule<DTROY>::onRandomize(e);
 		randomizeSlidesSkips();
 	}
 };

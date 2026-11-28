@@ -1,6 +1,27 @@
 ### v2.7.10 (28/11/2026)
 Back
 - enCORE and the enCORE Expander are back in the module browser: patches that use them open and play as before (2.7.8 opened them without these modules). zOù MAï's Fast clock mode stays, for those who prefer zOù MAï's grid
+Improvements
+- The titles of aCiDe, cOPIA, dOSE, FiLTRe, pARtiCuLeS, rEgIStRE, REI, rICOcHEt and sOUNAiRe sit at the height and size of the other modules' (16 px, baseline 16.875): they were lower and larger
+- ziNC: the band knobs' tint follows each band's envelope (what moves the carrier, with ATTACK and DECAY) in dB, from -48 dB (blue) to -6 dB (red), so a 5 V signal colours them without pushing MOD; the tint goes straight from the knob's blue to the red of the output boxes
+- ChUTE's screen is black, baR's meters in the house colours (pink level, grey RMS, orange peaks above the RMS), fLAME's six buttons are round buttons lit orange on the size and colour in use
+- liMonADe: the screens and the right-click menu no longer wait for a long morph or FFT (the exports show "busy"); the dialogs remember their folder in the patch
+- EMILE: the image is decoded and shrunk on the loading thread, the screen only shows it (no stall when a large PNG loads, no texture left behind when the module is deleted)
+- CPU: REI's input and output levels, dTrOY and bordL's slides, EMILE's curve, SPORE's window shape, bAFIs's drive normalisation and OUAIve's speed are worked out less often or more cheaply, with the same sound
+- TiARE and LoURdE play as many voices as their widest input (a polyphonic CV with a mono pitch played one voice); BISTROT reads a mono input on every channel
+- lIMbO bypassed with only IN L patched keeps OUT R (it went silent); fLAME has a bypass (IN to BAND)
+Fixes
+- pARtiCuLeS: saving a patch while a new buffer came in could crash; recording on a buffer at another rate (a FLAC file, or after Rack's rate changed) resamples it first, so the grains keep their pitch
+- ziNC's tinted knobs no longer tint the blue knobs of other Bidoo modules
+- OUAIve loaded its file twice after a sample rate change
+- πlOT: pasting or randomizing a scene is applied by the audio thread (it could be read half written)
+- fLAME: changing the FFT size no longer clears 3.6 MB at once on the audio thread (a likely dropout)
+- A damaged patch can no longer crash rEgIStRE, póUPrè, πlOT, zOù MAï, enCORE, OUAIve, cANARd, eDsaroS, maGma or oAï on load (a value of the wrong type, a track length of 0)
+- A patch or preset saved with no sample empties oAï, maGma, póUPrè and OUAIve (they kept the sample loaded before)
+- sOUNAiRe: slices read from a patch are sorted and kept 64 frames apart
+- bAFIs: a NaN or infinite input no longer silences it until reset, and a channel that comes back starts clean
+- ACnE: a patch saved with a track soloed starts with only that track open; Initialize, DIKTAT's root note from a mapped knob, HCTIP before the first rate change, SPORE's Initialize (clears the grains), rICOcHEt's clocked time after a rate change
+- Knobs and buttons of ACnE, MOiRE and πlOT no longer crash in the module browser
 
 ### v2.7.9 (27/11/2026)
 Improvements

@@ -190,6 +190,22 @@ struct BAFIS : BidooModule {
 		float duck = 1.f;
 		float d = 0.1f, norm = 1.f, volume = 0.5f;          // smoothed
 		float dTarget = 0.1f, volumeTarget = 0.5f;
+		// norm follows the drive's glide by a straight line per control block
+		// (its tanh / sin worked out once a block), landing on normFor(d) exactly
+		float normEnd = 1.f, normStep = 0.f;
+		int normLeft = 0;
+
+		// back to rest: filters and shaper emptied
+		void clearState() {
+			for (BafisSvf &f : s)
+				f = BafisSvf();
+			shaper = BafisShaper();
+		}
+		// norm set at once (a new channel, a type change while ducked)
+		void setNorm() {
+			norm = normEnd = BafisShaper::normFor(type, d);
+			normLeft = 0;
+		}
 	};
 
 	struct Channel {
@@ -295,17 +311,20 @@ struct BAFIS : BidooModule {
 		if (!outputs[OUT].isConnected())   // nothing listens: skip the 4 oversampled bands
 			return;
 		int channels = std::max(1, inputs[IN].getChannels());
-		if (control.process() || channels != lastChannels) {
+		const bool tick = control.process();
+		if (tick || channels != lastChannels) {
 			readControls(channels, args.sampleRate);
 			if (channels != lastChannels) {
-				// new channels start from what their knobs say
+				// new channels (or ones coming back) start from rest, at what their knobs say
 				for (int c = lastChannels; c < channels; c++)
 					for (Band &band : ch[c].band) {
 						band.type = band.wantType;
 						band.post = band.wantPost;
 						band.d = band.dTarget;
 						band.volume = band.volumeTarget;
-						band.norm = BafisShaper::normFor(band.type, band.d);
+						band.duck = 1.f;
+						band.setNorm();
+						band.clearState();
 					}
 				lastChannels = channels;
 			}
@@ -313,10 +332,15 @@ struct BAFIS : BidooModule {
 		// 5 ms glides for drive and volume, 2.5 ms ducks for a type or pre/post change
 		float smooth = std::min(1.f, 1.f / (0.005f * args.sampleRate));
 		float duckStep = 1.f / (0.0025f * args.sampleRate);
+		// what is left of a drive glide after one control block
+		const float glideLeft = tick ? std::pow(1.f - smooth, (float)CONTROL) : 0.f;
 
 		for (int c = 0; c < channels; c++) {
 			Channel &k = ch[c];
 			float in = inputs[IN].getVoltage(c) * 0.2f;
+			// a NaN or infinity at the input would stay in the filters and the halfbands for good
+			if (!std::isfinite(in))
+				in = 0.f;
 			float out = 0.f;
 			for (int b = 0; b < 4; b++) {
 				Band &band = k.band[b];
@@ -328,16 +352,27 @@ struct BAFIS : BidooModule {
 						band.type = band.wantType;
 						band.post = band.wantPost;
 						band.shaper = BafisShaper();
-						band.norm = BafisShaper::normFor(band.type, band.d);
+						band.setNorm();
 					}
 				}
 				else if (band.duck < 1.f)
 					band.duck = std::min(1.f, band.duck + duckStep);
+				// once a control block: aim norm at the drive the glide reaches by the block's end
+				if (tick && (band.d != band.dTarget || band.norm != band.normEnd)) {
+					float dEnd = band.dTarget + (band.d - band.dTarget) * glideLeft;
+					if (std::fabs(band.dTarget - dEnd) < 1e-4f)
+						dEnd = band.dTarget;
+					band.normEnd = BafisShaper::normFor(band.type, dEnd);
+					band.normStep = (band.normEnd - band.norm) * (1.f / CONTROL);
+					band.normLeft = CONTROL;
+				}
 				if (band.d != band.dTarget) {
 					band.d += (band.dTarget - band.d) * smooth;
 					if (std::fabs(band.dTarget - band.d) < 1e-4f)
 						band.d = band.dTarget;
-					band.norm = BafisShaper::normFor(band.type, band.d);
+				}
+				if (band.normLeft > 0) {
+					band.norm = --band.normLeft > 0 ? band.norm + band.normStep : band.normEnd;
 				}
 				band.volume += (band.volumeTarget - band.volume) * smooth;
 
@@ -346,6 +381,12 @@ struct BAFIS : BidooModule {
 				if (band.post)
 					x = band.shaper.process(band.type, band.d, band.norm, x);
 				out += x * band.volume * band.duck;
+			}
+			// blown up anyway (a NaN from inside): the channel starts again from rest
+			if (!std::isfinite(out)) {
+				for (Band &band : k.band)
+					band.clearState();
+				out = 0.f;
 			}
 			outputs[OUT].setVoltage(bidooSoftLimit(out * 5.0f), c);
 		}

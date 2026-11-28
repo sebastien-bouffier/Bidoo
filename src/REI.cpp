@@ -153,6 +153,8 @@ struct REI : BidooModule {
 	float loopMix = 0.f, loopStep = 0.f;
 	// smoothed gains (20 ms): dry, wet, input and output levels with their pans
 	float gDry = 1.f, gWet = 0.f, gInL = 1.f, gInR = 1.f, gOutL = 1.f, gOutR = 1.f, smoothA = 0.f;
+	// the level knobs in dB and their gains, worked out again only when a knob moves
+	float inDb = 0.f, inGain = 1.f, outDb = 0.f, outGain = 1.f;
 	// an older patch's menu values, read by dataFromJson for fromJson (-1: none)
 	int legacyAlgo = -1, legacyPreDelay = -1;
 
@@ -401,7 +403,12 @@ struct REI : BidooModule {
 		const int algo = clamp((int)std::round(knob(STYLE_PARAM, STYLE_INPUT, 1.f)), 0, PrismReverb::NumAlgos - 1);
 
 		// input level and pan (a balance), smoothed
-		const float inG = std::pow(10.f, params[INPUT_PARAM].getValue() / 20.f);
+		const float inDbNow = params[INPUT_PARAM].getValue();
+		if (inDbNow != inDb) {
+			inDb = inDbNow;
+			inGain = std::pow(10.f, inDb / 20.f);
+		}
+		const float inG = inGain;
 		const float inPan = params[INPAN_PARAM].getValue();
 		gInL += smoothA * (inG * std::min(1.f, 1.f - inPan) - gInL);
 		gInR += smoothA * (inG * std::min(1.f, 1.f + inPan) - gInR);
@@ -467,7 +474,12 @@ struct REI : BidooModule {
 		const float mix = clamp(knob(MIX_PARAM, MIX_INPUT), 0.f, 1.f);
 		gDry += smoothA * (std::min(1.f, 2.f * (1.f - mix)) - gDry);
 		gWet += smoothA * (std::min(1.f, 2.f * mix) - gWet);
-		const float outG = std::pow(10.f, params[OUTPUT_PARAM].getValue() / 20.f);
+		const float outDbNow = params[OUTPUT_PARAM].getValue();
+		if (outDbNow != outDb) {
+			outDb = outDbNow;
+			outGain = std::pow(10.f, outDb / 20.f);
+		}
+		const float outG = outGain;
 		const float outPan = params[OUTPAN_PARAM].getValue();
 		gOutL += smoothA * (outG * std::min(1.f, 1.f - outPan) - gOutL);
 		gOutR += smoothA * (outG * std::min(1.f, 1.f + outPan) - gOutR);

@@ -65,7 +65,7 @@ void BISTROT::process(const ProcessArgs &args) {
 
 	for (int c = 0; c < channels; c++) {
 		if (!inputs[ADCCLOCK_INPUT].isConnected() || adcClockTrigger[c].process(inputs[ADCCLOCK_INPUT].getPolyVoltage(c)))
-			in[c] = encode(inputs[INPUT].getVoltage(c));
+			in[c] = encode(inputs[INPUT].getPolyVoltage(c));
 		for (int i = 0; i < 8; i++)
 			outputs[BIT_OUTPUT + i].setVoltage((in[c] >> i) & 1 ? 10.0f : 0.0f, c);
 

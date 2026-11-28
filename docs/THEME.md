@@ -50,7 +50,8 @@ Measured in px from the top left of the panel; a panel is 380 high.
   (`jack_label(..., jack_above=y)` in the scripts): 20.27 for rows 46 apart, 15.27 for sOUNAiRe's 36. Captions at 7 or 6.5
   use the same numbers (under 0.4 px off), so a row keeps one baseline.
 - Screen: top 34, side margin 10, so its width is the panel's minus 20.
-- Title: centred on the panel, baseline 25, size 20.
+- Title: centred on the panel, baseline 16.875, size 16: the height and size of the older panels (4.4648 mm and 4.2333 mm), so a
+  new module's title lines up with its neighbours' in a rack. Panels of 3 to 5 HP keep their small titles.
 - Screws at 15 from each side, y 0 and 365: `theme::addScrews(this)`. On a 6 HP panel they would sit on the title and the logo, so dOSE puts them in the corners (x 0 and width - 15).
 
 Boxes line up with the screen: the left edge of the first box and the right edge of the last are the screen's edges.
@@ -64,7 +65,7 @@ leaving a gap above the jacks. If it doesn't fit, make the screen taller or use 
 296 keeps the box rule around its own height, as sOUNAiRe does with its upper row at 306.
 
 Exceptions already there, from before these rules: aCiDe's knobs (27, 123) sit inside its outer jacks (21, 129), rICOcHEt's too
-(30, 180 and 20.9, 189.1); rICOcHEt's screen is at margin 6, top 36, with the title at 26. Don't copy them.
+(30, 180 and 20.9, 189.1); rICOcHEt's screen is at margin 6, top 36. Don't copy them.
 
 Where a value belongs to one module (its knob rows, its screen's height, its columns), it stays in that module's widget
 and its script, with a comment on the script's line saying where the other copy is.
@@ -88,7 +89,7 @@ are in `src/BidooTheme.hpp` and `panel_kit.py` reads the same lines, so the widg
 - Rows count from the bottom, 46 px apart: a big knob with its label, or a jack in its box with 4 px to the next box.
   Half rows (k + 0.5) only when a module can't fit otherwise.
 - Columns: a row picks its n; rows may differ. A fractional i (1.5) puts a control between two columns.
-- Fixed places: title baseline 25, screen top 34, screws through `theme::addScrews`.
+- Fixed places: title baseline 16.875, screen top 34, screws through `theme::addScrews`.
 
 | C++ (`theme::`) | Python (`panel_kit.`) | Gives |
 |---|---|---|

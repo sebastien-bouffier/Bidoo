@@ -395,6 +395,7 @@ struct MiniLEDButton : app::SvgSwitch {
 struct BidooRoundButton : app::Switch {
 	float inner = 0.68f;
 	std::function<bool()> dimmed;
+	std::function<bool()> litBy;   // a state the module shows here (a radio choice), instead of the param's value
 	BidooRoundButton() {
 		box.size = Vec(20, 20);
 	}
@@ -403,7 +404,7 @@ struct BidooRoundButton : app::Switch {
 			nvgGlobalAlpha(args.vg, 0.3f);
 		const float c = box.size.x / 2;
 		engine::ParamQuantity *pq = getParamQuantity();
-		const bool lit = pq && pq->getValue() > 0.5f;
+		const bool lit = litBy ? litBy() : pq && pq->getValue() > 0.5f;
 		nvgBeginPath(args.vg);
 		nvgCircle(args.vg, c, c, c - 0.5f);
 		nvgFillColor(args.vg, theme::kScreenBlack);

@@ -714,7 +714,7 @@ struct CANARD : BidooModule {
 			lastPath.clear();
 			waveFileName = nameJ ? json_string_value(nameJ) : "";
 		}
-		else if (lastPathJ && json_string_value(lastPathJ)[0])
+		else if (json_is_string(lastPathJ) && json_string_value(lastPathJ)[0])
 			post({LOAD, json_string_value(lastPathJ), rate, sl, engineRate()});
 	}
 

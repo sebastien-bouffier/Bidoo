@@ -459,8 +459,9 @@ struct REGISTRE : BidooModule {
 	void dataFromJson(json_t *rootJ) override {
 		BidooModule::dataFromJson(rootJ);
 		std::lock_guard<std::recursive_mutex> lock(docMutex);
-		if (json_t *j = json_object_get(rootJ, "song")) {
-			const std::vector<uint8_t> blob = rack::string::fromBase64(json_string_value(j));
+		json_t *songJ = json_object_get(rootJ, "song");
+		if (json_is_string(songJ)) {
+			const std::vector<uint8_t> blob = rack::string::fromBase64(json_string_value(songJ));
 			deserialize(blob.data(), blob.size(), *doc);
 		}
 		json_t *snapJ = json_object_get(rootJ, "snapshots"), *namesJ = json_object_get(rootJ, "snapshotNames");
