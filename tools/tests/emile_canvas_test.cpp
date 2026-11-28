@@ -142,6 +142,25 @@ int main() {
 	emileGradient(c, 20.f, 5.f, 80.f, 5.f, gr);
 	CHECK(at(25, 0) == 255);
 
+	// the history's edits: a stroke's rectangle only, undo back to hBefore, redo to hAfter, a new size kept whole
+	c.reset(64, 64);
+	emileStrokeSegment(c, 5.f, 5.f, 5.f, 5.f, br);
+	const std::vector<unsigned char> hBefore = c.rgba;
+	emileStrokeSegment(c, 30.f, 30.f, 40.f, 30.f, br);
+	const std::vector<unsigned char> hAfter = c.rgba;
+	EmileEdit ed = emileMakeEdit(hBefore, 64, 64, c);
+	CHECK(!ed.empty() && ed.w < 30 && ed.h < 20 && ed.x > 20);   // just the stroke
+	CHECK(emileApplyEdit(c, ed, true) && c.rgba == hBefore);
+	CHECK(emileApplyEdit(c, ed, false) && c.rgba == hAfter);
+	EmileEdit none = emileMakeEdit(c.rgba, 64, 64, c);
+	CHECK(none.empty());
+	const std::vector<unsigned char> small = c.rgba;
+	c.reset(128, 128);
+	EmileEdit grow = emileMakeEdit(small, 64, 64, c);
+	CHECK(emileApplyEdit(c, grow, true) && c.width == 64 && c.rgba == small);
+	CHECK(emileApplyEdit(c, grow, false) && c.width == 128);
+	CHECK(!emileApplyEdit(c, ed, true));   // made on a 64 x 64 canvas: not applied to this one
+
 	std::printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

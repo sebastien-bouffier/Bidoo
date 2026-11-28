@@ -134,6 +134,66 @@ inline void emileGradient(EmileCanvas &c, float ax, float ay, float bx, float by
 		}
 }
 
+// One change of the canvas for Rack's undo history: the rectangle that changed, before and after (the whole canvas when
+// its size changed). Kept small: a stroke stores only its own rectangle.
+struct EmileEdit {
+	int w0 = 0, h0 = 0, w1 = 0, h1 = 0;   // the canvas's size before and after
+	int x = 0, y = 0, w = 0, h = 0;       // the rectangle (the whole canvas when the size changed)
+	std::vector<unsigned char> before, after;
+	bool empty() const { return w <= 0 || h <= 0; }
+};
+
+// the edit from the canvas as it was (rgba0, w0 x h0) to the canvas now
+inline EmileEdit emileMakeEdit(const std::vector<unsigned char> &rgba0, int w0, int h0, const EmileCanvas &c) {
+	EmileEdit e;
+	e.w0 = w0; e.h0 = h0; e.w1 = c.width; e.h1 = c.height;
+	if (w0 != c.width || h0 != c.height) {
+		e.x = e.y = 0;
+		e.w = std::max(w0, c.width);   // marks it as not empty; the whole canvases are kept
+		e.h = std::max(h0, c.height);
+		e.before = rgba0;
+		e.after = c.rgba;
+		return e;
+	}
+	int x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+	for (int y = 0; y < c.height; y++)
+		for (int x = 0; x < c.width; x++) {
+			const size_t i = ((size_t)y * c.width + x) * 4;
+			if (std::memcmp(&rgba0[i], &c.rgba[i], 4) != 0) {
+				x0 = std::min(x0, x); x1 = std::max(x1, x);
+				y0 = std::min(y0, y); y1 = std::max(y1, y);
+			}
+		}
+	if (x1 < 0)
+		return e;   // nothing changed
+	e.x = x0; e.y = y0; e.w = x1 - x0 + 1; e.h = y1 - y0 + 1;
+	e.before.resize((size_t)e.w * e.h * 4);
+	e.after.resize((size_t)e.w * e.h * 4);
+	for (int y = 0; y < e.h; y++) {
+		const size_t src = ((size_t)(e.y + y) * c.width + e.x) * 4;
+		std::memcpy(&e.before[(size_t)y * e.w * 4], &rgba0[src], (size_t)e.w * 4);
+		std::memcpy(&e.after[(size_t)y * e.w * 4], &c.rgba[src], (size_t)e.w * 4);
+	}
+	return e;
+}
+
+// the edit undone (back to before) or redone (to after); false when the canvas is not the one it was made on
+inline bool emileApplyEdit(EmileCanvas &c, const EmileEdit &e, bool undo) {
+	const int fromW = undo ? e.w1 : e.w0, fromH = undo ? e.h1 : e.h0;
+	if (!c.valid() || c.width != fromW || c.height != fromH)
+		return false;
+	if (e.w0 != e.w1 || e.h0 != e.h1) {
+		c.width = undo ? e.w0 : e.w1;
+		c.height = undo ? e.h0 : e.h1;
+		c.rgba = undo ? e.before : e.after;
+		return true;
+	}
+	const std::vector<unsigned char> &src = undo ? e.before : e.after;
+	for (int y = 0; y < e.h; y++)
+		std::memcpy(&c.rgba[((size_t)(e.y + y) * c.width + e.x) * 4], &src[(size_t)y * e.w * 4], (size_t)e.w * 4);
+	return true;
+}
+
 struct EmileUndo {
 	static constexpr size_t kMax = 16;
 	struct Snap {

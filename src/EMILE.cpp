@@ -392,6 +392,18 @@ struct EMILE : BidooModule {
 		lastSend = system::getTime();
 	}
 
+	// A change done (a stroke, a gradient, a clear, a new canvas): into Rack's undo history, from the snapshot taken
+	// when it began, so Ctrl+Z, Ctrl+Shift+Z and Edit > Undo / Redo take it back like any patch change (Rack's scene
+	// takes those keys before any widget, so the module can't have its own)
+	void recordEdit(const char *name);
+
+	// an edit from the history, undone or redone (ignored when the canvas is no longer the one it was made on)
+	void applyEdit(const EmileEdit &e, bool undo) {
+		if (stroking || !emileApplyEdit(canvas, e, undo))
+			return;
+		canvasChanged();
+	}
+
 	// what a change of the canvas leaves to do: show it, play it, save it
 	void canvasChanged() {
 		canvasRev++;
@@ -451,20 +463,17 @@ struct EMILE : BidooModule {
 		if (!stroking)
 			return;
 		stroking = false;
-		canvasChanged();
-	}
-
-	void undoStroke() {
-		if (stroking || !undo.pop(canvas))
-			return;
+		recordEdit(strokeGradient ? "EMILE gradient" : strokeBrush.erase ? "EMILE erase" : "EMILE stroke");
 		canvasChanged();
 	}
 
 	void newCanvas(int size) {
 		if (stroking)
 			return;
+		ensureCanvas();
 		undo.push(canvas);
 		canvas.reset(size, size);
+		recordEdit("EMILE new canvas");
 		canvasChanged();
 	}
 
@@ -474,6 +483,7 @@ struct EMILE : BidooModule {
 		ensureCanvas();
 		undo.push(canvas);
 		canvas.reset(canvas.width, canvas.height);
+		recordEdit("EMILE clear canvas");
 		canvasChanged();
 	}
 
@@ -677,6 +687,33 @@ struct EMILE : BidooModule {
 	}
 
 };
+
+// A drawing change in Rack's history: found again by the module's id, so it does nothing once the module is gone
+struct EmileDrawAction : history::ModuleAction {
+	EmileEdit edit;
+	void undo() override {
+		if (EMILE *m = dynamic_cast<EMILE*>(APP->engine->getModule(moduleId)))
+			m->applyEdit(edit, true);
+	}
+	void redo() override {
+		if (EMILE *m = dynamic_cast<EMILE*>(APP->engine->getModule(moduleId)))
+			m->applyEdit(edit, false);
+	}
+};
+
+void EMILE::recordEdit(const char *name) {
+	const EmileUndo::Snap *s = undo.last();
+	if (!s || !APP || !APP->history)
+		return;
+	EmileEdit e = emileMakeEdit(s->rgba, s->width, s->height, canvas);
+	if (e.empty())
+		return;
+	EmileDrawAction *a = new EmileDrawAction;
+	a->moduleId = id;
+	a->name = name;
+	a->edit = std::move(e);
+	APP->history->push(a);
+}
 
 void EMILE::process(const ProcessArgs &args) {
 	takePending();
@@ -918,15 +955,6 @@ struct EMILEDisplay : OpaqueWidget {
 		OpaqueWidget::onHoverScroll(e);
 	}
 
-	// Ctrl+Z over the display in draw mode undoes a stroke (elsewhere it stays Rack's undo)
-	void onHoverKey(const HoverKeyEvent &e) override {
-		if (drawing() && (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) && e.isKeyCommand(GLFW_KEY_Z, RACK_MOD_CTRL)) {
-			module->undoStroke();
-			e.consume(this);
-			return;
-		}
-		OpaqueWidget::onHoverKey(e);
-	}
 
 	// an image of w x h pixels stretched to the box, and the line at the played row (inside the box)
 	void drawImage(NVGcontext *vg, int tex, float w, float h) {
@@ -1271,7 +1299,7 @@ struct EMILEWidget : BidooWidget {
 				sub->addChild(createMenuItem(rack::string::f("%d x %d", n, n), "", [=]() { module->newCanvas(n); }));
 		}));
 		menu->addChild(createMenuItem("Clear canvas", "", [=]() { module->clearCanvas(); }));
-		menu->addChild(createMenuItem("Undo stroke", RACK_MOD_CTRL_NAME "+Z", [=]() { module->undoStroke(); }, module->undo.empty()));
+		menu->addChild(createMenuLabel("Undo, redo: " RACK_MOD_CTRL_NAME "+Z, " RACK_MOD_CTRL_NAME "+" RACK_MOD_SHIFT_NAME "+Z (Rack's history)"));
 	}
 };
 
