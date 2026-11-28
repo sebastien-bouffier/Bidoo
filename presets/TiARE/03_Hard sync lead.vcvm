@@ -1,0 +1,46 @@
+{
+  "plugin": "Bidoo",
+  "model": "TiARE",
+  "version": "2.7.10",
+  "params": [
+    {
+      "value": 12.0,
+      "id": 0
+    },
+    {
+      "value": 0.0,
+      "id": 1
+    },
+    {
+      "value": 0.0,
+      "id": 2
+    },
+    {
+      "value": 1.0,
+      "id": 3
+    },
+    {
+      "value": 0.3,
+      "id": 4
+    },
+    {
+      "value": 0.5,
+      "id": 5
+    },
+    {
+      "value": 0.0,
+      "id": 6
+    },
+    {
+      "value": 0.5,
+      "id": 7
+    },
+    {
+      "value": 0.5,
+      "id": 8
+    }
+  ],
+  "data": {
+    "freqFactor": 1
+  }
+}

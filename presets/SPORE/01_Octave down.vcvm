@@ -1,0 +1,32 @@
+{
+  "plugin": "Bidoo",
+  "model": "SPORE",
+  "version": "2.7.10",
+  "params": [
+    {
+      "value": -12.0,
+      "id": 0
+    },
+    {
+      "value": 60.0,
+      "id": 1
+    },
+    {
+      "value": 15.0,
+      "id": 2
+    },
+    {
+      "value": 15.0,
+      "id": 3
+    },
+    {
+      "value": 2.0,
+      "id": 4
+    },
+    {
+      "value": 0.5,
+      "id": 5
+    }
+  ],
+  "data": {}
+}

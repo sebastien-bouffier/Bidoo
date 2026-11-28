@@ -1,0 +1,46 @@
+{
+  "plugin": "Bidoo",
+  "model": "baR",
+  "version": "2.7.10",
+  "params": [
+    {
+      "value": -24.0,
+      "id": 0
+    },
+    {
+      "value": 8.0,
+      "id": 1
+    },
+    {
+      "value": 1.0,
+      "id": 2
+    },
+    {
+      "value": 250.0,
+      "id": 3
+    },
+    {
+      "value": 0.0,
+      "id": 4
+    },
+    {
+      "value": 0.0,
+      "id": 5
+    },
+    {
+      "value": 1.0,
+      "id": 6
+    },
+    {
+      "value": 0.0,
+      "id": 7
+    },
+    {
+      "value": 0.0,
+      "id": 8
+    }
+  ],
+  "data": {
+    "bypass": false
+  }
+}

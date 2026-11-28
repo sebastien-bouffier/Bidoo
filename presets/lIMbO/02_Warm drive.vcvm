@@ -1,0 +1,28 @@
+{
+  "plugin": "Bidoo",
+  "model": "lIMbO",
+  "version": "2.7.10",
+  "params": [
+    {
+      "value": 0.65,
+      "id": 0
+    },
+    {
+      "value": 0.35,
+      "id": 1
+    },
+    {
+      "value": 0.0,
+      "id": 2
+    },
+    {
+      "value": 0.5,
+      "id": 3
+    },
+    {
+      "value": 1.0,
+      "id": 4
+    }
+  ],
+  "data": {}
+}

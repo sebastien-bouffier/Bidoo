@@ -1,0 +1,46 @@
+{
+  "plugin": "Bidoo",
+  "model": "RICOCHET",
+  "version": "2.7.10",
+  "params": [
+    {
+      "value": 0.0,
+      "id": 0
+    },
+    {
+      "value": 0.4167,
+      "id": 1
+    },
+    {
+      "value": 0.4,
+      "id": 2
+    },
+    {
+      "value": 0.3,
+      "id": 3
+    },
+    {
+      "value": -0.15,
+      "id": 4
+    },
+    {
+      "value": 0.0,
+      "id": 5
+    },
+    {
+      "value": 0.15,
+      "id": 6
+    },
+    {
+      "value": 0.0,
+      "id": 7
+    },
+    {
+      "value": 0.0,
+      "id": 8
+    }
+  ],
+  "data": {
+    "clockPpqn": 4
+  }
+}

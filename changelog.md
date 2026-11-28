@@ -2,6 +2,7 @@
 Back
 - enCORE and the enCORE Expander are back in the module browser: patches that use them open and play as before (2.7.8 opened them without these modules). zOù MAï's Fast clock mode stays, for those who prefer zOù MAï's grid
 Improvements
+- Factory presets for aCiDe, rICOcHEt, baR, bAFIs, ziNC, lIMbO, SPORE and TiARE, five each (right-click > Preset): from a classic squelch, a dub delay, a drum bus glue or a robot voice to a skewed LFO. They are written by scripts in tools/presets, and tools/tests/check_presets.py now checks every module's presets
 - The titles of aCiDe, cOPIA, dOSE, FiLTRe, pARtiCuLeS, rEgIStRE, REI, rICOcHEt and sOUNAiRe sit at the height and size of the other modules' (16 px, baseline 16.875): they were lower and larger
 - ziNC: the band knobs' tint follows each band's envelope (what moves the carrier, with ATTACK and DECAY) in dB, from -48 dB (blue) to -6 dB (red), so a 5 V signal colours them without pushing MOD; the tint goes straight from the knob's blue to the red of the output boxes
 - ChUTE's screen is black, baR's meters in the house colours (pink level, grey RMS, orange peaks above the RMS), fLAME's six buttons are round buttons lit orange on the size and colour in use

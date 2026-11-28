@@ -1,0 +1,40 @@
+{
+  "plugin": "Bidoo",
+  "model": "ACIDE",
+  "version": "2.7.10",
+  "params": [
+    {
+      "value": 0.0,
+      "id": 0
+    },
+    {
+      "value": 1.0,
+      "id": 1
+    },
+    {
+      "value": 0.8,
+      "id": 2
+    },
+    {
+      "value": 0.35,
+      "id": 3
+    },
+    {
+      "value": 0.55,
+      "id": 4
+    },
+    {
+      "value": 0.45,
+      "id": 5
+    },
+    {
+      "value": 0.45,
+      "id": 6
+    },
+    {
+      "value": 0.5,
+      "id": 7
+    }
+  ],
+  "data": {}
+}
