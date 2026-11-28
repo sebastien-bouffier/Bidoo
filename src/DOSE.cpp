@@ -1,6 +1,7 @@
 // dOSE: a polyphonic VCA whose envelope goes through a curve, from short exponential through linear to long
 // exponential. The sound is in DoseCore.hpp; this is the ports, the panel and the screen.
 #include "plugin.hpp"
+#include "Svf.hpp"   // bidooSoftLimit
 #include "BidooComponents.hpp"
 #include "DoseCore.hpp"
 
@@ -72,7 +73,8 @@ struct DOSE : BidooModule {
 		outputs[OUT_OUTPUT].writeVoltages(io.out);
 		outputs[ENV_OUTPUT].setChannels(io.envOutChannels);
 		outputs[ENV_OUTPUT].writeVoltages(io.envOut);
-		outputs[MIX_OUTPUT].setVoltage(io.mix);
+		// MIX sums every channel (16 voices could reach 80 V): kept under 10 V, linear up to 8 V
+		outputs[MIX_OUTPUT].setVoltage(bidooSoftLimit(io.mix));
 	}
 };
 

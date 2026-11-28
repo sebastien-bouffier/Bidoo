@@ -529,7 +529,7 @@ struct FLAME : BidooModule {
 		const float a = std::min(1.f, 1.f / (0.005f * args.sampleRate));
 		for (int c = 0; c < 2; c++) {
 			outSmooth[c] += (out[c] - outSmooth[c]) * a;
-			outputs[AMP_L_OUTPUT + c].setVoltage(outSmooth[c]);
+			outputs[AMP_L_OUTPUT + c].setVoltage(clamp(outSmooth[c], 0.f, 10.f));   // a CV: 0 to 10 V
 		}
 
 		// BAND, computed only while one of its jacks is used

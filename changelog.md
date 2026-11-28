@@ -27,6 +27,7 @@ Fixes
 - ACnE: a patch saved with a track soloed starts with only that track open; Initialize, DIKTAT's root note from a mapped knob, HCTIP before the first rate change, SPORE's Initialize (clears the grains), rICOcHEt's clocked time after a rate change
 - Knobs and buttons of ACnE, MOiRE and πlOT no longer crash in the module browser
 - lambda: a damaged patch can no longer put huge voltages on its outputs (the six stages read from it are kept within ±12 V)
+- ACnE's outputs, dOSE's MIX and cOPIA's outputs stay under 10 V (linear up to 8 V, then a soft bend), as a console's rails would keep a sum of many hot sources; fLAME's AMP outputs (a CV) stay within 0 to 10 V. Normal levels are unchanged
 - Dark and Black themes: DIKTAT and ratEaU keep their screens black (the yellow text was on light grey), ratEaU's CLK box turns grey like its neighbours, πlOT's control area turns dark (it stayed near white), ziNC's band frequencies are written in the panel text's colour (black on dark grey before)
 - zOù MAï + and enCORE +: rotation steps and lengths set while the expander is not beside its sequencer are kept in the patch (they came back at 1 and 16)
 

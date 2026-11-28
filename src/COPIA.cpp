@@ -3,6 +3,7 @@
 // lanes drawn on the display, eight scenes with a morph. IN/OUT brings the remix in over the live mix
 // or in its place. The loop is kept in the patch storage as FLAC.
 #include "plugin.hpp"
+#include "Svf.hpp"   // bidooSoftLimit
 #include "CopiaEngine.hpp"
 #include "SounaireFlac.hpp"
 #include "dep/dr_flac/dr_flac.h"
@@ -205,10 +206,11 @@ struct COPIA : BidooModule {
 		blockRunning = blockRunning && running;
 
 		// what the block before gave
-		outputs[OUTL_OUTPUT].setVoltage(outL[pos] * 5.f);
-		outputs[OUTR_OUTPUT].setVoltage(outR[pos] * 5.f);
-		outputs[WETL_OUTPUT].setVoltage(wetL[pos] * 5.f);
-		outputs[WETR_OUTPUT].setVoltage(wetR[pos] * 5.f);
+		// kept under 10 V, linear up to 8 V: normal levels pass untouched, a summed polyphonic input can't blow up
+		outputs[OUTL_OUTPUT].setVoltage(bidooSoftLimit(outL[pos] * 5.f));
+		outputs[OUTR_OUTPUT].setVoltage(bidooSoftLimit(outR[pos] * 5.f));
+		outputs[WETL_OUTPUT].setVoltage(bidooSoftLimit(wetL[pos] * 5.f));
+		outputs[WETR_OUTPUT].setVoltage(bidooSoftLimit(wetR[pos] * 5.f));
 		outputs[BAR_OUTPUT].setVoltage(barPulse.process(args.sampleTime) ? 10.f : 0.f);
 		outputs[REC_OUTPUT].setVoltage(engine.capState.load(std::memory_order_relaxed) == 2 ? 10.f : 0.f);
 

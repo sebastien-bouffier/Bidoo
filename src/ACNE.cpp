@@ -1,4 +1,5 @@
 #include "plugin.hpp"
+#include "Svf.hpp"   // bidooSoftLimit
 #include "BidooComponents.hpp"
 #include "dsp/digital.hpp"
 #include <iomanip>
@@ -522,6 +523,9 @@ void ACNE::process(const ProcessArgs &args) {
 	mainGain += (params[MAIN_OUT_GAIN_PARAM].getValue() - mainGain) * smoothCoef;
 	outputs[TRACKS_OUTPUTS].setVoltage(outputs[TRACKS_OUTPUTS].getVoltage() * mainGain);
 	outputs[TRACKS_OUTPUTS + 1].setVoltage(outputs[TRACKS_OUTPUTS + 1].getVoltage() * mainGain);
+	// each output sums up to 16 inputs: kept under 10 V as a console's rails would, linear up to 8 V
+	for (int i = 0; i < ACNE_NB_OUTS; i++)
+		outputs[TRACKS_OUTPUTS + i].setVoltage(bidooSoftLimit(outputs[TRACKS_OUTPUTS + i].getVoltage()));
 
 	for (int i = 0; i < ACNE_NB_OUTS; i++)
 		outPeak[i] = std::max(outPeak[i], std::fabs(outputs[TRACKS_OUTPUTS + i].getVoltage()));
