@@ -396,6 +396,7 @@ struct BidooRoundButton : app::Switch {
 	float inner = 0.68f;
 	std::function<bool()> dimmed;
 	std::function<bool()> litBy;   // a state the module shows here (a radio choice), instead of the param's value
+	NVGcolor litColor = theme::kLitOrange;   // another colour only where the button names a colour (fLAME's schemes)
 	BidooRoundButton() {
 		box.size = Vec(20, 20);
 	}
@@ -411,7 +412,7 @@ struct BidooRoundButton : app::Switch {
 		nvgFill(args.vg);
 		nvgBeginPath(args.vg);
 		nvgCircle(args.vg, c, c, c * inner);
-		nvgFillColor(args.vg, lit ? theme::kLitOrange : theme::kButtonWhite);
+		nvgFillColor(args.vg, lit ? litColor : theme::kButtonWhite);
 		nvgFill(args.vg);
 	}
 };

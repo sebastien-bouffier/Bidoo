@@ -8,6 +8,7 @@
 #include <mutex>
 #include <thread>
 #include "dep/lodepng/lodepng.h"
+#include "EmileCanvas.hpp"
 
 // An image played as sound, read in one of two ways (right-click > Image read as):
 // - Harmonics (a new EMILE): the row under the position is one cycle of a waveform. Its width, cut in bands, gives the
@@ -33,19 +34,7 @@ const int MAX_HARMONICS = 256;
 
 using namespace std;
 
-struct EmileImage {
-	std::vector<unsigned char> rgba;  // 16 bits per channel, big endian, as lodepng gives it
-	unsigned width = 0;
-	unsigned height = 0;
-	// Per pixel column: where it lands on the frequency curve (0 to 1), for
-	// the curve it was computed at. Sized by the worker, filled by the audio
-	// thread when the curve moves.
-	std::vector<float> shape;
-	float shapeCurve = -1.f;
-	// Per pixel column: log(1 - x / width), worked out once by the worker, so a
-	// moving curve costs one exp per column instead of a pow.
-	std::vector<float> logBase;
-};
+// EmileImage (the played image) and the drawing canvas are in EmileCanvas.hpp.
 
 // What the display shows: the image shrunk by the worker to 512 px at most (8-bit RGBA), so the UI thread neither
 // decodes the PNG nor uploads a 25 MP texture.
@@ -133,8 +122,31 @@ struct EMILE : BidooModule {
 	std::mutex jobMutex;
 	std::condition_variable jobCv;
 	std::string jobPath;
+	// the worker's next job: a file to load, or the canvas to play (a copy, so the UI can draw on while it converts);
+	// a new request replaces one not yet started, so only the latest drawing is converted
+	enum JobKind { JOB_FILE, JOB_CANVAS };
+	JobKind jobKind = JOB_FILE;
+	std::vector<unsigned char> jobCanvas;
+	int jobCanvasW = 0, jobCanvasH = 0;
 	bool jobRequested = false;
 	std::atomic<bool> quit{false};
+
+	// UI thread only: the drawing. It is played through the worker (sendCanvas), never read by the audio thread.
+	EmileCanvas canvas;        // invalid until drawing starts (or after a file is loaded)
+	EmileUndo undo;
+	unsigned canvasRev = 0;    // bumped with each change, so the display knows to upload it
+	bool drawMode = false;
+	enum Tool { TOOL_BRUSH, TOOL_ERASER, TOOL_LINE };
+	int tool = TOOL_BRUSH;
+	float brushSize = 8.f;
+	int colour = 0;            // white, red, green, blue
+	float intensity = 1.f;
+	bool stroking = false, strokeLine = false;
+	EmileBrush strokeBrush;
+	float strokeX0 = 0.f, strokeY0 = 0.f, strokeX = 0.f, strokeY = 0.f;
+	double lastSend = 0.0;
+	bool drawingDirty = false; // changed since drawing.png was written
+	std::atomic<bool> drawn{false};   // the played image is the drawing (saved in the patch storage)
 
 	// UI thread: what the display shows.
 	std::mutex uiMutex;
@@ -188,7 +200,7 @@ struct EMILE : BidooModule {
 		configButton(G_PARAM, "Green");
 		configButton(B_PARAM, "Blue");
 		configButton(A_PARAM, "Alpha");
-		configInput(POS_INPUT, "Position (10 V = last row)");
+		configInput(POS_INPUT, "Position (bipolar: +-5 V sweeps the image around the knob)");
 		configInput(CURVE_INPUT, "Frequency curve (10 V = +0.09)");
 		configInput(TUNE_INPUT, "Tune (1V/oct)");
 		configInput(R_INPUT, "Red toggle");
@@ -297,16 +309,24 @@ struct EMILE : BidooModule {
 		return t[i] + (t[i + 1] - t[i]) * frac;
 	}
 
-	// UI thread: load a PNG.
+	// UI thread: load a PNG. A file asked for ends the drawing: it plays as before, and the canvas starts again from it.
 	void loadImage(const std::string &path) {
 		{
 			// kept even if the file fails to load, so a moved file can be found again
 			std::lock_guard<std::mutex> ui(uiMutex);
 			lastPath = path;
 		}
+		drawn = false;
+		dropCanvas();
+		requestLoad(path);
+	}
+
+	// the file job alone, without touching what the patch remembers (the saved drawing comes back this way)
+	void requestLoad(const std::string &path) {
 		{
 			std::lock_guard<std::mutex> lock(jobMutex);
 			jobPath = path;
+			jobKind = JOB_FILE;
 			jobRequested = true;
 		}
 		jobCv.notify_all();
@@ -327,6 +347,196 @@ struct EMILE : BidooModule {
 		return shownThumb;
 	}
 
+	// ---- Drawing (UI thread) ----
+
+	void dropCanvas() {
+		canvas = EmileCanvas();
+		undo.clear();
+		stroking = false;
+		canvasRev++;
+	}
+
+	// The canvas drawing starts on: the image shown, at the thumbnail's resolution (512 px at most), or a black one.
+	// Once drawn on, the canvas is what plays, so a big image is replaced by its 512 px version.
+	void ensureCanvas() {
+		if (canvas.valid())
+			return;
+		std::shared_ptr<EmileThumb> t = getThumb();
+		if (t && t->width > 0 && t->height > 0 && t->rgba.size() == (size_t)t->width * t->height * 4) {
+			// the image's own alpha is kept, so it sounds the same until it's drawn on
+			canvas.width = t->width;
+			canvas.height = t->height;
+			canvas.rgba = t->rgba;
+		}
+		else
+			canvas.reset(256, 256);
+		canvasRev++;
+	}
+
+	// The canvas to the worker, which makes it the played image. A copy under jobMutex: the audio thread never sees it.
+	void sendCanvas() {
+		if (!canvas.valid())
+			return;
+		{
+			std::lock_guard<std::mutex> lock(jobMutex);
+			jobCanvas = canvas.rgba;
+			jobCanvasW = canvas.width;
+			jobCanvasH = canvas.height;
+			jobKind = JOB_CANVAS;
+			jobRequested = true;
+		}
+		jobCv.notify_all();
+		lastSend = system::getTime();
+	}
+
+	// what a change of the canvas leaves to do: show it, play it, save it
+	void canvasChanged() {
+		canvasRev++;
+		drawn = true;
+		drawingDirty = true;
+		sendCanvas();
+	}
+
+	void beginStroke(float x, float y, bool erase, bool line) {
+		ensureCanvas();
+		undo.push(canvas);
+		strokeBrush.size = brushSize;
+		for (int c = 0; c < 3; c++)
+			strokeBrush.channel[c] = colour == 0 || colour == c + 1;
+		strokeBrush.intensity = intensity;
+		strokeBrush.erase = erase;
+		strokeLine = line;
+		strokeX0 = strokeX = x;
+		strokeY0 = strokeY = y;
+		stroking = true;
+		emileStrokeSegment(canvas, x, y, x, y, strokeBrush);
+		canvasRev++;
+		drawn = true;
+		drawingDirty = true;
+		sendCanvas();
+	}
+
+	void moveStroke(float x, float y) {
+		if (!stroking)
+			return;
+		if (strokeLine) {
+			// the line drawn again from the canvas as the stroke found it, so it follows the mouse
+			const EmileUndo::Snap *s = undo.last();
+			if (s && s->width == canvas.width && s->height == canvas.height)
+				canvas.rgba = s->rgba;
+			emileStrokeSegment(canvas, strokeX0, strokeY0, x, y, strokeBrush);
+		}
+		else
+			emileStrokeSegment(canvas, strokeX, strokeY, x, y, strokeBrush);
+		strokeX = x;
+		strokeY = y;
+		canvasRev++;
+		// heard while drawing, 30 times a second at most
+		if (system::getTime() - lastSend >= 1.0 / 30.0)
+			sendCanvas();
+	}
+
+	void endStroke() {
+		if (!stroking)
+			return;
+		stroking = false;
+		canvasChanged();
+	}
+
+	void undoStroke() {
+		if (stroking || !undo.pop(canvas))
+			return;
+		canvasChanged();
+	}
+
+	void newCanvas(int size) {
+		if (stroking)
+			return;
+		undo.push(canvas);
+		canvas.reset(size, size);
+		canvasChanged();
+	}
+
+	void clearCanvas() {
+		if (stroking)
+			return;
+		ensureCanvas();
+		undo.push(canvas);
+		canvas.reset(canvas.width, canvas.height);
+		canvasChanged();
+	}
+
+	// the canvas as an 8-bit RGBA PNG
+	bool writeCanvasPng(const std::string &path) {
+		ensureCanvas();
+		std::vector<unsigned char> png;
+		if (lodepng::encode(png, canvas.rgba, (unsigned)canvas.width, (unsigned)canvas.height, LCT_RGBA, 8) != 0)
+			return false;
+		return lodepng::save_file(png, path) == 0;
+	}
+
+	// The saved drawing back from the patch storage: 1 queued, 0 not there, -1 not added to the engine yet (onAdd will).
+	int requestDrawing() {
+		std::string dir;
+		try {
+			dir = getPatchStorageDirectory();
+		}
+		catch (Exception &) {
+			return -1;
+		}
+		std::string path = rack::system::join(dir, "drawing.png");
+		if (!rack::system::isFile(path))
+			return 0;
+		requestLoad(path);
+		return 1;
+	}
+
+	// the drawing lost (a module copied without its storage): the file it was drawn over, if any
+	void drawingMissing() {
+		drawn = false;
+		std::string last = getPath();
+		if (!last.empty())
+			requestLoad(last);
+	}
+
+	void onAdd(const AddEvent &e) override {
+		if (drawn && requestDrawing() == 0)
+			drawingMissing();
+	}
+
+	void onSave(const SaveEvent &e) override {
+		if (!drawn) {
+			std::string path = rack::system::join(getPatchStorageDirectory(), "drawing.png");
+			if (rack::system::isFile(path))
+				rack::system::remove(path);
+			return;
+		}
+		if (!canvas.valid())
+			return;   // not drawn on since the patch was loaded: the storage keeps its drawing
+		std::string path = rack::system::join(createPatchStorageDirectory(), "drawing.png");
+		if (drawingDirty || !rack::system::isFile(path))
+			if (writeCanvasPng(path))
+				drawingDirty = false;
+	}
+
+	// Worker: the new image to the audio thread through `pending`, its thumb to the display.
+	void publish(EmileImage *im, std::shared_ptr<EmileThumb> thumb, const std::string &path) {
+		{
+			std::lock_guard<std::mutex> ui(uiMutex);
+			shownPath = im ? path : "";
+			shownThumb = thumb;
+		}
+		thumbGen++;
+		shownWidth = im ? im->width : 0;
+		shownHeight = im ? im->height : 0;
+		while (pendingSet.load() && !quit) {
+			delete retired.exchange(nullptr, std::memory_order_acq_rel);
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+		delete pending.exchange(im, std::memory_order_acq_rel);
+		pendingSet = true;
+	}
+
 	void workerLoop() {
 		std::unique_lock<std::mutex> lock(jobMutex);
 		while (!quit) {
@@ -334,9 +544,31 @@ struct EMILE : BidooModule {
 			delete retired.exchange(nullptr, std::memory_order_acq_rel);
 			if (!jobRequested || quit)
 				continue;
+			const JobKind kind = jobKind;
 			std::string path = jobPath;
+			std::vector<unsigned char> px;
+			px.swap(jobCanvas);
+			const int cw = jobCanvasW, ch = jobCanvasH;
 			jobRequested = false;
 			lock.unlock();
+
+			if (kind == JOB_CANVAS) {
+				// the drawing: 8 bits to 16, the column tables as a file load makes them; the thumb is the canvas itself
+				EmileImage *im = nullptr;
+				std::shared_ptr<EmileThumb> thumb;
+				if (cw > 0 && ch > 0 && px.size() == (size_t)cw * ch * 4) {
+					im = new EmileImage();
+					emileCanvasToImage(px.data(), cw, ch, *im);
+					thumb = std::make_shared<EmileThumb>();
+					thumb->width = cw;
+					thumb->height = ch;
+					thumb->rgba.swap(px);
+				}
+				if (im)
+					publish(im, thumb, "");
+				lock.lock();
+				continue;
+			}
 
 			EmileImage *im = new EmileImage();
 			// 25 megapixels at most: 8 bytes a pixel once decoded
@@ -352,28 +584,10 @@ struct EMILE : BidooModule {
 				delete im;
 				im = nullptr;
 			}
-			if (im) {
-				im->shape.assign(im->width, 0.f);
-				im->logBase.resize(im->width);
-				const float iWidth = 1.0f / im->width;
-				for (unsigned x = 0; x < im->width; x++)
-					im->logBase[x] = std::log(1.0f - x * iWidth);
-			}
+			if (im)
+				emileFinishImage(*im);
 			std::shared_ptr<EmileThumb> thumb = im ? EmileThumb::of(*im) : nullptr;
-			{
-				std::lock_guard<std::mutex> ui(uiMutex);
-				shownPath = im ? path : "";
-				shownThumb = thumb;
-			}
-			thumbGen++;
-			shownWidth = im ? im->width : 0;
-			shownHeight = im ? im->height : 0;
-			while (pendingSet.load() && !quit) {
-				delete retired.exchange(nullptr, std::memory_order_acq_rel);
-				std::this_thread::sleep_for(std::chrono::milliseconds(1));
-			}
-			delete pending.exchange(im, std::memory_order_acq_rel);
-			pendingSet = true;
+			publish(im, thumb, path);
 			lock.lock();
 		}
 	}
@@ -410,15 +624,34 @@ struct EMILE : BidooModule {
 		json_object_set_new(rootJ, "b", json_boolean(b));
 		json_object_set_new(rootJ, "a", json_boolean(a));
 		json_object_set_new(rootJ, "mode", json_integer(mode));
+		// the drawing itself is drawing.png in the patch storage (onSave)
+		json_object_set_new(rootJ, "drawn", json_boolean(drawn));
 		return rootJ;
 	}
 
 	void dataFromJson(json_t *rootJ) override {
 		BidooModule::dataFromJson(rootJ);
+		// no "drawn" (made before) or not a boolean: not drawn
+		const bool wasDrawn = json_is_true(json_object_get(rootJ, "drawn"));
 		json_t *lastPathJ = json_object_get(rootJ, "lastPath");
-		const char *last = json_string_value(lastPathJ);
-		if (last && last[0])
+		const char *last = json_is_string(lastPathJ) ? json_string_value(lastPathJ) : nullptr;
+		if (wasDrawn) {
+			// the file drawn over is remembered; the drawing plays, from the storage once the module is in the engine
+			{
+				std::lock_guard<std::mutex> ui(uiMutex);
+				lastPath = last ? last : "";
+			}
+			dropCanvas();
+			drawn = true;
+			if (requestDrawing() == 0)
+				drawingMissing();
+		}
+		else if (last && last[0])
 			loadImage(last);
+		else {
+			drawn = false;
+			dropCanvas();
+		}
 		json_t *rJ = json_object_get(rootJ, "r");
 		if (rJ) r = json_is_true(rJ);
 		json_t *gJ = json_object_get(rootJ, "g");
@@ -454,14 +687,25 @@ void EMILE::process(const ProcessArgs &args) {
 
 	curve = clamp(params[CURVE_PARAM].getValue() + clamp(inputs[CURVE_INPUT].getVoltage(), 0.0f, 10.0f) * 0.009f, 0.01f, 0.2f);
 
-	// Nothing to play, or nobody listening: no resynthesis.
-	if (!img || !outputs[OUT].isConnected()) {
+	if (!img) {
+		samplePos = 0;
 		outputs[OUT].setVoltage(0.f);
 		return;
 	}
+	// POS's CV is bipolar around the knob: +-5 V sweeps the whole image from the middle. Worked out even when nothing
+	// listens, so the display's line follows POS; always one of this image's rows.
 	const unsigned width = img->width, height = img->height;
-	unsigned pos = clamp(params[POS_PARAM].getValue() + clamp(inputs[POS_INPUT].getVoltage(), 0.0f, 10.0f) * 0.1f, 0.0f, 1.0f) * (height - 1);
+	float posCv = inputs[POS_INPUT].getVoltage();
+	if (!std::isfinite(posCv))
+		posCv = 0.f;
+	const unsigned pos = std::min(height - 1, (unsigned)(clamp(params[POS_PARAM].getValue() + posCv * 0.1f, 0.f, 1.f) * (height - 1)));
 	samplePos = pos;
+
+	// Nobody listening: no resynthesis.
+	if (!outputs[OUT].isConnected()) {
+		outputs[OUT].setVoltage(0.f);
+		return;
+	}
 
 	if (mode.load(std::memory_order_relaxed) == MODE_HARMONICS) {
 		const float f0 = dsp::FREQ_C4 * dsp::exp2_taylor5(clamp(params[TUNE_PARAM].getValue() + inputs[TUNE_INPUT].getVoltage(), -10.f, 10.f));
@@ -548,16 +792,25 @@ struct EMILEDisplay : OpaqueWidget {
 	const float height = 130.0f;
 	unsigned gen = ~0u;   // the thumb generation uploaded, ~0: none yet
 	int img = 0;
+	// the canvas while drawing: a texture of its size, updated in place
+	int canvasImg = 0, canvasW = 0, canvasH = 0;
+	unsigned canvasRev = ~0u;
+	bool hovering = false;
+	Vec mouse;            // where the brush is, in the display's coordinates
 
 	EMILEDisplay() {
 
 	}
 
-	// The texture is the window's: freed with the widget, or the GPU keeps it
-	// for each module deleted.
+	// The textures are the window's: freed with the widget, or the GPU keeps
+	// them for each module deleted.
 	~EMILEDisplay() {
-		if (img && APP && APP->window && APP->window->vg)
-			nvgDeleteImage(APP->window->vg, img);
+		if (APP && APP->window && APP->window->vg) {
+			if (img)
+				nvgDeleteImage(APP->window->vg, img);
+			if (canvasImg)
+				nvgDeleteImage(APP->window->vg, canvasImg);
+		}
 	}
 
 	// The context goes away (window recreated): its textures with it, so the
@@ -565,42 +818,175 @@ struct EMILEDisplay : OpaqueWidget {
 	void onContextDestroy(const ContextDestroyEvent &e) override {
 		if (img)
 			nvgDeleteImage(e.vg, img);
-		img = 0;
-		gen = ~0u;
+		if (canvasImg)
+			nvgDeleteImage(e.vg, canvasImg);
+		img = canvasImg = 0;
+		gen = canvasRev = ~0u;
 		OpaqueWidget::onContextDestroy(e);
+	}
+
+	bool drawing() const {
+		return module && module->drawMode;
+	}
+
+	// the display's point on the canvas (stretched to the box, as it is shown)
+	void toCanvas(Vec p, float &x, float &y) const {
+		x = p.x / width * module->canvas.width;
+		y = p.y / height * module->canvas.height;
+	}
+
+	// the mouse in the display's coordinates, also while it drags outside
+	Vec mouseHere() {
+		return APP->scene->getMousePos().minus(getAbsoluteOffset(Vec(0, 0))).div(getAbsoluteZoom());
+	}
+
+	void onButton(const ButtonEvent &e) override {
+		if (!drawing()) {
+			OpaqueWidget::onButton(e);
+			return;
+		}
+		// left paints with the tool, right erases (so the menu opens from the rest of the panel in draw mode)
+		if (e.action == GLFW_PRESS && (e.button == GLFW_MOUSE_BUTTON_LEFT || e.button == GLFW_MOUSE_BUTTON_RIGHT)) {
+			const bool right = e.button == GLFW_MOUSE_BUTTON_RIGHT;
+			const bool shift = (e.mods & RACK_MOD_MASK) == GLFW_MOD_SHIFT;
+			const int tool = module->tool;
+			module->ensureCanvas();
+			float x, y;
+			toCanvas(e.pos, x, y);
+			module->beginStroke(x, y, right || tool == EMILE::TOOL_ERASER,
+				tool == EMILE::TOOL_LINE || (shift && tool == EMILE::TOOL_BRUSH));
+			mouse = e.pos;
+			e.consume(this);
+			return;
+		}
+		OpaqueWidget::onButton(e);
+	}
+
+	void onDragMove(const DragMoveEvent &e) override {
+		if (module && module->stroking) {
+			mouse = mouseHere();
+			float x, y;
+			toCanvas(mouse, x, y);
+			module->moveStroke(x, y);
+			return;
+		}
+		OpaqueWidget::onDragMove(e);
+	}
+
+	void onDragEnd(const DragEndEvent &e) override {
+		if (module && module->stroking) {
+			module->endStroke();
+			return;
+		}
+		OpaqueWidget::onDragEnd(e);
+	}
+
+	void onHover(const HoverEvent &e) override {
+		OpaqueWidget::onHover(e);
+		hovering = true;
+		mouse = e.pos;
+	}
+
+	void onLeave(const LeaveEvent &e) override {
+		hovering = false;
+		OpaqueWidget::onLeave(e);
+	}
+
+	// Ctrl+Z over the display in draw mode undoes a stroke (elsewhere it stays Rack's undo)
+	void onHoverKey(const HoverKeyEvent &e) override {
+		if (drawing() && (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) && e.isKeyCommand(GLFW_KEY_Z, RACK_MOD_CTRL)) {
+			module->undoStroke();
+			e.consume(this);
+			return;
+		}
+		OpaqueWidget::onHoverKey(e);
+	}
+
+	// an image of w x h pixels stretched to the box, and the line at the played row (inside the box)
+	void drawImage(NVGcontext *vg, int tex, float w, float h) {
+		nvgSave(vg);
+		nvgScale(vg, width / w, height / h);
+		nvgBeginPath(vg);
+		NVGpaint imgPaint = nvgImagePattern(vg, 0, 0, w, h, 0, tex, 1.0f);
+		nvgRect(vg, 0, 0, w, h);
+		nvgFillPaint(vg, imgPaint);
+		nvgFill(vg);
+		nvgRestore(vg);
 	}
 
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1 && module) {
-			// the worker's thumbnail: only an upload here, no file read or decode on the UI thread
-			const unsigned g = module->thumbGen.load();
-			if (g != gen) {
-				if (img)
-					nvgDeleteImage(args.vg, img);
-				std::shared_ptr<EmileThumb> t = module->getThumb();
-				img = t ? nvgCreateImageRGBA(args.vg, t->width, t->height, 0, t->rgba.data()) : 0;
-				gen = g;
+			nvgSave(args.vg);
+			nvgScissor(args.vg, 0, 0, width, height);
+			bool shown = false;
+			if (drawing() && module->canvas.valid()) {
+				// drawing: the canvas itself, so a stroke shows at once
+				const EmileCanvas &c = module->canvas;
+				if (!canvasImg || canvasW != c.width || canvasH != c.height) {
+					if (canvasImg)
+						nvgDeleteImage(args.vg, canvasImg);
+					canvasImg = nvgCreateImageRGBA(args.vg, c.width, c.height, 0, c.rgba.data());
+					canvasW = c.width;
+					canvasH = c.height;
+					canvasRev = module->canvasRev;
+				}
+				else if (canvasRev != module->canvasRev) {
+					nvgUpdateImage(args.vg, canvasImg, c.rgba.data());
+					canvasRev = module->canvasRev;
+				}
+				if (canvasImg) {
+					drawImage(args.vg, canvasImg, c.width, c.height);
+					shown = true;
+				}
 			}
-			float w = module->shownWidth, h = module->shownHeight;
-			if (img && w > 0 && h > 0) {
-				nvgSave(args.vg);
-				nvgScale(args.vg, width / w, height / h);
-				nvgBeginPath(args.vg);
-				NVGpaint imgPaint = nvgImagePattern(args.vg, 0, 0, w, h, 0, img, 1.0f);
-				nvgRect(args.vg, 0, 0, w, h);
-				nvgFillPaint(args.vg, imgPaint);
-				nvgFill(args.vg);
-				nvgClosePath(args.vg);
-
+			else {
+				// the worker's thumbnail: only an upload here, no file read or decode on the UI thread
+				const unsigned g = module->thumbGen.load();
+				if (g != gen) {
+					if (img)
+						nvgDeleteImage(args.vg, img);
+					std::shared_ptr<EmileThumb> t = module->getThumb();
+					img = t ? nvgCreateImageRGBA(args.vg, t->width, t->height, 0, t->rgba.data()) : 0;
+					gen = g;
+				}
+				float w = module->shownWidth, h = module->shownHeight;
+				if (img && w > 0 && h > 0) {
+					drawImage(args.vg, img, w, h);
+					shown = true;
+				}
+			}
+			if (shown) {
+				// the played row as a fraction of the image shown: right after an image of another height arrives,
+				// the row may still be the old image's, so the fraction is held inside the screen
+				const float rows = std::max(1.f, (float)module->shownHeight - 1.f);
+				const float y = clamp((float)module->samplePos / rows, 0.f, 1.f) * height;
 				nvgStrokeColor(args.vg, LIGHTBLUE_BIDOO);
 				nvgBeginPath(args.vg);
-				nvgStrokeWidth(args.vg, 5);
-				nvgMoveTo(args.vg, 0, (float)module->samplePos);
-				nvgLineTo(args.vg, w, (float)module->samplePos);
-				nvgClosePath(args.vg);
+				nvgStrokeWidth(args.vg, 1.5f);
+				nvgMoveTo(args.vg, 0, y);
+				nvgLineTo(args.vg, width, y);
 				nvgStroke(args.vg);
-				nvgRestore(args.vg);
 			}
+			// the brush under the mouse (its size on the canvas, stretched as the canvas is)
+			if (drawing() && (hovering || module->stroking)) {
+				// before the first stroke: the size the canvas will have (the thumb's, or 256 x 256)
+				float cw = 256.f, ch = 256.f;
+				if (module->canvas.valid()) {
+					cw = module->canvas.width;
+					ch = module->canvas.height;
+				}
+				else if (std::shared_ptr<EmileThumb> t = module->getThumb()) {
+					cw = std::max(1, t->width);
+					ch = std::max(1, t->height);
+				}
+				const float r = std::max(0.5f, 0.5f * module->brushSize);
+				nvgBeginPath(args.vg);
+				nvgEllipse(args.vg, mouse.x, mouse.y, std::max(1.f, r * width / cw), std::max(1.f, r * height / ch));
+				nvgStrokeColor(args.vg, nvgRGBA(255, 255, 255, 200));
+				nvgStrokeWidth(args.vg, 1.f);
+				nvgStroke(args.vg);
+			}
+			nvgRestore(args.vg);
 		}
 		Widget::drawLayer(args, layer);
 	}
@@ -678,10 +1064,56 @@ struct EMILEWidget : BidooWidget {
 			return;
     menu->addChild(new MenuSeparator());
 		menu->addChild(construct<EMILEItem>(&MenuItem::text, "Load image (png)", &EMILEItem::module, module));
+		menu->addChild(createMenuItem("Save drawing as PNG...", "", [=]() {
+			std::string last = module->getPath();
+			std::string dir = last.empty() ? asset::user("") : rack::system::getDirectory(last);
+			char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), "drawing.png", NULL);
+			if (path) {
+				std::string p = path;
+				free(path);
+				if (rack::system::getExtension(p).empty())
+					p += ".png";
+				module->writeCanvasPng(p);
+			}
+		}, !module->canvas.valid() && !module->getThumb()));
 		menu->addChild(createIndexSubmenuItem("Image read as",
 			{"Spectrum: each column a fixed frequency", "Harmonics of the V/O note: a waveform"},
 			[=]() { return (size_t)module->mode.load(); },
 			[=](size_t m) { module->setMode((int)m); }));
+
+		// drawing on the screen: left paints with the tool, right erases, Shift+drag a line with the brush, Ctrl+Z undoes
+		menu->addChild(new MenuSeparator());
+		menu->addChild(createBoolPtrMenuItem("Draw on the screen", "", &module->drawMode));
+		menu->addChild(createIndexSubmenuItem("Tool", {"Brush", "Eraser", "Line"},
+			[=]() { return (size_t)module->tool; },
+			[=](size_t t) { module->tool = (int)t; }));
+		static const float sizes[] = {1.f, 2.f, 4.f, 8.f, 16.f, 32.f};
+		menu->addChild(createIndexSubmenuItem("Brush size", {"1 px", "2 px", "4 px", "8 px", "16 px", "32 px"},
+			[=]() {
+				for (size_t i = 0; i < 6; i++)
+					if (module->brushSize == sizes[i])
+						return i;
+				return (size_t)3;
+			},
+			[=](size_t i) { module->brushSize = sizes[i]; }));
+		menu->addChild(createIndexSubmenuItem("Colour", {"White", "Red", "Green", "Blue"},
+			[=]() { return (size_t)module->colour; },
+			[=](size_t c) { module->colour = (int)c; }));
+		static const float levels[] = {0.25f, 0.5f, 0.75f, 1.f};
+		menu->addChild(createIndexSubmenuItem("Intensity", {"25 %", "50 %", "75 %", "100 %"},
+			[=]() {
+				for (size_t i = 0; i < 4; i++)
+					if (module->intensity == levels[i])
+						return i;
+				return (size_t)3;
+			},
+			[=](size_t i) { module->intensity = levels[i]; }));
+		menu->addChild(createSubmenuItem("New canvas", "", [=](Menu *sub) {
+			for (int n : {64, 128, 256, 512})
+				sub->addChild(createMenuItem(rack::string::f("%d x %d", n, n), "", [=]() { module->newCanvas(n); }));
+		}));
+		menu->addChild(createMenuItem("Clear canvas", "", [=]() { module->clearCanvas(); }));
+		menu->addChild(createMenuItem("Undo stroke", RACK_MOD_CTRL_NAME "+Z", [=]() { module->undoStroke(); }, module->undo.empty()));
 	}
 };
 

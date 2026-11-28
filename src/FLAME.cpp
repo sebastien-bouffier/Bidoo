@@ -1002,6 +1002,11 @@ struct FLAMEWidget : BidooWidget {
 			b->momentary = true;
 			const int lightId = lightIds[i];
 			b->litBy = [=]() { return module && module->lights[lightId].getBrightness() > 0.5f; };
+			// the CuCl2 and CuSO4 schemes light in their flames' blue and green (the fills of flameColors)
+			if (i == 4)
+				b->litColor = nvgRGB(46, 87, 228);
+			else if (i == 5)
+				b->litColor = nvgRGB(46, 228, 46);
 			addParam(b);
 		}
 

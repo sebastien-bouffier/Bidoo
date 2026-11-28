@@ -16,6 +16,7 @@ BUTTON_Y = 187.0                    # BidooRoundButton, 8 px under the old LEDBu
 CV_Y = 213.0                        # the full CV jacks, 10.5 px under the old tiny ones' centre (src/EMILE.cpp)
 KNOB_ROW = 1                        # the knobs on row 1 (296), 1.2 px under their old centre
 BUTTON_NAMES = ('RED', 'GREEN', 'BLUE', 'ALPHA')
+NAME_ABOVE = 10 + 3                  # a name's baseline above its button's centre: 3 px over its 20 px button
 KNOB_NAMES = ('TUNE', 'POS', 'CURVE', 'GAIN')
 JACK_NAMES = ('VO', 'POS', 'CRV', 'OUT')
 
@@ -41,7 +42,8 @@ def build():
     for i in range(N):
         x = box_centre(i)
         out.append(line(x, BUTTON_Y, CV_Y))
-        out.append(k.small_label(BUTTON_NAMES[i], x, BUTTON_Y))
+        # 3 px above the button's top (the user found the theme's 18 above the centre too far)
+        out.append(k.text(BUTTON_NAMES[i], x, BUTTON_Y - NAME_ABOVE, k.BOX_LABEL_SIZE, k.INK))
         out.append(k.knob_label(KNOB_NAMES[i], x, k.row(KNOB_ROW)))
         out.append(k.box(x - box_width() / 2, k.box_top(0), box_width(), k.box_bottom(0) - k.box_top(0),
                          k.OUTPUT if i == N - 1 else k.INPUT))

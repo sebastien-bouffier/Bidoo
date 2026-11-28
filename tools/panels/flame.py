@@ -10,9 +10,9 @@ W = PW * k.K
 SCREEN = (10, 28, 130, 200)          # the widget's display: the old corner, FLAME::H rows tall (src/FLAME.cpp)
 N_BUTTONS = 6
 BUTTON_Y = k.box_top(1) - k.BOX_GAP - 9   # the buttons' row, where the old 18 px LEDButtons were centred (src/FLAME.cpp kButtonRowY)
-# The buttons' names: six in 130 px, so smaller than the theme's 7.5 (CuSO4 would touch CuCl2), and 15.5 above the
-# buttons (5.5 over their top) rather than 18: the screen above leaves no more room for them and their group names
-NAME_SIZE, NAME_ABOVE = 6.0, 15.5
+# The buttons' names: six in 130 px, so smaller than the theme's 7.5 (CuSO4 would touch CuCl2), 3 px over the buttons'
+# top (13 above their centre, as EMILE's): near their buttons, with 5.4 px under the screen for the group names above
+NAME_SIZE, NAME_ABOVE = 6.0, 10 + 3
 GROUP_SIZE, GROUP_GAP = 6.5, 2.5     # a group's name, 2.5 px above the buttons' names
 BUTTON_NAMES = (('512', ''), ('1024', ''), ('2048', ''), ('NaCl', ''), ('CuCl', '2'), ('CuSO', '4'))   # name, subscript
 GROUPS = (('FFT SIZE', 1), ('COLOR', 4))   # over their middle button
