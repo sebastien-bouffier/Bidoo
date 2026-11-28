@@ -81,28 +81,24 @@ void LOURDE::process(const ProcessArgs &args) {
 	outputs[OUT].setChannels(channels);
 }
 
+// A value, printed upwards in yellow on the panel's screen: the widget's box is the screen, the text at textAt in it
 struct LourdeValueDisplay : TransparentWidget {
-  float *value = nullptr;
-
-  LourdeValueDisplay() {
-
-  };
+	float *value = nullptr;
+	Vec textAt;
 
 	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer == 1) {
-			if (value) {
-	      char display[128];
-	  		snprintf(display, sizeof(display), "%2.2f", *value);
-	  		nvgFontSize(args.vg, 14.0f);
-	  		nvgFillColor(args.vg, YELLOW_BIDOO);
-	  		nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
-	  		nvgRotate(args.vg,-1.0f * M_PI_2);
-	  		nvgText(args.vg, 0.0f, 0.0f, display, NULL);
-	    }
+		if (layer == 1 && value) {
+			char display[128];
+			snprintf(display, sizeof(display), "%2.2f", *value);
+			nvgFontSize(args.vg, 14.0f);
+			nvgFillColor(args.vg, YELLOW_BIDOO);
+			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
+			nvgTranslate(args.vg, textAt.x, textAt.y);
+			nvgRotate(args.vg, -1.0f * M_PI_2);
+			nvgText(args.vg, 0.0f, 0.0f, display, NULL);
 		}
 		Widget::drawLayer(args, layer);
 	}
-
 };
 
 struct LOURDEWidget : BidooWidget {
@@ -110,15 +106,15 @@ struct LOURDEWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/LOURDE.svg"));
 
-		// No screws, as before. The original hand-drawn panel: three groups of a value screen, a weight knob joined by a
-		// line to its CV jack, and an input box below; the floor group above the output. Each knob and CV jack sit on
-		// the line the panel draws between them (the old code had them 0.4 to 0.8 px above it); the floor group was
-		// already on its line and keeps its old corners. The column (37.3, boxes at 37.5) is left as it was.
-		const float kGroupPitch = 80.f;   // from one group to the next
-		const theme::Pos knobCol = theme::specificCorner(22.5f, 30, theme::kBlueKnobSize);
+		// No screws, as before. The panel of tools/panels/lourde.py: the old arrangement, three groups of a value screen,
+		// a weight knob joined by a line to its CV jack, and an input box below; the floor group above the output. The
+		// knobs and the full jacks on the panel's centre (they were 0.24 and 0.15 px left), the rest at its old places.
+		const float w = box.size.x;
+		const float kGroupPitch = 80.f;   // from one group to the next, GROUP_PITCH in tools/panels/lourde.py
+		const theme::Pos middle = theme::specific(w * 0.5f, 0);
 		const theme::Pos cvCol = theme::specificCorner(56, 37, theme::kTinyJackSize);
 		const theme::Pos groupLine[3] = {theme::specific(0, 45.312f), theme::specific(0, 125.188f), theme::specific(0, 205.125f)};
-		const theme::Pos in1 = theme::specificCorner(25.5f, 77, theme::kJackSize);
+		const theme::Pos in1 = theme::colRow(middle, theme::specificCorner(25.5f, 77, theme::kJackSize));
 		const int inIds[3] = {LOURDE::IN1, LOURDE::IN2, LOURDE::IN3};
 		const int cvIds[3] = {LOURDE::INWEIGHT1, LOURDE::INWEIGHT2, LOURDE::INWEIGHT3};
 		const int knobIds[3] = {LOURDE::WEIGHT1, LOURDE::WEIGHT2, LOURDE::WEIGHT3};
@@ -127,27 +123,26 @@ struct LOURDEWidget : BidooWidget {
 		for (int i = 0; i < 3; i++)
 			addInput(theme::input<TinyPJ301MPort>(theme::colRow(cvCol, groupLine[i]), module, cvIds[i]));
 		for (int i = 0; i < 3; i++)
-			addParam(theme::param<BidooBlueKnob>(theme::colRow(knobCol, groupLine[i]), module, knobIds[i]));
+			addParam(theme::param<BidooBlueKnob>(theme::colRow(middle, groupLine[i]), module, knobIds[i]));
 
-		// The value screens' text, kept where it was
-		const theme::Pos valueAt = theme::specific(15, 45);
-		for (int i = 0; i < 3; i++) {
-			LourdeValueDisplay *display = new LourdeValueDisplay();
-			display->box.pos = valueAt.down(kGroupPitch * i);
-			display->value = module ? &module->shown[i] : NULL;
-			addChild(display);
-		}
+		// The value screens drawn by the panel (SCREEN_X... in tools/panels/lourde.py); the text where it was
+		const theme::Area screen = theme::specificRect(2.44f, 27.81f, 17.12f, 35.f);
+		const theme::Area floorScreen = theme::specificRect(2.44f, 276.06f, 17.12f, 41.f);
+		const theme::Pos valueAt = theme::specific(15, 45), floorValueAt = theme::specific(15, 296);
+		auto display = [&](theme::Area area, theme::Pos text, float *value) {
+			LourdeValueDisplay *d = new LourdeValueDisplay();
+			d->box = area;
+			d->textAt = Vec(text).minus(d->box.pos);
+			d->value = value;
+			addChild(d);
+		};
+		for (int i = 0; i < 3; i++)
+			display(theme::specificRect(screen.x, screen.y + kGroupPitch * i, screen.w, screen.h), valueAt.down(kGroupPitch * i), module ? &module->shown[i] : NULL);
+		display(floorScreen, floorValueAt, module ? &module->shown[3] : NULL);
 
-		addParam(theme::param<BidooBlueKnob>(theme::specificCorner(22.5f, 282, theme::kBlueKnobSize), module, LOURDE::OUTFLOOR));
-
-		LourdeValueDisplay *displayOF = new LourdeValueDisplay();
-		displayOF->box.pos = theme::specific(15, 296);
-		displayOF->value = module ? &module->shown[3] : NULL;
-		addChild(displayOF);
-
+		addParam(theme::param<BidooBlueKnob>(theme::colRow(middle, theme::specificCorner(22.5f, 282, theme::kBlueKnobSize)), module, LOURDE::OUTFLOOR));
 		addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(56, 289, theme::kTinyJackSize), module, LOURDE::INFLOOR));
-
-		addOutput(theme::output<PJ301MPort>(theme::specificCorner(25.5f, 330, theme::kJackSize), module, LOURDE::OUT));
+		addOutput(theme::output<PJ301MPort>(theme::sameCol(middle, theme::row(0)), module, LOURDE::OUT));   // on the bottom row (0.15 px lower)
 	}
 };
 

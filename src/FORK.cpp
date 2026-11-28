@@ -281,16 +281,21 @@ struct FORKWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/FORK.svg"));
 
-		// No screws, as before. The original hand-drawn panel: the pitch knob; four formants, each an F and a G row of a
-		// trimpot, its letter and its CV jack; the presets button; V/O and OUT. Each formant row sits on its letter's
-		// middle (the old code had the first ones up to 1.1 px below it); V/O and OUT on their boxes' centres.
-		addParam(theme::param<BidooLargeBlueKnob>(theme::specificCorner(26, 40, theme::kLargeKnobSize), module, FORK::PITCH_PARAM));
-		addParam(theme::param<BlueCKD6>(theme::specificCorner(30, 274, theme::kCKD6Size), module, FORK::PRESET_PARAM));
+		// No screws, as before. The panel (tools/panels/fork.py): the pitch knob; four formants, each an F and a G row
+		// of a trimpot, its letter and its CV jack; the presets button; V/O and OUT. Each formant row sits on its
+		// letter's middle. The CV jacks stay tiny: the rows are 20 px apart, a full jack is 23.7.
+		const float w = box.size.x;
+		// the pitch knob at its old height (corner 40) and the presets button at the old CKD6's centre, both on the
+		// panel's centre (they were 0.25 and 1 px left of it): PITCH, PRESET in fork.py
+		addParam(theme::param<BidooLargeBlueKnob>(theme::specific(w * 0.5f, 40.f + theme::kLargeKnobSize.h * 0.5f), module, FORK::PITCH_PARAM));
+		BidooRoundButton *preset = theme::param<BidooRoundButton>(theme::specific(w * 0.5f, 274.f + theme::kCKD6Size.h * 0.5f), module, FORK::PRESET_PARAM);
+		preset->momentary = true;
+		addParam(preset);
 
 		const theme::Pos trimpotCol = theme::specificCorner(32, 85, theme::kTrimpotSize);
 		const theme::Pos cvCol = theme::specificCorner(67, 87, theme::kTinyJackSize);
 		const theme::Pos letter[8] = {theme::specific(0, 93.469f), theme::specific(0, 113.688f), theme::specific(0, 142.156f), theme::specific(0, 162.406f),
-			theme::specific(0, 190.344f), theme::specific(0, 210.562f), theme::specific(0, 238.219f), theme::specific(0, 258.438f)};   // F, G, F, G...
+			theme::specific(0, 190.344f), theme::specific(0, 210.562f), theme::specific(0, 238.219f), theme::specific(0, 258.438f)};   // F, G, F, G... (ROWS in fork.py)
 		for (int i = 0; i < 4; i++) {
 			addParam(theme::param<BidooBlueTrimpot>(theme::colRow(trimpotCol, letter[2 * i]), module, FORK::F_PARAM + i));
 			addInput(theme::input<TinyPJ301MPort>(theme::colRow(cvCol, letter[2 * i]), module, FORK::F_INPUT + i));
@@ -298,9 +303,10 @@ struct FORKWidget : BidooWidget {
 			addInput(theme::input<TinyPJ301MPort>(theme::colRow(cvCol, letter[2 * i + 1]), module, FORK::A_INPUT + i));
 		}
 
-		const theme::Pos bottomRow = theme::specificCorner(7, 330, theme::kJackSize);
-		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(19.562f, 0), bottomRow), module, FORK::PITCH_INPUT));    // the V/O box's centre
-		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(70.469f, 0), bottomRow), module, FORK::SIGNAL_OUTPUT));   // the OUT box's centre
+		// one box each, 5 px from the panel's sides as the old ones, the jacks in their middles (BOX_W, BOXES in fork.py)
+		const float kBoxSide = 5.f, kBoxW = 29.f;
+		addInput(theme::input<PJ301MPort>(theme::specific(kBoxSide + kBoxW * 0.5f, theme::row(0)), module, FORK::PITCH_INPUT));
+		addOutput(theme::output<PJ301MPort>(theme::specific(w - kBoxSide - kBoxW * 0.5f, theme::row(0)), module, FORK::SIGNAL_OUTPUT));
 	}
 };
 

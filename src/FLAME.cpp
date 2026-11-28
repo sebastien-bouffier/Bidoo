@@ -990,7 +990,7 @@ struct FLAMEWidget : BidooWidget {
 
 		// The six buttons in one row on the 6-column grid, the FFT sizes then the colours, each under its label,
 		// orange on the choice in use (the house BidooRoundButton, momentary). The row sits one box gap above the jack
-		// boxes, where the old 18 px LEDButtons were centred.
+		// boxes, where the old 18 px LEDButtons were centred (BUTTON_Y in tools/panels/flame.py).
 		const float w = box.size.x;
 		const theme::Size kButtonSize = {17.9996f, 18.f};                 // the old LEDButton: the row's place
 		const float kButtonRowY = theme::boxTop(1) - theme::kBoxGap - kButtonSize.h * 0.5f;
@@ -1005,20 +1005,16 @@ struct FLAMEWidget : BidooWidget {
 			addParam(b);
 		}
 
-		// The jacks: three boxed columns on the grid (IN, BAND, AMP), left above right in one tall box per column
-		// (rows 1 to 0). The two captions and two jacks share the box's height with five equal gaps, so
-		// the rows are specific (the panel's spread.py uses the same arithmetic).
-		const float kCapHeight = 1493.f / 2048.f * theme::kBoxLabelSize;   // DejaVu's capitals
-		const float kGap = (theme::boxBottom(0) - theme::boxTop(1) - 2.f * (kCapHeight + theme::kJackSize.h)) / 5.f;
-		const float kLeftY = theme::boxTop(1) + 2.f * kGap + kCapHeight + theme::kJackSize.h * 0.5f;
-		const float kRightY = kLeftY + 2.f * kGap + kCapHeight + theme::kJackSize.h;
-		auto at = [&](float i, float y) { return theme::sameCol(theme::jackAt(i, 3, 0, w), y); };   // each in the middle of its box
-		addInput(theme::input<PJ301MPort>(at(0, kLeftY), module, FLAME::IN_L_INPUT));
-		addInput(theme::input<PJ301MPort>(at(0, kRightY), module, FLAME::IN_R_INPUT));
-		addOutput(theme::output<PJ301MPort>(at(1, kLeftY), module, FLAME::BAND_L_OUTPUT));
-		addOutput(theme::output<PJ301MPort>(at(1, kRightY), module, FLAME::BAND_R_OUTPUT));
-		addOutput(theme::output<PJ301MPort>(at(2, kLeftY), module, FLAME::AMP_L_OUTPUT));
-		addOutput(theme::output<PJ301MPort>(at(2, kRightY), module, FLAME::AMP_R_OUTPUT));
+		// The jacks: three boxed columns on the grid (IN, BAND, AMP), left on row 1 above right on row 0, one tall box
+		// per column (tools/panels/flame.py).
+		auto at = [&](float i, int k) { return theme::jackAt(i, 3, k, w); };   // each in the middle of its box
+		const int kLeftRow = 1, kRightRow = 0;
+		addInput(theme::input<PJ301MPort>(at(0, kLeftRow), module, FLAME::IN_L_INPUT));
+		addInput(theme::input<PJ301MPort>(at(0, kRightRow), module, FLAME::IN_R_INPUT));
+		addOutput(theme::output<PJ301MPort>(at(1, kLeftRow), module, FLAME::BAND_L_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(at(1, kRightRow), module, FLAME::BAND_R_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(at(2, kLeftRow), module, FLAME::AMP_L_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(at(2, kRightRow), module, FLAME::AMP_R_OUTPUT));
 	}
 };
 

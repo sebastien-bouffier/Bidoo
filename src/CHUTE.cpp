@@ -143,14 +143,11 @@ struct CHUTEDisplay : TransparentWidget {
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
 			nvgSave(args.vg);
-			nvgScissor(args.vg,-1,-1,box.size.x+2,box.size.y+1);
+			// the box is the panel's screen (tools/panels/chute.py SCREEN); the ball may reach 1 px left of it, as before
+			nvgScissor(args.vg,-1,-1,box.size.x,box.size.y+1);
 			nvgFillColor(args.vg, theme::kScreenBlack);
-			nvgStrokeColor(args.vg, theme::kScreenBlack);
-			nvgStrokeWidth(args.vg, 1);
 			nvgBeginPath(args.vg);
-			nvgRoundedRect(args.vg,0,0,box.size.x+2,box.size.y,0.0f);
-			nvgClosePath(args.vg);
-			nvgStroke(args.vg);
+			nvgRect(args.vg,0,0,box.size.x,box.size.y);
 			nvgFill(args.vg);
 
 			nvgFontSize(args.vg, 18.0f);
@@ -180,12 +177,15 @@ struct CHUTEWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel. Top: three framed groups, a CV jack joined by a line to its knob; both sit on
-		// the line the panel draws (the old code had the knob 0.9 px below the jack). Bottom: the boxes' centres for the
-		// jacks, the run button over the ALT box on the line from the TRIG jack.
+		// The original hand-drawn panel's arrangement, migrated (tools/panels/chute.py draws the same places). Top: three
+		// framed groups, a CV jack joined by a line to its knob, on their old corners; the ball's screen down the right.
+		// Bottom: TRIG and the drop button on row 1, the outputs on row 0, one grid box each in three columns.
+		const int n = 3;
+		const float w = box.size.x;
 		CHUTEDisplay *display = new CHUTEDisplay();
 		display->module = module;
-		display->box = theme::specificRect(111, 30, 15, 180);
+		// the old screen's height, ending on the TOP box's right edge (it reached 128), 17 wide as it was drawn
+		display->box = theme::specificRect(theme::boxRight(n - 1, n, w) - 17.f, 30, 17, 180);
 		addChild(display);
 
 		const theme::Pos cvCol = theme::specificCorner(20, 52, theme::kJackSize);         // the CV jacks' column
@@ -198,15 +198,16 @@ struct CHUTEWidget : BidooWidget {
 			addParam(theme::param<BidooBlueKnob>(theme::colRow(knobCol, groupLine[i]), module, knobIds[i]));
 		}
 
-		const float kBoxPitch = 48.344f;                            // from one bottom box's centre to the next
-		const theme::Pos fallCol = theme::specific(19.156f, 0);     // the centre of the TRIG and FALL boxes
-		const theme::Pos fall = theme::colRow(fallCol, theme::specificCorner(7, 330, theme::kJackSize));
-		const theme::Pos alt = fall.right(kBoxPitch);
-		addInput(theme::input<PJ301MPort>(theme::colRow(fallCol, theme::specificCorner(7, 283, theme::kJackSize)), module, CHUTE::TRIG_INPUT));
-		addParam(theme::param<BlueCKD6>(theme::colRow(alt, theme::specificCorner(53, 277, theme::kCKD6Size)), module, CHUTE::RUN_PARAM));
-		addOutput(theme::output<PJ301MPort>(fall, module, CHUTE::GATE_OUTPUT));
-		addOutput(theme::output<PJ301MPort>(alt, module, CHUTE::PITCH_OUTPUT));
-		addOutput(theme::output<PJ301MPort>(alt.right(kBoxPitch), module, CHUTE::PITCHSTEP_OUTPUT));
+		// TRIG in its box on row 1 (it was 1.2 px higher, 9 px left), the drop button at the end of its line, over ALT
+		// (5 px lower): the house round button, momentary as the old one
+		addInput(theme::input<PJ301MPort>(theme::jackAt(0, n, 1, w), module, CHUTE::TRIG_INPUT));
+		BidooRoundButton *run = theme::param<BidooRoundButton>(theme::jackAt(1, n, 1, w), module, CHUTE::RUN_PARAM);
+		run->momentary = true;
+		addParam(run);
+		// the outputs (FALL and TOP were 9 px further out)
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(0, n, 0, w), module, CHUTE::GATE_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(1, n, 0, w), module, CHUTE::PITCH_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(2, n, 0, w), module, CHUTE::PITCHSTEP_OUTPUT));
 	}
 };
 

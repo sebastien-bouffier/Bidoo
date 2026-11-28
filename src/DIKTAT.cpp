@@ -290,7 +290,11 @@ struct DiktatPJ301MPort : PJ301MPort {
 		if (layer == 1) {
 			if (getPort() && (module != NULL)) {
 				nvgGlobalTint(args.vg, color::WHITE);
-				nvgFillColor(args.vg, SCHEME_WHITE);
+				// the note name is a caption in the jack's box: white, but dark on an input box in Dark and Black,
+				// which turn it light grey (the panel's own captions do the same, BidooWidget::prepareThemes)
+				BidooWidget *panel = getAncestorOfType<BidooWidget>();
+				const bool darkTheme = panel && panel->shownTheme > THEME_LIGHT;
+				nvgFillColor(args.vg, darkTheme && type == engine::Port::INPUT ? nvgRGB(40, 40, 40) : SCHEME_WHITE);
 				nvgFontSize(args.vg, 10.0f);
 				nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
 				DIKTAT *mod = dynamic_cast<DIKTAT*>(module);
@@ -309,10 +313,12 @@ DIKTATWidget::DIKTATWidget(DIKTAT *module) {
 
 	theme::addScrews(this);
 
-	// The original hand-drawn panel. Left: the channel screen, its knob under it, the global switch between ON and
-	// OFF; all on the screen's centre (the old code had the knob 0.2 px and the switch 0.44 px right of it). Right: the
-	// root note and scale screens, each knob under its screen's centre (the old code had them 0.6 px right) and joined
-	// by a line to its CV jack. Bottom: the jacks on their boxes' centres. The screens' text keeps its old place.
+	// The original hand-drawn panel's arrangement, migrated (tools/panels/diktat.py draws the same places). Left: the
+	// channel screen, its knob under it, the global switch between ON and OFF; all on the screen's centre. Right: the
+	// root note and scale screens, each knob under its screen's centre and joined by a line to its CV jack. The screens'
+	// text keeps its old place. Bottom: the note input on row 2, the outputs on rows 1 and 0, one grid box each.
+	const int n = 4;
+	const float w = box.size.x;
 	const theme::Pos leftCol = theme::specific(22.062f, 0);    // the channel screen's centre, and its labels'
 	const theme::Pos rightCol = theme::specific(96.156f, 0);   // the root note and scale screens' centre
 	const float kScaleBelow = 73.f;                            // from the root note group to the scale group
@@ -322,10 +328,11 @@ DIKTATWidget::DIKTATWidget(DIKTAT *module) {
 	rootNoteDisplay->module =  module ? module : NULL;
 	addChild(rootNoteDisplay);
 
+	// the CV jacks: full jacks now (they were tiny), at the old ones' centre, on their knob's row (0.26 px lower)
 	const theme::Pos rootNote = theme::colRow(rightCol, theme::specificCorner(82, 55, theme::kBlueKnobSize));
-	const theme::Pos rootNoteCv = theme::specificCorner(120, 62, theme::kTinyJackSize);
+	const theme::Pos rootNoteCv = theme::colRow(theme::specificCorner(120, 62, theme::kTinyJackSize), rootNote);
 	addParam(theme::param<BidooBlueSnapKnob>(rootNote, module, DIKTAT::ROOT_NOTE_PARAM));
-	addInput(theme::input<TinyPJ301MPort>(rootNoteCv, module, DIKTAT::ROOT_NOTE_INPUT));
+	addInput(theme::input<PJ301MPort>(rootNoteCv, module, DIKTAT::ROOT_NOTE_INPUT));
 
 	ScaleDisplay *scaleDisplay = new ScaleDisplay();
 	scaleDisplay->box = theme::specificRect(96, 117, 20, 20);
@@ -333,7 +340,7 @@ DIKTATWidget::DIKTATWidget(DIKTAT *module) {
 	addChild(scaleDisplay);
 
 	addParam(theme::param<BidooBlueSnapKnob>(rootNote.down(kScaleBelow), module, DIKTAT::SCALE_PARAM));
-	addInput(theme::input<TinyPJ301MPort>(rootNoteCv.down(kScaleBelow), module, DIKTAT::SCALE_INPUT));
+	addInput(theme::input<PJ301MPort>(rootNoteCv.down(kScaleBelow), module, DIKTAT::SCALE_INPUT));
 
 	ChannelDisplay *channelDisplay = new ChannelDisplay();
 	channelDisplay->box = theme::specificRect(22, 44, 20, 20);
@@ -344,15 +351,13 @@ DIKTATWidget::DIKTATWidget(DIKTAT *module) {
 	addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(leftCol, theme::specificCorner(7.5f, 55, theme::kBlueKnobSize)), module, DIKTAT::CHANNEL_PARAM));
 	addParam(theme::param<CKSS>(theme::colRow(leftCol, theme::specificCorner(15.5f, 115, kCKSSSize)), module, DIKTAT::GLOBAL_PARAM));
 
-	const float kBoxPitch = 37.25f;    // from one box's centre to the next
-	const float kRowBelow = 45.f;      // from the first row of outputs to the second
-	const theme::Pos tonic = theme::colRow(theme::specific(19.125f, 0), theme::specificCorner(7, 285, theme::kJackSize));   // the first boxes' centre
-	addInput(theme::input<DiktatPJ301MPort>(theme::colRow(tonic, theme::specificCorner(7, 240, theme::kJackSize)), module, DIKTAT::NOTE_INPUT));
-
+	// the jacks in their boxes (each writes its note's name where a caption would be); the input was 1.9 px lower, the
+	// first row of outputs 0.9 px lower, the outer columns 6 px further out
+	addInput(theme::input<DiktatPJ301MPort>(theme::jackAt(0, n, 2, w), module, DIKTAT::NOTE_INPUT));
 	const int outIds[7] = {DIKTAT::NOTE_TONIC_OUTPUT, DIKTAT::NOTE_THIRD_OUTPUT, DIKTAT::NOTE_FIFTH_OUTPUT, DIKTAT::NOTE_SEVENTH_OUTPUT,
 		DIKTAT::NOTE_NINTH_OUTPUT, DIKTAT::NOTE_ELEVENTH_OUTPUT, DIKTAT::NOTE_THIRTEENTH_OUTPUT};
 	for (int i = 0; i < 7; i++)
-		addOutput(theme::output<DiktatPJ301MPort>(tonic.offset(kBoxPitch * (i % 4), kRowBelow * (i / 4)), module, outIds[i]));
+		addOutput(theme::output<DiktatPJ301MPort>(theme::jackAt(i % n, n, 1 - i / n, w), module, outIds[i]));
 }
 
 Model *modelDIKTAT = createModel<DIKTAT, DIKTATWidget>("DIKTAT");

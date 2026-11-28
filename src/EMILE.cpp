@@ -513,49 +513,41 @@ struct EMILEWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel: the picture screen; four colour buttons, each joined by a line to its CV jack;
-		// four knobs under their labels; four boxed jacks. Each button and its jack sit on the line the panel draws
-		// (the old code had the button 0.5 px right of its jack), each knob under its label (it was up to 0.7 px off);
-		// the jacks keep their old corners (within 0.2 px of their boxes).
+		// The panel (tools/panels/emile.py): the picture screen; four colour buttons, each joined by a line to its CV jack;
+		// four knobs under their labels; four boxed jacks, all in the same four columns: one box per jack between the
+		// screen's edges, the theme's gap between them (kBoxLeft, kBoxRight: BOX_LEFT, BOX_RIGHT in emile.py). The
+		// buttons are BidooRoundButtons lit by their colour's state, with its name above: they sit 8 px lower than the old
+		// LEDButtons to leave the name room under the screen, the CV jacks are full jacks 10.5 px lower to clear them.
 		EMILEDisplay *display = new EMILEDisplay();
 		display->module = module;
 		display->box = theme::specificRect(5, 30, 125, 130);
 		addChild(display);
 
-		const theme::Size kButtonSize = {17.9996f, 18.f};                 // LEDButton
-		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
-		const float kLightIn = 6.f;   // from a button's corner to its light's
-		const theme::Pos buttonRow = theme::specificCorner(8, 170, kButtonSize);
-		const theme::Pos cvRow = theme::specificCorner(9, 195, theme::kTinyJackSize);
-		const theme::Pos line[4] = {theme::specific(16.625f, 0), theme::specific(50.125f, 0), theme::specific(83.688f, 0), theme::specific(117.188f, 0)};
+		const float w = box.size.x;
+		const float kBoxLeft = 5.f, kBoxRight = w - 5.f;   // the display's edges
+		const int n = 4;
+		auto column = [&](int i) {
+			const float bw = (kBoxRight - kBoxLeft - (n - 1) * theme::kBoxGap) / n;
+			return kBoxLeft + 0.5f * bw + i * (bw + theme::kBoxGap);
+		};
+		const float kButtonY = 187.f, kCvY = 213.f;   // BUTTON_Y, CV_Y in emile.py
 		const int buttonIds[4] = {EMILE::R_PARAM, EMILE::G_PARAM, EMILE::B_PARAM, EMILE::A_PARAM};
+		const int lightIds[4] = {EMILE::R_LIGHT, EMILE::G_LIGHT, EMILE::B_LIGHT, EMILE::A_LIGHT};
 		const int cvIds[4] = {EMILE::R_INPUT, EMILE::G_INPUT, EMILE::B_INPUT, EMILE::A_INPUT};
-		for (int i = 0; i < 4; i++) {
-			const theme::Pos button = theme::colRow(line[i], buttonRow);
-			const theme::Pos light = theme::specificCorner(button.x - kButtonSize.w * 0.5f + kLightIn, button.top + kLightIn, kSmallLightSize);
-			addParam(theme::param<LEDButton>(button, module, buttonIds[i]));
-			switch (i) {
-				case 0: addChild(theme::light<SmallLight<RedLight>>(light, module, EMILE::R_LIGHT)); break;
-				case 1: addChild(theme::light<SmallLight<GreenLight>>(light, module, EMILE::G_LIGHT)); break;
-				case 2: addChild(theme::light<SmallLight<BlueLight>>(light, module, EMILE::B_LIGHT)); break;
-				default: addChild(theme::light<SmallLight<WhiteLight>>(light, module, EMILE::A_LIGHT)); break;
-			}
-		}
-		for (int i = 0; i < 4; i++)
-			addInput(theme::input<TinyPJ301MPort>(theme::colRow(line[i], cvRow), module, cvIds[i]));
-
-		const theme::Pos knobRow = theme::specificCorner(5, 280, theme::kBlueKnobSize);
-		const theme::Pos label[4] = {theme::specific(19.062f, 0), theme::specific(50.625f, 0), theme::specific(82.188f, 0), theme::specific(113.781f, 0)};
 		const int knobIds[4] = {EMILE::TUNE_PARAM, EMILE::POS_PARAM, EMILE::CURVE_PARAM, EMILE::GAIN_PARAM};
-		for (int i = 0; i < 4; i++)
-			addParam(theme::param<BidooBlueKnob>(theme::colRow(label[i], knobRow), module, knobIds[i]));
-
-		const float kJackPitch = 32.2f;
-		const theme::Pos tuneIn = theme::specificCorner(7.5f, 330, theme::kJackSize);
-		addInput(theme::input<PJ301MPort>(tuneIn, module, EMILE::TUNE_INPUT));
-		addInput(theme::input<PJ301MPort>(tuneIn.right(kJackPitch), module, EMILE::POS_INPUT));
-		addInput(theme::input<PJ301MPort>(tuneIn.right(2.f * kJackPitch), module, EMILE::CURVE_INPUT));
-		addOutput(theme::output<PJ301MPort>(tuneIn.right(3.f * kJackPitch), module, EMILE::OUT));
+		for (int i = 0; i < n; i++) {
+			BidooRoundButton *b = theme::param<BidooRoundButton>(theme::specific(column(i), kButtonY), module, buttonIds[i]);
+			b->momentary = true;
+			const int lightId = lightIds[i];
+			b->litBy = [=]() { return module && module->lights[lightId].getBrightness() > 0.5f; };
+			addParam(b);
+			addInput(theme::input<PJ301MPort>(theme::specific(column(i), kCvY), module, cvIds[i]));
+			addParam(theme::param<BidooBlueKnob>(theme::specific(column(i), theme::row(1)), module, knobIds[i]));
+		}
+		addInput(theme::input<PJ301MPort>(theme::specific(column(0), theme::row(0)), module, EMILE::TUNE_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::specific(column(1), theme::row(0)), module, EMILE::POS_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::specific(column(2), theme::row(0)), module, EMILE::CURVE_INPUT));
+		addOutput(theme::output<PJ301MPort>(theme::specific(column(3), theme::row(0)), module, EMILE::OUT));
 	}
 
   void onPathDrop(const PathDropEvent& e) override {
