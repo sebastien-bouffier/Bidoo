@@ -212,9 +212,10 @@
     {
       "slug": "EMILE",
       "name": "EMILE",
-      "description": ".png to sound",
+      "description": "An image played as sound: each row a waveform's harmonics at the V/O note, or a spectrum; load a PNG or draw it on the screen",
       "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki/EMILE",
       "tags": [
+        "Oscillator",
         "Sampler"
       ]
     },

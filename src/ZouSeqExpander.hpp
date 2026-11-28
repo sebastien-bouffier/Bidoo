@@ -326,7 +326,7 @@ struct ZouSeqExpanderWidget : BidooWidget {
 			addParam(theme::param<BidooSmallBlueKnob>(diceKnob.down(dy), module, E::DICE_PARAM + i));
 			addInput(theme::input<TinyPJ301MPort>(dice.down(dy), module, E::DICE_INPUT + i));
 
-			// the transpose mode keeps its bezel and its two colours (blue: semitones, green: octaves), 0.3 px left onto
+			// the transpose mode keeps its bezel and its two colours (blue: octaves, 1 V/oct; green: semitones, 1 V a semitone), 0.3 px left onto
 			// its input's column (TRSP_X)
 			addParam(theme::place(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(), module, E::TRSPTYPE_PARAM + i, E::TRSPTYPE_LIGHT + i * 3), theme::colRow(trsp, button).down(dy)));
 			addInput(theme::input<TinyPJ301MPort>(trsp.down(dy), module, E::TRSP_INPUT + i));
