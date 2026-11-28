@@ -139,7 +139,10 @@ struct EMILE : BidooModule {
 	enum Tool { TOOL_BRUSH, TOOL_ERASER, TOOL_LINE };
 	int tool = TOOL_BRUSH;
 	float brushSize = 8.f;
-	int colour = 0;            // white, red, green, blue
+	int colour = 0;            // an index in kPalette: white, red, green, blue, yellow, cyan, magenta
+	// the palette: the channels each colour writes (R, G, B as bits 0, 1, 2), as the sound reads them
+	static constexpr int kPaletteSize = 7;
+	static constexpr int kPalette[kPaletteSize] = {7, 1, 2, 4, 3, 6, 5};
 	float intensity = 1.f;
 	bool stroking = false, strokeLine = false;
 	EmileBrush strokeBrush;
@@ -402,7 +405,7 @@ struct EMILE : BidooModule {
 		undo.push(canvas);
 		strokeBrush.size = brushSize;
 		for (int c = 0; c < 3; c++)
-			strokeBrush.channel[c] = colour == 0 || colour == c + 1;
+			strokeBrush.channel[c] = (kPalette[clamp(colour, 0, kPaletteSize - 1)] >> c) & 1;
 		strokeBrush.intensity = intensity;
 		strokeBrush.erase = erase;
 		strokeLine = line;
@@ -829,6 +832,82 @@ struct EMILEDisplay : OpaqueWidget {
 		return module && module->drawMode;
 	}
 
+	// In draw mode, a strip at the screen's bottom: the palette's colours, the eraser, and a clear button (undoable).
+	// Its cells, left to right: 0..6 the colours, 7 the eraser, then a gap, 9 clear.
+	static constexpr float kBarH = 13.f, kCell = 13.f, kBarX = 3.f;
+	static constexpr int kEraserCell = 7, kClearCell = 9;
+	bool inBar(Vec p) const {
+		return p.y >= height - kBarH && p.y <= height && p.x >= 0 && p.x <= width;
+	}
+	int barCell(Vec p) const {
+		const int i = (int)std::floor((p.x - kBarX) / kCell);
+		return p.x >= kBarX && i >= 0 && i <= kClearCell ? i : -1;
+	}
+	void clickBar(Vec p) {
+		const int i = barCell(p);
+		if (i >= 0 && i < EMILE::kPaletteSize) {
+			module->colour = i;
+			if (module->tool == EMILE::TOOL_ERASER)
+				module->tool = EMILE::TOOL_BRUSH;
+		}
+		else if (i == kEraserCell)
+			module->tool = EMILE::TOOL_ERASER;
+		else if (i == kClearCell) {
+			module->ensureCanvas();
+			module->clearCanvas();
+		}
+	}
+	static NVGcolor paletteColour(int i) {
+		const int m = EMILE::kPalette[i];
+		return nvgRGB(m & 1 ? 255 : 0, m & 2 ? 255 : 0, m & 4 ? 255 : 0);
+	}
+	void drawBar(NVGcontext *vg) {
+		const float y0 = height - kBarH;
+		nvgBeginPath(vg);
+		nvgRect(vg, 0, y0, width, kBarH);
+		nvgFillColor(vg, nvgRGBA(0, 0, 0, 190));
+		nvgFill(vg);
+		const float sw = kCell - 4.f;   // a swatch, 2 px inside its cell
+		for (int i = 0; i <= kClearCell; i++) {
+			if (i == kClearCell - 1)
+				continue;
+			const float x = kBarX + i * kCell + 2.f, y = y0 + (kBarH - sw) * 0.5f;
+			nvgBeginPath(vg);
+			nvgRect(vg, x, y, sw, sw);
+			if (i < EMILE::kPaletteSize)
+				nvgFillColor(vg, paletteColour(i));
+			else
+				nvgFillColor(vg, nvgRGB(60, 60, 60));
+			nvgFill(vg);
+			if (i == kEraserCell) {        // the eraser: a white square half covered
+				nvgBeginPath(vg);
+				nvgRect(vg, x + 1.f, y + 1.f, sw - 2.f, (sw - 2.f) * 0.5f);
+				nvgFillColor(vg, nvgRGB(230, 230, 230));
+				nvgFill(vg);
+			}
+			if (i == kClearCell) {         // clear: a cross
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, x + 2.f, y + 2.f);
+				nvgLineTo(vg, x + sw - 2.f, y + sw - 2.f);
+				nvgMoveTo(vg, x + sw - 2.f, y + 2.f);
+				nvgLineTo(vg, x + 2.f, y + sw - 2.f);
+				nvgStrokeColor(vg, theme::kScreenYellow);
+				nvgStrokeWidth(vg, 1.2f);
+				nvgStroke(vg);
+			}
+			// the colour or the eraser in use, outlined in the screens' yellow
+			const bool selected = i < EMILE::kPaletteSize ? (module->tool != EMILE::TOOL_ERASER && module->colour == i)
+				: (i == kEraserCell && module->tool == EMILE::TOOL_ERASER);
+			if (selected) {
+				nvgBeginPath(vg);
+				nvgRect(vg, x - 1.5f, y - 1.5f, sw + 3.f, sw + 3.f);
+				nvgStrokeColor(vg, theme::kScreenYellow);
+				nvgStrokeWidth(vg, 1.f);
+				nvgStroke(vg);
+			}
+		}
+	}
+
 	// the display's point on the canvas (stretched to the box, as it is shown)
 	void toCanvas(Vec p, float &x, float &y) const {
 		x = p.x / width * module->canvas.width;
@@ -846,6 +925,11 @@ struct EMILEDisplay : OpaqueWidget {
 			return;
 		}
 		// left paints with the tool, right erases (so the menu opens from the rest of the panel in draw mode)
+		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && inBar(e.pos)) {
+			clickBar(e.pos);
+			e.consume(this);
+			return;
+		}
 		if (e.action == GLFW_PRESS && (e.button == GLFW_MOUSE_BUTTON_LEFT || e.button == GLFW_MOUSE_BUTTON_RIGHT)) {
 			const bool right = e.button == GLFW_MOUSE_BUTTON_RIGHT;
 			const bool shift = (e.mods & RACK_MOD_MASK) == GLFW_MOD_SHIFT;
@@ -890,6 +974,21 @@ struct EMILEDisplay : OpaqueWidget {
 	void onLeave(const LeaveEvent &e) override {
 		hovering = false;
 		OpaqueWidget::onLeave(e);
+	}
+
+	// in draw mode the wheel over the screen sets the brush size (the menu's sizes); elsewhere it scrolls the rack
+	void onHoverScroll(const HoverScrollEvent &e) override {
+		if (drawing() && e.scrollDelta.y != 0.f) {
+			static const float sizes[6] = {1.f, 2.f, 4.f, 8.f, 16.f, 32.f};
+			int i = 0;
+			while (i < 5 && sizes[i] < module->brushSize)
+				i++;
+			i = clamp(i + (e.scrollDelta.y > 0.f ? 1 : -1), 0, 5);
+			module->brushSize = sizes[i];
+			e.consume(this);
+			return;
+		}
+		OpaqueWidget::onHoverScroll(e);
 	}
 
 	// Ctrl+Z over the display in draw mode undoes a stroke (elsewhere it stays Rack's undo)
@@ -968,7 +1067,9 @@ struct EMILEDisplay : OpaqueWidget {
 				nvgStroke(args.vg);
 			}
 			// the brush under the mouse (its size on the canvas, stretched as the canvas is)
-			if (drawing() && (hovering || module->stroking)) {
+			if (drawing())
+				drawBar(args.vg);
+			if (drawing() && (module->stroking || (hovering && !inBar(mouse)))) {
 				// before the first stroke: the size the canvas will have (the thumb's, or 256 x 256)
 				float cw = 256.f, ch = 256.f;
 				if (module->canvas.valid()) {
@@ -1096,7 +1197,7 @@ struct EMILEWidget : BidooWidget {
 				return (size_t)3;
 			},
 			[=](size_t i) { module->brushSize = sizes[i]; }));
-		menu->addChild(createIndexSubmenuItem("Colour", {"White", "Red", "Green", "Blue"},
+		menu->addChild(createIndexSubmenuItem("Colour", {"White", "Red", "Green", "Blue", "Yellow", "Cyan", "Magenta"},
 			[=]() { return (size_t)module->colour; },
 			[=](size_t c) { module->colour = (int)c; }));
 		static const float levels[] = {0.25f, 0.5f, 0.75f, 1.f};
