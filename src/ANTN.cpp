@@ -261,6 +261,9 @@ struct ANTN : BidooModule {
   uint32_t gen = 0;
   bool buffered = false;
   float blinkPhase = 0.f;
+  // LISTEN's light, for the UI: on while it plays, blinking while it waits for the network (connecting, filling the
+  // buffer, or the buffer running low), off when stopped or after a failure (the screen says which)
+  std::atomic<bool> listenLit{false};
   // Declicking: a 5 ms fade in when the audio starts or comes back, a 5 ms fade
   // out on stop (on the frames still buffered), at the end of the stream and on
   // an underrun (on the last frame held); the gain knob glides over 5 ms.
@@ -1020,6 +1023,8 @@ void ANTN::process(const ProcessArgs &args) {
   lights[ON_LIGHT].setBrightness(playing ? 0.f : (failedNow && blinkPhase >= 0.5f ? 0.f : 1.f));
   lights[ON_LIGHT+1].setBrightness((playing && !buffered) || low ? 1.f : 0.f);
   lights[ON_LIGHT+2].setBrightness(buffered ? 1.f : 0.f);
+  const bool waiting = playing && (!buffered || low);
+  listenLit = playing && (!waiting || blinkPhase < 0.5f);
 }
 
 struct ANTNTextField : LedDisplayTextField {
@@ -1163,7 +1168,7 @@ struct ANTNWidget : BidooWidget {
 		addParam(theme::param<BidooBlueKnob>(gain, module, ANTN::GAIN_PARAM));
 		BidooRoundButton *listenButton = theme::param<BidooRoundButton>(listen, module, ANTN::TRIG_PARAM);
 		listenButton->momentary = true;
-		listenButton->litBy = [=]() { return module && module->playing; };
+		listenButton->litBy = [=]() { return module && module->listenLit.load(); };   // steady: playing; blinking: waiting
 		addParam(listenButton);
 
 		// The stereo out: full jacks, one box each, half a column in from the outer columns of three (antn.py N)
