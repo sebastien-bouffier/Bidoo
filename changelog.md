@@ -1,8 +1,6 @@
-### v2.7.10 (28/11/2026)
+### v2.7.11 (28/11/2026)
 New modules
 - PRiSME: an additive voice (20 HP), 64 harmonics per note, up to 16 notes. Draw up to four spectra on its screen (A to D, bars in dB): MORPH (with its CV and, if you like, velocity) sets where along them each note starts, and SWEEP carries each note from there to the last spectrum in its time; BRIGHT tilts the spectrum, ODD/EVEN hollows it, STRETCH moves the partials off their multiples (bells, metal). A formant filter drawn over frequency (50 Hz to 12.8 kHz, five vowels as shapes) with its DEPTH, moved by FORMANT, its CV (1 V/oct) and, if you like, the note's envelope; it stays at fixed frequencies as the note moves. Each harmonic has its own envelope: it rises in ATTACK times its bar on the attack page, falls towards SUSTAIN in DECAY times its bar on the decay page (shorter for high harmonics with DAMP), and releases likewise; in loop mode each harmonic rises again once it has fallen, at its own pace, for evolving, shimmering tones. Brush (width on the mouse wheel), line, eraser, shapes, copy and clear, undo in Rack's history; the screen shows what the newest note plays. V/O, GATE, VEL polyphonic, CV for MORPH, BRIGHT, STRETCH and the formant; stereo L/R with SPREAD (odd harmonics left, even right) and a polyphonic output. Band-limited (no harmonic above 0.45 of the sample rate); about 5 % of one core for 16 notes of 64 harmonics. Sixteen factory presets: plucks, organ, bells, pads, clarinet, brass, electric piano, marimba, tubular bell, choir, sub bass, flute, gong, strings, an evolving shimmer
-Back
-- enCORE and the enCORE Expander are back in the module browser: patches that use them open and play as before (2.7.8 opened them without these modules). zOù MAï's Fast clock mode stays, for those who prefer zOù MAï's grid
 Improvements
 - Every panel is now drawn by a script (tools/panels), the older ones migrated from their hand-drawn panels keeping their arrangement and picture: one box per jack (inputs black, outputs red), the theme's type, title and logo, buttons as round buttons lit orange where a light showed a state, screens drawn by the panel, full jacks where they fit; rATEAU keeps its red L of outputs
 - antN: LISTEN is lit while the radio plays and blinks while it waits for the network (connecting, filling the buffer, or the buffer running low); off when stopped or after a failure, which the screen names
@@ -34,6 +32,10 @@ Fixes
 - ACnE's outputs, dOSE's MIX and cOPIA's outputs stay under 10 V (linear up to 8 V, then a soft bend), as a console's rails would keep a sum of many hot sources; fLAME's AMP outputs (a CV) stay within 0 to 10 V. Normal levels are unchanged
 - Dark and Black themes: DIKTAT and ratEaU keep their screens black (the yellow text was on light grey), ratEaU's CLK box turns grey like its neighbours, πlOT's control area turns dark (it stayed near white), ziNC's band frequencies are written in the panel text's colour (black on dark grey before)
 - zOù MAï + and enCORE +: rotation steps and lengths set while the expander is not beside its sequencer are kept in the patch (they came back at 1 and 16)
+
+### v2.7.10 (28/11/2026)
+Back
+- enCORE and the enCORE Expander are back in the module browser: patches that use them open and play as before (2.7.8 opened them without these modules). zOù MAï's Fast clock mode stays, for those who prefer zOù MAï's grid
 
 ### v2.7.9 (27/11/2026)
 Improvements

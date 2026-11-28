@@ -17,7 +17,7 @@ HEADING_SIZE, HEADING_ROOM = 26, 50
 # Each row: its families, left to right; a family: (heading or None to go on under the previous one, model slugs)
 ROWS = [
 	[("Clocks and logic", ["tOCAnTe", "lATe", "ChUTE", "RATEAU", "DilEMO", "lambda", "LoURdE"]),
-	 ("Oscillators", ["antN", "TiARE", "liMonADe", "ForK", "ACIDE", "BanCau"]),
+	 ("Oscillators", ["antN", "TiARE", "liMonADe", "ForK", "ACIDE", "PRISME", "BanCau"]),
 	 ("Dynamics", ["baR", "mINIBar"])],
 	[("Sequencers and pitch", ["dTrOY", "bordL", "ZOUMAI", "ZOUMAI-Expander", "ENCORE", "ENCORE-Expander"])],
 	[(None, ["DIKTAT", "REGISTRE"]),
