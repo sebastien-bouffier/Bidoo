@@ -63,20 +63,24 @@ struct MSWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/MS.svg"));
 
-		// No screws, as before. The original hand-drawn panel: eight jacks down the middle, 40 px apart, where the panel
-		// centres its boxes and labels. The first keeps its old top; the column is the panel's centre.
-		const float kJackPitch = 40.f;
-		const theme::Pos first = theme::sameRow(theme::specificCorner(10, 30, theme::kJackSize), box.size.x * 0.5f);
-		auto jack = [&](int i) { return first.down(kJackPitch * i); };
-		addInput(theme::input<PJ301MPort>(jack(0), module, MS::L_INPUT));
-		addInput(theme::input<PJ301MPort>(jack(1), module, MS::R_INPUT));
-		addOutput(theme::output<PJ301MPort>(jack(2), module, MS::M_OUTPUT));
-		addOutput(theme::output<PJ301MPort>(jack(3), module, MS::S_OUTPUT));
+		// No screws, as before. The panel of tools/panels/ms.py: the old arrangement, four tall boxes down the middle, two
+		// jacks each 40 px apart as before, on the panel's centre. The boxes are the theme's (25 px above the upper jack, 17
+		// below the lower), 3 px apart, the last on the bottom row: the jacks moved 5 to 20 px down from their old places.
+		const float w = box.size.x;
+		const float kJackPitch = 40.f;   // ROW_GAP in tools/panels/ms.py
+		const float kBoxGap = 3.f;       // BOX_GAP in tools/panels/ms.py
+		const float kBoxPitch = theme::kBoxAboveJack + kJackPitch + theme::kBoxBelowJack + kBoxGap;
+		const theme::Pos last = theme::jackAt(0, 1, 0, w);
+		auto upper = [&](int box) { return last.down(-kJackPitch - kBoxPitch * (3 - box)); };
+		addInput(theme::input<PJ301MPort>(upper(0), module, MS::L_INPUT));
+		addInput(theme::input<PJ301MPort>(upper(0).down(kJackPitch), module, MS::R_INPUT));
+		addOutput(theme::output<PJ301MPort>(upper(1), module, MS::M_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(upper(1).down(kJackPitch), module, MS::S_OUTPUT));
 
-		addInput(theme::input<PJ301MPort>(jack(4), module, MS::M_INPUT));
-		addInput(theme::input<PJ301MPort>(jack(5), module, MS::S_INPUT));
-		addOutput(theme::output<PJ301MPort>(jack(6), module, MS::L_OUTPUT));
-		addOutput(theme::output<PJ301MPort>(jack(7), module, MS::R_OUTPUT));
+		addInput(theme::input<PJ301MPort>(upper(2), module, MS::M_INPUT));
+		addInput(theme::input<PJ301MPort>(upper(2).down(kJackPitch), module, MS::S_INPUT));
+		addOutput(theme::output<PJ301MPort>(upper(3), module, MS::L_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(last, module, MS::R_OUTPUT));
 	}
 };
 

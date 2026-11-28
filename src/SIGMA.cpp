@@ -52,18 +52,23 @@ struct SIGMAWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/SIGMA.svg"));
 
-		// No screws, as before. The original hand-drawn panel: two columns of three groups, three inputs in a black box
-		// over their sum's output in a red one. Old corners kept: the columns sit within 0.4 px of the boxes' centres;
-		// the inputs sit high in their boxes, which run down into the joint with the output, as on MS.
-		const float kColumnRight = 30.f;   // from the left column to the right
-		const float kGroupBelow = 100.f;   // from one group to the next
-		const float kInputBelow = 20.f;    // from one input to the next
-		const theme::Pos firstOut = theme::specificCorner(15, 120, theme::kTinyJackSize);
-		const theme::Pos firstIn = theme::specificCorner(15, 50, theme::kTinyJackSize);
-		for (int i = 0; i < SIGMA::NUM_OUTPUTS; i++)
-			addOutput(theme::output<TinyPJ301MPort>(firstOut.offset(kColumnRight * (i / 3), kGroupBelow * (i % 3)), module, i));
-		for (int i = 0; i < SIGMA::NUM_INPUTS; i++)
-			addInput(theme::input<TinyPJ301MPort>(firstIn.offset(kColumnRight * (i / 9), kGroupBelow * ((i % 9) / 3) + kInputBelow * (i % 3)), module, i));
+		// No screws, as before. The panel of tools/panels/sigma.py: the old arrangement, two columns of three groups, three
+		// inputs in a black box over their sum's output in a red one. Tiny jacks: twelve full jacks in their boxes don't fit
+		// one above the other. The columns on the grid (n = 2): the jacks in their boxes' centre, 0.25 px nearer the centre.
+		// The outputs boxed as any jack, the last group's on the bottom row, the groups 112 px apart (they were 100: the
+		// first 9.5 px higher, the second 2.5 px and the third 14.5 px lower); the inputs 19 px apart (they were 20), the
+		// last 41 px above its output, in their box 4 px above the output's.
+		const float w = box.size.x;
+		const int n = 2;
+		const float kGroupPitch = 112.f;     // GROUP_PITCH in tools/panels/sigma.py
+		const float kInputPitch = 19.f;      // IN_PITCH in tools/panels/sigma.py
+		const float kLastInputAbove = theme::kBoxAboveJack + theme::kBoxGap + 12.f;   // LAST_IN_ABOVE in tools/panels/sigma.py
+		for (int i = 0; i < SIGMA::NUM_OUTPUTS; i++) {
+			const theme::Pos out = theme::jackAt(i / 3, n, 0, w).down(-kGroupPitch * (2 - i % 3));
+			addOutput(theme::output<TinyPJ301MPort>(out, module, i));
+			for (int m = 0; m < 3; m++)
+				addInput(theme::input<TinyPJ301MPort>(out.down(-kLastInputAbove - kInputPitch * (2 - m)), module, 9 * (i / 3) + 3 * (i % 3) + m));
+		}
 	}
 };
 

@@ -86,13 +86,15 @@ struct LAMBDAWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/LAMBDA.svg"));
 
-		// No screws, as before. The original hand-drawn panel: eight boxes down the middle, 43.875 px apart. Each jack sits
-		// at the same height in its box, under its label (the old code had them 1.5 px up to 1.25 px down from that).
-		// The column keeps its old x: between the black boxes' labels (21.75) and the red ones' (22.5), which the panel
-		// draws 0.75 px apart.
-		const float kBoxPitch = 43.875f;
-		const theme::Pos first = theme::specificCorner(10.5f, 29.5f, theme::kJackSize);
-		auto jack = [&](int i) { return first.down(kBoxPitch * i); };
+		// No screws, as before. The panel of tools/panels/lambda_.py: the old arrangement, eight boxes down the middle,
+		// CLK and IN then the six outputs, one jack each on the panel's centre (they were 0.15 px left). The boxes keep the
+		// theme's 25 px above the jack and 15 below, 2 px apart, so that eight fit under the title: 42 px from one jack to
+		// the next (were 43.875), the last on the bottom row.
+		const float w = box.size.x;
+		const float kBoxBelow = 15.f, kBoxGap = 2.f;   // BOX_BELOW, BOX_GAP in tools/panels/lambda_.py
+		const float kJackPitch = theme::kBoxAboveJack + kBoxBelow + kBoxGap;
+		const theme::Pos last = theme::jackAt(0, 1, 0, w);
+		auto jack = [&](int i) { return last.down(-kJackPitch * (7 - i)); };
 		addInput(theme::input<PJ301MPort>(jack(0), module, LAMBDA::CLOCK_INPUT));
 		addInput(theme::input<PJ301MPort>(jack(1), module, LAMBDA::CV_INPUT));
 

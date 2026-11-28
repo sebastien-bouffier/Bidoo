@@ -254,28 +254,30 @@ struct SPOREWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/SPORE.svg"));
 
-		// No screws, as before. The original hand-drawn panel: four knobs down the middle, each joined by a line to its CV
-		// jack, then the window and shape trimpots side by side, then IN and OUT. The column is the CV jacks' (the
-		// panel's centre, where it draws the lines and centres IN and OUT); each control keeps its old top.
-		const float kGroupPitch = 54.f;   // from one knob and its CV jack to the next
-		const float kBoxPitch = 47.f;     // from the IN box to the OUT box
-		const theme::Pos pitchCv = theme::specificCorner(15, 49.5f, theme::kTinyJackSize);
-		const theme::Pos pitch = theme::colRow(pitchCv, theme::specificCorner(8, 15, theme::kBlueKnobSize));
+		// No screws, as before. The panel of tools/panels/spore.py: the old arrangement, four knobs down the panel's
+		// centre, each joined by a line to its CV jack (tiny: a full jack doesn't fit between two knobs), the window's two
+		// trimpots side by side, IN and OUT. The first knob 5 px lower than before to clear the title, the next 52 px apart
+		// (were 54), so that the trimpots' name fits over them.
+		const float w = box.size.x;
+		const float kKnobTop = 20.f;                                           // KNOB_TOP in tools/panels/spore.py
+		const float kGroupPitch = 52.f;                                        // GROUP_PITCH
+		const float kCvBelow = 34.5f + 7.5f - theme::kBlueKnobSize.h * 0.5f;  // CV_BELOW: the old corners 34.5 apart
+		const float kTrimpotY = 255.f;                                         // TRIMPOT_Y (old 251.4)
+		const theme::Pos pitch = theme::specific(w * 0.5f, kKnobTop + theme::kBlueKnobSize.h * 0.5f);
 		const int knobIds[4] = {SPORE::PITCH_PARAM, SPORE::GRAINSIZE_PARAM, SPORE::HOPSIZEANALYSIS_PARAM, SPORE::HOPSIZESYNTHESIS_PARAM};
 		const int cvIds[4] = {SPORE::PITCH_INPUT, SPORE::GRAINSIZE_INPUT, SPORE::HOPSIZEANALYSIS_INPUT, SPORE::HOPSIZESYNTHESIS_INPUT};
 		for (int i = 0; i < 4; i++) {
 			addParam(theme::param<BidooBlueKnob>(pitch.down(kGroupPitch * i), module, knobIds[i]));
-			addInput(theme::input<TinyPJ301MPort>(pitchCv.down(kGroupPitch * i), module, cvIds[i]));
+			addInput(theme::input<TinyPJ301MPort>(pitch.down(kGroupPitch * i + kCvBelow), module, cvIds[i]));
 		}
 
-		// The trimpots keep their old corners, within 0.35 px of their WINDOW and SHAPE labels
-		const float trimpotTop = 15 + 4.2f * kGroupPitch;
-		addParam(theme::param<BidooBlueSnapTrimpot>(theme::specificCorner(2, trimpotTop, theme::kTrimpotSize), module, SPORE::WINDOW_PARAM));
-		addParam(theme::param<BidooBlueTrimpot>(theme::specificCorner(24, trimpotTop, theme::kTrimpotSize), module, SPORE::ATTACKRELEASE_PARAM));
+		// The trimpots at their old x (corners 2 and 24), under the WINDOW they share
+		addParam(theme::param<BidooBlueSnapTrimpot>(theme::sameCol(theme::specificCorner(2, 0, theme::kTrimpotSize), kTrimpotY), module, SPORE::WINDOW_PARAM));
+		addParam(theme::param<BidooBlueTrimpot>(theme::sameCol(theme::specificCorner(24, 0, theme::kTrimpotSize), kTrimpotY), module, SPORE::ATTACKRELEASE_PARAM));
 
-		const theme::Pos in = theme::colRow(pitchCv, theme::specificCorner(10, 283, theme::kJackSize));
-		addInput(theme::input<PJ301MPort>(in, module, SPORE::INPUT));
-		addOutput(theme::output<PJ301MPort>(in.down(kBoxPitch), module, SPORE::OUTPUT));
+		// IN and OUT in their grid boxes, on the second and bottom rows
+		addInput(theme::input<PJ301MPort>(theme::jackAt(0, 1, 1, w), module, SPORE::INPUT));
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(0, 1, 0, w), module, SPORE::OUTPUT));
 	}
 };
 

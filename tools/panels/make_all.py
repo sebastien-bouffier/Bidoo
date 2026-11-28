@@ -3,12 +3,12 @@
 #   python tools/panels/make_all.py --check    write nothing; say which differ from res/, exit 1 if any
 #   python tools/panels/make_all.py --out DIR  write them to DIR instead of res/
 #   python tools/panels/make_all.py --align    write nothing; list near-misses (docs/THEME.md, "Alignment")
-import antn, bancau, bar, bistrot, canard, chute, diktat, duke, edsaros, emile, flame, fork, huitre, lourde, minibar, moire, os, poupre, sys, void
+import antn, bancau, bar, bistrot, canard, chute, diktat, dilemo, duke, edsaros, emile, flame, fork, frein, hctip, huitre, lambda_, late, lourde, minibar, moire, ms, os, poupre, sigma, spore, sys, void
 sys.dont_write_bytecode = True
 import panel_kit as k
 import acide, bafis, copia, dose, filtre, limbo, magma, oai, ouaive, particules, perco, rabbit, registre, rei, ricochet, saison, sounaire, tiare, tocante, zinc
 
-PANELS = (('SAISON.svg', saison), ('ACIDE.svg', acide), ('FILTRE.svg', filtre), ('COPIA.svg', copia), ('SOUNAIRE.svg', sounaire), ('RICOCHET.svg', ricochet), ('DOSE.svg', dose), ('REGISTRE.svg', registre), ('PARTICULES.svg', particules), ('REI.svg', rei), ('LIMBO.svg', limbo), ('BAFIS.svg', bafis), ('TIARE.svg', tiare), ('ZINC.svg', zinc), ('PERCO.svg', perco), ('RABBIT.svg', rabbit), ('TOCANTE.svg', tocante), ('OUAIVE.svg', ouaive), ('OAI.svg', oai), ('MAGMA.svg', magma), ('CHUTE.svg', chute), ('DIKTAT.svg', diktat), ('DUKE.svg', duke), ('EMILE.svg', emile), ('FLAME.svg', flame), ('FORK.svg', fork), ('POUPRE.svg', poupre), ('LOURDE.svg', lourde), ('BISTROT.svg', bistrot), ('ANTN.svg', antn), ('BANCAU.svg', bancau), ('BAR.svg', bar), ('CANARD.svg', canard), ('EDSAROS.svg', edsaros), ('HUITRE.svg', huitre), ('MOIRE.svg', moire), ('VOID.svg', void), ('MINIBAR.svg', minibar))
+PANELS = (('SAISON.svg', saison), ('ACIDE.svg', acide), ('FILTRE.svg', filtre), ('COPIA.svg', copia), ('SOUNAIRE.svg', sounaire), ('RICOCHET.svg', ricochet), ('DOSE.svg', dose), ('REGISTRE.svg', registre), ('PARTICULES.svg', particules), ('REI.svg', rei), ('LIMBO.svg', limbo), ('BAFIS.svg', bafis), ('TIARE.svg', tiare), ('ZINC.svg', zinc), ('PERCO.svg', perco), ('RABBIT.svg', rabbit), ('TOCANTE.svg', tocante), ('OUAIVE.svg', ouaive), ('OAI.svg', oai), ('MAGMA.svg', magma), ('CHUTE.svg', chute), ('DIKTAT.svg', diktat), ('DUKE.svg', duke), ('EMILE.svg', emile), ('FLAME.svg', flame), ('FORK.svg', fork), ('POUPRE.svg', poupre), ('LOURDE.svg', lourde), ('BISTROT.svg', bistrot), ('ANTN.svg', antn), ('BANCAU.svg', bancau), ('BAR.svg', bar), ('CANARD.svg', canard), ('EDSAROS.svg', edsaros), ('HUITRE.svg', huitre), ('MOIRE.svg', moire), ('VOID.svg', void), ('MINIBAR.svg', minibar), ('DILEMO.svg', dilemo), ('SIGMA.svg', sigma), ('FREIN.svg', frein), ('HCTIP.svg', hctip), ('LATE.svg', late), ('LAMBDA.svg', lambda_), ('MS.svg', ms), ('SPORE.svg', spore))
 
 NEAR = (0.05, 6.0)   # closer than this is the same line; farther is a different one
 

@@ -184,27 +184,31 @@ struct FREINWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/FREIN.svg"));
 
-		// No screws, as before. The original hand-drawn panel: one column down the middle, where the panel draws the lines
-		// from each control to its CV jack and centres every label. The column is the stop button's (the panel's centre);
-		// each control keeps its old top.
-		const float kGroupPitch = 79.f;   // from one control and its CV jack to the next
-		const float kBoxPitch = 47.f;     // from the IN box to the OUT box
+		// No screws, as before. The panel (tools/panels/frein.py): one column down the panel's centre, where it draws the
+		// lines from each control to its CV jack and centres every label. The controls keep their old centres: STOP and
+		// START are the house round button (momentary, as the CKD6s were) at the old buttons' centres, the CV jacks full
+		// jacks at the old tiny ones' centres (they fit: 6 px from the knob, 3.6 px from the IN box). IN and OUT sit in
+		// their boxes on rows 1 and 0 (IN was 1.15 px higher, OUT 0.15 px).
+		const float w = box.size.x;
+		const float kGroupPitch = 79.f;   // from one control and its CV jack to the next (GROUP_PITCH in frein.py)
 		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};   // SmallLight
-		const theme::Pos stop = theme::specificCorner(8.5f, 50, theme::kCKD6Size);
-		const theme::Pos stopCv = theme::colRow(stop, theme::specificCorner(15, 90, theme::kTinyJackSize));
-		const theme::Pos speed = theme::colRow(stop, theme::specificCorner(7.5f, 208, theme::kBlueKnobSize));
-		const theme::Pos in = theme::colRow(stop, theme::specificCorner(10, 283, theme::kJackSize));
-		// the light keeps its old corner, 0.05 px left of the column
+		const theme::Pos stop = theme::specific(theme::jackCol(0, 1, w), 50.f + theme::kCKD6Size.h * 0.5f);   // BUTTON_Y
+		const theme::Pos stopCv = theme::sameCol(stop, 90.f + theme::kTinyJackSize.h * 0.5f);              // CV_Y
+		const theme::Pos speed = theme::colRow(stop, theme::specificCorner(7.5f, 208, theme::kBlueKnobSize));   // KNOB_Y
+		// the state light keeps its old corner, 0.05 px left of the column
 		addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::specificCorner(19.5f, 20, kSmallLightSize), module, FREIN::BREAK_LIGHT));
 
-		addParam(theme::param<BlueCKD6>(stop, module, FREIN::TRIG_PARAM));
-		addInput(theme::input<TinyPJ301MPort>(stopCv, module, FREIN::TRIG_INPUT));
-		addParam(theme::param<BlueCKD6>(stop.down(kGroupPitch), module, FREIN::START_PARAM));
-		addInput(theme::input<TinyPJ301MPort>(stopCv.down(kGroupPitch), module, FREIN::START_INPUT));
+		for (int i = 0; i < 2; i++) {
+			BidooRoundButton *b = theme::param<BidooRoundButton>(stop.down(kGroupPitch * i), module, i == 0 ? FREIN::TRIG_PARAM : FREIN::START_PARAM);
+			b->momentary = true;
+			addParam(b);
+		}
+		addInput(theme::input<PJ301MPort>(stopCv, module, FREIN::TRIG_INPUT));
+		addInput(theme::input<PJ301MPort>(stopCv.down(kGroupPitch), module, FREIN::START_INPUT));
 		addParam(theme::param<BidooBlueKnob>(speed, module, FREIN::SPEED_PARAM));
-		addInput(theme::input<TinyPJ301MPort>(stopCv.down(2.f * kGroupPitch), module, FREIN::SPEED_INPUT));
-		addInput(theme::input<PJ301MPort>(in, module, FREIN::INPUT));
-		addOutput(theme::output<PJ301MPort>(in.down(kBoxPitch), module, FREIN::OUTPUT));
+		addInput(theme::input<PJ301MPort>(stopCv.down(2.f * kGroupPitch), module, FREIN::SPEED_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::jackAt(0, 1, 1, w), module, FREIN::INPUT));
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(0, 1, 0, w), module, FREIN::OUTPUT));
 	}
 };
 

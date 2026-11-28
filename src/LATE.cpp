@@ -176,21 +176,20 @@ struct LATEWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/LATE.svg"));
 
-		// No screws, as before. The original hand-drawn panel: one column down the middle, where the panel draws the line
-		// from the knob through its CV amount to its CV jack and centres every label. Each row keeps its old top; the
-		// column is the panel's centre.
-		const float kBoxPitch = 47.f;   // from one box to the next: RST, IN, OUT
-		const theme::Pos swing = theme::sameRow(theme::specificCorner(8, 70, theme::kBlueKnobSize), box.size.x * 0.5f);
+		// No screws, as before. The panel (tools/panels/late.py): one column down the panel's centre, where it draws the
+		// line from the knob through its CV amount to its CV jack and centres every label. The knob, trimpot and CV jack
+		// keep their old tops; RST, IN and OUT sit in their boxes on rows 2, 1 and 0 (RST was 2.15 px higher, IN 1.15,
+		// OUT 0.15).
+		const float w = box.size.x;
+		const theme::Pos swing = theme::sameRow(theme::specificCorner(8, 70, theme::kBlueKnobSize), theme::jackCol(0, 1, w));   // KNOB_Y
 		const theme::Pos cvAmount = theme::colRow(swing, theme::specificCorner(13, 105, theme::kTrimpotSize));
-		const theme::Pos swingCv = theme::colRow(swing, theme::specificCorner(10, 130, theme::kJackSize));
-		const theme::Pos reset = theme::colRow(swing, theme::specificCorner(10, 236, theme::kJackSize));
-		const theme::Pos clock = reset.down(kBoxPitch);
+		const theme::Pos swingCv = theme::colRow(swing, theme::specificCorner(10, 130, theme::kJackSize));                      // CV_Y
 		addParam(theme::param<BidooBlueKnob>(swing, module, LATE::SWING_PARAM));
 		addParam(theme::param<BidooBlueTrimpot>(cvAmount, module, LATE::CVCOEFF_PARAM));
 		addInput(theme::input<PJ301MPort>(swingCv, module, LATE::SWING_INPUT));
-		addInput(theme::input<PJ301MPort>(reset, module, LATE::RESET_INPUT));
-		addInput(theme::input<PJ301MPort>(clock, module, LATE::CLOCK_INPUT));
-		addOutput(theme::output<PJ301MPort>(clock.down(kBoxPitch), module, LATE::CLOCK_OUTPUT));
+		addInput(theme::input<PJ301MPort>(theme::jackAt(0, 1, 2, w), module, LATE::RESET_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::jackAt(0, 1, 1, w), module, LATE::CLOCK_INPUT));
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(0, 1, 0, w), module, LATE::CLOCK_OUTPUT));
 	}
 };
 
