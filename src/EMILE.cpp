@@ -136,7 +136,7 @@ struct EMILE : BidooModule {
 	EmileUndo undo;
 	unsigned canvasRev = 0;    // bumped with each change, so the display knows to upload it
 	bool drawMode = false;
-	enum Tool { TOOL_BRUSH, TOOL_ERASER, TOOL_LINE };
+	enum Tool { TOOL_BRUSH, TOOL_ERASER, TOOL_LINE, TOOL_GRADIENT };
 	int tool = TOOL_BRUSH;
 	float brushSize = 8.f;
 	int colour = 0;            // an index in kPalette: white, red, green, blue, yellow, cyan, magenta
@@ -400,7 +400,10 @@ struct EMILE : BidooModule {
 		sendCanvas();
 	}
 
-	void beginStroke(float x, float y, bool erase, bool line) {
+	// gradient: a drag from where it starts at nothing to where it reaches the colour, drawn again as the mouse moves
+	bool strokeGradient = false;
+
+	void beginStroke(float x, float y, bool erase, bool line, bool gradient = false) {
 		ensureCanvas();
 		undo.push(canvas);
 		strokeBrush.size = brushSize;
@@ -409,10 +412,12 @@ struct EMILE : BidooModule {
 		strokeBrush.intensity = intensity;
 		strokeBrush.erase = erase;
 		strokeLine = line;
+		strokeGradient = gradient && !erase;
 		strokeX0 = strokeX = x;
 		strokeY0 = strokeY = y;
 		stroking = true;
-		emileStrokeSegment(canvas, x, y, x, y, strokeBrush);
+		if (!strokeGradient)
+			emileStrokeSegment(canvas, x, y, x, y, strokeBrush);
 		canvasRev++;
 		drawn = true;
 		drawingDirty = true;
@@ -422,12 +427,15 @@ struct EMILE : BidooModule {
 	void moveStroke(float x, float y) {
 		if (!stroking)
 			return;
-		if (strokeLine) {
-			// the line drawn again from the canvas as the stroke found it, so it follows the mouse
+		if (strokeLine || strokeGradient) {
+			// the line or the gradient drawn again from the canvas as the stroke found it, so it follows the mouse
 			const EmileUndo::Snap *s = undo.last();
 			if (s && s->width == canvas.width && s->height == canvas.height)
 				canvas.rgba = s->rgba;
-			emileStrokeSegment(canvas, strokeX0, strokeY0, x, y, strokeBrush);
+			if (strokeGradient)
+				emileGradient(canvas, strokeX0, strokeY0, x, y, strokeBrush);
+			else
+				emileStrokeSegment(canvas, strokeX0, strokeY0, x, y, strokeBrush);
 		}
 		else
 			emileStrokeSegment(canvas, strokeX, strokeY, x, y, strokeBrush);
@@ -832,82 +840,6 @@ struct EMILEDisplay : OpaqueWidget {
 		return module && module->drawMode;
 	}
 
-	// In draw mode, a strip at the screen's bottom: the palette's colours, the eraser, and a clear button (undoable).
-	// Its cells, left to right: 0..6 the colours, 7 the eraser, then a gap, 9 clear.
-	static constexpr float kBarH = 13.f, kCell = 13.f, kBarX = 3.f;
-	static constexpr int kEraserCell = 7, kClearCell = 9;
-	bool inBar(Vec p) const {
-		return p.y >= height - kBarH && p.y <= height && p.x >= 0 && p.x <= width;
-	}
-	int barCell(Vec p) const {
-		const int i = (int)std::floor((p.x - kBarX) / kCell);
-		return p.x >= kBarX && i >= 0 && i <= kClearCell ? i : -1;
-	}
-	void clickBar(Vec p) {
-		const int i = barCell(p);
-		if (i >= 0 && i < EMILE::kPaletteSize) {
-			module->colour = i;
-			if (module->tool == EMILE::TOOL_ERASER)
-				module->tool = EMILE::TOOL_BRUSH;
-		}
-		else if (i == kEraserCell)
-			module->tool = EMILE::TOOL_ERASER;
-		else if (i == kClearCell) {
-			module->ensureCanvas();
-			module->clearCanvas();
-		}
-	}
-	static NVGcolor paletteColour(int i) {
-		const int m = EMILE::kPalette[i];
-		return nvgRGB(m & 1 ? 255 : 0, m & 2 ? 255 : 0, m & 4 ? 255 : 0);
-	}
-	void drawBar(NVGcontext *vg) {
-		const float y0 = height - kBarH;
-		nvgBeginPath(vg);
-		nvgRect(vg, 0, y0, width, kBarH);
-		nvgFillColor(vg, nvgRGBA(0, 0, 0, 190));
-		nvgFill(vg);
-		const float sw = kCell - 4.f;   // a swatch, 2 px inside its cell
-		for (int i = 0; i <= kClearCell; i++) {
-			if (i == kClearCell - 1)
-				continue;
-			const float x = kBarX + i * kCell + 2.f, y = y0 + (kBarH - sw) * 0.5f;
-			nvgBeginPath(vg);
-			nvgRect(vg, x, y, sw, sw);
-			if (i < EMILE::kPaletteSize)
-				nvgFillColor(vg, paletteColour(i));
-			else
-				nvgFillColor(vg, nvgRGB(60, 60, 60));
-			nvgFill(vg);
-			if (i == kEraserCell) {        // the eraser: a white square half covered
-				nvgBeginPath(vg);
-				nvgRect(vg, x + 1.f, y + 1.f, sw - 2.f, (sw - 2.f) * 0.5f);
-				nvgFillColor(vg, nvgRGB(230, 230, 230));
-				nvgFill(vg);
-			}
-			if (i == kClearCell) {         // clear: a cross
-				nvgBeginPath(vg);
-				nvgMoveTo(vg, x + 2.f, y + 2.f);
-				nvgLineTo(vg, x + sw - 2.f, y + sw - 2.f);
-				nvgMoveTo(vg, x + sw - 2.f, y + 2.f);
-				nvgLineTo(vg, x + 2.f, y + sw - 2.f);
-				nvgStrokeColor(vg, theme::kScreenYellow);
-				nvgStrokeWidth(vg, 1.2f);
-				nvgStroke(vg);
-			}
-			// the colour or the eraser in use, outlined in the screens' yellow
-			const bool selected = i < EMILE::kPaletteSize ? (module->tool != EMILE::TOOL_ERASER && module->colour == i)
-				: (i == kEraserCell && module->tool == EMILE::TOOL_ERASER);
-			if (selected) {
-				nvgBeginPath(vg);
-				nvgRect(vg, x - 1.5f, y - 1.5f, sw + 3.f, sw + 3.f);
-				nvgStrokeColor(vg, theme::kScreenYellow);
-				nvgStrokeWidth(vg, 1.f);
-				nvgStroke(vg);
-			}
-		}
-	}
-
 	// the display's point on the canvas (stretched to the box, as it is shown)
 	void toCanvas(Vec p, float &x, float &y) const {
 		x = p.x / width * module->canvas.width;
@@ -925,11 +857,6 @@ struct EMILEDisplay : OpaqueWidget {
 			return;
 		}
 		// left paints with the tool, right erases (so the menu opens from the rest of the panel in draw mode)
-		if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT && inBar(e.pos)) {
-			clickBar(e.pos);
-			e.consume(this);
-			return;
-		}
 		if (e.action == GLFW_PRESS && (e.button == GLFW_MOUSE_BUTTON_LEFT || e.button == GLFW_MOUSE_BUTTON_RIGHT)) {
 			const bool right = e.button == GLFW_MOUSE_BUTTON_RIGHT;
 			const bool shift = (e.mods & RACK_MOD_MASK) == GLFW_MOD_SHIFT;
@@ -938,7 +865,7 @@ struct EMILEDisplay : OpaqueWidget {
 			float x, y;
 			toCanvas(e.pos, x, y);
 			module->beginStroke(x, y, right || tool == EMILE::TOOL_ERASER,
-				tool == EMILE::TOOL_LINE || (shift && tool == EMILE::TOOL_BRUSH));
+				tool == EMILE::TOOL_LINE || (shift && tool == EMILE::TOOL_BRUSH), tool == EMILE::TOOL_GRADIENT);
 			mouse = e.pos;
 			e.consume(this);
 			return;
@@ -1067,9 +994,7 @@ struct EMILEDisplay : OpaqueWidget {
 				nvgStroke(args.vg);
 			}
 			// the brush under the mouse (its size on the canvas, stretched as the canvas is)
-			if (drawing())
-				drawBar(args.vg);
-			if (drawing() && (module->stroking || (hovering && !inBar(mouse)))) {
+			if (drawing() && (hovering || module->stroking)) {
 				// before the first stroke: the size the canvas will have (the thumb's, or 256 x 256)
 				float cw = 256.f, ch = 256.f;
 				if (module->canvas.valid()) {
@@ -1094,6 +1019,133 @@ struct EMILEDisplay : OpaqueWidget {
 
 };
 
+// Under the screen, always there: the draw switch (a pencil), the palette's seven colours, the eraser, the gradient and
+// clear (undoable). Picking a colour or a tool turns drawing on. A widget-drawn strip: black in every theme, as the
+// screen.
+struct EMILEPalette : OpaqueWidget {
+	EMILE *module = nullptr;
+	static constexpr int kCells = 11;   // draw, 7 colours, eraser, gradient, clear
+	static constexpr int kDrawCell = 0, kFirstColour = 1, kEraserCell = 8, kGradientCell = 9, kClearCell = 10;
+
+	float cell() const { return box.size.x / kCells; }
+
+	static NVGcolor paletteColour(int i) {
+		const int m = EMILE::kPalette[i];
+		return nvgRGB(m & 1 ? 255 : 0, m & 2 ? 255 : 0, m & 4 ? 255 : 0);
+	}
+
+	void onButton(const ButtonEvent &e) override {
+		if (!module || e.action != GLFW_PRESS || e.button != GLFW_MOUSE_BUTTON_LEFT) {
+			OpaqueWidget::onButton(e);
+			return;
+		}
+		const int i = clamp((int)(e.pos.x / cell()), 0, kCells - 1);
+		if (i == kDrawCell)
+			module->drawMode = !module->drawMode;
+		else if (i >= kFirstColour && i < kFirstColour + EMILE::kPaletteSize) {
+			module->colour = i - kFirstColour;
+			if (module->tool == EMILE::TOOL_ERASER)
+				module->tool = EMILE::TOOL_BRUSH;
+			module->drawMode = true;
+		}
+		else if (i == kEraserCell) {
+			module->tool = EMILE::TOOL_ERASER;
+			module->drawMode = true;
+		}
+		else if (i == kGradientCell) {
+			module->tool = module->tool == EMILE::TOOL_GRADIENT ? EMILE::TOOL_BRUSH : EMILE::TOOL_GRADIENT;
+			module->drawMode = true;
+		}
+		else if (i == kClearCell) {
+			module->drawMode = true;
+			module->clearCanvas();
+		}
+		e.consume(this);
+	}
+
+	void drawLayer(const DrawArgs &args, int layer) override {
+		if (layer == 1) {
+			NVGcontext *vg = args.vg;
+			nvgBeginPath(vg);
+			nvgRect(vg, 0, 0, box.size.x, box.size.y);
+			nvgFillColor(vg, theme::kScreenBlack);
+			nvgFill(vg);
+			const float c = cell(), sw = std::min(c - 3.f, box.size.y - 5.f);
+			const bool on = module && module->drawMode;
+			for (int i = 0; i < kCells; i++) {
+				const float x = i * c + (c - sw) * 0.5f, y = (box.size.y - sw) * 0.5f;
+				bool selected = false;
+				if (i == kDrawCell) {
+					// a pencil: its body and point, yellow while drawing
+					const NVGcolor ink = on ? theme::kScreenYellow : nvgRGB(140, 140, 140);
+					nvgBeginPath(vg);
+					nvgMoveTo(vg, x + sw * 0.15f, y + sw * 0.85f);
+					nvgLineTo(vg, x + sw * 0.3f, y + sw * 0.55f);
+					nvgLineTo(vg, x + sw * 0.75f, y + sw * 0.1f);
+					nvgLineTo(vg, x + sw * 0.9f, y + sw * 0.25f);
+					nvgLineTo(vg, x + sw * 0.45f, y + sw * 0.7f);
+					nvgClosePath(vg);
+					nvgFillColor(vg, ink);
+					nvgFill(vg);
+					selected = on;
+				}
+				else if (i >= kFirstColour && i < kFirstColour + EMILE::kPaletteSize) {
+					nvgBeginPath(vg);
+					nvgRect(vg, x, y, sw, sw);
+					nvgFillColor(vg, paletteColour(i - kFirstColour));
+					nvgFill(vg);
+					selected = on && module->tool != EMILE::TOOL_ERASER && module->colour == i - kFirstColour;
+				}
+				else if (i == kEraserCell) {
+					// a block, half white
+					nvgBeginPath(vg);
+					nvgRect(vg, x, y, sw, sw);
+					nvgFillColor(vg, nvgRGB(70, 70, 70));
+					nvgFill(vg);
+					nvgBeginPath(vg);
+					nvgRect(vg, x + 1.f, y + 1.f, sw - 2.f, (sw - 2.f) * 0.5f);
+					nvgFillColor(vg, nvgRGB(230, 230, 230));
+					nvgFill(vg);
+					selected = on && module->tool == EMILE::TOOL_ERASER;
+				}
+				else if (i == kGradientCell) {
+					// black to the colour in use
+					const NVGcolor col = module ? paletteColour(clamp(module->colour, 0, EMILE::kPaletteSize - 1)) : nvgRGB(255, 255, 255);
+					nvgBeginPath(vg);
+					nvgRect(vg, x, y, sw, sw);
+					nvgFillPaint(vg, nvgLinearGradient(vg, x, y, x + sw, y, nvgRGB(0, 0, 0), col));
+					nvgFill(vg);
+					nvgBeginPath(vg);
+					nvgRect(vg, x, y, sw, sw);
+					nvgStrokeColor(vg, nvgRGB(110, 110, 110));
+					nvgStrokeWidth(vg, 0.6f);
+					nvgStroke(vg);
+					selected = on && module->tool == EMILE::TOOL_GRADIENT;
+				}
+				else if (i == kClearCell) {
+					// clear: a cross
+					nvgBeginPath(vg);
+					nvgMoveTo(vg, x + 1.5f, y + 1.5f);
+					nvgLineTo(vg, x + sw - 1.5f, y + sw - 1.5f);
+					nvgMoveTo(vg, x + sw - 1.5f, y + 1.5f);
+					nvgLineTo(vg, x + 1.5f, y + sw - 1.5f);
+					nvgStrokeColor(vg, theme::kScreenYellow);
+					nvgStrokeWidth(vg, 1.3f);
+					nvgStroke(vg);
+				}
+				if (selected) {
+					nvgBeginPath(vg);
+					nvgRect(vg, x - 1.5f, y - 1.5f, sw + 3.f, sw + 3.f);
+					nvgStrokeColor(vg, theme::kScreenYellow);
+					nvgStrokeWidth(vg, 1.f);
+					nvgStroke(vg);
+				}
+			}
+		}
+		Widget::drawLayer(args, layer);
+	}
+};
+
 struct EMILEWidget : BidooWidget {
 	EMILEWidget(EMILE *module) {
 		setModule(module);
@@ -1110,6 +1162,11 @@ struct EMILEWidget : BidooWidget {
 		display->module = module;
 		display->box = theme::specificRect(5, 30, 125, 130);
 		addChild(display);
+		// the drawing strip, 3 px under the screen and as wide (STRIP in emile.py)
+		EMILEPalette *strip = new EMILEPalette();
+		strip->module = module;
+		strip->box = theme::specificRect(5, 163, 125, 14);
+		addChild(strip);
 
 		const float w = box.size.x;
 		const float kBoxLeft = 5.f, kBoxRight = w - 5.f;   // the display's edges
@@ -1118,7 +1175,7 @@ struct EMILEWidget : BidooWidget {
 			const float bw = (kBoxRight - kBoxLeft - (n - 1) * theme::kBoxGap) / n;
 			return kBoxLeft + 0.5f * bw + i * (bw + theme::kBoxGap);
 		};
-		const float kButtonY = 187.f, kCvY = 213.f;   // BUTTON_Y, CV_Y in emile.py
+		const float kButtonY = 203.f, kCvY = 229.f;   // BUTTON_Y, CV_Y in emile.py: 16 px lower, for the strip
 		const int buttonIds[4] = {EMILE::R_PARAM, EMILE::G_PARAM, EMILE::B_PARAM, EMILE::A_PARAM};
 		const int lightIds[4] = {EMILE::R_LIGHT, EMILE::G_LIGHT, EMILE::B_LIGHT, EMILE::A_LIGHT};
 		const int cvIds[4] = {EMILE::R_INPUT, EMILE::G_INPUT, EMILE::B_INPUT, EMILE::A_INPUT};
@@ -1185,7 +1242,7 @@ struct EMILEWidget : BidooWidget {
 		// drawing on the screen: left paints with the tool, right erases, Shift+drag a line with the brush, Ctrl+Z undoes
 		menu->addChild(new MenuSeparator());
 		menu->addChild(createBoolPtrMenuItem("Draw on the screen", "", &module->drawMode));
-		menu->addChild(createIndexSubmenuItem("Tool", {"Brush", "Eraser", "Line"},
+		menu->addChild(createIndexSubmenuItem("Tool", {"Brush", "Eraser", "Line", "Gradient"},
 			[=]() { return (size_t)module->tool; },
 			[=](size_t t) { module->tool = (int)t; }));
 		static const float sizes[] = {1.f, 2.f, 4.f, 8.f, 16.f, 32.f};

@@ -111,6 +111,29 @@ inline bool emileStrokeSegment(EmileCanvas &c, float ax, float ay, float bx, flo
 }
 
 // Whole-canvas snapshots taken before each stroke (or clear, or new canvas): 16 at most, 1 MB each at 512 x 512.
+// A linear gradient over the whole canvas, from nothing at a to the brush's colour and intensity at b (held before a
+// and past b), max-blended like the brush so it adds to what is there. In harmonics mode a horizontal one is a timbre
+// that rises or falls with the harmonics, a vertical one a timbre that changes as POS moves.
+inline void emileGradient(EmileCanvas &c, float ax, float ay, float bx, float by, const EmileBrush &br) {
+	if (!c.valid())
+		return;
+	const float dx = bx - ax, dy = by - ay;
+	const float len2 = dx * dx + dy * dy;
+	if (len2 < 1.f)
+		return;
+	const float target = 255.f * std::min(std::max(br.intensity, 0.f), 1.f);
+	for (int y = 0; y < c.height; y++)
+		for (int x = 0; x < c.width; x++) {
+			const float t = std::min(std::max(((x + 0.5f - ax) * dx + (y + 0.5f - ay) * dy) / len2, 0.f), 1.f);
+			const unsigned char v = (unsigned char)std::lround(target * t);
+			unsigned char *p = &c.rgba[((size_t)y * c.width + x) * 4];
+			for (int ch = 0; ch < 3; ch++)
+				if (br.channel[ch])
+					p[ch] = std::max(p[ch], v);
+			p[3] = std::max(p[3], v);
+		}
+}
+
 struct EmileUndo {
 	static constexpr size_t kMax = 16;
 	struct Snap {

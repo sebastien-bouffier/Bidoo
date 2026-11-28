@@ -12,8 +12,9 @@ SCREEN = (5, 30, 125, 130)          # the widget's display, which draws the imag
 # theme's 4 px between them; the buttons, their CV jacks and the knobs share them (src/EMILE.cpp kBoxLeft, kBoxRight)
 BOX_LEFT, BOX_RIGHT = SCREEN[0], SCREEN[0] + SCREEN[2]
 N = 4
-BUTTON_Y = 187.0                    # BidooRoundButton, 8 px under the old LEDButtons: room for its name under the screen
-CV_Y = 213.0                        # the full CV jacks, 10.5 px under the old tiny ones' centre (src/EMILE.cpp)
+STRIP = (5, 163, 125, 14)           # the drawing strip under the screen, drawn by the widget (src/EMILE.cpp)
+BUTTON_Y = 203.0                    # BidooRoundButton, 24 px under the old LEDButtons: room for the strip and its name
+CV_Y = 229.0                        # the full CV jacks, 16 px under the buttons as before (src/EMILE.cpp)
 KNOB_ROW = 1                        # the knobs on row 1 (296), 1.2 px under their old centre
 BUTTON_NAMES = ('RED', 'GREEN', 'BLUE', 'ALPHA')
 NAME_ABOVE = 10 + 3                  # a name's baseline above its button's centre: 3 px over its 20 px button

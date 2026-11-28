@@ -126,6 +126,22 @@ int main() {
 	c.reset(64, 64);
 	CHECK(!emileStrokeSegment(c, -100.f, -100.f, -90.f, -90.f, br));
 
+	// gradient: left to right, nothing before the start, rising, full past the end; gr writes only R (and alpha)
+	c.reset(100, 10);
+	EmileBrush gr = br;
+	gr.channel[0] = true; gr.channel[1] = gr.channel[2] = false;
+	emileGradient(c, 20.f, 5.f, 80.f, 5.f, gr);
+	auto at = [&](int x, int ch) { return (int)c.rgba[((size_t)5 * 100 + x) * 4 + ch]; };
+	CHECK(at(10, 0) == 0 && at(10, 3) == 0);
+	CHECK(at(50, 0) > 100 && at(50, 0) < 160 && at(50, 1) == 0);
+	CHECK(at(90, 0) == 255 && at(90, 3) == 255);
+	CHECK(at(30, 0) < at(40, 0) && at(40, 0) < at(60, 0));
+	// over a brighter stroke it keeps the stroke (max-blend)
+	c.reset(100, 10);
+	emileStrokeSegment(c, 25.f, 0.f, 25.f, 10.f, gr);
+	emileGradient(c, 20.f, 5.f, 80.f, 5.f, gr);
+	CHECK(at(25, 0) == 255);
+
 	std::printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }
