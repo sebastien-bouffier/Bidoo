@@ -220,6 +220,17 @@
       ]
     },
     {
+      "slug": "PRISME",
+      "name": "PRiSME",
+      "description": "Additive voice: 64 harmonics per note drawn on the screen as two spectra to morph, a decay time per harmonic, tilt, odd/even, stretch and a formant; polyphonic",
+      "manualUrl": "https://github.com/sebastien-bouffier/Bidoo/wiki/PRiSME",
+      "tags": [
+        "Synth voice",
+        "Oscillator",
+        "Polyphonic"
+      ]
+    },
+    {
       "slug": "ACnE",
       "name": "ACnE",
       "description": "Mixer with snaphots",

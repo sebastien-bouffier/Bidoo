@@ -33,6 +33,7 @@ extern Model *modelPOUPRE;
 extern Model *modelMAGMA;
 extern Model *modelOAI;
 extern Model *modelEMILE;
+extern Model *modelPRISME;
 extern Model *modelFORK;
 extern Model *modelFLAME;
 extern Model *modelTIARE;

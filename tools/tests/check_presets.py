@@ -69,7 +69,8 @@ for d in sorted(glob.glob(os.path.join(ROOT, "presets", "*"))):
 	for n in names:
 		r.setdefault(n, (0.0, 1.0))
 	files = sorted(f for f in os.listdir(d) if f.endswith(".vcvm"))
-	if not 3 <= len(files) <= 5:
+	# 3 at least; up to 16 (PRiSME has 15: an additive voice needs a sound per family to show what it does)
+	if not 3 <= len(files) <= 16:
 		print("%s: %d presets" % (slug, len(files))); errors += 1
 	for f in files:
 		count += 1

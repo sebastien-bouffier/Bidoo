@@ -39,6 +39,7 @@ void init(rack::Plugin *p) {
 	p->addModel(modelOAI);
 	p->addModel(modelCANARD);
 	p->addModel(modelEMILE);
+	p->addModel(modelPRISME);
 	p->addModel(modelFORK);
 	p->addModel(modelTIARE);
 	p->addModel(modelANTN);
