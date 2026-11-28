@@ -258,25 +258,22 @@ struct BANCAUWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/BANCAU.svg"));
 
-		// No screws, as before. The original hand-drawn panel: two envelopes side by side, each three columns of rise and
-		// fall knobs, three CV jacks joined by a line, EXP/CYC/EXP switches, and two rows of boxed jacks. Old corners
-		// kept (every column sits within 0.4 px of its box and line), except the CV jacks, now on the line the panel
-		// draws through them (the old code had them 0.7 px above it).
-		const float kColumn[6] = {7.5f, 42.5f, 77.5f, 117.5f, 152.5f, 187.5f};   // the old columns' left edges
-		const float kPortIn = 3.f;    // a jack's corner from its column's edge
-		const float kSwitchIn = 8.f;  // a switch's
+		// No screws, as before. The panel of tools/panels/bancau.py: two envelopes side by side, each three columns of
+		// rise and fall knobs, three CV jacks on the line the panel draws through them, EXP/CYC/EXP switches, the inputs
+		// on the second row and the outputs on the bottom row.
+		// The old columns, now symmetric about the panel's centre (every control was within 0.25 px of these): 35 px
+		// apart in an envelope, 40 between the two. The same in tools/panels/bancau.py (COLUMNS)
+		const float kColumn[6] = {22.5f, 57.5f, 92.5f, 132.5f, 167.5f, 202.5f};
 		const theme::Size kCKSSSize = {14.f, 20.64111f};   // CKSS
+		// the rows of knobs, CV jacks and switches at their old heights (corners 60, the line 175.562, 213)
 		const theme::Pos riseRow = theme::specificCorner(0, 60, theme::kBlueKnobSize);
-		const theme::Pos cvRow = theme::specificCorner(0, 160 + kPortIn, theme::kJackSize);
 		const theme::Pos cvLine = theme::specific(0, 175.562f);   // the line through the CV jacks
-		const theme::Pos switchRow = theme::specificCorner(0, 208 + 5, kCKSSSize);
-		const theme::Pos inRow = theme::specificCorner(0, 260 + kPortIn, theme::kJackSize);
-		const theme::Pos outRow = theme::specificCorner(0, 320 + kPortIn, theme::kJackSize);
+		const theme::Pos switchRow = theme::specificCorner(0, 213, kCKSSSize);
 		const float kCvKnobBelow = 50.f;   // from the rise and fall knobs to their CV amounts
-		auto knob = [&](int c, float down) { return riseRow.offset(kColumn[c], down); };
-		auto jack = [&](int c, theme::Pos row) { return row.right(kColumn[c] + kPortIn); };
-		auto cv = [&](int c) { return theme::colRow(jack(c, cvRow), cvLine); };
-		auto sw = [&](int c) { return switchRow.right(kColumn[c] + kSwitchIn); };
+		auto at = [&](int c, float y) { return theme::sameCol(theme::specific(kColumn[c], 0), y); };
+		auto knob = [&](int c, float down) { return at(c, riseRow.y + down); };
+		// the jacks on the grid's rows: inputs on row 1, outputs on row 0 (bancau.py boxes them on these columns)
+		const float inRow = theme::row(1), outRow = theme::row(0);
 
 		const int riseIds[2] = {BANCAU::RISE1_PARAM, BANCAU::RISE2_PARAM}, fallIds[2] = {BANCAU::FALL1_PARAM, BANCAU::FALL2_PARAM};
 		const int riseCvIds[2] = {BANCAU::RISECV1_PARAM, BANCAU::RISECV2_PARAM}, fallCvIds[2] = {BANCAU::FALLCV1_PARAM, BANCAU::FALLCV2_PARAM};
@@ -291,13 +288,13 @@ struct BANCAUWidget : BidooWidget {
 			addParam(theme::param<BidooBlueKnob>(knob(c0, kCvKnobBelow), module, riseCvIds[e]));
 			addParam(theme::param<BidooBlueKnob>(knob(c0 + 2, kCvKnobBelow), module, fallCvIds[e]));
 			for (int i = 0; i < 3; i++)
-				addInput(theme::input<PJ301MPort>(cv(c0 + i), module, cvIns[e][i]));
+				addInput(theme::input<PJ301MPort>(at(c0 + i, cvLine.y), module, cvIns[e][i]));
 			for (int i = 0; i < 3; i++)
-				addParam(theme::param<CKSS>(sw(c0 + i), module, switches[e][i]));
+				addParam(theme::param<CKSS>(at(c0 + i, switchRow.y), module, switches[e][i]));
 			for (int i = 0; i < 3; i++)
-				addInput(theme::input<PJ301MPort>(jack(c0 + i, inRow), module, ins[e][i]));
+				addInput(theme::input<PJ301MPort>(at(c0 + i, inRow), module, ins[e][i]));
 			for (int i = 0; i < 3; i++)
-				addOutput(theme::output<PJ301MPort>(jack(c0 + i, outRow), module, outs[e][i]));
+				addOutput(theme::output<PJ301MPort>(at(c0 + i, outRow), module, outs[e][i]));
 		}
 	}
 };

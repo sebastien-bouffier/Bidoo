@@ -453,21 +453,33 @@ struct BARWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel: the bypass button beside the title, the screen, two rows of four trimpots, and
-		// three boxes of stereo jacks. Old corners kept: the jacks' spacing is the one set on purpose today (b927551),
-		// with the L and R labels moved to follow it in the SVG.
+		// The panel of tools/panels/bar.py: the old arrangement, the bypass button, the meters and the trimpots at their old
+		// corners (specific: they are the panel's picture of the module), the stereo jacks centred in their boxes.
+		const float w = box.size.x;
+
+		// The meters and readouts: drawn from the display's corner, as before, the meters 150 px down and the readouts to
+		// 253. The screen behind them is drawn by the panel (bar.py SIDE, SCREEN_BOTTOM: 6 px from the sides, to 259)
 		if (module) {
 			BARDisplay *display = new BARDisplay();
 			display->module = module;
-			display->box = theme::specificRect(12, 40, 110, 70);
+			display->box = theme::specificRect(12, 40, 110, 213);
 			addChild(display);
 		}
 
-		const theme::Size kMiniButtonSize = {mm2px(1.8f), mm2px(1.8f)};   // MiniLEDButton
-		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
-		addParam(theme::param<MiniLEDButton>(theme::specificCorner(91, 11, kMiniButtonSize), module, BAR::BYPASS_PARAM));
-		addChild(theme::light<SmallLight<RedLight>>(theme::specificCorner(91, 11, kSmallLightSize), module, BAR::BYPASS_LIGHT));
+		// The bypass button beside the title, at the old light's centre: a BidooRoundButton, momentary, lit while the
+		// module is bypassed, as mINIBar's. 14 px: the room between the title and the right screw is 22 px (20 would
+		// leave 1 px a side); 5 px to the title, 3 to the screw
+		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // the old SmallLight: its centre
+		const float kBypassButton = 14.f;
+		const theme::Pos bypassAt = theme::specificCorner(91, 11, kSmallLightSize);
+		BidooRoundButton *bypassButton = theme::param<BidooRoundButton>(bypassAt, module, BAR::BYPASS_PARAM);
+		bypassButton->momentary = true;
+		bypassButton->box.size = Vec(kBypassButton, kBypassButton);   // smaller: placed again at the same centre
+		theme::place(bypassButton, bypassAt);
+		bypassButton->litBy = [=]() { return module && module->lights[BAR::BYPASS_LIGHT].getBrightness() > 0.5f; };
+		addParam(bypassButton);
 
+		// The trimpots: two rows of four under the screen, from the old first corner
 		const float kTrimpotPitch = 32.f;   // across
 		const float kTrimpotRowBelow = 26.f;
 		const theme::Pos firstTrimpot = theme::specificCorner(10, 265, theme::kTrimpotSize);
@@ -476,17 +488,20 @@ struct BARWidget : BidooWidget {
 		for (int i = 0; i < 8; i++)
 			addParam(theme::param<BidooBlueTrimpot>(firstTrimpot.offset(kTrimpotPitch * (i % 4), kTrimpotRowBelow * (i / 4)), module, trimpotIds[i]));
 
+		// The stereo IN, SC and OUT: three boxes 6 px from the sides with the theme's gap between them, the tiny L and R
+		// jacks (six full jacks don't fit across 9 HP) 18 px apart centred in each, at the old height (corner 339). The
+		// same in tools/panels/bar.py (SIDE, STEREO_RIGHT, STEREO_Y)
+		const float kSide = 6.f;
 		const float kStereoRight = 18.f;   // from L to R in a box
-		const theme::Pos inL = theme::specificCorner(7.5f, 339, theme::kTinyJackSize);
-		const theme::Pos scL = theme::specificCorner(51, 339, theme::kTinyJackSize);
-		const theme::Pos outL = theme::specificCorner(94.5f, 339, theme::kTinyJackSize);
-		addInput(theme::input<TinyPJ301MPort>(inL, module, BAR::IN_L_INPUT));
-		addInput(theme::input<TinyPJ301MPort>(inL.right(kStereoRight), module, BAR::IN_R_INPUT));
-		addInput(theme::input<TinyPJ301MPort>(scL, module, BAR::SC_L_INPUT));
-		addInput(theme::input<TinyPJ301MPort>(scL.right(kStereoRight), module, BAR::SC_R_INPUT));
-
-		addOutput(theme::output<TinyPJ301MPort>(outL, module, BAR::OUT_L_OUTPUT));
-		addOutput(theme::output<TinyPJ301MPort>(outL.right(kStereoRight), module, BAR::OUT_R_OUTPUT));
+		const float kStereoY = 339.f + theme::kTinyJackSize.h * 0.5f;
+		const float kBoxW = (w - 2.f * kSide - 2.f * theme::kBoxGap) / 3.f;
+		auto left = [&](int i) { return theme::specific(kSide + kBoxW * (i + 0.5f) + theme::kBoxGap * i - kStereoRight * 0.5f, kStereoY); };
+		addInput(theme::input<TinyPJ301MPort>(left(0), module, BAR::IN_L_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(left(0).right(kStereoRight), module, BAR::IN_R_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(left(1), module, BAR::SC_L_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(left(1).right(kStereoRight), module, BAR::SC_R_INPUT));
+		addOutput(theme::output<TinyPJ301MPort>(left(2), module, BAR::OUT_L_OUTPUT));
+		addOutput(theme::output<TinyPJ301MPort>(left(2).right(kStereoRight), module, BAR::OUT_R_OUTPUT));
 	}
 };
 

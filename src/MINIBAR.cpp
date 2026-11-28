@@ -155,6 +155,7 @@ void MINIBAR::process(const ProcessArgs &args) {
 
 struct MINIBARDisplay : TransparentWidget {
 	MINIBAR *module;
+	Vec meterAt;   // the meters' top left inside the screen
 	float height = 230.0f;
 	float width = 10.0f;
 	float spacer = 2.0f;
@@ -164,6 +165,8 @@ struct MINIBARDisplay : TransparentWidget {
 
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
+			nvgSave(args.vg);
+			nvgTranslate(args.vg, meterAt.x, meterAt.y);
 			float vuL = rescale(module->vu_L,-97.0f,0.0f,0.0f,height);
 			float rmsL = rescale(module->rms_L,-97.0f,0.0f,0.0f,height);
 			float peakL = clamp(rescale(module->peakL,0.0f,-97.0f,0.0f,height),0.f,height);
@@ -290,6 +293,7 @@ struct MINIBARDisplay : TransparentWidget {
 			nvgStroke(args.vg);
 			nvgFill(args.vg);
 			nvgRestore(args.vg);
+			nvgRestore(args.vg);
 		}
 		Widget::drawLayer(args, layer);
 	}
@@ -349,14 +353,18 @@ struct MINIBARWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/MINIBAR.svg"));
 
-		// No screws, as before. The original hand-drawn panel: the bypass button and its light under the title, on the
-		// panel's centre like the title; eight trimpots down the left, each beside its upright label (the old code had
-		// them 1 px above the labels' middles); the screen; three tiny jacks in their boxes, within 0.4 px, left as
-		// they were.
+		// No screws, as before. The panel of tools/panels/minibar.py: the old arrangement, the bypass button under the
+		// title, eight trimpots down the left at their old corners, each beside its upright name, the meter screen, IN,
+		// SC and OUT in one box each.
+		const float w = box.size.x;
+
+		// the screen the panel draws (SCREEN_X... in minibar.py); the meters and the value being edited where they were
+		const theme::Area screen = theme::specificRect(30, 42, 43, 261);
 		if (module) {
 			MINIBARDisplay *display = new MINIBARDisplay();
 			display->module = module;
-			display->box = theme::specificRect(34, 45, 70, 70);
+			display->box = screen;
+			display->meterAt = Vec(theme::specific(34, 45)).minus(display->box.pos);
 			addChild(display);
 		}
 
@@ -364,12 +372,16 @@ struct MINIBARWidget : BidooWidget {
 		display->box.pos = theme::specific(31.5f, 287);   // where the screen writes the value being edited
 		addChild(display);
 
-		const float centre = box.size.x * 0.5f;
-		const theme::Size kMiniButtonSize = {mm2px(1.8f), mm2px(1.8f)};   // MiniLEDButton
-		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
-		addParam(theme::param<MiniLEDButton>(theme::sameRow(theme::specificCorner(34, 15, kMiniButtonSize), centre), module, MINIBAR::BYPASS_PARAM));
-		addChild(theme::light<SmallLight<RedLight>>(theme::sameRow(theme::specificCorner(34, 15, kSmallLightSize), centre), module, MINIBAR::BYPASS_LIGHT));
+		// bypass: the house round button, momentary as before, lit (orange) while bypassed by the state the module keeps
+		// in its light. On the panel's centre, 2.5 px under the title and over the screen (BYPASS_Y in minibar.py; the
+		// old mini button was 12 px higher, under the old small title)
+		const float kBypassY = 29.5f;
+		BidooRoundButton *bypass = theme::param<BidooRoundButton>(theme::specific(w * 0.5f, kBypassY), module, MINIBAR::BYPASS_PARAM);
+		bypass->momentary = true;
+		bypass->litBy = [=]() { return module && module->lights[MINIBAR::BYPASS_LIGHT].getBrightness() > 0.5f; };
+		addParam(bypass);
 
+		// the trimpots at their old corners, their names centred beside them (TRIM_Y0, TRIM_PITCH in minibar.py)
 		const float kTrimpotPitch = 35.f;
 		const theme::Pos first = theme::specificCorner(2, 38, theme::kTrimpotSize);
 		auto trimpot = [&](int i) { return first.down(kTrimpotPitch * i); };
@@ -438,11 +450,15 @@ struct MINIBARWidget : BidooWidget {
 		looka->tail = "%";
 		addParam(looka);
 
-		const float kJackPitch = 24.f;
-		const theme::Pos in = theme::specificCorner(6, 340, theme::kTinyJackSize);
-		addInput(theme::input<TinyPJ301MPort>(in, module, MINIBAR::IN_L_INPUT));
-		addInput(theme::input<TinyPJ301MPort>(in.right(kJackPitch), module, MINIBAR::SC_L_INPUT));
-		addOutput(theme::output<TinyPJ301MPort>(in.right(2.f * kJackPitch), module, MINIBAR::OUT_L_OUTPUT));
+		// IN, SC and OUT on the bottom row, each in the middle of its box: three boxes 2 px from the sides and from each
+		// other (BOX_SIDE, BOX_GAP in minibar.py; the old jacks were 0.33 px off these columns and 5.5 px lower). Tiny
+		// jacks: a full jack's ring (22.5 px) does not fit in a 22.3 px box
+		const float kBoxSide = 2.f, kBoxGap = 2.f;
+		const float kBoxW = (w - 2.f * kBoxSide - 2.f * kBoxGap) / 3.f;
+		auto jack = [&](int i) { return theme::specific(kBoxSide + (kBoxW + kBoxGap) * i + kBoxW * 0.5f, theme::row(0)); };
+		addInput(theme::input<TinyPJ301MPort>(jack(0), module, MINIBAR::IN_L_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(jack(1), module, MINIBAR::SC_L_INPUT));
+		addOutput(theme::output<TinyPJ301MPort>(jack(2), module, MINIBAR::OUT_L_OUTPUT));
 	}
 };
 

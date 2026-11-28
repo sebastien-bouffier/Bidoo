@@ -154,52 +154,58 @@ struct HUITREWidget : BidooWidget {
   HUITREWidget(HUITRE *module);
 };
 
-template <typename BASE>
-struct HUITRELight : BASE {
-	HUITRELight() {
-		this->box.size = mm2px(Vec(6.0f, 6.0f));
-	}
-};
-
 HUITREWidget::HUITREWidget(HUITRE *module) {
 	setModule(module);
 	prepareThemes(asset::plugin(pluginInstance, "res/HUITRE.svg"));
 
 	theme::addScrews(this);
 
-	// The original hand-drawn panel: the mode button under GATE/TRIG; eight rows of a step button, the PTN, CV1 and CV2
-	// trimpots under their labels and a gate jack in the GATE column; STEP and the three outputs in their boxes. Each
-	// row now shares the trimpots' row (the old code had the button 1 px above it and the jack 0.9 px below), and the
-	// bottom jacks sit on their boxes' centres (up to 0.6 px off). Columns keep their old corners.
-	const theme::Size kButtonSize = {17.9996f, 18.f};                 // LEDButton
-	const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
-	const theme::Size kBezelSize = {21.26028f, 21.25987f};            // LEDBezel
-	const theme::Size kStepLightSize = {mm2px(6.f), mm2px(6.f)};      // HUITRELight
-	const float kLightIn = 6.f;      // from the mode button's corner to its light's
-	const float kBezelLightIn = 1.8f;
+	// The panel of tools/panels/huitre.py: the gate mode button under the title; eight rows of a pattern button, the
+	// PTN, CV1 and CV2 trimpots and a tiny gate out in the GATE strip; STEP and the three outputs in their grid boxes.
+	const float w = box.size.x;
+	const int n = 4;   // the bottom row's columns, the same in huitre.py
+
+	// The buttons are the house round button, momentary as before. The pattern buttons over STEP's column (they were
+	// 3.6 px left); each lit (orange) while its pattern plays and blinking while it waits for the next measure, from
+	// the module's lights (green and red on the old bezels).
+	auto lit = [=](int lightId) { return module && module->lights[lightId].getBrightness() > 0.5f; };
+	auto button = [&](theme::Pos p, int paramId, std::function<bool()> litBy) {
+		BidooRoundButton *b = theme::param<BidooRoundButton>(p, module, paramId);
+		b->momentary = true;
+		b->litBy = litBy;
+		addParam(b);
+	};
+	const theme::Pos stepCol = theme::jackAt(0, n, 0, w);
+	// the mode button, lit while the pattern outs give gates (green on the old light, blue for triggers): 7 px lower
+	// than before, so that its label fits under the screw. kModeY is the same in huitre.py (MODE_Y)
+	const float kModeY = 16.5f + theme::kCaptionCapHeight + theme::kSmallLabelAbove;
+	button(theme::sameCol(stepCol, kModeY), HUITRE::MODE_PARAM, [=]() { return lit(HUITRE::MODE_LIGHT + 1); });
+
+	// the rows: 4 px lower than before (kRowsDown, the room for the mode button's label), 33 px apart; each from the
+	// PTN trimpot's old corner, the gate outs at their old column (the old buttons were 1 px above the trimpots' row,
+	// the jacks 0.9 px below)
+	const float kRowsDown = 4.f;       // the same in huitre.py (ROWS_DOWN)
 	const float kRowBelow = 33.f;
-	addParam(theme::param<LEDButton>(theme::specificCorner(13, 24, kButtonSize), module, HUITRE::MODE_PARAM));
-	addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::specificCorner(13 + kLightIn, 24 + kLightIn, kSmallLightSize), module, HUITRE::MODE_LIGHT));
-
-	const theme::Pos boxCol[4] = {theme::specific(19.156f, 0), theme::specific(56.438f, 0), theme::specific(93.719f, 0), theme::specific(130.969f, 0)};   // the boxes' centres
-	const theme::Pos ioRow = theme::specificCorner(7, 330, theme::kJackSize);
-	addInput(theme::input<PJ301MPort>(theme::colRow(boxCol[0], ioRow), module, HUITRE::MEASURE_INPUT));
-	addOutput(theme::output<PJ301MPort>(theme::colRow(boxCol[1], ioRow), module, HUITRE::PATTERN_OUTPUT));
-	addOutput(theme::output<PJ301MPort>(theme::colRow(boxCol[2], ioRow), module, HUITRE::CV1_OUTPUT));
-	addOutput(theme::output<PJ301MPort>(theme::colRow(boxCol[3], ioRow), module, HUITRE::CV2_OUTPUT));
-
-	const theme::Pos ptn = theme::specificCorner(45, 52, theme::kTrimpotSize);
-	const float kTrimpotRight = 27.f;
+	const float kTrimpotRight = 27.f;  // from one trimpot to the next
+	const theme::Pos ptn = theme::specificCorner(45, 52, theme::kTrimpotSize).down(kRowsDown);
+	const theme::Pos gate = theme::specificCorner(130, 0, theme::kTinyJackSize);
 	for (int i = 0; i < 8; i++) {
 		const theme::Pos row = ptn.down(kRowBelow * i);
-		const theme::Pos step = theme::colRow(theme::specificCorner(11, 0, kBezelSize), theme::specific(0, row.y));
-		addParam(theme::param<LEDBezel>(step, module, HUITRE::TRIG_PARAM + i));
-		addChild(theme::light<HUITRELight<RedGreenBlueLight>>(theme::specificCorner(11 + kBezelLightIn, step.y - kBezelSize.h * 0.5f + kBezelLightIn, kStepLightSize), module, HUITRE::PATTERN_LIGHT + i*3));
+		const int playing = HUITRE::PATTERN_LIGHT + i * 3 + 1, waiting = HUITRE::PATTERN_LIGHT + i * 3;
+		button(theme::colRow(stepCol, row), HUITRE::TRIG_PARAM + i,
+			[=]() { return lit(playing) || (lit(waiting) && std::fmod(system::getTime(), 0.5) < 0.25); });
 		addParam(theme::param<BidooBlueTrimpot>(row, module, HUITRE::PATTERN_PARAM+i));
 		addParam(theme::param<BidooBlueTrimpot>(row.right(kTrimpotRight), module, HUITRE::CV1_PARAM+i));
 		addParam(theme::param<BidooBlueTrimpot>(row.right(2.f * kTrimpotRight), module, HUITRE::CV2_PARAM+i));
-		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specificCorner(130, 0, theme::kTinyJackSize), theme::specific(0, row.y)), module, HUITRE::PATTERNTRIG_OUTPUT+i));
+		// tiny: eight full jacks 33 px apart would not fit their column between CV2 and the panel's edge
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(gate, row), module, HUITRE::PATTERNTRIG_OUTPUT+i));
 	}
+
+	// STEP and the three outputs on the grid (the old jacks were 6.1, 2.3, 2.5 and 6.2 px off these columns)
+	addInput(theme::input<PJ301MPort>(theme::jackAt(0, n, 0, w), module, HUITRE::MEASURE_INPUT));
+	addOutput(theme::output<PJ301MPort>(theme::jackAt(1, n, 0, w), module, HUITRE::PATTERN_OUTPUT));
+	addOutput(theme::output<PJ301MPort>(theme::jackAt(2, n, 0, w), module, HUITRE::CV1_OUTPUT));
+	addOutput(theme::output<PJ301MPort>(theme::jackAt(3, n, 0, w), module, HUITRE::CV2_OUTPUT));
 }
 
 Model *modelHUITRE = createModel<HUITRE, HUITREWidget>("HUITre");

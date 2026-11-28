@@ -224,25 +224,26 @@ struct MOIREWidget : BidooWidget {
 
 struct MOIREDisplay : TransparentWidget {
 	int *value;
+	Vec textAt;   // the number's baseline start inside the screen
 
 	MOIREDisplay() {
 
 	}
 
-	void drawMessage(NVGcontext *vg, Vec pos) {
+	void drawMessage(NVGcontext *vg) {
     if (value) {
       nvgFontSize(vg, 18);
   		nvgTextLetterSpacing(vg, -2);
   		nvgFillColor(vg, YELLOW_BIDOO);
   		char s[8];
   		snprintf(s, sizeof(s), "%02d", *value + 1);
-  		nvgText(vg, pos.x + 2, pos.y + 2, s, NULL);
+  		nvgText(vg, textAt.x, textAt.y, s, NULL);
     }
 	}
 
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
-			drawMessage(args.vg, Vec(0, 20));
+			drawMessage(args.vg);
 		}
 		Widget::drawLayer(args, layer);
 	}
@@ -289,60 +290,82 @@ MOIREWidget::MOIREWidget(MOIRE *module) {
 
 	theme::addScrews(this);
 
-	// The original hand-drawn panel. Left: the target and current scene trimpots with their CV jacks, joined by the
-	// panel's lines, the two arrow buttons, the scene screens and the morph knob with its CV jack; the range switch and
-	// POLY. Right: the 4 x 4 grid of knobs in the white screen, each with its type button, and the 16 CV outputs below.
-	// Old corners kept, except: the trimpots and their jacks, now on the lines the panel draws (they were 0.5 to 0.6 px
-	// right), the range switch between its labels (0.75 px left), and the knob grid with its type buttons, now in the
-	// outputs' columns, centred in the white screen (it was 1.04 px left).
-	const theme::Size kCKSSSize = {14.f, 20.64111f};                  // CKSS
-	const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
-	const theme::Size kMiniButtonSize = {mm2px(1.8f), mm2px(1.8f)};   // MiniLEDButton
+	// The panel of tools/panels/moire.py: the old arrangement. Left, symmetric about the morph knob's row: the target
+	// and current scenes, each a trimpot beside its screen, an arrow button and a CV jack; the morph knob between the
+	// screens; the range switch and POLY. Right: SAVE and RND, the 4 x 4 knobs with their type buttons, the 16 outputs.
 	const theme::Size kColoredKnobSize = {mm2px(8.f), mm2px(8.f)};    // BidooColoredKnob
-	const theme::Pos sceneLine = theme::specific(29.f, 0);   // the lines from the scene trimpots to their jacks
+	auto button = [&](theme::Pos p, int paramId) {   // the house round button, momentary as the old ones
+		BidooRoundButton *b = theme::param<BidooRoundButton>(p, module, paramId);
+		b->momentary = true;
+		addParam(b);
+		return b;
+	};
 
-	const theme::Pos save = theme::specificCorner(90, 38, theme::kCKD6Size);
-	addParam(theme::param<BlueCKD6>(save, module, MOIRE::SAVE_PARAM));
-	addParam(theme::param<BlueCKD6>(save.right(30), module, MOIRE::RND_PARAM));
-
-	addParam(theme::param<BidooBlueSnapTrimpot>(theme::colRow(sceneLine, theme::specificCorner(0, 66, theme::kTrimpotSize)), module, MOIRE::TARGETSCENE_PARAM));
-	MOIREDisplay *displayTarget = new MOIREDisplay();
-	displayTarget->box = theme::specificRect(50, 59, 20, 20);
-	displayTarget->value = module ? &module->targetScene : NULL;
-	addChild(displayTarget);
-	addParam(theme::param<BidooBlueSnapTrimpot>(theme::colRow(sceneLine, theme::specificCorner(0, 195, theme::kTrimpotSize)), module, MOIRE::CURRENTSCENE_PARAM));
-	MOIREDisplay *displayCurrent = new MOIREDisplay();
-	displayCurrent->box = theme::specificRect(50, 189, 20, 20);
-	displayCurrent->value = module ? &module->currentScene : NULL;
-	addChild(displayCurrent);
-
-	addParam(theme::param<BlueCKD6>(theme::specificCorner(15, 107, theme::kCKD6Size), module, MOIRE::ADONF_PARAM));
-	addParam(theme::param<BlueCKD6>(theme::specificCorner(15, 145, theme::kCKD6Size), module, MOIRE::NADA_PARAM));
-
-	addInput(theme::input<TinyPJ301MPort>(theme::colRow(sceneLine, theme::specificCorner(0, 41, theme::kTinyJackSize)), module, MOIRE::TARGETSCENE_INPUT));
-	addInput(theme::input<TinyPJ301MPort>(theme::colRow(sceneLine, theme::specificCorner(0, 224, theme::kTinyJackSize)), module, MOIRE::CURRENTSCENE_INPUT));
-	addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(20 + 33.2f, 224, theme::kTinyJackSize), module, MOIRE::MORPH_INPUT));
-
-	morphButton = theme::param<MOIREMorphKnob>(theme::specificCorner(46, 124, theme::kBlueKnobSize), module, MOIRE::MORPH_PARAM);
+	// the scenes: the trimpots on the old lines' column (they were 0.55 and 0.35 px lower), the screens and the morph
+	// knob on the hourglass's (the knob was 0.24 px left and 1.24 px higher); AXIS, SCENE_X, MORPH_X... in moire.py
+	const float kAxis = 140.f;
+	const float kSceneFromAxis = 64.95f;   // the screens' and trimpots' centres from the axis
+	const float kButtonFromAxis = 19.f;    // the arrow buttons, at the old CKD6s' centres
+	const theme::Pos scene = theme::specific(29, kAxis);
+	const theme::Pos morph = theme::specific(61, kAxis);
+	addParam(theme::param<BidooBlueSnapTrimpot>(scene.down(-kSceneFromAxis), module, MOIRE::TARGETSCENE_PARAM));
+	addParam(theme::param<BidooBlueSnapTrimpot>(scene.down(kSceneFromAxis), module, MOIRE::CURRENTSCENE_PARAM));
+	button(scene.down(-kButtonFromAxis), MOIRE::ADONF_PARAM);
+	button(scene.down(kButtonFromAxis), MOIRE::NADA_PARAM);
+	morphButton = theme::param<MOIREMorphKnob>(morph, module, MOIRE::MORPH_PARAM);
 	addParam(morphButton);
 
-	addParam(theme::param<CKSS>(theme::colRow(theme::specific(47.75f, 0), theme::specificCorner(0, 279, kCKSSSize)), module, MOIRE::VOLTAGE_PARAM));   // between its labels
-	// under the range switch, level with the last row of outputs
-	addOutput(theme::output<PJ301MPort>(theme::specificCorner(35.15f, 320, theme::kJackSize), module, MOIRE::POLY_OUTPUT));
+	// the scene screens the panel draws (SCREEN_W, SCREEN_H in moire.py), the numbers where they were (within 0.05 px)
+	const float kScreenW = 30.f, kScreenH = 20.f;
+	const Vec kNumberAt = Vec(6.f, 16.f);
+	auto display = [&](float side, int *value) {
+		MOIREDisplay *d = new MOIREDisplay();
+		d->box = theme::specificRect(morph.x - kScreenW * 0.5f, kAxis + side * kSceneFromAxis - kScreenH * 0.5f, kScreenW, kScreenH);
+		d->textAt = kNumberAt;
+		d->value = value;
+		addChild(d);
+	};
+	display(-1.f, module ? &module->targetScene : NULL);
+	display(1.f, module ? &module->currentScene : NULL);
 
+	// the CV jacks, full jacks in one box each where tiny ones were: the target's 3.5 px higher, so its box clears the
+	// trimpot (TARGET_CV_Y in moire.py); the current scene's and the morph's on grid row 2 (they were 18.5 px higher)
+	addInput(theme::input<PJ301MPort>(theme::colRow(scene, theme::specific(0, 45)), module, MOIRE::TARGETSCENE_INPUT));
+	addInput(theme::input<PJ301MPort>(theme::sameCol(scene, theme::row(2)), module, MOIRE::CURRENTSCENE_INPUT));
+	addInput(theme::input<PJ301MPort>(theme::sameCol(morph, theme::row(2)), module, MOIRE::MORPH_INPUT));
+
+	// the range switch between its labels (2.7 px lower, centred between the boxes), POLY under it on the bottom row
+	// (0.75 px right, 10.15 px lower): SWITCH, POLY_X in moire.py
+	const theme::Pos range = theme::specific(47.75f, 292.f);
+	addParam(theme::param<CKSS>(range, module, MOIRE::VOLTAGE_PARAM));
+	addOutput(theme::output<PJ301MPort>(theme::sameCol(range, theme::row(0)), module, MOIRE::POLY_OUTPUT));
+
+	// right: the knob grid at its old corners, in the outputs' columns; SAVE and RND over the first two columns (0.15 px
+	// left), at the old CKD6s' centres. The outputs' rows spread from grid row 2 to the bottom row (8.15 to 10.15 px
+	// lower). COL0, PITCH, KNOB_Y0, OUT_PITCH in moire.py
 	const float kGridPitch = 30.f;
-	const theme::Pos firstOut = theme::specificCorner(92, 230, theme::kJackSize);
-	const float kButtonFromKnob = 23.f; // a type button's corner from its knob's
+	const theme::Pos firstCol = theme::specificCorner(92, 230, theme::kJackSize);
+	const float kOutPitch = (theme::row(0) - theme::row(2)) / 3.f;
+	const theme::Pos save = theme::sameCol(firstCol, theme::specificCorner(90, 38, theme::kCKD6Size).y);
+	button(save, MOIRE::SAVE_PARAM);
+	button(save.right(kGridPitch), MOIRE::RND_PARAM);
+
+	// each knob's type button: a small round button at the knob's lower right, where the old mini button and its light
+	// were, lit (orange) by the type the module keeps in its light
+	const float kTypeButton = 10.f;               // its size: the old light was 6 px, 20 px would not fit the grid
+	const float kTypeFromKnob = 14.f;             // its centre right of and below the knob's
 	for (int i = 0; i < 16; i++) {
 		const float dx = kGridPitch * (i % 4), dy = kGridPitch * (i / 4);
-		const theme::Pos out = firstOut.offset(dx, dy);
-		const theme::Pos knob = theme::colRow(out, theme::specificCorner(0, 82 + dy, kColoredKnobSize));   // in its output's column
-		const float knobLeft = knob.x - kColoredKnobSize.w * 0.5f;
+		const theme::Pos knob = theme::colRow(firstCol.right(dx), theme::specificCorner(0, 82 + dy, kColoredKnobSize));
 		controls[i] = theme::param<MOIREColoredKnob>(knob, module, MOIRE::CONTROLS_PARAMS + i);
 		addParam(controls[i]);
-		addParam(theme::param<MiniLEDButton>(theme::specificCorner(knobLeft + kButtonFromKnob, 104 + dy, kMiniButtonSize), module, MOIRE::TYPE_PARAMS + i));
-		addChild(theme::light<SmallLight<RedLight>>(theme::specificCorner(knobLeft + kButtonFromKnob, 105 + dy, kSmallLightSize), module, MOIRE::TYPE_LIGHTS + i));
-		addOutput(theme::output<PJ301MPort>(out, module, MOIRE::CV_OUTPUTS + i));
+		const theme::Pos typeAt = knob.offset(kTypeFromKnob, kTypeFromKnob);
+		BidooRoundButton *type = button(typeAt, MOIRE::TYPE_PARAMS + i);
+		type->box.size = Vec(kTypeButton, kTypeButton);   // smaller: placed again at the same centre
+		theme::place(type, typeAt);
+		const int lightId = MOIRE::TYPE_LIGHTS + i;
+		type->litBy = [=]() { return module && module->lights[lightId].getBrightness() > 0.5f; };
+		addOutput(theme::output<PJ301MPort>(theme::sameCol(firstCol.right(dx), theme::row(2) + kOutPitch * (i / 4)), module, MOIRE::CV_OUTPUTS + i));
 	}
 }
 

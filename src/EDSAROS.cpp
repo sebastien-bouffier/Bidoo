@@ -883,6 +883,10 @@ void EDSAROS::process(const ProcessArgs &args) {
 	outputs[OUT].setChannels(channels);
 }
 
+// The loop, release and link modes' symbols, each centred on its mode screen (the widget's box is the panel's screen),
+// on the old baseline, 9 px under the screen's top
+static const float kModeBaseline = 9.f;
+
 struct EDSAROSLoopDisplay : TransparentWidget {
 	EDSAROS *module;
 
@@ -901,15 +905,15 @@ struct EDSAROSLoopDisplay : TransparentWidget {
 			nvgTextLetterSpacing(args.vg, -2.0f);
 			if (loopType == 0) {
 				std::string s = "⇥";
-				nvgText(args.vg, 0, 0, s.c_str(), NULL);
+				nvgText(args.vg, box.size.x * 0.5f, kModeBaseline, s.c_str(), NULL);
 			}
 			else if (loopType == 1) {
 				std::string s = "⇉";
-				nvgText(args.vg, 0, 0, s.c_str(), NULL);
+				nvgText(args.vg, box.size.x * 0.5f, kModeBaseline, s.c_str(), NULL);
 			}
 			else if (loopType == 2) {
 				std::string s = "⇄";
-				nvgText(args.vg, 0, 0, s.c_str(), NULL);
+				nvgText(args.vg, box.size.x * 0.5f, kModeBaseline, s.c_str(), NULL);
 			}
 		}
 	}
@@ -941,19 +945,19 @@ struct EDSAROSReleaseDisplay : TransparentWidget {
 			nvgTextLetterSpacing(args.vg, -2.0f);
 			if (releaseType == 0) {
 				std::string s = "-";
-				nvgText(args.vg, 0, 0, s.c_str(), NULL);
+				nvgText(args.vg, box.size.x * 0.5f, kModeBaseline, s.c_str(), NULL);
 			}
 			else if (releaseType == 1) {
 				std::string s = "⇥";
-				nvgText(args.vg, 0, 0, s.c_str(), NULL);
+				nvgText(args.vg, box.size.x * 0.5f, kModeBaseline, s.c_str(), NULL);
 			}
 			else if (releaseType == 2) {
 				std::string s = "⇉";
-				nvgText(args.vg, 0, 0, s.c_str(), NULL);
+				nvgText(args.vg, box.size.x * 0.5f, kModeBaseline, s.c_str(), NULL);
 			}
 			else if (releaseType == 3) {
 				std::string s = "⇄";
-				nvgText(args.vg, 0, 0, s.c_str(), NULL);
+				nvgText(args.vg, box.size.x * 0.5f, kModeBaseline, s.c_str(), NULL);
 			}
 		}
 	}
@@ -985,19 +989,19 @@ struct EDSAROSLinkDisplay : TransparentWidget {
 			nvgTextLetterSpacing(args.vg, -2.0f);
 			if (linkType == 0) {
 				std::string s = "-";
-				nvgText(args.vg, 0, 0, s.c_str(), NULL);
+				nvgText(args.vg, box.size.x * 0.5f, kModeBaseline, s.c_str(), NULL);
 			}
 			else if (linkType == 1) {
 				std::string s = "⇥";
-				nvgText(args.vg, 0, 0, s.c_str(), NULL);
+				nvgText(args.vg, box.size.x * 0.5f, kModeBaseline, s.c_str(), NULL);
 			}
 			else if (linkType == 2) {
 				std::string s = "⇉";
-				nvgText(args.vg, 0, 0, s.c_str(), NULL);
+				nvgText(args.vg, box.size.x * 0.5f, kModeBaseline, s.c_str(), NULL);
 			}
 			else if (linkType == 3) {
 				std::string s = "⇄";
-				nvgText(args.vg, 0, 0, s.c_str(), NULL);
+				nvgText(args.vg, box.size.x * 0.5f, kModeBaseline, s.c_str(), NULL);
 			}
 		}
 	}
@@ -1013,8 +1017,8 @@ struct EDSAROSLinkDisplay : TransparentWidget {
 
 struct EDSAROSDisplay : OpaqueWidget {
 	EDSAROS *module;
-	const float width = 125.0f;
-	const float height = 60.0f;
+	float width = 125.0f;      // the screen's size: setBox makes them the box's
+	float height = 60.0f;
 	float zoomWidth = 125.0f;
 	float zoomLeftAnchor = 0.0f;
 	int refIdx = 0;
@@ -1022,6 +1026,13 @@ struct EDSAROSDisplay : OpaqueWidget {
 
 	EDSAROSDisplay() {
 
+	}
+
+	// the box, the panel's screen, and the size the sample and the envelope are drawn in
+	void setBox(theme::Area a) {
+		box = a;
+		width = zoomWidth = box.size.x;
+		height = box.size.y;
 	}
 
 	void onButton(const event::Button &e) override {
@@ -1183,23 +1194,34 @@ struct EDSAROSWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel: the screen; a grid of small knobs, five across, 28 px down, each with its tiny
-		// CV jack below and the mode screens on the right; GATE, VO, the zero-crossing button and OUT. Old corners kept
-		// (every knob and jack within 0.25 px of its label), except the three bottom jacks, now on their boxes' centres
-		// (the old code had VO 0.7 px left of its box).
+		// The panel of tools/panels/edsaros.py: the screen; a grid of small knobs, five across, each with its tiny CV jack
+		// under it, the mode screens in the last column in place of CV jacks; GATE, V/O, the zero crossing button and
+		// OUT on the grid. The knobs keep their old corners.
+		const float w = box.size.x;
+		const int n = 4;   // the bottom row's columns, the same in edsaros.py
+
+		// the screen: the panel's, at the theme's margin (the display was 5 px wider each side) and the display's old top
+		// and height (the theme's top would take 9 of its 60 px), the same in edsaros.py (SCREEN)
 		EDSAROSDisplay *display = new EDSAROSDisplay();
 		display->module = module;
-		display->box = theme::specificRect(5, 25, 125, 60);
+		display->setBox(theme::specificRect(theme::kSideMargin, 25, w - 2.f * theme::kSideMargin, 60));
 		addChild(display);
 
-		const float controlsXOffset = 26;   // across
-		const float controlsYOffset = 28;   // down
-		const float inputsXOffset = 4.5f;   // a tiny jack's corner right of its knob's
-		const theme::Pos firstKnob = theme::specificCorner(3.5f, 97, theme::Size{mm2px(8.f), mm2px(8.f)});   // BidooSmallBlueKnob (8 mm)
-		const theme::Pos firstCv = theme::specificCorner(3.5f + inputsXOffset, 97 + controlsYOffset, theme::kTinyJackSize);
+		const float controlsXOffset = 26;   // across, the same in edsaros.py (ACROSS)
+		const float controlsYOffset = 28;   // down, from a knob's row to its CV jack's (DOWN)
+		const theme::Size kSmallKnobSize = {mm2px(8.f), mm2px(8.f)};   // BidooSmallBlueKnob (8 mm)
+		const theme::Pos firstKnob = theme::specificCorner(3.5f, 97, kSmallKnobSize);
+		// the CV jacks on their knobs' columns (they were 0.19 px right), at their old row (corner 125)
+		const theme::Pos firstCv = theme::colRow(firstKnob, theme::specificCorner(0, 97 + controlsYOffset, theme::kTinyJackSize));
 		auto knob = [&](int c, int r) { return firstKnob.offset(controlsXOffset * c, controlsYOffset * r); };
 		auto cv = [&](int c, int r) { return firstCv.offset(controlsXOffset * c, controlsYOffset * r); };
-		auto modeScreen = [&](int r) { return theme::specificRect(3.5f + 4 * controlsXOffset + 12, 97 + r * controlsYOffset + 10.5f, 20, 10); };
+		// the mode screens in place of the CV jacks under L MODE, R MODE and LINK, centred on them (the panel's screens;
+		// the symbols drawn where they were), the same in edsaros.py (MODE_SCREEN)
+		const theme::Size kModeScreen = {22.f, 12.f};
+		auto modeScreen = [&](int r) {
+			const theme::Pos c = cv(4, r);
+			return theme::specificRect(c.x - kModeScreen.w * 0.5f, c.y - kModeScreen.h * 0.5f, kModeScreen.w, kModeScreen.h);
+		};
 
 		EDSAROSBidooSmallBlueKnob *btnSampleStartParam = theme::param<EDSAROSBidooSmallBlueKnob>(knob(0, 0), module, EDSAROS::SAMPLESTART_PARAM);
 		btnSampleStartParam->showSample = true;
@@ -1240,7 +1262,7 @@ struct EDSAROSWidget : BidooWidget {
 		{
 			EDSAROSLoopDisplay *displayLoop = new EDSAROSLoopDisplay();
 			displayLoop->module = module;
-			displayLoop->box = modeScreen(3);
+			displayLoop->box = modeScreen(2);
 			addChild(displayLoop);
 		}
 
@@ -1264,7 +1286,7 @@ struct EDSAROSWidget : BidooWidget {
 		{
 			EDSAROSReleaseDisplay *displayRelease = new EDSAROSReleaseDisplay();
 			displayRelease->module = module;
-			displayRelease->box = modeScreen(5);
+			displayRelease->box = modeScreen(4);
 			addChild(displayRelease);
 		}
 
@@ -1291,7 +1313,7 @@ struct EDSAROSWidget : BidooWidget {
 		{
 			EDSAROSLinkDisplay *displayLink = new EDSAROSLinkDisplay();
 			displayLink->module = module;
-			displayLink->box = modeScreen(7);
+			displayLink->box = modeScreen(6);
 			addChild(displayLink);
 		}
 
@@ -1299,12 +1321,18 @@ struct EDSAROSWidget : BidooWidget {
 		addInput(theme::input<TinyPJ301MPort>(cv(1, 6), module, EDSAROS::PEAK_INPUT));
 		addInput(theme::input<TinyPJ301MPort>(cv(2, 6), module, EDSAROS::SUSTAIN_INPUT));
 
-		addParam(theme::param<LEDButton>(theme::specificCorner(75, 333, theme::Size{17.9996f, 18.f}), module, EDSAROS::ZEROCROSSING_PARAM));   // LEDButton
-		addChild(theme::light<SmallLight<GreenLight>>(theme::specificCorner(75 + 6, 333 + 6, theme::Size{mm2px(2.f), mm2px(2.f)}), module, EDSAROS::ZEROCROSSING_LIGHT));   // SmallLight, 6 px into the button
-		const theme::Pos jackRow = theme::specificCorner(7, 330, theme::kJackSize);
-		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(19.156f, 0), jackRow), module, EDSAROS::TRIG_INPUT));    // the boxes' centres
-		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(52.531f, 0), jackRow), module, EDSAROS::PITCH_INPUT));
-		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(115.125f, 0), jackRow), module, EDSAROS::OUT));
+		// the zero crossing button: the house round button, momentary as before, lit (orange) while the points snap to
+		// zero crossings, by the light that used to sit in it; in the third column on the jacks' row (2.1 px left)
+		{
+			BidooRoundButton *b = theme::param<BidooRoundButton>(theme::at(2, n, 0, w), module, EDSAROS::ZEROCROSSING_PARAM);
+			b->momentary = true;
+			b->litBy = [=]() { return module && module->lights[EDSAROS::ZEROCROSSING_LIGHT].getBrightness() > 0.5f; };
+			addParam(b);
+		}
+		// GATE, V/O and OUT in their grid boxes (the old jacks were 4.2, 0.6 and 3.5 px off them)
+		addInput(theme::input<PJ301MPort>(theme::jackAt(0, n, 0, w), module, EDSAROS::TRIG_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::jackAt(1, n, 0, w), module, EDSAROS::PITCH_INPUT));
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(3, n, 0, w), module, EDSAROS::OUT));
 	}
 
   struct EDSAROSItem : MenuItem {

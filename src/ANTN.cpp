@@ -1098,6 +1098,7 @@ struct ANTNDisplay : LedDisplay {
 
 struct ANTNBufferDisplay : TransparentWidget {
 	ANTN *module;
+	float audioBarBelow = 16.5f;   // the audio bar under the data bar, set by the widget (tools/panels/antn.py AUDIO_BELOW)
 
 	ANTNBufferDisplay() {
 
@@ -1112,7 +1113,7 @@ struct ANTNBufferDisplay : TransparentWidget {
         nvgFillColor(args.vg, BLUE_BIDOO);
       	nvgBeginPath(args.vg);
         nvgRoundedRect(args.vg,0,0, box.size.x * std::min((float)module->pendingBytes/PENDING_DISPLAY_BYTES,1.0f),5.f,0.0f);
-        nvgRoundedRect(args.vg,0,15.f,box.size.x * std::min((float)module->audio.size()/AUDIOSIZE,1.0f),5.f,0.0f);
+        nvgRoundedRect(args.vg,0,audioBarBelow,box.size.x * std::min((float)module->audio.size()/AUDIOSIZE,1.0f),5.f,0.0f);
       	nvgClosePath(args.vg);
         nvgStroke(args.vg);
       	nvgFill(args.vg);
@@ -1124,13 +1125,6 @@ struct ANTNBufferDisplay : TransparentWidget {
 
 };
 
-template <typename BASE>
-struct ANTNLight : BASE {
-	ANTNLight() {
-		this->box.size = mm2px(Vec(6.f, 6.f));
-	}
-};
-
 struct ANTNWidget : BidooWidget {
 	ANTNWidget(ANTN *module) {
 		setModule(module);
@@ -1138,29 +1132,44 @@ struct ANTNWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel: every position keeps its old top left corner (specific) or follows one of them.
-		// The knob, the button and the labels share the panel's centre within half a pixel; left as they were.
-		ANTNBufferDisplay *display = new ANTNBufferDisplay();
-		display->module = module;
-		display->box = theme::specificRect(10, 140, 115, 20);
-		addChild(display);
+		// The panel of tools/panels/antn.py: the old arrangement, now with the theme's screen, the knob and the button on
+		// the panel's centre (0.24 and 0.37 px right of their old corners) at their old heights, the out jacks on the grid.
+		const float w = box.size.x;
 
+		// The URL and status screen: the theme's top and margins, down to its old bottom (antn.py SCREEN_BOTTOM)
+		const float kScreenBottom = 125.f;
 		ANTNDisplay *urlDisplay = createWidget<ANTNDisplay>(Vec());
-		urlDisplay->box = theme::specificRect(5, 25, 125, 100);
+		urlDisplay->box = theme::specificRect(theme::kSideMargin, theme::kScreenTop, w - 2.f * theme::kSideMargin, kScreenBottom - theme::kScreenTop);
 		urlDisplay->setModule(module);
 		addChild(urlDisplay);
 
-		const theme::Size kBezelSize = {21.26028f, 21.25987f};   // LEDBezel
-		const theme::Size kLightSize = {mm2px(6.f), mm2px(6.f)};  // ANTNLight
-		addParam(theme::param<BidooBlueKnob>(theme::specificCorner(52.5f, 183, theme::kBlueKnobSize), module, ANTN::GAIN_PARAM));
-		addParam(theme::param<LEDBezel>(theme::specificCorner(56.5f, 246, kBezelSize), module, ANTN::TRIG_PARAM));
-		addChild(theme::light<ANTNLight<RedGreenBlueLight>>(theme::specificCorner(58.3f, 247.8f, kLightSize), module, ANTN::ON_LIGHT));
+		// The buffer bars across the screen's width, the data bar at its old height, the audio bar under its caption
+		// (antn.py BAR_TOP, AUDIO_BELOW)
+		const float kBufferTop = 140.f;
+		const float kAudioBarBelow = 16.5f;
+		const float kBarH = 5.f;
+		ANTNBufferDisplay *display = new ANTNBufferDisplay();
+		display->module = module;
+		display->audioBarBelow = kAudioBarBelow;
+		display->box = theme::specificRect(theme::kSideMargin, kBufferTop, w - 2.f * theme::kSideMargin, kAudioBarBelow + kBarH);
+		addChild(display);
 
-		// The stereo out, under the L and R labels
-		const float kStereoRight = 22.f;   // from L to R
-		const theme::Pos outL = theme::specificCorner(49, 340, theme::kTinyJackSize);
-		addOutput(theme::output<TinyPJ301MPort>(outL, module, ANTN::OUTL_OUTPUT));
-		addOutput(theme::output<TinyPJ301MPort>(outL.right(kStereoRight), module, ANTN::OUTR_OUTPUT));
+		// GAIN and LISTEN on the panel's centre, at their old heights (the knob's corner 183, the old LEDBezel's centre).
+		// LISTEN is a momentary BidooRoundButton, lit while a stream plays (the old light's green or blue); the screen's
+		// status line says what the old light's colours told (connecting, buffering, failed)
+		const theme::Size kBezelSize = {21.26028f, 21.25987f};   // the old LEDBezel, for its centre
+		const theme::Pos gain = theme::sameCol(theme::specific(w * 0.5f, 0), theme::specificCorner(0, 183, theme::kBlueKnobSize).y);
+		const theme::Pos listen = theme::sameCol(gain, theme::specificCorner(0, 246, kBezelSize).y);
+		addParam(theme::param<BidooBlueKnob>(gain, module, ANTN::GAIN_PARAM));
+		BidooRoundButton *listenButton = theme::param<BidooRoundButton>(listen, module, ANTN::TRIG_PARAM);
+		listenButton->momentary = true;
+		listenButton->litBy = [=]() { return module && module->playing; };
+		addParam(listenButton);
+
+		// The stereo out: full jacks, one box each, half a column in from the outer columns of three (antn.py N)
+		const int n = 3;
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(0.5f, n, 0, w), module, ANTN::OUTL_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(1.5f, n, 0, w), module, ANTN::OUTR_OUTPUT));
 	}
 
   void appendContextMenu(ui::Menu *menu) override {

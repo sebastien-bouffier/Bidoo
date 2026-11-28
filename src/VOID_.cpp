@@ -25,7 +25,8 @@ struct VOIDWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/VOID.svg"));
 
-		theme::addScrews(this);   // a blank panel: the screws are its only widgets
+		// The panel of tools/panels/void.py: the old drawing, the title and the logo. The screws are its only widgets
+		theme::addScrews(this);
 	}
 };
 
