@@ -277,45 +277,65 @@ struct ZouSeqExpanderWidget : BidooWidget {
 	ZouSeqExpanderWidget(E *module) {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, E::Traits::PANEL));
-		// The zOu MAi expander's widget: eight rows of fill, force and kill buttons with their CV
-		// jacks, the dice knob and jack, transpose, and the rotation trimpots and jacks. Every column already sits within
-		// 0.3 px of its label tag: each position keeps its old corner (specific), with the widget's own size.
+		// The expander's widget: eight rows of fill, force and kill buttons over their inputs, the dice knob and input,
+		// the transpose button over its input, the rotation trimpots and inputs. The panel is tools/panels/zouseq_panel.py
+		// (expander), which draws the boxes and labels at these places (its names for them in brackets).
 
 		theme::addScrews(this);
 
-		const float xInputAnchor = 7.5f;
-		const float xOffset = 23.50f;
-		const float xControlAnchor = 10.0f;
-		const float yInputAnchor = 76.0f;
-		const float yControlAnchor = 56.0f;
-		const float yButtonOffset = 4.0f;
-		const float yOffset = 38.0f;
+		// The rows, 38 px apart (ROW_PITCH). In a row: the buttons (BUTTON_Y0, 0.8 px higher than before), the inputs
+		// under them at their old height (JACK_Y0), the rest on the middle line (MID_Y0, the inputs' old height; the
+		// knob and trimpots were 0.3 and 0.1 px lower)
+		const float kRowPitch = 38.0f;
+		const theme::Pos button = theme::specific(0.0f, 64.5f);
+		const theme::Pos mid = theme::specificCorner(0.0f, 69.0f, theme::kTinyJackSize);
+		// The columns: FILL 1.5 px left and FORCE 1 px right of before, to leave the track numbers room between their
+		// buttons (FILL_X, FORCE_X); KILL, DICE, TRSP and the rotation at their old corners
+		const theme::Pos fill = theme::specificCorner(6.0f, 76.0f, theme::kTinyJackSize);
+		const theme::Pos force = theme::specificCorner(32.0f, 76.0f, theme::kTinyJackSize);
+		const theme::Pos kill = theme::specificCorner(54.5f, 76.0f, theme::kTinyJackSize);
+		const theme::Pos trsp = theme::specificCorner(125.0f, 76.0f, theme::kTinyJackSize);
+		const theme::Size kSmallKnobSize = {mm2px(8.0f), mm2px(8.0f)};   // BidooSmallBlueKnob
+		const theme::Pos diceKnob = theme::colRow(theme::specificCorner(73.5f, 65.0f, kSmallKnobSize), mid);
+		const theme::Pos dice = theme::colRow(theme::specificCorner(101.5f, 69.0f, theme::kTinyJackSize), mid);
+		const theme::Pos rotShift = theme::colRow(theme::specificCorner(151.0f, 67.0f, theme::kTrimpotSize), mid);
+		const theme::Pos rotLen = theme::colRow(theme::specificCorner(179.2f, 67.0f, theme::kTrimpotSize), mid);
+		const theme::Pos rotLeft = theme::colRow(theme::specificCorner(207.25f, 69.0f, theme::kTinyJackSize), mid);
+		const theme::Pos rotRight = theme::colRow(theme::specificCorner(230.75f, 69.0f, theme::kTinyJackSize), mid);
 
+		// FILL, FORCE and KILL: BidooRoundButtons, momentary as the old bezels, lit by their state (the old green light).
+		// 16 px (BUTTON_SIZE): at 20 a button and the box of the input under it don't fit in a 38 px row
+		const float kButtonSize = 16.0f;
+		auto stateButton = [&](theme::Pos p, int paramId, int lightId) {
+			BidooRoundButton *b = createParam<BidooRoundButton>(Vec(), module, paramId);
+			b->box.size = Vec(kButtonSize, kButtonSize);
+			b->momentary = true;
+			b->litBy = [=]() { return module && module->lights[lightId].getBrightness() > 0.5f; };
+			addParam(theme::place(b, p));
+		};
 
-		for (int i = 0; i<8; i++) {
-			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::FILL_INPUT+i), xInputAnchor, yInputAnchor+i*yOffset));
-			addParam(theme::atCorner(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(), module, E::FILL_PARAM+i, E::FILL_LIGHT+i*3), xControlAnchor, yControlAnchor+i*yOffset+yButtonOffset));
+		for (int i = 0; i < 8; i++) {
+			const float dy = kRowPitch * i;
+			stateButton(theme::colRow(fill, button).down(dy), E::FILL_PARAM + i, E::FILL_LIGHT + i * 3 + 1);
+			addInput(theme::input<TinyPJ301MPort>(fill.down(dy), module, E::FILL_INPUT + i));
+			stateButton(theme::colRow(force, button).down(dy), E::FORCE_PARAM + i, E::FORCE_LIGHT + i * 3 + 1);
+			addInput(theme::input<TinyPJ301MPort>(force.down(dy), module, E::FORCE_INPUT + i));
+			stateButton(theme::colRow(kill, button).down(dy), E::KILL_PARAM + i, E::KILL_LIGHT + i * 3 + 1);
+			addInput(theme::input<TinyPJ301MPort>(kill.down(dy), module, E::KILL_INPUT + i));
 
-			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::FORCE_INPUT+i), xInputAnchor+xOffset, yInputAnchor+i*yOffset));
-			addParam(theme::atCorner(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(), module, E::FORCE_PARAM+i, E::FORCE_LIGHT+i*3), xControlAnchor+xOffset, yControlAnchor+i*yOffset+yButtonOffset));
+			addParam(theme::param<BidooSmallBlueKnob>(diceKnob.down(dy), module, E::DICE_PARAM + i));
+			addInput(theme::input<TinyPJ301MPort>(dice.down(dy), module, E::DICE_INPUT + i));
 
-			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::KILL_INPUT+i), xInputAnchor+2*xOffset, yInputAnchor+i*yOffset));
-			addParam(theme::atCorner(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(), module, E::KILL_PARAM+i, E::KILL_LIGHT+i*3), xControlAnchor+2*xOffset, yControlAnchor+i*yOffset+yButtonOffset));
+			// the transpose mode keeps its bezel and its two colours (blue: semitones, green: octaves), 0.3 px left onto
+			// its input's column (TRSP_X)
+			addParam(theme::place(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(), module, E::TRSPTYPE_PARAM + i, E::TRSPTYPE_LIGHT + i * 3), theme::colRow(trsp, button).down(dy)));
+			addInput(theme::input<TinyPJ301MPort>(trsp.down(dy), module, E::TRSP_INPUT + i));
 
-			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::DICE_INPUT+i), xInputAnchor+4*xOffset, yInputAnchor+i*yOffset - 7.0f));
-			addParam(theme::atCorner(createParam<BidooSmallBlueKnob>(Vec(), module, E::DICE_PARAM+i), xControlAnchor+3*xOffset-7, yControlAnchor+i*yOffset+9));
-
-			addParam(theme::atCorner(createLightParam<SmallLEDLightBezel<RedGreenBlueLight>>(Vec(), module, E::TRSPTYPE_PARAM+i, E::TRSPTYPE_LIGHT+i*3), xControlAnchor+5*xOffset, yControlAnchor+i*yOffset+yButtonOffset));
-			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::TRSP_INPUT+i), xInputAnchor + 5.0f*xOffset, yInputAnchor + i*yOffset));
-
-			addParam(theme::atCorner(createParam<BidooBlueSnapTrimpot>(Vec(), module, E::ROTSHIFT_PARAM+i), xControlAnchor+6.0f*xOffset, yControlAnchor+i*yOffset+11.0f));
-			addParam(theme::atCorner(createParam<BidooBlueSnapTrimpot>(Vec(), module, E::ROTLEN_PARAM+i), xControlAnchor+7.2f*xOffset, yControlAnchor+i*yOffset+11.0f));
-
-			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::ROTLEFT_INPUT+i), xInputAnchor + 8.5*xOffset, yInputAnchor + i*yOffset-7.0f));
-			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, E::ROTRIGHT_INPUT+i), xInputAnchor + 9.5*xOffset, yInputAnchor+ i*yOffset-7.0f));
-
+			addParam(theme::param<BidooBlueSnapTrimpot>(rotShift.down(dy), module, E::ROTSHIFT_PARAM + i));
+			addParam(theme::param<BidooBlueSnapTrimpot>(rotLen.down(dy), module, E::ROTLEN_PARAM + i));
+			addInput(theme::input<TinyPJ301MPort>(rotLeft.down(dy), module, E::ROTLEFT_INPUT + i));
+			addInput(theme::input<TinyPJ301MPort>(rotRight.down(dy), module, E::ROTRIGHT_INPUT + i));
 		}
-
 	}
 
 };

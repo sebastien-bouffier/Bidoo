@@ -3102,28 +3102,13 @@ void zouTrackKey(M *mod, const int key, const int track) {
 	}
 }
 
-struct ZouRecordBtn : SvgSwitch {
-	ZouRecordBtn() {
-		momentary = false;
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledgrey.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledred.svg")));
-		sw->wrap();
-		shadow->opacity = 0.0f;
-	}
-};
-
-struct ZouQuantizeBtn : SvgSwitch {
-	ZouQuantizeBtn() {
-		momentary = false;
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledgrey.svg")));
-		addFrame(APP->window->loadSvg(asset::plugin(pluginInstance,"res/ComponentLibrary/ledblue.svg")));
-		sw->wrap();
-		shadow->opacity = 0.0f;
-	}
-};
-
+// The octave buttons: BidooRoundButtons, momentary as the old bezels, lit on the trig's octave (ZouSeqWidget sets litBy).
 template <typename M>
-struct ZouOctaveBtn : SmallLEDLightBezel<RedGreenBlueLight> {
+struct ZouOctaveBtn : BidooRoundButton {
+	ZouOctaveBtn() {
+		momentary = true;
+	}
+
 	void onButton(const event::Button &e) override {
 		M *mod = static_cast<M*>(getParamQuantity()->module);
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
@@ -3140,7 +3125,7 @@ struct ZouOctaveBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 			e.consume(this);
 			return;
 		}
-		SmallLEDLightBezel<RedGreenBlueLight>::onButton(e);
+		BidooRoundButton::onButton(e);
 	}
 };
 
@@ -3220,8 +3205,13 @@ struct ZouPageBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 	}
 };
 
+// The select buttons: BidooRoundButtons, momentary as the old bezels, lit on the selected track (ZouSeqWidget sets litBy).
 template <typename M>
-struct ZouTrackSelectBtn : SmallLEDLightBezel<RedGreenBlueLight> {
+struct ZouTrackSelectBtn : BidooRoundButton {
+	ZouTrackSelectBtn() {
+		momentary = true;
+	}
+
 	void onButton(const event::Button &e) override {
 		M *mod = static_cast<M*>(getParamQuantity()->module);
 		if (e.button == GLFW_MOUSE_BUTTON_LEFT && e.action == GLFW_PRESS) {
@@ -3238,13 +3228,13 @@ struct ZouTrackSelectBtn : SmallLEDLightBezel<RedGreenBlueLight> {
 			}
 			e.consume(this);
 		}
-		SmallLEDLightBezel<RedGreenBlueLight>::onButton(e);
+		BidooRoundButton::onButton(e);
 	}
 
 	void onHoverKey(const HoverKeyEvent& e) override {
 		if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT)
 			zouTrackKey(static_cast<M*>(getParamQuantity()->module), e.key, getParamQuantity()->paramId - M::TRACKSELECT_PARAMS);
-		SmallLEDLightBezel<RedGreenBlueLight>::onHoverKey(e);
+		BidooRoundButton::onHoverKey(e);
 	}
 };
 
@@ -3777,11 +3767,15 @@ struct ZouSeqWidget : BidooWidget {
 	ZouSeqWidget(M *module) {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, M::Traits::PANEL));
-		// zOu MAi's widget and its layout. A dense, hand-drawn panel whose controls already sit within
-		// 0.4 px of their labels and boxes: every position keeps its old corner (specific), with the widget's own size.
+		// zOu MAi's and enCORE's widget. The panel is tools/panels/zouseq_panel.py (sequencer), which draws the boxes and
+		// labels at the places below (its names for them in brackets in the comments). The arrangement is the old
+		// hand-drawn one; the knobs under the screens, the steps, the keyboard and the page buttons keep their old corners.
+		// The LED bezels that show several colours (steps, notes, track on/off, pages) stay as they were; the buttons that
+		// show one state are BidooRoundButtons lit by it.
 
 		theme::addScrews(this);
 
+		// The two screens, drawn by the widget where they were
 		{
 			ZouSeqDisplay<M> *display = new ZouSeqDisplay<M>();
 			display->module = module;
@@ -3789,15 +3783,17 @@ struct ZouSeqWidget : BidooWidget {
 			addChild(display);
 		}
 
+		// The global inputs down the left (old corner x 10, y 30 to 210, 45 px apart: LEFT_Y0, LEFT_PITCH), the pattern
+		// knob under them at its old corner
+		const float kLeftPitch = 45.0f;
+		const theme::Pos left = theme::specificCorner(10.0f, 30.0f, theme::kJackSize);
+		const int leftIds[5] = {M::EXTCLOCK_INPUT, M::RESET_INPUT, M::G1_INPUT, M::G2_INPUT, M::PATTERN_INPUT};
+		for (int i = 0; i < 5; i++)
+			addInput(theme::input<PJ301MPort>(left.down(kLeftPitch * i), module, leftIds[i]));
+		addParam(theme::atCorner(createParam<ZouPatternBtn<M>>(Vec(), module, M::PATTERN_PARAM), 7.0f, 242.0f));
+
+		// The knobs under the screens, at their old corners (the screens' columns are their centres, ZouSeqDisplay)
 		static const float portY0[7] = {30.0f, 75.0f, 120.0f, 165.0f, 210.0f, 255.0f, 294.0f};
-
-		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::EXTCLOCK_INPUT), 10.0f, portY0[0]));
-		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::RESET_INPUT), 10.0f, portY0[1]));
-		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::G1_INPUT), 10.0f, portY0[2]));
-		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::G2_INPUT), 10.0f, portY0[3]));
-		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::PATTERN_INPUT), 10.0f, portY0[4]));
-		addParam(theme::atCorner(createParam<ZouPatternBtn<M>>(Vec(), module, M::PATTERN_PARAM), 7.f, portY0[5]-13.f));
-
 		static const float portX0Controls[6] = {142.0f, 175.0f, 208.0f, 241.0f, 284.0f, 336.0f};
 		static const float portX1Controls[6] = {147.0f, 184.0f, 221.0f, 258.0f, 295.0f, 332.0f};
 
@@ -3854,73 +3850,88 @@ struct ZouSeqWidget : BidooWidget {
 		addParam(theme::atCorner(createParam<ZouScreenBtn<M>>(Vec(), module, M::TRACKPAGE2_PARAM), 141.0f, 31.0f));
 		addParam(theme::atCorner(createParam<ZouScreenBtn<M>>(Vec(), module, M::TRIGPAGE2_PARAM), 141.0f, 108.0f));
 
-		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::FILL_INPUT), 10.0f, portY0[6]+4.0f));
-		addParam(theme::atCorner(createParam<BlueCKD6>(Vec(), module, M::FILL_PARAM), 40.0f, portY0[6]-1.0f+3.0f));
-		addChild(theme::atCorner(createLight<SmallLight<BlueLight>>(Vec(), module, M::FILL_LIGHT), 51.5f, portY0[6]-8.0f));
+		// FILL and RUN in their boxes (old corners y 298, x 10 and 74: FILL_Y, RUN_X), each with its button at the end of
+		// its line: BidooRoundButtons at the old CKD6s' centres (FILL_BUTTON_X, RUN_BUTTON_X), on their jack's row (0.15 px
+		// up), momentary as before, lit while fill is on (the old blue light's state) and while running
+		const float kFillButtonX = 54.0f, kRunButtonX = 118.0f;
+		const theme::Pos fill = theme::specificCorner(10.0f, 298.0f, theme::kJackSize);
+		const theme::Pos run = theme::specificCorner(74.0f, 298.0f, theme::kJackSize);
+		addInput(theme::input<PJ301MPort>(fill, module, M::FILL_INPUT));
+		BidooRoundButton *fillButton = theme::param<BidooRoundButton>(theme::sameRow(fill, kFillButtonX), module, M::FILL_PARAM);
+		fillButton->momentary = true;
+		fillButton->litBy = [=]() { return module && module->lights[M::FILL_LIGHT].getBrightness() > 0.5f; };
+		addParam(fillButton);
+		addInput(theme::input<PJ301MPort>(run, module, M::RUN_INPUT));
+		BidooRoundButton *runButton = theme::param<BidooRoundButton>(theme::sameRow(run, kRunButtonX), module, M::RUN_PARAM);
+		runButton->momentary = true;
+		runButton->litBy = [=]() { return module && module->run; };
+		addParam(runButton);
 
-		addInput(theme::atCorner(createInput<PJ301MPort>(Vec(), module, M::RUN_INPUT), 74.0f, portY0[6]+4.0f));
-    addParam(theme::atCorner(createParam<BlueCKD6>(Vec(), module, M::RUN_PARAM), 104.0f, portY0[6]-1.0f+3.0f));
+		// The page buttons (red: the playhead's page, blue: the page shown), at their old corners
+		for (int i = 0; i < 4; i++)
+			addParam(theme::atCorner(createLightParam<ZouPageBtn<M>>(Vec(), module, M::TRIGPAGE_PARAM + i, M::TRIGPAGE_LIGHTS + 3 * i), 378.5f + 19.0f * i, 314.5f));
 
-		//static const float portX0[5] = {374.0f, 389.0f, 404.0f, 419.0f, 434.0f};
-
-		for (size_t i=0;i<4;i++) {
-			addParam(theme::atCorner(createLightParam<ZouPageBtn<M>>(Vec(), module, M::TRIGPAGE_PARAM+i, M::TRIGPAGE_LIGHTS+3*i), 380+19*i-1.5f, 317.0f-2.5f));
+		// The tracks, 28 px apart (TRACK_PITCH): the reset and on/off inputs at their old corners (50 and 70, 67: RST_X,
+		// ACT_X, TRACK_Y0), the on/off button on their row (old corner x 90, 0.13 px up: ONOFF_X; green on, blue solo),
+		// the select button a BidooRoundButton lit on the selected track, 2.2 px right of the old one (SEL_X)
+		const float kTrackPitch = 28.0f, kSelX = 125.0f;
+		const theme::Size kBezelSize = {21.26028f, 21.25987f};   // LEDLightBezel (VCVBezel.svg)
+		const theme::Pos rst = theme::specificCorner(50.0f, 67.0f, theme::kTinyJackSize);
+		const theme::Pos act = theme::specificCorner(70.0f, 67.0f, theme::kTinyJackSize);
+		const theme::Pos onOff = theme::colRow(theme::specificCorner(90.0f, 64.0f, kBezelSize), rst);
+		const theme::Pos sel = theme::sameRow(rst, kSelX);
+		for (int i = 0; i < 8; i++) {
+			const float dy = kTrackPitch * i;
+			addInput(theme::input<TinyPJ301MPort>(rst.down(dy), module, M::TRACKRESET_INPUTS + i));
+			addInput(theme::input<TinyPJ301MPort>(act.down(dy), module, M::TRACKACTIVE_INPUTS + i));
+			addParam(theme::place(createLightParam<ZouTrackOnOffBtn<M>>(Vec(), module, M::TRACKSONOFF_PARAMS + i, M::TRACKSONOFF_LIGHTS + 3 * i), onOff.down(dy)));
+			ZouTrackSelectBtn<M> *b = theme::param<ZouTrackSelectBtn<M>>(sel.down(dy), module, M::TRACKSELECT_PARAMS + i);
+			b->litBy = [=]() { return module && module->currentTrack == i; };
+			addParam(b);
 		}
 
-		for (size_t i=0;i<8;i++){
-			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, M::TRACKRESET_INPUTS + i), 50.0f, 67.0f + i*28.0f));
-			addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, M::TRACKACTIVE_INPUTS + i), 70.0f, 67.0f + i*28.0f));
-
-			addParam(theme::atCorner(createLightParam<ZouTrackOnOffBtn<M>>(Vec(), module, M::TRACKSONOFF_PARAMS+i, M::TRACKSONOFF_LIGHTS+3*i), 90.0f, 64.0f + i*28.0f));
-
-
-			addParam(theme::atCorner(createLightParam<ZouTrackSelectBtn<M>>(Vec(), module, M::TRACKSELECT_PARAMS+i, M::TRACKSELECT_LIGHTS+3*i), 120.0f -2.5f, 72.0f -2.5f + i*28.0f));
-
-			addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::GATE_OUTPUTS + i), 375.0f, 65.0f + i * 20.0f));
-			addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::VO_OUTPUTS + i), 395.0f, 65.0f + i * 20.0f));
-			addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::CV1_OUTPUTS + i), 415.0f, 65.0f + i * 20.0f));
-			addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::CV2_OUTPUTS + i), 435.0f, 65.0f + i * 20.0f));
+		// The outputs, 20 px apart both ways from their old first corner (375, 65: OUT_X0, OUT_Y0, OUT_PITCH), the poly
+		// outputs as a ninth row
+		const float kOutPitch = 20.0f;
+		const theme::Pos out = theme::specificCorner(375.0f, 65.0f, theme::kTinyJackSize);
+		const int outIds[4] = {M::GATE_OUTPUTS, M::VO_OUTPUTS, M::CV1_OUTPUTS, M::CV2_OUTPUTS};
+		const int polyIds[4] = {M::POLY_GATE_OUTPUT, M::POLY_VO_OUTPUT, M::POLY_CV1_OUTPUT, M::POLY_CV2_OUTPUT};
+		for (int j = 0; j < 4; j++) {
+			for (int i = 0; i < 8; i++)
+				addOutput(theme::output<TinyPJ301MPort>(out.right(kOutPitch * j).down(kOutPitch * i), module, outIds[j] + i));
+			addOutput(theme::output<TinyPJ301MPort>(out.right(kOutPitch * j).down(kOutPitch * 8), module, polyIds[j]));
 		}
 
-		addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::POLY_GATE_OUTPUT), 375.0f, 225.0f));
-		addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::POLY_VO_OUTPUT), 395.0f, 225.0f));
-		addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::POLY_CV1_OUTPUT), 415.0f, 225.0f));
-		addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, M::POLY_CV2_OUTPUT), 435.0f, 225.0f));
+		// The steps at their old corners (their colours are their states)
+		for (int i = 0; i < 16; i++)
+			addParam(theme::atCorner(createLightParam<ZouStepBtn<M>>(Vec(), module, M::STEPS_PARAMS + i, M::STEPS_LIGHTS + i * 3), 12.0f + 28.0f * i, 330.0f));
 
-		for (size_t i=0;i<16;i++) {
-			addParam(theme::atCorner(createLightParam<ZouStepBtn<M>>(Vec(), module, M::STEPS_PARAMS + i, M::STEPS_LIGHTS + i*3), 12.0f+ 28.0f*i, 330.0f));
+		// The octaves: BidooRoundButtons lit on the trig's octave, 22 px apart (OCTAVE_PITCH; the old 10.6 px bezels were
+		// 19 apart) and centred where the old row was (OCTAVE_X0), 1 px lower (OCTAVE_Y) so that their numbers clear the knobs
+		const float kOctavePitch = 22.0f;
+		const theme::Pos octave = theme::specific(175.8f, 262.8f);
+		for (int i = 0; i < 7; i++) {
+			ZouOctaveBtn<M> *b = theme::param<ZouOctaveBtn<M>>(octave.right(kOctavePitch * i), module, M::OCTAVE_PARAMS + i);
+			b->litBy = [=]() { return module && module->lights[M::OCTAVE_LIGHTS + 3 * i + 2].getBrightness() > 0.5f; };
+			addParam(b);
 		}
 
-		float xKeyboardAnchor = 140.0f;
-		float yKeyboardAnchor = 255.0f;
+		// The keyboard at its old corners (white keys white, the trig's note green)
+		const float xKeyboardAnchor = 140.0f;
+		const float yKeyboardAnchor = 255.0f;
+		static const float keyX[12] = {0.0f, 15.0f, 30.0f, 45.0f, 60.0f, 90.0f, 105.0f, 120.0f, 135.0f, 150.0f, 165.0f, 180.0f};
+		static const float keyY[12] = {40.0f, 20.0f, 40.0f, 20.0f, 40.0f, 40.0f, 20.0f, 40.0f, 20.0f, 40.0f, 20.0f, 40.0f};
+		for (int i = 0; i < 12; i++)
+			addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS + i, M::NOTE_LIGHTS + 3 * i), xKeyboardAnchor + keyX[i], yKeyboardAnchor + keyY[i]));
 
-		for (size_t i=0;i<7;i++) {
-			addParam(theme::atCorner(createLightParam<ZouOctaveBtn<M>>(Vec(), module, M::OCTAVE_PARAMS + i, M::OCTAVE_LIGHTS + i*3), xKeyboardAnchor + 39.5f  + i * 19.0f, yKeyboardAnchor +1.5f));
-		}
-
-		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS, M::NOTE_LIGHTS), xKeyboardAnchor, yKeyboardAnchor+40.0f));
-		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+1, M::NOTE_LIGHTS+3), xKeyboardAnchor+15.0f, yKeyboardAnchor+20.0f));
-		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+2, M::NOTE_LIGHTS+3*2), xKeyboardAnchor+30.0f, yKeyboardAnchor+40.0f));
-		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+3, M::NOTE_LIGHTS+3*3), xKeyboardAnchor+45.0f, yKeyboardAnchor+20.0f));
-		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+4, M::NOTE_LIGHTS+3*4), xKeyboardAnchor+60.0f, yKeyboardAnchor+40.0f));
-		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+5, M::NOTE_LIGHTS+3*5), xKeyboardAnchor+90.0f, yKeyboardAnchor+40.0f));
-		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+6, M::NOTE_LIGHTS+3*6), xKeyboardAnchor+105.0f, yKeyboardAnchor+20.0f));
-		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+7, M::NOTE_LIGHTS+3*7), xKeyboardAnchor+120.0f, yKeyboardAnchor+40.0f));
-		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+8, M::NOTE_LIGHTS+3*8), xKeyboardAnchor+135.0f, yKeyboardAnchor+20.0f));
-		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+9, M::NOTE_LIGHTS+3*9), xKeyboardAnchor+150.0f, yKeyboardAnchor+40.0f));
-		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+10, M::NOTE_LIGHTS+3*10), xKeyboardAnchor+165.0f, yKeyboardAnchor+20.0f));
-		addParam(theme::atCorner(createLightParam<ZouNoteBtn<M>>(Vec(), module, M::NOTE_PARAMS+11, M::NOTE_LIGHTS+3*11), xKeyboardAnchor+180.0f, yKeyboardAnchor+40.0f));
-
-
-		ZouRecordBtn* rBtn;
-		addParam(rBtn = theme::atCorner(createParam<ZouRecordBtn>(Vec(), module, M::RECORD_PARAM), 297.0f, 358.0f));
-
-		addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, M::GATE_INPUT), 327.0f, 360.0f));
-		addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, M::VO_INPUT), 356.0f, 360.0f));
-
-		ZouQuantizeBtn* qBtn;
-		addParam(qBtn = theme::atCorner(createParam<ZouQuantizeBtn>(Vec(), module, M::QUANTIZE_PARAM), 385.0f, 358.0f));
-		
+		// The record section: its inputs at their old corners (327 and 356, 360: GATE_X, VO_X, REC_Y), REC and QNT
+		// BidooRoundButtons, latched as before, at the old LED buttons' centres on the inputs' row (1 px lower: REC_X, QNT_X)
+		const float kRecX = 305.5f, kQntX = 393.5f;
+		const theme::Pos recGate = theme::specificCorner(327.0f, 360.0f, theme::kTinyJackSize);
+		addParam(theme::param<BidooRoundButton>(theme::sameRow(recGate, kRecX), module, M::RECORD_PARAM));
+		addInput(theme::input<TinyPJ301MPort>(recGate, module, M::GATE_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(356.0f, 360.0f, theme::kTinyJackSize), module, M::VO_INPUT));
+		addParam(theme::param<BidooRoundButton>(theme::sameRow(recGate, kQntX), module, M::QUANTIZE_PARAM));
 	}
 
 	struct labelTextField : TextField {

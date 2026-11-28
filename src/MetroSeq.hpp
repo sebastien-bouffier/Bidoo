@@ -1,6 +1,7 @@
 #pragma once
 #include <rack.hpp>
 #include "dep/quantizer.hpp"
+#include "BidooComponents.hpp"
 
 using namespace rack;
 
@@ -978,6 +979,7 @@ struct MetroWidget : BidooWidget {
 template <class M>
 struct MetroDisplay : TransparentWidget {
 	M *module;
+	Vec origin = Vec(0.f, 20.f);   // where the text starts in the box (metroLeftControls keeps it where it was)
 
 	// No strings built per frame: labels are static, numbers go through snprintf.
 	void drawMessage(NVGcontext *vg, Vec pos, const char *note, const char *playMode, const char *selectedPattern, const char *playedPattern, const char *steps, const char *scale) {
@@ -1029,7 +1031,7 @@ struct MetroDisplay : TransparentWidget {
 					root = module->engine.rootNote(*module, p);
 				else
 					root = p.rootNote;
-				drawMessage(args.vg, Vec(0.0f, 20.0f), displayRootNote(root), displayPlayMode(p.playMode), selectedPattern, playedPattern, steps, displayScale(p.scale));
+				drawMessage(args.vg, origin, displayRootNote(root), displayPlayMode(p.playMode), selectedPattern, playedPattern, steps, displayScale(p.scale));
 			}
 		}
 		Widget::drawLayer(args, layer);
@@ -1044,4 +1046,81 @@ void appendMetroMenu(ui::Menu *menu, M *m) {
 	menu->addChild(createMenuItem("Randomize gates", "", [=]() { m->randomizeGates(); }));
 	menu->addChild(createMenuItem("Randomize slides & skips", "", [=]() { m->randomizeSlidesSkipsEdit(); }));
 	menu->addChild(createBoolPtrMenuItem("Stage outputs on every pulse", "", &m->engine.stepOutputsMode));
+}
+
+// ---- The left section both panels share (tools/panels/metroseq_panel.py draws its labels, lines, boxes and screen)
+namespace metroPanel {
+	// the four columns: the old controls, jacks and lines were 0 to 0.5 px off them, the pattern knob 1.6 (DTROY) and
+	// 2.6 px (BORDL) right of the last. COLS in metroseq_panel.py
+	static constexpr float kCol[4] = {32.7f, 70.1f, 107.8f, 147.2f};
+	static constexpr float kBoxWidth = 29.f;       // BOX_W in metroseq_panel.py: the screen's sides are the boxes' edges
+	static constexpr float kButtonAbove = 4.f;     // RUN and RESET above the knobs' row (BUTTON_ABOVE)
+	static constexpr float kPatternY = 210.5f;     // PLAY, COUNT, the pattern jack and knob (PATTERN_Y)
+	static constexpr float kScreenTop = 228.75f, kScreenHeight = 36.55f;   // the old screen's (SCREEN)
+}
+
+template <class M>
+void metroLeftControls(ModuleWidget *mw, M *module) {
+	using namespace metroPanel;
+	const theme::Pos col[4] = {theme::specific(kCol[0], 0), theme::specific(kCol[1], 0), theme::specific(kCol[2], 0), theme::specific(kCol[3], 0)};
+	// a round button, momentary as the old ones; lit by the light the module keeps when it has one
+	auto button = [&](theme::Pos p, int paramId, int lightId) {
+		BidooRoundButton *b = theme::param<BidooRoundButton>(p, module, paramId);
+		b->momentary = true;
+		if (lightId >= 0)
+			b->litBy = [=]() { return module && module->lights[lightId].getBrightness() > 0.5f; };
+		mw->addParam(b);
+	};
+
+	// the screen, the old one with its sides on the boxes' edges; the text stays where the old 250 x 60 box put it
+	{
+		MetroDisplay<M> *display = new MetroDisplay<M>();
+		display->module = module;
+		display->box = theme::specificRect(kCol[0] - 0.5f * kBoxWidth, kScreenTop, kCol[3] - kCol[0] + kBoxWidth, kScreenHeight);
+		const theme::Pos oldText = theme::specific(20.f, 217.f + 20.f);   // the old box's corner and the text's origin in it
+		display->origin = Vec(oldText.x - display->box.pos.x, oldText.y - display->box.pos.y);
+		mw->addChild(display);
+	}
+
+	// the top row: CLOCK and STEPS knobs at their old row, RUN and RESET buttons a little above it (their labels share
+	// CLOCK's baseline); their CV jacks under them, EXT CLK under RUN in its box
+	const theme::Pos knobRow = theme::specificCorner(0, 36, theme::kBlueKnobSize);
+	const theme::Pos buttonRow = knobRow.down(-kButtonAbove);
+	const theme::Pos jackRow = theme::specificCorner(0, 69, theme::kJackSize);
+	mw->addParam(theme::param<BidooRoundBlackKnob>(theme::colRow(col[0], knobRow), module, M::CLOCK_PARAM));
+	button(theme::colRow(col[1], buttonRow), M::RUN_PARAM, M::RUNNING_LIGHT);
+	button(theme::colRow(col[2], buttonRow), M::RESET_PARAM, M::RESET_LIGHT);
+	mw->addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(col[3], knobRow), module, M::STEPS_PARAM));
+	const int topIns[4] = {M::CLOCK_INPUT, M::EXT_CLOCK_INPUT, M::RESET_INPUT, M::STEPS_INPUT};
+	for (int i = 0; i < 4; i++)
+		mw->addInput(theme::input<PJ301MPort>(theme::colRow(col[i], jackRow), module, topIns[i]));
+
+	// the middle row: KEY, SCALE, GATE and SLIDE at their old row, their CV jacks under them
+	const theme::Pos midKnobs = theme::specificCorner(0, 116, theme::kBlueKnobSize);
+	const theme::Pos midJacks = theme::specificCorner(0, 149, theme::kJackSize);
+	mw->addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(col[0], midKnobs), module, M::ROOT_NOTE_PARAM));
+	mw->addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(col[1], midKnobs), module, M::SCALE_PARAM));
+	mw->addParam(theme::param<BidooBlueKnob>(theme::colRow(col[2], midKnobs), module, M::GATE_TIME_PARAM));
+	mw->addParam(theme::param<BidooBlueKnob>(theme::colRow(col[3], midKnobs), module, M::SLIDE_TIME_PARAM));
+	const int midIns[4] = {M::ROOT_NOTE_INPUT, M::SCALE_INPUT, M::GATE_TIME_INPUT, M::SLIDE_TIME_INPUT};
+	for (int i = 0; i < 4; i++)
+		mw->addInput(theme::input<PJ301MPort>(theme::colRow(col[i], midJacks), module, midIns[i]));
+
+	// PLAY and COUNT buttons, the pattern jack and knob joined by their line, all on one row (the screen shows the
+	// play and count modes)
+	const theme::Pos patternRow = theme::specific(0, kPatternY);
+	button(theme::colRow(col[0], patternRow), M::PLAY_MODE_PARAM, -1);
+	button(theme::colRow(col[1], patternRow), M::COUNT_MODE_PARAM, -1);
+	mw->addInput(theme::input<PJ301MPort>(theme::colRow(col[2], patternRow), module, M::PATTERN_INPUT));
+	mw->addParam(theme::param<BidooRoundBlackSnapKnob>(theme::colRow(col[3], patternRow), module, M::PATTERN_PARAM));
+
+	// transpose in its box on row 1, copy on its row (lit while a pattern waits to be pasted), the shift arrows
+	// around their centre (metroseq_panel.py SHIFTS_X: their old corners 0.5 px right, 2 px lower)
+	mw->addInput(theme::input<PJ301MPort>(theme::sameCol(col[0], theme::row(1)), module, M::TRANSPOSE_INPUT));
+	button(theme::sameCol(col[1], theme::row(1)), M::COPY_PARAM, M::COPY_LIGHT);
+	const float kArrowsRight = 0.5f, kArrowsDown = 2.f;
+	mw->addParam(theme::atCorner(createParam<LeftBtn>(Vec(), module, M::LEFT_PARAM), 104 + kArrowsRight, 290 + kArrowsDown));
+	mw->addParam(theme::atCorner(createParam<RightBtn>(Vec(), module, M::RIGHT_PARAM), 134 + kArrowsRight, 290 + kArrowsDown));
+	mw->addParam(theme::atCorner(createParam<UpBtn>(Vec(), module, M::UP_PARAM), 119 + kArrowsRight, 282 + kArrowsDown));
+	mw->addParam(theme::atCorner(createParam<DownBtn>(Vec(), module, M::DOWN_PARAM), 119 + kArrowsRight, 297 + kArrowsDown));
 }

@@ -3,8 +3,9 @@
 Rules for a new module. The values live in `src/BidooTheme.hpp`; widgets use them as `theme::k...`, and
 `tools/panels/panel_kit.py` reads the same file when it draws the panels, so change them only there.
 
-The older modules have hand-drawn panels with their own positions. They move to the theme one at a time, keeping their
-arrangement (see "Migrating an older module").
+Every panel is drawn by a script in `tools/panels/` (`make_all.py` writes them all). The older modules were migrated
+from their hand-drawn panels keeping their arrangement (see "Migrating an older module"); only `res/TAPE.svg`, a graphic
+πlOT's widget draws, is not a panel.
 
 ## Colours
 
@@ -190,6 +191,18 @@ looks like itself. Only these follow the theme:
 The same width, param, input, output and light IDs, and nothing that plays sound changes. The panel becomes a script in
 `tools/panels/`; parts of the old drawing it keeps (a picture, icons) go in a file next to it (`ouaive_parts.svg`).
 The full grid is for new modules, and for an older one only when the user decides to rebuild it.
+
+What the migrations settled, with the user:
+
+- One box per jack, as the old panels had, not several jacks in one wide box. When full jacks don't fit the grid's
+  columns, the gaps between boxes narrow (2 px) or the box row comes nearer the sides (6 px, as oAï's). Strips of many
+  tiny jacks (BIsTrot, ACnE) and pairs drawn as one box on the old panel (DilEMO, MS) may stay.
+- A box never runs under a knob, trimpot or button; labels never touch.
+- A light that showed a state becomes the button's own light (`BidooRoundButton::litBy`), orange; one that showed
+  several colours with distinct meanings stays as it was (zOù MAï's steps, ACnE's mutes, πlOT's scene buttons).
+- 3 HP panels: the title at the largest size, by 0.5 steps, that leaves 3 px each side (capped at 16), the logo scaled
+  to 0.942 (tools/panels/frein.py).
+- `tools/panels/old_panel.py` reads an old panel for a migration: its labels, boxes and picture.
 
 ## The panel
 

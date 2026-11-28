@@ -80,11 +80,6 @@ struct DTROY : MetroModule<DTROY> {
 };
 
 struct DTROYWidget : MetroWidget<DTROY> {
-	ParamWidget *stepsParam, *scaleParam, *rootNoteParam, *sensitivityParam,
-	 *gateTimeParam, *slideTimeParam, *playModeParam, *countModeParam, *patternParam,
-		*pitchParams[8], *pulseParams[8], *typeParams[8], *slideParams[8], *skipParams[8],
-		 *pitchRndParams[8], *pulseProbParams[8], *accentParams[8], *rndAccentParams[8];
-
 	void appendContextMenu(ui::Menu *menu) override;
 
 	DTROYWidget(DTROY *module);
@@ -96,102 +91,53 @@ DTROYWidget::DTROYWidget(DTROY *module) {
 
 	theme::addScrews(this);
 
-	// The original hand-drawn panel. Left: the clock, run, reset and steps row with their jacks, the key, scale, gate
-	// and slide knobs with theirs, each joined by a line; play, count and the pattern knob joined by a line to its
-	// jack; the screen; transpose, copy and the shift arrows; G1, G2, GATE and V/O in their boxes. Right: the eight
-	// steps (pitch knob, pulse count and gate mode sliders, slide and skip buttons, step output), a dense grid kept at
-	// its old corners. On the left each control and jack now sits on the line the panel draws between them (the old
-	// code had them 0.15 to 0.8 px off; the lines of the two rows differ by up to 0.5 px, so each row follows its own),
-	// the pattern jack and knob on their line, and the bottom jacks on their boxes' centres.
-	const theme::Size kButtonSize = {17.9996f, 18.f};                 // LEDButton
-	const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
-	const float kLedIn = 6.f;   // from a button's corner to its light's
-	const theme::Pos topLine[4] = {theme::specific(32.594f, 0), theme::specific(70.f, 0), theme::specific(107.531f, 0), theme::specific(147.f, 0)};   // the top row's lines (the second column has none: it takes the middle row's)
-	const theme::Pos midLine[4] = {theme::specific(32.562f, 0), theme::specific(70.f, 0), theme::specific(108.f, 0), theme::specific(147.219f, 0)};   // the middle row's lines
+	// Migrated from the hand-drawn panel (tools/panels/dtroy.py), keeping its arrangement. Left: the section shared
+	// with BORDL (metroLeftControls in MetroSeq.hpp) over G1, G2, GATE and V/O in their boxes. Right: the eight
+	// stages, a dense grid at its old corners: pitch knob, pulse count and gate mode sliders, slide and skip buttons,
+	// the tiny stage output on its red square.
+	metroLeftControls(this, module);
 
-	{
-		MetroDisplay<DTROY> *display = new MetroDisplay<DTROY>();
-		display->module = module;
-		display->box = theme::specificRect(20, 217, 250, 60);
-		addChild(display);
+	// the bottom row: one box each, on the left section's columns (they were 0.1 to 1 px off them)
+	const int boxIds[4] = {DTROY::EXTGATE1_INPUT, DTROY::EXTGATE2_INPUT, DTROY::GATE_OUTPUT, DTROY::PITCH_OUTPUT};
+	for (int i = 0; i < 4; i++) {
+		const theme::Pos p = theme::specific(metroPanel::kCol[i], theme::row(0));
+		if (i < 2)
+			addInput(theme::input<PJ301MPort>(p, module, boxIds[i]));
+		else
+			addOutput(theme::output<PJ301MPort>(p, module, boxIds[i]));
 	}
 
-	addParam(theme::param<BidooRoundBlackKnob>(theme::colRow(topLine[0], theme::specificCorner(0, 36, theme::kBlueKnobSize)), module, DTROY::CLOCK_PARAM));
-	addParam(theme::param<LEDButton>(theme::specificCorner(61, 40, kButtonSize), module, DTROY::RUN_PARAM));
-	addChild(theme::light<SmallLight<GreenLight>>(theme::specificCorner(61 + kLedIn, 40 + kLedIn, kSmallLightSize), module, DTROY::RUNNING_LIGHT));
-	const theme::Pos reset = theme::colRow(topLine[2], theme::specificCorner(0, 40, kButtonSize));
-	addParam(theme::param<LEDButton>(reset, module, DTROY::RESET_PARAM));
-	addChild(theme::light<SmallLight<GreenLight>>(theme::specificCorner(reset.x - kButtonSize.w * 0.5f + kLedIn, 40 + kLedIn, kSmallLightSize), module, DTROY::RESET_LIGHT));
-	stepsParam = theme::param<BidooBlueSnapKnob>(theme::colRow(topLine[3], theme::specificCorner(0, 36, theme::kBlueKnobSize)), module, DTROY::STEPS_PARAM);
-	addParam(stepsParam);
-
-	const theme::Pos topJacks = theme::specificCorner(0, 69, theme::kJackSize);
-	addInput(theme::input<PJ301MPort>(theme::colRow(topLine[0], topJacks), module, DTROY::CLOCK_INPUT));
-	addInput(theme::input<PJ301MPort>(theme::colRow(topLine[1], topJacks), module, DTROY::EXT_CLOCK_INPUT));
-	addInput(theme::input<PJ301MPort>(theme::colRow(topLine[2], topJacks), module, DTROY::RESET_INPUT));
-	addInput(theme::input<PJ301MPort>(theme::colRow(topLine[3], topJacks), module, DTROY::STEPS_INPUT));
-
-	const theme::Pos midKnobs = theme::specificCorner(0, 116, theme::kBlueKnobSize);
-	rootNoteParam = theme::param<BidooBlueSnapKnob>(theme::colRow(midLine[0], midKnobs), module, DTROY::ROOT_NOTE_PARAM);
-	addParam(rootNoteParam);
-	scaleParam = theme::param<BidooBlueSnapKnob>(theme::colRow(midLine[1], midKnobs), module, DTROY::SCALE_PARAM);
-	addParam(scaleParam);
-	gateTimeParam = theme::param<BidooBlueKnob>(theme::colRow(midLine[2], midKnobs), module, DTROY::GATE_TIME_PARAM);
-	addParam(gateTimeParam);
-	slideTimeParam = theme::param<BidooBlueKnob>(theme::colRow(midLine[3], midKnobs), module, DTROY::SLIDE_TIME_PARAM);
-	addParam(slideTimeParam);
-
-	const theme::Pos midJacks = theme::specificCorner(0, 149, theme::kJackSize);
-	addInput(theme::input<PJ301MPort>(theme::colRow(midLine[0], midJacks), module, DTROY::ROOT_NOTE_INPUT));
-	addInput(theme::input<PJ301MPort>(theme::colRow(midLine[1], midJacks), module, DTROY::SCALE_INPUT));
-	addInput(theme::input<PJ301MPort>(theme::colRow(midLine[2], midJacks), module, DTROY::GATE_TIME_INPUT));
-	addInput(theme::input<PJ301MPort>(theme::colRow(midLine[3], midJacks), module, DTROY::SLIDE_TIME_INPUT));
-
-	playModeParam = theme::param<BlueCKD6>(theme::specificCorner(19, 196, theme::kCKD6Size), module, DTROY::PLAY_MODE_PARAM);
-	addParam(playModeParam);
-	countModeParam = theme::param<BlueCKD6>(theme::specificCorner(57, 196, theme::kCKD6Size), module, DTROY::COUNT_MODE_PARAM);
-	addParam(countModeParam);
-	const theme::Pos patternLine = theme::specific(0, 210.469f);   // the line from the pattern jack to its knob
-	addInput(theme::input<PJ301MPort>(theme::colRow(theme::specificCorner(96, 0, theme::kJackSize), patternLine), module, DTROY::PATTERN_INPUT));
-	patternParam = theme::param<BidooRoundBlackSnapKnob>(theme::colRow(theme::specificCorner(134, 0, theme::kBlueKnobSize), patternLine), module, DTROY::PATTERN_PARAM);
-	addParam(patternParam);
-
-	const float portX1[8] = {200, 238, 276, 315, 353, 392, 430, 469};   // the steps' columns, as the old panel spaces them
-
-	sensitivityParam = theme::param<BidooBlueTrimpot>(theme::specificCorner(portX1[6] + 21, 18, theme::kTrimpotSize), module, DTROY::SENSITIVITY_PARAM);
-	addParam(sensitivityParam);
-	addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(portX1[6] - 10, 18, theme::kTinyJackSize), module, DTROY::SENSITIVITY_INPUT));
-
-	addInput(theme::input<PJ301MPort>(theme::specificCorner(20, 286, theme::kJackSize), module, DTROY::TRANSPOSE_INPUT));
-	addParam(theme::param<BlueCKD6>(theme::specificCorner(57, 285, theme::kCKD6Size), module, DTROY::COPY_PARAM));
-	addChild(theme::light<SmallLight<GreenLight>>(theme::specificCorner(81, 283, kSmallLightSize), module, DTROY::COPY_LIGHT));
-
-	addParam(theme::atCorner(createParam<LeftBtn>(Vec(), module, DTROY::LEFT_PARAM), 104, 290));
-	addParam(theme::atCorner(createParam<RightBtn>(Vec(), module, DTROY::RIGHT_PARAM), 134, 290));
-	addParam(theme::atCorner(createParam<UpBtn>(Vec(), module, DTROY::UP_PARAM), 119, 282));
-	addParam(theme::atCorner(createParam<DownBtn>(Vec(), module, DTROY::DOWN_PARAM), 119, 297));
-
+	// the stages' columns, as the old panel spaces them (STAGE_X in tools/panels/dtroy.py): the sliders', buttons' and
+	// outputs' centres; the pitch knobs were 0.76 px right of them, the outputs 0.5
+	const float kStageLeft[8] = {200, 238, 276, 315, 353, 392, 430, 469};
+	const float kStageCentre = 11.f;   // from a column's left to its centre: the sliders' 18 px
+	const theme::Pos pitchRow = theme::specificCorner(0, 36, theme::kBlueKnobSize);
+	const theme::Pos slideRow = theme::specific(0, 297 + 9.f), skipRow = theme::specific(0, 321 + 9.f);   // the old 18 px LEDButtons' centres (SLIDE_Y, SKIP_Y)
+	const theme::Pos outRow = theme::specificCorner(0, 344, theme::kTinyJackSize);
 	for (int i = 0; i < 8; i++) {
-		pitchParams[i] = theme::param<BidooBlueKnob>(theme::specificCorner(portX1[i] - 3, 36, theme::kBlueKnobSize), module, DTROY::TRIG_PITCH_PARAM + i);
-		addParam(pitchParams[i]);
-		pulseParams[i] = theme::atCorner(createParam<BidooSlidePotLong>(Vec(), module, DTROY::TRIG_COUNT_PARAM + i), portX1[i] + 2, 87);
-		addParam(pulseParams[i]);
-		typeParams[i] = theme::atCorner(createParam<BidooSlidePotShort>(Vec(), module, DTROY::TRIG_TYPE_PARAM + i), portX1[i] + 2, 204);
-		addParam(typeParams[i]);
-		slideParams[i] = theme::param<LEDButton>(theme::specificCorner(portX1[i] + 2, 297, kButtonSize), module, DTROY::TRIG_SLIDE_PARAM + i);
-		addParam(slideParams[i]);
-		addChild(theme::light<SmallLight<BlueLight>>(theme::specificCorner(portX1[i] + 2 + kLedIn, 297 + kLedIn, kSmallLightSize), module, DTROY::SLIDES_LIGHTS + i));
-		skipParams[i] = theme::param<LEDButton>(theme::specificCorner(portX1[i] + 2, 321, kButtonSize), module, DTROY::TRIG_SKIP_PARAM + i);
-		addParam(skipParams[i]);
-		addChild(theme::light<SmallLight<BlueLight>>(theme::specificCorner(portX1[i] + 2 + kLedIn, 321 + kLedIn, kSmallLightSize), module, DTROY::SKIPS_LIGHTS + i));
-		addOutput(theme::output<TinyPJ301MPort>(theme::specificCorner(portX1[i] + 4, 344, theme::kTinyJackSize), module, DTROY::STEP_OUTPUT + i));
+		const theme::Pos stage = theme::specific(kStageLeft[i] + kStageCentre, 0);
+		addParam(theme::param<BidooBlueKnob>(theme::colRow(stage, pitchRow), module, DTROY::TRIG_PITCH_PARAM + i));
+		addParam(theme::atCorner(createParam<BidooSlidePotLong>(Vec(), module, DTROY::TRIG_COUNT_PARAM + i), kStageLeft[i] + 2, 87));
+		addParam(theme::atCorner(createParam<BidooSlidePotShort>(Vec(), module, DTROY::TRIG_TYPE_PARAM + i), kStageLeft[i] + 2, 204));
+		// slide and skip: round buttons, momentary as before, lit by their lights (the state, flipped while the stage plays)
+		const int lights[2] = {DTROY::SLIDES_LIGHTS + i, DTROY::SKIPS_LIGHTS + i};
+		const int ids[2] = {DTROY::TRIG_SLIDE_PARAM + i, DTROY::TRIG_SKIP_PARAM + i};
+		const theme::Pos rows[2] = {slideRow, skipRow};
+		for (int j = 0; j < 2; j++) {
+			BidooRoundButton *b = theme::param<BidooRoundButton>(theme::colRow(stage, rows[j]), module, ids[j]);
+			b->momentary = true;
+			const int lightId = lights[j];
+			b->litBy = [=]() { return module && module->lights[lightId].getBrightness() > 0.5f; };
+			addParam(b);
+		}
+		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(stage, outRow), module, DTROY::STEP_OUTPUT + i));
 	}
 
-	const theme::Pos boxRow = theme::specificCorner(0, 330, theme::kJackSize);   // the boxes' centres
-	addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(32.281f, 0), boxRow), module, DTROY::EXTGATE1_INPUT));
-	addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(70.375f, 0), boxRow), module, DTROY::EXTGATE2_INPUT));
-	addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(107.562f, 0), boxRow), module, DTROY::GATE_OUTPUT));
-	addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(146.094f, 0), boxRow), module, DTROY::PITCH_OUTPUT));
+	// the pitch sensitivity: its tiny jack and trimpot on the PITCH bracket's line (they were 0.16 px higher and
+	// 1.94 px lower), at their old columns
+	const theme::Pos pitchLine = theme::specific(0, 25.66f);   // PITCH_LINE in tools/panels/dtroy.py
+	addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specificCorner(kStageLeft[6] - 10, 0, theme::kTinyJackSize), pitchLine), module, DTROY::SENSITIVITY_INPUT));
+	addParam(theme::param<BidooBlueTrimpot>(theme::colRow(theme::specificCorner(kStageLeft[6] + 21, 0, theme::kTrimpotSize), pitchLine), module, DTROY::SENSITIVITY_PARAM));
 }
 
 void DTROYWidget::appendContextMenu(ui::Menu *menu) {

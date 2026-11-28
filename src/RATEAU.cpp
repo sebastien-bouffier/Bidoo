@@ -863,72 +863,97 @@ RATEAUWidget::RATEAUWidget(RATEAU *module) {
 
 	theme::addScrews(this);
 
-	// The original hand-drawn panel: the CLK/RUN and RST boxes, the INDEP and MATRIX buttons, the pattern knob joined
-	// by a line to its PTRN jack; the screen and its seven mode buttons; a 4 x 4 grid of knobs with the A outputs in
-	// the red column on the right and the B outputs in the red row below, and a mute button for each. Old corners kept,
-	// except: the outputs and mute buttons, now exactly on the knobs' rows and columns (the old code centred a jack
-	// under a knob with 3.5 px instead of the 2.91 the sizes give, so they sat 0.59 px off and the mutes 0.31), and the
-	// pattern knob, now on the line to its jack (0.55 px above it).
-	const float kKnobPitch = 43.f;   // across and down in the grid
+	// The panel of tools/panels/rateau.py: the old arrangement. The top row (CLK with RUN and its trigger, RST, the
+	// modes, the pattern knob and PTRN), the screen and its seven page buttons (screen tabs, kept), the 4 x 4 knobs with
+	// a mute per row and per column, the A outputs on the knobs' rows in a column on the right and the B outputs on the
+	// bottom row under the knobs' columns, one red box each. Old corners kept (specific), except where said.
+	const float w = box.size.x;
+	const float kKnobPitch = 43.f;   // across and down in the grid, PITCH in rateau.py
 	const float kBtnPitch = 30.f;
-	const float kLedIn = 6.f;        // from a button's corner to its light's
-	const theme::Size kButtonSize = {17.9996f, 18.f};                 // BidooLEDButton
-	const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
-	const theme::Size kMiniButtonSize = {mm2px(1.8f), mm2px(1.8f)};   // MiniLEDButton
+	const theme::Size kPageBtnSize = {22.f, 16.f};   // the page buttons' SVGs
 
-	const float btnTop = 116;
-	addParam(theme::atCorner(createParam<divRateauBtn>(Vec(), module, RATEAU::DIV_PARAM), 11, btnTop));
-	addParam(theme::atCorner(createParam<stepRateauBtn>(Vec(), module, RATEAU::STEP_PARAM), 11 + kBtnPitch, btnTop));
-	addParam(theme::atCorner(createParam<probRateauBtn>(Vec(), module, RATEAU::PROB_PARAM), 11 + 2 * kBtnPitch, btnTop));
-	addParam(theme::atCorner(createParam<speedRateauBtn>(Vec(), module, RATEAU::SPEED_PARAM), 11 + 3 * kBtnPitch, btnTop));
-	addParam(theme::atCorner(createParam<clockshiftRateauBtn>(Vec(), module, RATEAU::CLOCKSHIFT_PARAM), 11 + 4 * kBtnPitch, btnTop));
-	addParam(theme::atCorner(createParam<timeshiftRateauBtn>(Vec(), module, RATEAU::TIMESHIFT_PARAM), 11 + 5 * kBtnPitch, btnTop));
-	addParam(theme::atCorner(createParam<pulsewidthRateauBtn>(Vec(), module, RATEAU::PULSEWIDTH_PARAM), 11 + 6 * kBtnPitch, btnTop));
+	// the page buttons under the screen
+	const theme::Pos page = theme::specificCorner(11, 116, kPageBtnSize);
+	addParam(theme::param<divRateauBtn>(page, module, RATEAU::DIV_PARAM));
+	addParam(theme::param<stepRateauBtn>(page.right(kBtnPitch), module, RATEAU::STEP_PARAM));
+	addParam(theme::param<probRateauBtn>(page.right(2 * kBtnPitch), module, RATEAU::PROB_PARAM));
+	addParam(theme::param<speedRateauBtn>(page.right(3 * kBtnPitch), module, RATEAU::SPEED_PARAM));
+	addParam(theme::param<clockshiftRateauBtn>(page.right(4 * kBtnPitch), module, RATEAU::CLOCKSHIFT_PARAM));
+	addParam(theme::param<timeshiftRateauBtn>(page.right(5 * kBtnPitch), module, RATEAU::TIMESHIFT_PARAM));
+	addParam(theme::param<pulsewidthRateauBtn>(page.right(6 * kBtnPitch), module, RATEAU::PULSEWIDTH_PARAM));
 
-	addInput(theme::input<PJ301MPort>(theme::specificCorner(6, 48.5f, theme::kJackSize), module, RATEAU::CLOCK_INPUT));
-	// RUN: the internal clock's start / stop, in the CLK box
-	addParam(theme::param<MiniLEDButton>(theme::specificCorner(36.85f, 46.3f, kMiniButtonSize), module, RATEAU::STARTSTOP_PARAM));
-	addChild(theme::light<SmallLight<BlueLight>>(theme::specificCorner(36.55f, 46.0f, kSmallLightSize), module, RATEAU::STARTSTOP_LIGHT));
-	addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(32, 57, theme::kTinyJackSize), module, RATEAU::STARTSTOP_INPUT));
-	addInput(theme::input<PJ301MPort>(theme::specificCorner(52, 48.5f, theme::kJackSize), module, RATEAU::RESET_INPUT));
+	// a round button lit by a light of the module
+	auto button = [&](theme::Pos p, int paramId, int lightId) {
+		BidooRoundButton *b = theme::param<BidooRoundButton>(p, module, paramId);
+		b->momentary = true;
+		b->litBy = [=]() { return module && module->lights[lightId].getBrightness() > 0.5f; };
+		addParam(b);
+		return b;
+	};
+	const float kSmallButton = 10.f;   // RUN and the mutes, in the old mini buttons' room
+	auto small = [&](BidooRoundButton *b, theme::Pos p) {
+		b->box.size = Vec(kSmallButton, kSmallButton);   // placed again at the same centre
+		theme::place(b, p);
+	};
 
-	const float modeLeft[3] = {80, 102.5f, 125};
+	// the top row: CLK and RST at their old corners; RUN and its trigger 1.5 px left, 3 and 2 px lower (RUN's caption on
+	// the row's baseline); the pattern knob on the row (0.04 px lower), joined to PTRN, which is centred in its box with
+	// the A column (1.65 px right)
+	const theme::Pos clk = theme::specificCorner(6, 48.5f, theme::kJackSize);   // TOP_Y in rateau.py
+	addInput(theme::input<PJ301MPort>(clk, module, RATEAU::CLOCK_INPUT));
+	addInput(theme::input<PJ301MPort>(theme::sameRow(clk, theme::specificCorner(52, 0, theme::kJackSize).x), module, RATEAU::RESET_INPUT));
+	const float kRunX = 38.f, kRunY = 52.f, kRunJackY = 66.5f;   // RUN_X, RUN_Y, RUN_JACK_Y in rateau.py
+	small(button(theme::specific(kRunX, kRunY), RATEAU::STARTSTOP_PARAM, RATEAU::STARTSTOP_LIGHT), theme::specific(kRunX, kRunY));
+	addInput(theme::input<TinyPJ301MPort>(theme::specific(kRunX, kRunJackY), module, RATEAU::STARTSTOP_INPUT));
+	const float kRightX = 0.5f * (184.f + w - theme::kSideMargin);   // RIGHT_X: PTRN and the A column, in their boxes
+	addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(theme::specificCorner(149, 0, theme::kBlueKnobSize), clk), module, RATEAU::BANK_PARAM));
+	addInput(theme::input<PJ301MPort>(theme::sameRow(clk, kRightX), module, RATEAU::BANK_INPUT));
+
+	// the modes: INDEP A, INDEP B and MATRIX at the old LED buttons' centres, lit by the mode in use; the mode jack
+	// under MATRIX, 1 px lower to give its box room
+	const theme::Size kLEDButtonSize = {17.9996f, 18.f};   // the old LEDButtons: their centres
+	const float kModeLeft[3] = {80, 102.5f, 125};           // MODE_X in rateau.py
 	const int modeIds[3] = {RATEAU::INDEPEDITA_PARAM, RATEAU::INDEPEDITB_PARAM, RATEAU::MATRIX_PARAM};
 	const int modeLights[3] = {RATEAU::INDEPEDITA_LIGHT, RATEAU::INDEPEDITB_LIGHT, RATEAU::MATRIX_LIGHT};
+	theme::Pos matrix;
 	for (int i = 0; i < 3; i++) {
-		addParam(theme::param<BidooLEDButton>(theme::specificCorner(modeLeft[i], 45, kButtonSize), module, modeIds[i]));
-		addChild(theme::light<SmallLight<BlueLight>>(theme::specificCorner(modeLeft[i] + kLedIn, 45 + kLedIn, kSmallLightSize), module, modeLights[i]));
+		matrix = theme::specificCorner(kModeLeft[i], 45, kLEDButtonSize);
+		button(matrix, modeIds[i], modeLights[i]);
 	}
-	addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(126.5f, 67, theme::kTinyJackSize), module, RATEAU::MODE_INPUT));
-
-	const theme::Pos ptrn = theme::specificCorner(187, 48.5f, theme::kJackSize);
-	addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(theme::specificCorner(149, 0, theme::kBlueKnobSize), theme::specific(0, 60.312f)), module, RATEAU::BANK_PARAM));   // on the line to PTRN
-	addInput(theme::input<PJ301MPort>(ptrn, module, RATEAU::BANK_INPUT));
+	const float kModeJackY = 75.5f;   // MODE_JACK_Y in rateau.py
+	addInput(theme::input<TinyPJ301MPort>(theme::sameCol(matrix, kModeJackY), module, RATEAU::MODE_INPUT));
 
 	RATEAUDisplay *pDisp = new RATEAUDisplay();
-	pDisp->box = theme::specificRect(17, 103, 150, 20);
+	pDisp->box = theme::specificRect(17, 103, 150, 20);   // the text's baseline on the box's top; the screen behind it is SCREEN in rateau.py
 	pDisp->m = module ? module : NULL;
 	addChild(pDisp);
 
+	// the knobs, and a mute for each row (left of the grid) and each column (above it): the button's centre stays
+	// white, its light shows the state as before (red muted, green playing)
 	const theme::Pos firstKnob = theme::specificCorner(15, 150, theme::kBlueKnobSize);
 	auto knob = [&](int c, int r) { return firstKnob.offset(kKnobPitch * c, kKnobPitch * r); };
-	const float muteLeft = 4;   // the row mutes' column, left of the grid
+	const theme::Size kMiniButtonSize = {mm2px(1.8f), mm2px(1.8f)};   // the old MiniLEDButtons: their centres
+	const theme::Pos rowMutes = theme::specificCorner(4, 0, kMiniButtonSize), colMutes = theme::specificCorner(0, 150 - 11, kMiniButtonSize);
+	auto mute = [&](theme::Pos p, int i) {
+		BidooRoundButton *b = theme::param<BidooRoundButton>(p, module, RATEAU::MUTE_PARAMS + i);
+		b->momentary = true;
+		b->litBy = []() { return false; };
+		small(b, p);
+		addParam(b);
+		addChild(theme::light<SmallLight<RedGreenBlueLight>>(p, module, RATEAU::MUTE_LIGHTS + 3 * i));
+	};
 	for (int i = 0; i < 16; i++) {
 		controls[i] = theme::param<RATEAUBlueKnob>(knob(i % 4, i / 4), module, RATEAU::CONTROLS_PARAMS + i);
 		addParam(controls[i]);
-
-		if (i%4==0) {
-			const theme::Pos rowKnob = knob(0, i / 4);
-			addOutput(theme::output<PJ301MPort>(theme::colRow(ptrn, rowKnob), module, RATEAU::GATE_OUTPUTS+i/4));   // the A column, on the knobs' row
-			addParam(theme::param<MiniLEDButton>(theme::colRow(theme::specificCorner(muteLeft, 0, kMiniButtonSize), rowKnob), module, RATEAU::MUTE_PARAMS+i/4));
-			addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::colRow(theme::specificCorner(muteLeft, 0, kSmallLightSize), rowKnob), module, RATEAU::MUTE_LIGHTS+3*i/4));
-		}
 	}
+	// the outputs in the old red L (tools/panels/rateau_outputs.svg): A on the knobs' rows in the right column, B under
+	// the knobs' columns at their old height (old corner 150 + 4 rows), in the L's bottom bar
+	const float kBRowY = 150.f + 4.f * kKnobPitch + theme::kJackSize.h * 0.5f;
 	for (int i = 0; i < 4; i++) {
-		const theme::Pos colKnob = knob(i, 0);
-		addOutput(theme::output<PJ301MPort>(theme::colRow(colKnob, theme::specificCorner(0, 150 + 4 * kKnobPitch, theme::kJackSize)), module, RATEAU::GATE_OUTPUTS+4+i));   // the B row, on the knobs' column
-		addParam(theme::param<MiniLEDButton>(theme::colRow(colKnob, theme::specificCorner(0, 150 - 11, kMiniButtonSize)), module, RATEAU::MUTE_PARAMS+4+i));
-		addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::colRow(colKnob, theme::specificCorner(0, 150 - 11, kSmallLightSize)), module, RATEAU::MUTE_LIGHTS+(4+i)*3));
+		addOutput(theme::output<PJ301MPort>(theme::sameRow(knob(0, i), kRightX), module, RATEAU::GATE_OUTPUTS + i));
+		mute(theme::colRow(rowMutes, knob(0, i)), i);
+		addOutput(theme::output<PJ301MPort>(theme::sameCol(knob(i, 0), kBRowY), module, RATEAU::GATE_OUTPUTS + 4 + i));
+		mute(theme::colRow(knob(i, 0), colMutes), 4 + i);
 	}
 }
 

@@ -1402,12 +1402,14 @@ struct LIMONADEWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel. Left: the spectrum and wave screens, the frame size screen, the index knob and
-		// the grid of edit buttons: all specific, at their old corners. Right: five columns (UNI, FREQ, FINE, FM, SCAN),
-		// each a knob over its CV jack joined by the panel's line, with the unison range and scan amount trimpots, the
-		// SYNC box, the sync switch and IN/OUT. Each column is now on its line or box (the old code had its controls
-		// 0.15 to 0.8 px left of it); rows keep their old tops.
+		// The panel of tools/panels/limonade.py: the old arrangement. Left: the spectrum and wave displays in the panel's
+		// screens, the frame size display, the edited frame knob and the keypad of edit buttons, the d, e, p buttons by the
+		// title: all specific, at their old corners. Right: five columns (UNI, FREQ, FINE, FM, SCAN), each a knob over its
+		// CV jack joined by the panel's line, with the unison range and scan amount trimpots, the SYNC box, the sync mode
+		// switch and its tiny CV jack, IN and OUT. The columns are the old lines and boxes (COL in limonade.py); the CV
+		// jacks go on the second row and IN and OUT on the bottom row, the knob rows keep their old tops.
 
+		// the spectrum and wave displays, inside the panel's screens (SPECTRUM, WAVE in limonade.py), and the frame size
   	{
   		LIMONADEBinsDisplay *display = new LIMONADEBinsDisplay();
   		display->module = module;
@@ -1430,6 +1432,8 @@ struct LIMONADEWidget : BidooWidget {
 			addChild(frameSizeDisplay);
   	}
 
+		// the keypad: blue edit buttons and red record buttons with their lights, kept as they were (their captions and
+		// colours say what they do), at their old corners; the d, e, p display buttons by the title
 		BlueBtn *loadSampleParam = theme::atCorner(createParam<LimonadeBlueBtnLoadSample>(Vec(), module, LIMONADE::LOADSAMPLE_PARAM), 170, 240);
 		loadSampleParam->caption = "≈";
 		addParam(loadSampleParam);
@@ -1510,12 +1514,14 @@ struct LIMONADEWidget : BidooWidget {
 		displayPlayedFrameParam->caption = "p";
 		addParam(displayPlayedFrameParam);
 
-  	addParam(theme::atCorner(createParam<BidooGreenKnob>(Vec(), module, LIMONADE::INDEX_PARAM), 230.0f, 208.0f));
+  	addParam(theme::atCorner(createParam<BidooGreenKnob>(Vec(), module, LIMONADE::INDEX_PARAM), 230.0f, 208.0f));   // the edited frame
+
+		// ---- right: the five columns
 
 		const theme::Pos col[5] = {theme::specific(289.156f, 0), theme::specific(324.562f, 0), theme::specific(359.094f, 0), theme::specific(394.062f, 0), theme::specific(429.375f, 0)};   // the lines and boxes
 		const theme::Pos knobRow = theme::specificCorner(0, 219, theme::kBlueKnobSize);
-		const theme::Pos cvRow = theme::specificCorner(0, 283, theme::kJackSize);
-		const theme::Pos ioRow = theme::specificCorner(0, 330, theme::kJackSize);
+		const theme::Pos cvRow = theme::specific(0, theme::row(1));   // the CV jacks and SYNC (1.15 px lower than before)
+		const theme::Pos ioRow = theme::specific(0, theme::row(0));   // IN and OUT (0.15 px lower)
 		const theme::Size kCKSSSize = {14.f, 20.64111f};   // CKSS
 		addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(col[0], knobRow), module, LIMONADE::UNISSON_PARAM));
 		addParam(theme::param<BidooBlueTrimpot>(theme::colRow(col[0], theme::specificCorner(0, 262, theme::kTrimpotSize)), module, LIMONADE::UNISSONRANGE_PARAM));
@@ -1525,8 +1531,11 @@ struct LIMONADEWidget : BidooWidget {
 		addParam(theme::param<BidooRedKnob>(theme::colRow(col[4], knobRow), module, LIMONADE::WTINDEX_PARAM));
 		addParam(theme::param<BidooBlueTrimpot>(theme::colRow(col[4], theme::specificCorner(0, 257, theme::kTrimpotSize)), module, LIMONADE::WTINDEXATT_PARAM));
 
-		addParam(theme::param<CKSS>(theme::specificCorner(352, 327, kCKSSSize), module, LIMONADE::SYNC_PARAM));   // between H and S
-		addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(317, 330, theme::kTinyJackSize), module, LIMONADE::SYNCMODE_INPUT));   // under the FREQ line, on the line to the switch
+		// the sync mode switch between H and S, under SYNC on FINE's column (0.09 px right); its tiny CV jack on its row in
+		// FREQ's column, on the line to the switch (0.06 px right, 0.18 px higher). SWITCH in limonade.py
+		const theme::Pos syncMode = theme::colRow(col[2], theme::specificCorner(352, 327, kCKSSSize));
+		addParam(theme::param<CKSS>(syncMode, module, LIMONADE::SYNC_PARAM));
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(col[1], syncMode), module, LIMONADE::SYNCMODE_INPUT));
 
 
 		RedBtn *btnRecWt = theme::atCorner(createParam<RedBtn>(Vec(), module, LIMONADE::RECWT_PARAM), 254.0f, 320);

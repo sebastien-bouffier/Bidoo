@@ -1492,173 +1492,171 @@ PILOTWidget::PILOTWidget(PILOT *module) {
 
 	theme::addScrews(this);
 
-	const int morphXAnchor = 144;
-	const int morphYAnchor = 111;
-	const int jumpersXOffset = -30;
-	const int topJumpYOffset = -15;
-	const int bottomJumpYOffset = 44;
-	const int morphInputXOffset = -24;
-	const int morphInputYOffset = 21;
-	const int jumpInputXOffset = -10;
-	const int jumpTopInputYOffset = 25;
-	const int jumpBottomInputYOffset = -12;
+	// The panel of tools/panels/pilot.py: the old arrangement. Left: MORPHING (CURVE, SPEED, the curve screen and its
+	// trimpots), BANK and the SEQUENCER row; middle: the two scenes and the morph knob between them; right: the 16 knobs
+	// with their type and voltage buttons, the 16 outputs and POLY. The controls keep their old places (specific: the old
+	// corners, or steps from them), snapped onto the rows and columns they share; TRIG and RESET's jacks (full jacks
+	// now), POLY and the outputs' last row go on the bottom row.
+	const float w = box.size.x;
+	const theme::Size kLEDButtonSize = {17.9996f, 18.f};   // BidooLEDButton
+	const theme::Size kSmallBtnSize = {16.f, 16.f};        // SaveBtn, Rnd2Btn, RndBtn, LeftBtn, RightBtn
+	auto button = [&](theme::Pos p, int paramId) {         // the house round button, momentary as the old CKD6s
+		BidooRoundButton *b = theme::param<BidooRoundButton>(p, module, paramId);
+		b->momentary = true;
+		addParam(b);
+	};
+	// a button whose RGB light says which of several states (the control types, the voltage ranges, the curve, the wait
+	// modes, recording): the old LED button kept with its light, on the button's centre (it was 0.05 px off)
+	auto ledButton = [&](theme::Pos p, int paramId, int lightId) {
+		addParam(theme::param<BidooLEDButton>(p, module, paramId));
+		addChild(theme::light<SmallLight<RedGreenBlueLight>>(p, module, lightId));
+	};
 
-	morphButton = theme::atCorner(createParam<PILOTMorphKnob>(Vec(), module, PILOT::MORPH_PARAM), morphXAnchor, morphYAnchor);
+	// ---- Left, MORPHING: CURVE and SPEED on the SPEED knob's row (CURVE's button was 0.76 px higher, SPEED's CV jack
+	// 1.26 px); SPEED and its CV jack 2 px right of their old corners, so its label clears CURVE's (SPEED_X in pilot.py)
+	const theme::Pos speed = theme::specificCorner(42, 60, theme::kBlueKnobSize);
+	ledButton(theme::colRow(theme::specificCorner(15, 65, kLEDButtonSize), speed), PILOT::CURVE_PARAM, PILOT::CURVE_LIGHT);
+	addParam(theme::param<BidooBlueKnob>(speed, module, PILOT::SPEED_PARAM));
+	addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specificCorner(82, 0, theme::kTinyJackSize), speed), module, PILOT::SPEED_INPUT));
+
+	// the curve display, 6 px inside the panel's screen (CURVE_SCREEN in pilot.py), the focused control's note in its corner
+	const theme::Area curveDisplay = theme::specificRect(16, 102, 78, 78);
+	PILOTCurveDisplay *displayCurve = new PILOTCurveDisplay();
+	displayCurve->box = curveDisplay;
+	displayCurve->module = module ? module : NULL;
+	addChild(displayCurve);
+	PILOTNoteDisplay *displayNote = new PILOTNoteDisplay();
+	displayNote->box = theme::specificRect(curveDisplay.x, curveDisplay.y, 20, 20);
+	displayNote->module = module ? module : NULL;
+	addChild(displayNote);
+
+	// AX, AY, BX, BY under it, each over its tiny CV jack (the trimpots were 0.1 px right of their jacks' columns)
+	const float kCurvePitch = 24.f;   // CURVE_COLS in pilot.py
+	const theme::Pos curveCv = theme::specificCorner(12, 215, theme::kTinyJackSize);
+	const theme::Pos curveTrim = theme::colRow(curveCv, theme::specificCorner(10, 192, theme::kTrimpotSize));
+	for (int i = 0; i < 4; i++) {
+		addParam(theme::param<BidooBlueTrimpot>(curveTrim.right(kCurvePitch * i), module, PILOT::AX_PARAM + i));
+		addInput(theme::input<TinyPJ301MPort>(curveCv.right(kCurvePitch * i), module, PILOT::AX_INPUT + i));
+	}
+
+	// BANK: its number's display in the panel's screen, the knob, its CV jack on the knob's row (0.26 px lower)
+	const theme::Pos bank = theme::specificCorner(46, 250, theme::kBlueKnobSize);
+	PILOTDisplay *displayBank = new PILOTDisplay();
+	displayBank->box = theme::specificRect(13, 256.5f, 20, 20);
+	displayBank->value = module ? &module->bank : NULL;
+	addChild(displayBank);
+	addParam(theme::param<PilotBankBtn>(bank, module, PILOT::BANK_PARAM));
+	addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specificCorner(84, 0, theme::kTinyJackSize), bank), module, PILOT::BANK_INPUT));
+
+	// ---- The SEQUENCER row, on the LENGTH knob's row (TYPE, WAIT, TRIG and REC were 0.76 px higher): TYPE and TRIG round
+	// buttons where the CKD6s were, WAIT and REC LED buttons; the move type and length displays under TYPE and LENGTH
+	const theme::Pos length = theme::specificCorner(55, 310, theme::kBlueKnobSize);
+	button(theme::colRow(theme::specificCorner(15, 310, theme::kCKD6Size), length), PILOT::MOVETYPE_PARAM);
+	addParam(theme::param<BidooBlueSnapKnob>(length, module, PILOT::LENGTH_PARAM));
+	ledButton(theme::colRow(theme::specificCorner(99, 315, kLEDButtonSize), length), PILOT::WEOM_PARAM, PILOT::WEOM_LIGHT);
+	button(theme::colRow(theme::specificCorner(135, 310, theme::kCKD6Size), length), PILOT::MOVENEXT_PARAM);
+	ledButton(theme::colRow(theme::specificCorner(259, 315, kLEDButtonSize), length), PILOT::RECORD_PARAM, PILOT::RECORD_LIGHT);
+	PILOTMoveTypeDisplay *displayMoveType = new PILOTMoveTypeDisplay();
+	displayMoveType->box = theme::specificRect(29, 343, 20, 20);   // the text is centred on its left edge: TYPE's column
+	displayMoveType->value = module ? &module->moveType : NULL;
+	addChild(displayMoveType);
+	PILOTDisplay *displayLength = new PILOTDisplay();
+	displayLength->box = theme::specificRect(60, 343, 20, 20);
+	displayLength->value = module ? &module->length : NULL;
+	addChild(displayLength);
+	// TRIG and RESET's jacks: full jacks in boxes on the bottom row, at the old tiny jacks' columns (17.5 px lower);
+	// POLY at its old column, on the bottom row too (7.85 px higher)
+	addInput(theme::input<PJ301MPort>(theme::sameCol(theme::specificCorner(175, 0, theme::kTinyJackSize), theme::row(0)), module, PILOT::MOVENEXT_INPUT));
+	addInput(theme::input<PJ301MPort>(theme::sameCol(theme::specificCorner(215, 0, theme::kTinyJackSize), theme::row(0)), module, PILOT::RESET_INPUT));
+	addOutput(theme::output<PJ301MPort>(theme::sameCol(theme::specificCorner(288, 0, theme::kJackSize), theme::row(0)), module, PILOT::POLY_OUTPUT));
+
+	// ---- The scenes, the bottom one 161 px under the top one (SCENE_DOWN in pilot.py): the number's display in the
+	// panel's screen; SAVE, RND and FULL RND; the scene trimpot and the -, + and RND buttons on its row (0.4 px higher);
+	// their tiny CV jacks under them, on their columns (0.1 px right for the trimpot's, 0.5 px left for the buttons')
+	const float kSceneDown = 161.f;
+	const float kSceneBtnPitch = 20.f;
+	const theme::Pos sceneTrim = theme::specificCorner(119, 49, theme::kTrimpotSize);   // the top scene's trimpot
+	struct SceneIds { int *value; int save, rnd, frnd, minus, plus, rndBtn, cv, minusCv, plusCv, rndCv; };
+	const SceneIds scenes[2] = {
+		{module ? &module->topScene : NULL, PILOT::SAVETOP_PARAM, PILOT::RNDTOP_PARAM, PILOT::FRNDTOP_PARAM,
+			PILOT::TOPSCENEMINUS_PARAM, PILOT::TOPSCENEPLUS_PARAM, PILOT::TOPSCENERND_PARAM,
+			PILOT::TOPSCENE_INPUT, PILOT::TOPSCENEMINUS_INPUT, PILOT::TOPSCENEPLUS_INPUT, PILOT::TOPSCENERND_INPUT},
+		{module ? &module->bottomScene : NULL, PILOT::SAVEBOTTOM_PARAM, PILOT::RNDBOTTOM_PARAM, PILOT::FRNDBOTTOM_PARAM,
+			PILOT::BOTTOMSCENEMINUS_PARAM, PILOT::BOTTOMSCENEPLUS_PARAM, PILOT::BOTTOMSCENERND_PARAM,
+			PILOT::BOTTOMSCENE_INPUT, PILOT::BOTTOMSCENEMINUS_INPUT, PILOT::BOTTOMSCENEPLUS_INPUT, PILOT::BOTTOMSCENERND_INPUT},
+	};
+	for (int s = 0; s < 2; s++) {
+		const SceneIds &ids = scenes[s];
+		const float dy = kSceneDown * s;
+		const theme::Pos trim = sceneTrim.down(dy);
+		const theme::Pos save = theme::specificCorner(142, 29 + dy, kSmallBtnSize);
+		const theme::Pos cv = theme::colRow(trim, theme::specificCorner(0, 72 + dy, theme::kTinyJackSize));
+		PILOTDisplay *display = new PILOTDisplay();
+		display->box = theme::specificRect(120.7f, 29 + dy, 20, 20);
+		display->value = ids.value;
+		addChild(display);
+		addParam(theme::param<SaveBtn>(save, module, ids.save));
+		addParam(theme::param<Rnd2Btn>(save.right(kSceneBtnPitch), module, ids.rnd));
+		addParam(theme::param<Rnd2Btn>(save.right(2.f * kSceneBtnPitch), module, ids.frnd));
+		if (s == 0)
+			addParam(theme::param<PilotTopSceneBtn>(trim, module, PILOT::TOPSCENE_PARAM));
+		else
+			addParam(theme::param<PilotBottomSceneBtn>(trim, module, PILOT::BOTTOMSCENE_PARAM));
+		addParam(theme::param<LeftBtn>(theme::colRow(save, trim), module, ids.minus));
+		addParam(theme::param<RightBtn>(theme::colRow(save.right(kSceneBtnPitch), trim), module, ids.plus));
+		addParam(theme::param<RndBtn>(theme::colRow(save.right(2.f * kSceneBtnPitch), trim), module, ids.rndBtn));
+		addInput(theme::input<TinyPJ301MPort>(cv, module, ids.cv));
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(save, cv), module, ids.minusCv));
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(save.right(kSceneBtnPitch), cv), module, ids.plusCv));
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(save.right(2.f * kSceneBtnPitch), cv), module, ids.rndCv));
+	}
+
+	// the morph knob at its old corner; its CV jack on the scenes' column and the knob's row (1.1 px right, 0.45 px
+	// lower); the go to top and bottom buttons on the scenes' column (0.6 px right) at the old CKD6s' rows, their CV jacks
+	const theme::Pos morph = theme::specificCorner(144, 111, theme::kHugeKnobSize);
+	morphButton = theme::param<PILOTMorphKnob>(morph, module, PILOT::MORPH_PARAM);
 	addParam(morphButton);
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::MORPH_INPUT), morphXAnchor + morphInputXOffset, morphYAnchor + morphInputYOffset));
-	addParam(theme::atCorner(createParam<BlueCKD6>(Vec(), module, PILOT::GOTOP_PARAM), morphXAnchor+jumpersXOffset, morphYAnchor+topJumpYOffset));
-	addParam(theme::atCorner(createParam<BlueCKD6>(Vec(), module, PILOT::GOBOTTOM_PARAM), morphXAnchor+jumpersXOffset, morphYAnchor+bottomJumpYOffset));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::GOTOP_INPUT), morphXAnchor+jumpersXOffset+jumpInputXOffset, morphYAnchor+topJumpYOffset+jumpTopInputYOffset));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::GOBOTTOM_INPUT), morphXAnchor+jumpersXOffset+jumpInputXOffset, morphYAnchor+bottomJumpYOffset+jumpBottomInputYOffset));
+	addInput(theme::input<TinyPJ301MPort>(theme::colRow(sceneTrim, morph), module, PILOT::MORPH_INPUT));
+	button(theme::colRow(sceneTrim, theme::specificCorner(0, 96, theme::kCKD6Size)), PILOT::GOTOP_PARAM);
+	button(theme::colRow(sceneTrim, theme::specificCorner(0, 155, theme::kCKD6Size)), PILOT::GOBOTTOM_PARAM);
+	addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(104, 121, theme::kTinyJackSize), module, PILOT::GOTOP_INPUT));
+	addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(104, 143, theme::kTinyJackSize), module, PILOT::GOBOTTOM_INPUT));
 
-
-	const int sceneXAnchor = 119;
-	const int topSceneYAnchor = 29;
-	const int bottomSceneYAnchor = 190;
-	const int ctrlSceneYOffset = 20;
-	const int inputSceneYOffset = 43;
-	const int ctrlSceneXOffset = 20;
-	const int inputSceneXOffset = 20;
-	const int inputRoundBtnDrift = 2;
-	const int inputSquBtnDrift = 4;
-	const int sqBtnYDrift = 2;
-	const int sqBtnDrift = 3;
-	const float dispOffset = 1.7f;
-
-	PILOTDisplay *displayTop = new PILOTDisplay();
-	displayTop->box = theme::specificRect(sceneXAnchor+dispOffset,topSceneYAnchor, 20, 20);
-	displayTop->value = module ? &module->topScene : NULL;
-	addChild(displayTop);
-	addParam(theme::atCorner(createParam<SaveBtn>(Vec(), module, PILOT::SAVETOP_PARAM), sceneXAnchor + ctrlSceneXOffset + sqBtnDrift, topSceneYAnchor));
-	addParam(theme::atCorner(createParam<Rnd2Btn>(Vec(), module, PILOT::RNDTOP_PARAM), sceneXAnchor + 2*ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor));
-	addParam(theme::atCorner(createParam<Rnd2Btn>(Vec(), module, PILOT::FRNDTOP_PARAM), sceneXAnchor + 3*ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor));
-	addParam(theme::atCorner(createParam<PilotTopSceneBtn>(Vec(), module, PILOT::TOPSCENE_PARAM), sceneXAnchor, topSceneYAnchor+ ctrlSceneYOffset));
-	addParam(theme::atCorner(createParam<LeftBtn>(Vec(), module, PILOT::TOPSCENEMINUS_PARAM), sceneXAnchor + ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift));
-	addParam(theme::atCorner(createParam<RightBtn>(Vec(), module, PILOT::TOPSCENEPLUS_PARAM), sceneXAnchor + 2*ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift));
-	addParam(theme::atCorner(createParam<RndBtn>(Vec(), module, PILOT::TOPSCENERND_PARAM), sceneXAnchor + 3*ctrlSceneXOffset+ sqBtnDrift, topSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::TOPSCENE_INPUT), sceneXAnchor+inputRoundBtnDrift, topSceneYAnchor + inputSceneYOffset));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::TOPSCENEMINUS_INPUT), sceneXAnchor + inputSceneXOffset+inputSquBtnDrift, topSceneYAnchor + inputSceneYOffset));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::TOPSCENEPLUS_INPUT), sceneXAnchor + 2*inputSceneXOffset+inputSquBtnDrift, topSceneYAnchor + inputSceneYOffset));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::TOPSCENERND_INPUT), sceneXAnchor + 3*inputSceneXOffset+inputSquBtnDrift, topSceneYAnchor + inputSceneYOffset));
-
-	PILOTDisplay *displayBottom = new PILOTDisplay();
-	displayBottom->box = theme::specificRect(sceneXAnchor+dispOffset,bottomSceneYAnchor, 20, 20);
-	displayBottom->value = module ? &module->bottomScene : NULL;
-	addChild(displayBottom);
-	addParam(theme::atCorner(createParam<SaveBtn>(Vec(), module, PILOT::SAVEBOTTOM_PARAM), sceneXAnchor + ctrlSceneXOffset + sqBtnDrift, bottomSceneYAnchor));
-	addParam(theme::atCorner(createParam<Rnd2Btn>(Vec(), module, PILOT::RNDBOTTOM_PARAM), sceneXAnchor + 2*ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor));
-	addParam(theme::atCorner(createParam<Rnd2Btn>(Vec(), module, PILOT::FRNDBOTTOM_PARAM), sceneXAnchor + 3*ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor));
-	addParam(theme::atCorner(createParam<PilotBottomSceneBtn>(Vec(), module, PILOT::BOTTOMSCENE_PARAM), sceneXAnchor, bottomSceneYAnchor+ ctrlSceneYOffset));
-	addParam(theme::atCorner(createParam<LeftBtn>(Vec(), module, PILOT::BOTTOMSCENEMINUS_PARAM), sceneXAnchor + ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift));
-	addParam(theme::atCorner(createParam<RightBtn>(Vec(), module, PILOT::BOTTOMSCENEPLUS_PARAM), sceneXAnchor + 2*ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift));
-	addParam(theme::atCorner(createParam<RndBtn>(Vec(), module, PILOT::BOTTOMSCENERND_PARAM), sceneXAnchor + 3*ctrlSceneXOffset+ sqBtnDrift, bottomSceneYAnchor + ctrlSceneYOffset+sqBtnYDrift));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::BOTTOMSCENE_INPUT), sceneXAnchor+inputRoundBtnDrift, bottomSceneYAnchor + inputSceneYOffset));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::BOTTOMSCENEMINUS_INPUT), sceneXAnchor + inputSceneXOffset+inputSquBtnDrift, bottomSceneYAnchor + inputSceneYOffset));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::BOTTOMSCENEPLUS_INPUT), sceneXAnchor + 2*inputSceneXOffset+inputSquBtnDrift, bottomSceneYAnchor + inputSceneYOffset));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::BOTTOMSCENERND_INPUT), sceneXAnchor + 3*inputSceneXOffset+inputSquBtnDrift, bottomSceneYAnchor + inputSceneYOffset));
-
-	const int controlsSpacer = 57;
-	const int outputsSpacer = 27;
-	const int led_offset = 6;
-	const int diffYled_offset = 20;
-	const int controlsXAnchor = 208;
-	const int controlsYAnchor = 35;
-	const int outputsXAnchor = 335;
-	const int outputsYAnchor = 257;
-	const int ledsXAnchor = controlsXAnchor + 38;
-	const int ledsYAnchor = controlsYAnchor;
-
+	// ---- Right: the 16 knobs at their old corners in the white control area (KNOB0, KNOB_PITCH in pilot.py), each with
+	// its masking tape above (hidden unless shown from the menu), its type button and its voltage button 20 px under it
+	const float kKnobPitch = 57.f;
+	const float kVoltageBelow = 20.f;
+	const float kTapeAbove = 18.f;   // the tape's top above the knob's
+	const theme::Pos knob0 = theme::specificCorner(208, 35, theme::kLargeKnobSize);   // BidooLargeColoredKnob (12.7 mm)
+	const theme::Pos type0 = theme::specificCorner(246, 35, kLEDButtonSize);
+	// the outputs: 27 px apart, one 25 px box each; the last column's box on the white area's right edge (0.35 px left),
+	// the last row at its old height, 350 (below the theme's 342, to keep the matrix 7 px clear of the control area).
+	// OUT_PITCH, OUT_LAST_ROW, OUT_X0 in pilot.py
+	const float kOutPitch = 27.f;
+	const float kOutBox = 25.f;
+	const float kOutLastRow = 350.f;
+	const theme::Pos out0 = theme::specific(w - theme::kSideMargin - kOutBox * 0.5f - 3.f * kOutPitch, kOutLastRow - 3.f * kOutPitch);
 	for (int i = 0; i < 16; i++) {
-		controls[i] = theme::atCorner(createParam<PILOTColoredKnob>(Vec(), module, PILOT::CONTROLS_PARAMS + i), controlsXAnchor + controlsSpacer *(i%4), controlsYAnchor + controlsSpacer * floor(i/4));
+		const int c = i % 4, r = i / 4;
+		const theme::Pos knob = knob0.offset(kKnobPitch * c, kKnobPitch * r);
+		controls[i] = theme::param<PILOTColoredKnob>(knob, module, PILOT::CONTROLS_PARAMS + i);
 		if (module) {
 			dynamic_cast<PILOTColoredKnob*>(controls[i])->blink=&module->controlFocused[i];
 		}
 		addParam(controls[i]);
 
-		labels[i] = theme::atCorner(createWidget<PILOTLabelDisplay>(Vec()), controlsXAnchor + controlsSpacer *(i%4), controlsYAnchor - 18 + controlsSpacer * floor(i/4));
+		labels[i] = theme::atCorner(createWidget<PILOTLabelDisplay>(Vec()), knob.left, knob.top - kTapeAbove);
 		labels[i]->box.size = Vec(55, 20);
-		labels[i]->module = module ? module : NULL;;
+		labels[i]->module = module ? module : NULL;
 		labels[i]->id=i;
 		addChild(labels[i]);
 		labels[i]->setVisible(module ? module->showTapes : false);
 
-		addParam(theme::atCorner(createParam<BidooLEDButton>(Vec(), module, PILOT::TYPE_PARAMS + i), ledsXAnchor + controlsSpacer * (i%4), ledsYAnchor + controlsSpacer * floor(i/4)));
-		addChild(theme::atCorner(createLight<SmallLight<RedGreenBlueLight>>(Vec(), module, PILOT::TYPE_LIGHTS + i*3), ledsXAnchor + led_offset + controlsSpacer * (i%4), ledsYAnchor + led_offset + controlsSpacer * floor(i/4)));
-		addParam(theme::atCorner(createParam<BidooLEDButton>(Vec(), module, PILOT::VOLTAGE_PARAMS + i), ledsXAnchor + controlsSpacer * (i%4), diffYled_offset + ledsYAnchor + controlsSpacer * floor(i/4)));
-		addChild(theme::atCorner(createLight<SmallLight<RedGreenBlueLight>>(Vec(), module, PILOT::VOLTAGE_LIGHTS + i*3), ledsXAnchor + led_offset + controlsSpacer * (i%4), diffYled_offset + ledsYAnchor + led_offset + controlsSpacer * floor(i/4)));
-		addOutput(theme::atCorner(createOutput<PJ301MPort>(Vec(), module, PILOT::CV_OUTPUTS + i), outputsXAnchor + outputsSpacer * (i%4), outputsYAnchor + outputsSpacer * floor(i/4)));
+		const theme::Pos type = type0.offset(kKnobPitch * c, kKnobPitch * r);
+		ledButton(type, PILOT::TYPE_PARAMS + i, PILOT::TYPE_LIGHTS + i*3);
+		ledButton(type.down(kVoltageBelow), PILOT::VOLTAGE_PARAMS + i, PILOT::VOLTAGE_LIGHTS + i*3);
+		addOutput(theme::output<PJ301MPort>(out0.offset(kOutPitch * c, kOutPitch * r), module, PILOT::CV_OUTPUTS + i));
 	}
-	// level with the last row of outputs
-	addOutput(theme::atCorner(createOutput<PJ301MPort>(Vec(), module, PILOT::POLY_OUTPUT), 288, outputsYAnchor + outputsSpacer * 3));
-
-	const int curveXAnchor = 16;
-	const int curveYAnchor = 102;
-	const int curveCtrlYOffset = 90;
-	const int curveCtrlXOffset = 24;
-	const int curveCtrlXAnchor = 10;
-	const int curveTypeXAnchor = 15;
-	const int curveTypeYAnchor = 65;
-	const int morphSpeedXAnchor = 40;
-	const int morphSpeedYAnchor = 60;
-	const int controlsXOffest = 40;
-	const int curveInputYOffset = 23;
-	const int curveInputXOffset = 2;
-
-	addParam(theme::atCorner(createParam<BidooLEDButton>(Vec(), module, PILOT::CURVE_PARAM), curveTypeXAnchor, curveTypeYAnchor));
-	addChild(theme::atCorner(createLight<SmallLight<RedGreenBlueLight>>(Vec(), module, PILOT::CURVE_LIGHT), curveTypeXAnchor+6, curveTypeYAnchor+6));
-
-	addParam(theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, PILOT::SPEED_PARAM), morphSpeedXAnchor, morphSpeedYAnchor));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::SPEED_INPUT), morphSpeedXAnchor + controlsXOffest, morphSpeedYAnchor + 6));
-
-	PILOTCurveDisplay *displayCurve = new PILOTCurveDisplay();
-	displayCurve->box = theme::specificRect(curveXAnchor, curveYAnchor, 78, 78);
-	displayCurve->module = module ? module : NULL;
-	addChild(displayCurve);
-	addParam(theme::atCorner(createParam<BidooBlueTrimpot>(Vec(), module, PILOT::AX_PARAM), curveCtrlXAnchor, curveYAnchor+curveCtrlYOffset));
-	addParam(theme::atCorner(createParam<BidooBlueTrimpot>(Vec(), module, PILOT::AY_PARAM), curveCtrlXAnchor + curveCtrlXOffset, curveYAnchor+curveCtrlYOffset));
-	addParam(theme::atCorner(createParam<BidooBlueTrimpot>(Vec(), module, PILOT::BX_PARAM), curveCtrlXAnchor + 2*curveCtrlXOffset, curveYAnchor+curveCtrlYOffset));
-	addParam(theme::atCorner(createParam<BidooBlueTrimpot>(Vec(), module, PILOT::BY_PARAM), curveCtrlXAnchor + 3*curveCtrlXOffset, curveYAnchor+curveCtrlYOffset));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::AX_INPUT), curveCtrlXAnchor +curveInputXOffset, curveYAnchor+curveCtrlYOffset+curveInputYOffset));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::AY_INPUT), curveCtrlXAnchor + curveCtrlXOffset+curveInputXOffset, curveYAnchor+curveCtrlYOffset+curveInputYOffset));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::BX_INPUT), curveCtrlXAnchor + 2*curveCtrlXOffset+curveInputXOffset, curveYAnchor+curveCtrlYOffset+curveInputYOffset));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::BY_INPUT), curveCtrlXAnchor + 3*curveCtrlXOffset+curveInputXOffset, curveYAnchor+curveCtrlYOffset+curveInputYOffset));
-
-	const int controlsYOffest = 5;
-	const int seqXAnchor = 15;
-	const int seqYAnchor = 310;
-	const int seqDispOffset = 33;
-
-	addParam(theme::atCorner(createParam<BlueCKD6>(Vec(), module, PILOT::MOVETYPE_PARAM), seqXAnchor, seqYAnchor));
-	addParam(theme::atCorner(createParam<BidooBlueSnapKnob>(Vec(), module, PILOT::LENGTH_PARAM), seqXAnchor + controlsXOffest, seqYAnchor));
-	addParam(theme::atCorner(createParam<BidooLEDButton>(Vec(), module, PILOT::WEOM_PARAM), seqXAnchor + 2*controlsXOffest+4, seqYAnchor +controlsYOffest));
-	addChild(theme::atCorner(createLight<SmallLight<RedGreenBlueLight>>(Vec(), module, PILOT::WEOM_LIGHT), seqXAnchor + 2*controlsXOffest+6+4, seqYAnchor+controlsYOffest+6));
-	addParam(theme::atCorner(createParam<BlueCKD6>(Vec(), module, PILOT::MOVENEXT_PARAM), seqXAnchor + 3*controlsXOffest, seqYAnchor));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::MOVENEXT_INPUT), seqXAnchor + 4*controlsXOffest, seqYAnchor+controlsYOffest+2));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::RESET_INPUT), seqXAnchor + 5*controlsXOffest, seqYAnchor+controlsYOffest+2));
-	addParam(theme::atCorner(createParam<BidooLEDButton>(Vec(), module, PILOT::RECORD_PARAM), seqXAnchor + 6*controlsXOffest+4, seqYAnchor +controlsYOffest));
-	addChild(theme::atCorner(createLight<SmallLight<RedGreenBlueLight>>(Vec(), module, PILOT::RECORD_LIGHT), seqXAnchor + 6*controlsXOffest+6+4, seqYAnchor+controlsYOffest+6));
-
-	PILOTMoveTypeDisplay *displayMoveType = new PILOTMoveTypeDisplay();
-	displayMoveType->box = theme::specificRect(seqXAnchor+14,seqYAnchor+seqDispOffset, 20, 20);
-	displayMoveType->value = module ? &module->moveType : NULL;
-	addChild(displayMoveType);
-
-	PILOTDisplay *displayLength = new PILOTDisplay();
-	displayLength->box = theme::specificRect(seqXAnchor+ controlsXOffest+5,seqYAnchor+seqDispOffset, 20, 20);
-	displayLength->value = module ? &module->length : NULL;
-	addChild(displayLength);
-
-	PILOTNoteDisplay *displayNote = new PILOTNoteDisplay();
-	displayNote->box = theme::specificRect(curveXAnchor,curveYAnchor, 20, 20);
-	displayNote->module = module ? module : NULL;
-	addChild(displayNote);
-
-	PILOTDisplay *displayBank = new PILOTDisplay();
-	displayBank->box = theme::specificRect(seqXAnchor-2.0f,256.5f, 20, 20);
-	displayBank->value = module ? &module->bank : NULL;
-	addChild(displayBank);
-	addParam(theme::atCorner(createParam<PilotBankBtn>(Vec(), module, PILOT::BANK_PARAM), seqXAnchor + controlsXOffest-9, 250));
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, PILOT::BANK_INPUT), curveCtrlXAnchor + 3*curveCtrlXOffset+curveInputXOffset, 257));
 }
 
 struct PILOTItem : MenuItem {

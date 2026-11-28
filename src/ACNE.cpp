@@ -657,66 +657,104 @@ struct AcneBidooColoredTrimpot : BidooColoredTrimpot {
 ACNEWidget::ACNEWidget(ACNE *module) {
 	setModule(module);
 	prepareThemes(asset::plugin(pluginInstance, "res/ACNE.svg"));
-	// The original hand-drawn panel: a dense mixing matrix (a trimpot per input and output), mute, solo and snapshot
-	// buttons, the track links, the inputs and outputs. Every column and row already sits within 0.5 px of its
-	// neighbours: each position keeps its old corner (specific), with the widget's own size.
 
 	theme::addScrews(this);
 
-	addParam(theme::atCorner(createParam<BidooBlueKnob>(Vec(), module, ACNE::MAIN_OUT_GAIN_PARAM), 474.0f, 39.0f));
+	// The panel of tools/panels/acne.py: the old arrangement. The matrix of coloured trimpots keeps its old corners and
+	// gives every column and row of the module (specific: the old panel's 27 px pitch, not the grid). The buttons are
+	// BidooRoundButtons at the old LED buttons' centres, snapped onto the matrix's columns and rows (0.3 px): lit orange
+	// by their state (snapshot, links, autosave, save, copy), except the mutes and solos, which keep their red and green
+	// lights (the colour says mute or solo, as the M and S clear buttons do). The jacks stay tiny, in strips: full jacks
+	// 27 px apart would leave 3 px between them.
+	const theme::Size kAcneTrimpotSize = {mm2px(6.3f), mm2px(6.3f)};   // TrimpotBidoo.svg
+	const theme::Size kMuteBtnSize = {16.f, 16.f};                     // MuteBtn, SoloBtn
+	const float kPitch = 27.f;                                         // PITCH in acne.py
+	const theme::Pos firstTrim = theme::specificCorner(43, 77, kAcneTrimpotSize);
+	auto colOf = [&](float j) { return firstTrim.right(kPitch * j); };
+	auto rowOf = [&](float i) { return firstTrim.down(kPitch * i); };
 
-	addParam(theme::atCorner(createParam<BlueCKD6>(Vec(), module, ACNE::COPY_PARAM), 7.0f, 39.0f));
-	addChild(theme::atCorner(createLight<SmallLight<GreenLight>>(Vec(), module, ACNE::COPY_LIGHT), 18.0f, 28.0f));
-
-	addParam(theme::atCorner(createParam<BidooBlueTrimpot>(Vec(), module, ACNE::RAMP_PARAM), 432.0f, 28.0f));
-
-	addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, ACNE::SNAPSHOT_INPUT), 58.0f, 30.0f));
-
-	addParam(theme::atCorner(createParam<MuteBtn>(Vec(), module, ACNE::SEND_MUTE_PARAM), 2.0f, 293.0f));
-	addParam(theme::atCorner(createParam<MuteBtn>(Vec(), module, ACNE::MUTE_PARAM), 21.0f, 293.0f));
-	addParam(theme::atCorner(createParam<SoloBtn>(Vec(), module, ACNE::SOLO_PARAM), 11.0f, 314.0f));
-
-	for (int i = 0; i < ACNE_NB_OUTS; i++) {
-		addOutput(theme::atCorner(createOutput<TinyPJ301MPort>(Vec(), module, ACNE::TRACKS_OUTPUTS + i), 482.0f, 79.0f+i*27.0f));
-		addChild(acneMeter(module ? &module->outLevel[i] : nullptr, 476.0f, 79.0f+i*27.0f, 3.f, 15.f));  // left of this jack, on the red zone (widened in ACNE.svg)
-
-		addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::OUT_MUTE_PARAMS + i), 10.0f, 77.0f+i*27.0f));
-		addChild(theme::atCorner(createLight<SmallLight<RedLight>>(Vec(), module, ACNE::OUT_MUTE_LIGHTS + i), 16.0f, 83.0f+i*27.0f));
-	}
-
-	for (int i = 0; i < ACNE_NB_TRACKS; i++) {
-		addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::SNAPSHOT_PARAMS + i), 43.0f+i*27.0f, 49.0f));
-		addChild(theme::atCorner(createLight<SmallLight<BlueLight>>(Vec(), module, ACNE::SNAPSHOT_LIGHTS + i), 49.0f+i*27.0f, 55.0f));
-
-		addInput(theme::atCorner(createInput<TinyPJ301MPort>(Vec(), module, ACNE::TRACKS_INPUTS + i), 45.0f+i*27.0f, 340.0f));
-		addChild(acneMeter(module ? &module->inLevel[i] : nullptr, 64.5f+i*27.0f, 340.0f, 3.f, 15.f));  // centred between this jack and the next
-
-		addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::IN_MUTE_PARAMS + i), 43.0f+i*27.0f, 292.0f));
-		addChild(theme::atCorner(createLight<SmallLight<RedLight>>(Vec(), module, ACNE::IN_MUTE_LIGHTS + i), 49.0f+i*27.0f, 298.0f));
-
-		addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::IN_SOLO_PARAMS + i), 43.0f+i*27.0f, 314.0f));
-		addChild(theme::atCorner(createLight<SmallLight<GreenLight>>(Vec(), module, ACNE::IN_SOLO_LIGHTS + i), 49.0f+i*27.0f, 320.0f));
-	}
-
-	for (int i = 0; i < 8; i++) {
-		addParam(theme::atCorner(createParam<MiniLEDButton>(Vec(), module, ACNE::TRACKLINK_PARAMS + i), 62.0f+i*54.0f, 309.0f));
-		addChild(theme::atCorner(createLight<SmallLight<BlueLight>>(Vec(), module, ACNE::TRACKLINK_LIGHTS + i), 62.0f+i*54.0f, 309.0f));
-	}
-
+	// the matrix
 	for (int i = 0; i < ACNE_NB_OUTS; i++) {
 		for (int j = 0; j < ACNE_NB_TRACKS; j++) {
-			ParamWidget* trim = theme::atCorner(createParam<AcneBidooColoredTrimpot>(Vec(), module, ACNE::FADERS_PARAMS + j + i * (ACNE_NB_TRACKS)), 43.0f+j*27.0f, 77.0f+i*27.0f);
-			AcneBidooColoredTrimpot* fader = dynamic_cast<AcneBidooColoredTrimpot*>(trim);
-			fader->index= j + i * (ACNE_NB_TRACKS);
-			addParam(trim);
+			AcneBidooColoredTrimpot *fader = theme::param<AcneBidooColoredTrimpot>(firstTrim.offset(kPitch * j, kPitch * i), module, ACNE::FADERS_PARAMS + j + i * ACNE_NB_TRACKS);
+			fader->index = j + i * ACNE_NB_TRACKS;
+			addParam(fader);
 		}
 	}
 
-	addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::AUTOSAVE_PARAM), 32.0f, 3.0f));
-	addChild(theme::atCorner(createLight<SmallLight<BlueLight>>(Vec(), module, ACNE::AUTOSAVE_LIGHT), 38.0f, 9.0f));
+	auto button = [&](theme::Pos p, int paramId, int lightId) {
+		BidooRoundButton *b = theme::param<BidooRoundButton>(p, module, paramId);
+		b->momentary = true;
+		b->litBy = [=]() { return module && module->lights[lightId].getBrightness() > 0.5f; };
+		addParam(b);
+		return b;
+	};
+	// a mute or a solo: the button's centre stays white, its coloured light on it shows the state
+	auto colouredButton = [&](theme::Pos p, int paramId) {
+		BidooRoundButton *b = theme::param<BidooRoundButton>(p, module, paramId);
+		b->momentary = true;
+		b->litBy = []() { return false; };
+		addParam(b);
+	};
 
-	addParam(theme::atCorner(createParam<LEDButton>(Vec(), module, ACNE::SAVE_PARAM), 460.0f, 3.0f));
-	addChild(theme::atCorner(createLight<SmallLight<BlueLight>>(Vec(), module, ACNE::SAVE_LIGHT), 466.0f, 9.0f));
+	// the snapshots: a row of buttons on the matrix's columns, the scene CV jack at the left end of their bracket, RAMP
+	// on its right end (old corners, the CV jack 0.1 px lower onto the bracket through RAMP)
+	const float kSnapY = 58.f;   // SNAP_Y in acne.py
+	const theme::Pos ramp = theme::specificCorner(432, 28, theme::kTrimpotSize);
+	addParam(theme::param<BidooBlueTrimpot>(ramp, module, ACNE::RAMP_PARAM));
+	addInput(theme::input<TinyPJ301MPort>(theme::sameRow(ramp, theme::specificCorner(58, 30, theme::kTinyJackSize).x), module, ACNE::SNAPSHOT_INPUT));
+	for (int i = 0; i < ACNE_NB_SNAPSHOTS; i++)
+		button(theme::sameCol(colOf(i), kSnapY), ACNE::SNAPSHOT_PARAMS + i, ACNE::SNAPSHOT_LIGHTS + i);
+
+	// the top corners: AUTOSAVE and SAVE (2 px further from the screws than the old LED buttons), COPY/PASTE at the old
+	// CKD6's centre, VOLUME over the outputs' column (0.74 px right)
+	const theme::Pos kAutosave = theme::specific(43, 12), kSave = theme::specific(467, 12);   // AUTOSAVE, SAVE in acne.py
+	button(kAutosave, ACNE::AUTOSAVE_PARAM, ACNE::AUTOSAVE_LIGHT);
+	button(kSave, ACNE::SAVE_PARAM, ACNE::SAVE_LIGHT);
+	button(theme::specificCorner(7, 39, theme::kCKD6Size), ACNE::COPY_PARAM, ACNE::COPY_LIGHT);
+	const theme::Pos outCol = theme::specificCorner(482, 0, theme::kTinyJackSize);   // OUT_X in acne.py
+	addParam(theme::param<BidooBlueKnob>(theme::colRow(outCol, theme::specificCorner(0, 39, theme::kBlueKnobSize)), module, ACNE::MAIN_OUT_GAIN_PARAM));
+
+	// the outputs, on the matrix's rows (0.2 px higher): tiny jacks in the red strips, a meter left of each; their mutes
+	// left of the matrix (0.3 px lower)
+	const float kMeterLeft = 13.5f, kMeterW = 3.f, kMeterH = 15.f;   // a meter's left edge from its jack's centre
+	const theme::Size kLEDButtonSize = {17.9996f, 18.f};                                 // the old LEDButtons: their centres
+	const theme::Pos outMuteCol = theme::specificCorner(10, 0, kLEDButtonSize);
+	for (int i = 0; i < ACNE_NB_OUTS; i++) {
+		const theme::Pos out = theme::colRow(outCol, rowOf(i));
+		addOutput(theme::output<TinyPJ301MPort>(out, module, ACNE::TRACKS_OUTPUTS + i));
+		addChild(acneMeter(module ? &module->outLevel[i] : nullptr, out.x - kMeterLeft, out.y - kMeterH * 0.5f, kMeterW, kMeterH));
+		const theme::Pos mute = theme::colRow(outMuteCol, rowOf(i));
+		colouredButton(mute, ACNE::OUT_MUTE_PARAMS + i);
+		addChild(theme::light<SmallLight<RedLight>>(mute, module, ACNE::OUT_MUTE_LIGHTS + i));
+	}
+
+	// the inputs, on the matrix's columns (0.2 px left): tiny jacks in the black strip, a meter between each and the
+	// next; their mutes and solos above them (0.3 px right), the track links between two columns and between the two
+	// rows (1.15 px right, 0.35 px lower)
+	const float kMuteY = 301.f, kSoloY = 323.f, kInY = 347.5f;   // MUTE_Y, SOLO_Y, IN_Y in acne.py
+	for (int i = 0; i < ACNE_NB_TRACKS; i++) {
+		const theme::Pos in = theme::sameCol(colOf(i), kInY);
+		addInput(theme::input<TinyPJ301MPort>(in, module, ACNE::TRACKS_INPUTS + i));
+		addChild(acneMeter(module ? &module->inLevel[i] : nullptr, in.x + kPitch * 0.5f - kMeterW * 0.5f, in.y - kMeterH * 0.5f, kMeterW, kMeterH));
+		const theme::Pos mute = theme::sameCol(colOf(i), kMuteY), solo = theme::sameCol(colOf(i), kSoloY);
+		colouredButton(mute, ACNE::IN_MUTE_PARAMS + i);
+		addChild(theme::light<SmallLight<RedLight>>(mute, module, ACNE::IN_MUTE_LIGHTS + i));
+		colouredButton(solo, ACNE::IN_SOLO_PARAMS + i);
+		addChild(theme::light<SmallLight<GreenLight>>(solo, module, ACNE::IN_SOLO_LIGHTS + i));
+	}
+	const float kLinkButton = 10.f;   // small: it sits in the gap between four buttons, 2.4 px from each
+	for (int i = 0; i < 8; i++) {
+		const theme::Pos link = theme::sameCol(colOf(2 * i + 0.5f), 0.5f * (kMuteY + kSoloY));
+		BidooRoundButton *b = button(link, ACNE::TRACKLINK_PARAMS + i, ACNE::TRACKLINK_LIGHTS + i);
+		b->box.size = Vec(kLinkButton, kLinkButton);   // placed again at the same centre
+		theme::place(b, link);
+	}
+
+	// the clear buttons, as before: M (outputs), M (inputs), S (solos), S 1 px lower onto the solos' row
+	addParam(theme::param<MuteBtn>(theme::specificCorner(2, 293, kMuteBtnSize), module, ACNE::SEND_MUTE_PARAM));
+	addParam(theme::param<MuteBtn>(theme::specificCorner(21, 293, kMuteBtnSize), module, ACNE::MUTE_PARAM));
+	addParam(theme::param<SoloBtn>(theme::sameCol(theme::specificCorner(11, 314, kMuteBtnSize), kSoloY), module, ACNE::SOLO_PARAM));
 }
 
 Model *modelACNE = createModel<ACNE, ACNEWidget>("ACnE");
