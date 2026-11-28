@@ -212,13 +212,18 @@ struct ZINC : BidooModule {
 
 struct ZINCDisplay : TransparentWidget {
 	ZINC *module;
+	BidooWidget *panel = nullptr;   // its shown theme: the band frequencies are panel text
 
 	ZINCDisplay() {
 
 	}
 
-	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer == 1) {
+	// The frequencies under the knobs are printed on the panel: drawn as the panel is (dimmed with the room light), in
+	// the panel text's colour of the theme shown (black, the light grey Dark and Black turn it into)
+	void draw(const DrawArgs& args) override {
+		{
+			const bool light = !panel || panel->shownTheme <= THEME_LIGHT;
+			const NVGcolor text = light ? theme::kPanelText : nvgRGB(180, 180, 180);
 			nvgFontSize(args.vg, 12);
 			nvgStrokeWidth(args.vg, 2);
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER);
@@ -231,12 +236,12 @@ struct ZINCDisplay : TransparentWidget {
 						snprintf(fVal, sizeof(fVal), "%.1fk", f / 1000.f);
 					else
 						snprintf(fVal, sizeof(fVal), "%1i", (int)f);
-					nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 255));
+					nvgFillColor(args.vg, text);
 					nvgText(args.vg, portX0[i % (BANDS / 4)], 23 + 45 * (int)(i / 4), fVal, NULL);
 				}
 			}
 		}
-		Widget::drawLayer(args, layer);
+		Widget::draw(args);
 	}
 
 };
@@ -320,6 +325,7 @@ struct ZINCWidget : BidooWidget {
 		// labels (the old code had them 0.4 and 0.7 px right), and the jacks on their boxes' centres (up to 0.65 px off).
 		ZINCDisplay *display = new ZINCDisplay();
 		display->module = module;
+		display->panel = this;
 		display->box = theme::specificRect(14, 14, 110, 70);
 		addChild(display);
 

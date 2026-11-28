@@ -263,7 +263,7 @@
      transform="matrix(0.26458332,0,0,0.26458332,-61.200435,-16.548616)" />
   <path
      inkscape:connector-curvature="0"
-     id="rect843"
+     id="screen843"
      d="M 2.3619785,8.8544204 H 9.3037218 V 12.573586 H 2.3619785 Z"
      style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#828282;stroke-width:0.21019073;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
   <g
@@ -407,7 +407,7 @@
   <path
      style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#828282;stroke-width:0.210191;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
      d="m 20.656503,8.8544205 h 9.579392 v 3.7191355 h -9.579392 z"
-     id="rect843-0"
+     id="screen843-0"
      inkscape:connector-curvature="0" />
   <g
      aria-label="ROOT NOTE"
@@ -452,7 +452,7 @@
     <path
        style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#828282;stroke-width:0.210191;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        d="m 13.929745,29.798387 h 26.248144 v 3.719166 H 13.929745 Z"
-       id="rect843-0-8"
+       id="screen843-0-8"
        inkscape:connector-curvature="0" />
     <g
        aria-label="SCALE"

@@ -22,6 +22,7 @@ Fixes
 - bAFIs: a NaN or infinite input no longer silences it until reset, and a channel that comes back starts clean
 - ACnE: a patch saved with a track soloed starts with only that track open; Initialize, DIKTAT's root note from a mapped knob, HCTIP before the first rate change, SPORE's Initialize (clears the grains), rICOcHEt's clocked time after a rate change
 - Knobs and buttons of ACnE, MOiRE and πlOT no longer crash in the module browser
+- Dark and Black themes: DIKTAT and ratEaU keep their screens black (the yellow text was on light grey), ratEaU's CLK box turns grey like its neighbours, πlOT's control area turns dark (it stayed near white), ziNC's band frequencies are written in the panel text's colour (black on dark grey before)
 
 ### v2.7.9 (27/11/2026)
 Improvements
