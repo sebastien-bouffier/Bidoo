@@ -185,7 +185,7 @@ struct FORK : BidooModule {
 			configInput(F_INPUT + k, rack::string::f("Formant %d frequency (1V/oct)", k + 1));
 			configInput(A_INPUT + k, rack::string::f("Formant %d level (10 V = full range)", k + 1));
 		}
-		configInput(PITCH_INPUT, "1V/oct pitch (polyphonic)");
+		configInput(PITCH_INPUT, "V/O (polyphonic)");
 		configOutput(SIGNAL_OUTPUT, "Audio");
 	}
 

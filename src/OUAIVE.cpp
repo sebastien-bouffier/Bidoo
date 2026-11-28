@@ -932,10 +932,11 @@ struct OUAIVEWidget : BidooWidget {
   	OUAIVE *module;
   	void onAction(const event::Action &e) override {
 
-  		const std::string cur = module->getPath();
-  		std::string dir = cur.empty() ? asset::user("") : rack::system::getDirectory(cur);
+  		// the last folder a sample came from, kept between openings and sessions (plugin.hpp)
+  		std::string dir = sampleDialogDir(module->getPath());
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
+  			rememberSampleFolder(path);
   			module->loadFile(path);
   			free(path);
   		}
@@ -955,8 +956,10 @@ struct OUAIVEWidget : BidooWidget {
 	void onPathDrop(const PathDropEvent& e) override {
 		Widget::onPathDrop(e);
 		OUAIVE *module = dynamic_cast<OUAIVE*>(this->module);
-		if (module && !e.paths.empty())
+		if (module && !e.paths.empty()) {
+			rememberSampleFolder(e.paths[0]);
 			module->loadFile(e.paths[0]);
+		}
 	}
 };
 

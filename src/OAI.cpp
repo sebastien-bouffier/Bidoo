@@ -12,7 +12,7 @@ struct OAI : BidooModule {
 		START_PARAM,
 		LEN_PARAM,
 		LOOP_PARAM,
-		SPEED_PARAM,
+		TUNE_PARAM,
 		GATE_PARAM,
 		Q_PARAM,
 		FREQ_PARAM,
@@ -27,7 +27,7 @@ struct OAI : BidooModule {
 		START_INPUT,
 		LEN_INPUT,
 		LOOP_INPUT,
-		SPEED_INPUT,
+		VOCT_INPUT,
 		Q_INPUT,
 		FREQ_INPUT,
 		FILTERTYPE_INPUT,
@@ -133,10 +133,11 @@ struct OAIWidget : BidooWidget {
 	struct OAIItem : MenuItem {
   	OAI *module;
   	void onAction(const event::Action &e) override {
-  		std::string last = module->bank.path(module->currentChannel);
-			std::string dir = last.empty() ? asset::user("") : rack::system::getDirectory(last);
+  		// the last folder a sample came from, kept between openings and sessions (plugin.hpp)
+  		std::string dir = sampleDialogDir(module->bank.path(module->currentChannel));
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
+				rememberSampleFolder(path);
 				module->bank.load(module->currentChannel, path);
 				free(path);
 			}
@@ -146,8 +147,10 @@ struct OAIWidget : BidooWidget {
 	void onPathDrop(const PathDropEvent& e) override {
 		Widget::onPathDrop(e);
 		OAI *module = dynamic_cast<OAI*>(this->module);
-		if (module && !e.paths.empty())
+		if (module && !e.paths.empty()) {
+			rememberSampleFolder(e.paths[0]);
 			module->bank.load(module->currentChannel, e.paths[0]);
+		}
 	}
 
   void appendContextMenu(ui::Menu *menu) override {

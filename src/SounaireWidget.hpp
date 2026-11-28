@@ -973,8 +973,10 @@ struct SOUNAIREWidget : BidooWidget {
 
 	void onPathDrop(const PathDropEvent &e) override {
 		SOUNAIRE *m = dynamic_cast<SOUNAIRE *>(module);
-		if (m && !e.paths.empty())
+		if (m && !e.paths.empty()) {
+			rememberSampleFolder(e.paths[0]);
 			m->requestLoad(e.paths[0], false);
+		}
 	}
 
 	static ui::Slider *slider(Quantity *q) {
@@ -992,9 +994,11 @@ struct SOUNAIREWidget : BidooWidget {
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Load sample...", "", [=]() {
 			osdialog_filters *filters = osdialog_filters_parse("Audio:wav,WAV,aif,AIF,aiff,AIFF,flac,FLAC");
-			char *path = osdialog_file(OSDIALOG_OPEN, nullptr, nullptr, filters);
+			// the last folder a sample came from, kept between openings and sessions (plugin.hpp)
+			char *path = osdialog_file(OSDIALOG_OPEN, sampleDialogDir().c_str(), nullptr, filters);
 			osdialog_filters_free(filters);
 			if (path) {
+				rememberSampleFolder(path);
 				m->requestLoad(path, false);
 				std::free(path);
 			}
@@ -1003,12 +1007,13 @@ struct SOUNAIREWidget : BidooWidget {
 			osdialog_filters *filters = osdialog_filters_parse("WAV:wav");
 			std::string name = m->getSampleName();
 			std::string stem = rack::system::getStem(name.empty() ? std::string("sample") : name);
-			char *path = osdialog_file(OSDIALOG_SAVE, nullptr, (stem + ".wav").c_str(), filters);
+			char *path = osdialog_file(OSDIALOG_SAVE, sampleDialogDir().c_str(), (stem + ".wav").c_str(), filters);
 			osdialog_filters_free(filters);
 			if (path) {
 				std::string p = path;
 				if (rack::system::getExtension(p).empty())
 					p += ".wav";
+				rememberSampleFolder(p);
 				m->requestExport("", p);
 				std::free(path);
 			}
@@ -1070,8 +1075,9 @@ struct SOUNAIREWidget : BidooWidget {
 				}));
 		}));
 		menu->addChild(createMenuItem("Export the slices as WAV files...", "", [=]() {
-			char *dir = osdialog_file(OSDIALOG_OPEN_DIR, nullptr, nullptr, nullptr);
+			char *dir = osdialog_file(OSDIALOG_OPEN_DIR, sampleDialogDir().c_str(), nullptr, nullptr);
 			if (dir) {
+				rememberSampleFolder(dir);
 				m->requestExport(dir, "");
 				std::free(dir);
 			}

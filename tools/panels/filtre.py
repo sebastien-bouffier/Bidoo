@@ -42,7 +42,7 @@ def build():
 
     out = [k.header(PW, W), k.background(W), p.path(warp, .6), k.title('FiLTRe', PW)]
     out.append(k.screen(k.MARGIN, k.SCREEN_TOP, PW - 2 * k.MARGIN, SCREEN_H))
-    for x, l, c in zip(KNOB_XS, ['TYPE', 'CUTOFF', 'RES', 'DRIVE', 'MORPH', 'MIX'], ['TYPE', 'V/OCT', 'RES', 'DRIVE', 'MORPH', 'MIX']):
+    for x, l, c in zip(KNOB_XS, ['TYPE', 'CUTOFF', 'RES', 'DRIVE', 'MORPH', 'MIX'], ['TYPE', 'V/O', 'RES', 'DRIVE', 'MORPH', 'MIX']):
         # the line from the knob down through the attenuverter to its CV box
         out.append(f'<path style="fill:none;stroke:{k.INK};stroke-width:0.32" d="M{x*K:.3f},{KNOB_ROW*K:.3f}V{(k.BOTTOM_TOP+4)*K:.3f}"/>')
         out.append(k.text(l, x, KNOB_ROW - 23, k.KNOB_LABEL_SIZE, k.INK))

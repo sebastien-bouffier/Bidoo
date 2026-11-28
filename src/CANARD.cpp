@@ -1259,10 +1259,11 @@ struct CANARDWidget : BidooWidget {
 	struct CANARDLoadSample : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
-			std::string last = module->getPath();
-			std::string dir = last.empty() ? asset::user("") : rack::system::getDirectory(last);
+			// the last folder a sample came from, kept between openings and sessions (plugin.hpp)
+			std::string dir = sampleDialogDir(module->getPath());
 			char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
 			if (path) {
+				rememberSampleFolder(path);
 				module->loadFile(path);
 				free(path);
 			}
@@ -1272,19 +1273,21 @@ struct CANARDWidget : BidooWidget {
 	void onPathDrop(const PathDropEvent& e) override {
 		Widget::onPathDrop(e);
 		CANARD *module = dynamic_cast<CANARD*>(this->module);
-		if (module && !e.paths.empty())
+		if (module && !e.paths.empty()) {
+			rememberSampleFolder(e.paths[0]);
 			module->loadFile(e.paths[0]);
+		}
 	}
 
 	struct CANARDSaveSample : MenuItem {
 		CANARD *module;
 		void onAction(const event::Action &e) override {
-			std::string last = module->getPath();
-			std::string dir = last.empty() ? asset::user("") : rack::system::getDirectory(last);
+			std::string dir = sampleDialogDir(module->getPath());
 			std::string name = module->getFileName();
 			std::string fileName = name.empty() ? "temp.wav" : name;
 			char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), fileName.c_str(), NULL);
 			if (path) {
+				rememberSampleFolder(path);
 				module->post({CANARD::SAVE, path, 0, {}, 0.f});
 				free(path);
 			}

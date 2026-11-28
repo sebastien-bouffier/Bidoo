@@ -6,7 +6,7 @@ import panel_kit as k
 import oai
 
 PRESET_X = 104.0              # the numbers' centre, left of the buttons (old corner x 109, src/MAGMA.cpp); 5.5 px right of
-                              # the SPEED column, as before: the buttons leave them no room further right
+                              # the TUNE column, as before: the buttons leave them no room further right
 FIRST_PRESET_Y = 23.562       # the first preset light's centre, on the old 8's middle (src/MAGMA.cpp)
 PRESET_BELOW = 10.0           # likewise kPresetBelow
 PRESET_SIZE = 6.5             # four numbers in a 10 px column: 7.5 would touch the buttons

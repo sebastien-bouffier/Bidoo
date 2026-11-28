@@ -57,7 +57,7 @@ struct ACIDE : BidooModule {
 		configParam(ENVMOD_PARAM, 0.f, 1.f, 0.5f, "Env mod", "%", 0.f, 100.f);
 		configParam(DECAY_PARAM, 0.f, 1.f, 0.5f, "Decay", " s", 10.f, 0.2f);
 		configParam(ACCENT_PARAM, 0.f, 1.f, 0.5f, "Accent", "%", 0.f, 100.f);
-		configInput(VOCT_INPUT, "V/oct (0 V = C4; polyphonic: one voice per channel)");
+		configInput(VOCT_INPUT, "V/O (0 V = C4; polyphonic: one voice per channel)");
 		configInput(GATE_INPUT, "Gate (polyphonic: one voice per channel)");
 		configInput(ACCENT_INPUT, "Accent (high at the note's start; a gate or a CV above 1 V; polyphonic: per voice)");
 		configInput(SLIDE_INPUT, "Slide (high when the gate falls or at the next gate: the notes are tied and glide; polyphonic: per voice)");

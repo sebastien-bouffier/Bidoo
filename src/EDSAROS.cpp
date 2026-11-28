@@ -270,7 +270,7 @@ struct EDSAROS : BidooModule {
 		configButton(ZEROCROSSING_PARAM, "Snap the points to zero crossings");
 
 		configInput(TRIG_INPUT, "Gate (polyphonic)");
-		configInput(PITCH_INPUT, "Pitch (1V/oct, 0 V = original, polyphonic)");
+		configInput(PITCH_INPUT, "V/O (0 V = the original pitch, polyphonic)");
 		configInput(SAMPLESTART_INPUT, "Sample start CV");
 		configInput(SAMPLEEND_INPUT, "Sample end CV");
 		configInput(LOOPSTART_INPUT, "Loop start CV");
@@ -1338,9 +1338,11 @@ struct EDSAROSWidget : BidooWidget {
   struct EDSAROSItem : MenuItem {
   	EDSAROS *module;
   	void onAction(const event::Action &e) override {
-  		std::string dir = module->lastPath.empty() ? asset::user("") : rack::system::getDirectory(module->lastPath);
+  		// the last folder a sample came from, kept between openings and sessions (plugin.hpp)
+  		std::string dir = sampleDialogDir(module->lastPath);
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
+				rememberSampleFolder(path);
 				module->loadFile(path);
 				free(path);
 			}
@@ -1360,8 +1362,10 @@ struct EDSAROSWidget : BidooWidget {
 	void onPathDrop(const PathDropEvent& e) override {
 		Widget::onPathDrop(e);
 		EDSAROS *module = dynamic_cast<EDSAROS*>(this->module);
-		if (module && !e.paths.empty())
+		if (module && !e.paths.empty()) {
+			rememberSampleFolder(e.paths[0]);
 			module->loadFile(e.paths[0]);
+		}
 	}
 };
 

@@ -207,7 +207,7 @@ struct BANCAU : BidooModule {
 			int i = s * 6;
 			configInput(IN1_INPUT + i, n + "In (slewed at rest, the level a trigger falls back to)");
 			configInput(TRIG1_INPUT + i, n + "Trigger");
-			configInput(VOCT1_INPUT + i, n + "V/oct (rise and fall)");
+			configInput(VOCT1_INPUT + i, n + "V/O (rise and fall)");
 			configInput(RISECV1_INPUT + i, n + "Rise CV");
 			configInput(FALLCV1_INPUT + i, n + "Fall CV");
 			configInput(BOTHCV1_INPUT + i, n + "Rise and fall CV");

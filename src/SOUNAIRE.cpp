@@ -320,7 +320,7 @@ struct SOUNAIRE : BidooModule {
 		configSwitch(REC_PARAM, 0.f, 1.f, 0.f, "Record (IN L / IN R; replaces the sample)", {"Off", "Recording"});
 		getParamQuantity(REC_PARAM)->randomizeEnabled = false;
 		getParamQuantity(MODE_PARAM)->randomizeEnabled = false;
-		configInput(VOCT_INPUT, "V/oct (polyphonic)");
+		configInput(VOCT_INPUT, "V/O (polyphonic)");
 		configInput(GATE_INPUT, "Gate (polyphonic)");
 		configInput(VEL_INPUT, "Velocity (0-10 V, polyphonic)");
 		configInput(BEND_INPUT, "Pitch bend (-5 to 5 V: the bend range)");

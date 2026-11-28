@@ -13,7 +13,7 @@ struct POUPRE : BidooModule {
 		START_PARAM,
 		LEN_PARAM,
 		LOOP_PARAM,
-		SPEED_PARAM,
+		TUNE_PARAM,
 		GATE_PARAM,
 		PRESET_PARAM,
 		NUM_PARAMS = PRESET_PARAM+4
@@ -24,7 +24,7 @@ struct POUPRE : BidooModule {
 		START_INPUT,
 		LEN_INPUT,
 		LOOP_INPUT,
-		SPEED_INPUT,
+		VOCT_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -157,10 +157,10 @@ struct POUPREWidget : BidooWidget {
 		addParam(theme::param<CKSS>(gate.down(kRowPitch), module, POUPRE::LOOP_PARAM));
 		addParam(theme::param<BidooBlueKnob>(start, module, POUPRE::START_PARAM));
 		addParam(theme::param<BidooBlueKnob>(start.down(kRowPitch), module, POUPRE::LEN_PARAM));
-		addParam(theme::param<BidooBlueKnob>(start.down(2.f * kRowPitch), module, POUPRE::SPEED_PARAM));
+		addParam(theme::param<BidooBlueKnob>(start.down(2.f * kRowPitch), module, POUPRE::TUNE_PARAM));
 
 		const theme::Pos trig = theme::sameCol(jackCol, theme::row(0));
-		const int inIds[5] = {POUPRE::GATE_INPUT, POUPRE::LOOP_INPUT, POUPRE::START_INPUT, POUPRE::LEN_INPUT, POUPRE::SPEED_INPUT};
+		const int inIds[5] = {POUPRE::GATE_INPUT, POUPRE::LOOP_INPUT, POUPRE::START_INPUT, POUPRE::LEN_INPUT, POUPRE::VOCT_INPUT};
 		for (int i = 0; i < 5; i++)
 			addInput(theme::input<PJ301MPort>(trig.down(-kRowPitch * (5 - i)), module, inIds[i]));
 		addInput(theme::input<PJ301MPort>(trig, module, POUPRE::TRIG_INPUT));
@@ -178,10 +178,11 @@ struct POUPREWidget : BidooWidget {
 	struct POUPREItem : MenuItem {
   	POUPRE *module;
   	void onAction(const event::Action &e) override {
-  		std::string last = module->bank.path(0);
-			std::string dir = last.empty() ? asset::user("") : rack::system::getDirectory(last);
+  		// the last folder a sample came from, kept between openings and sessions (plugin.hpp)
+  		std::string dir = sampleDialogDir(module->bank.path(0));
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
+				rememberSampleFolder(path);
 				module->bank.load(0, path);
 				free(path);
 			}
@@ -191,8 +192,10 @@ struct POUPREWidget : BidooWidget {
 	void onPathDrop(const PathDropEvent& e) override {
 		Widget::onPathDrop(e);
 		POUPRE *module = dynamic_cast<POUPRE*>(this->module);
-		if (module && !e.paths.empty())
+		if (module && !e.paths.empty()) {
+			rememberSampleFolder(e.paths[0]);
 			module->bank.load(0, e.paths[0]);
+		}
 	}
 
   void appendContextMenu(ui::Menu *menu) override {

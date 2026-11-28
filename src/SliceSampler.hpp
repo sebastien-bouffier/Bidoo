@@ -377,8 +377,8 @@ SliceControls sliceControls(M &m, const SliceSettings &st, int i) {
 	SliceControls c;
 	c.start = clamp(st.start + m.inputs[M::START_INPUT].getPolyVoltage(i) * 0.1f, 0.f, 1.f);
 	c.len = clamp(st.len + m.inputs[M::LEN_INPUT].getPolyVoltage(i) * 0.1f, 0.f, 1.f);
-	// Speed: octaves from the knob plus 1V/oct.
-	c.speed = dsp::exp2_taylor5(clamp(st.speed + m.inputs[M::SPEED_INPUT].getPolyVoltage(i), -4.f, 4.f));
+	// The playback rate: TUNE (octaves) plus V/O, 1 V an octave.
+	c.speed = dsp::exp2_taylor5(clamp(st.speed + m.inputs[M::VOCT_INPUT].getPolyVoltage(i), -4.f, 4.f));
 	c.loop = st.loop && (!m.inputs[M::LOOP_INPUT].isConnected() || m.inputs[M::LOOP_INPUT].getPolyVoltage(i) > 0.1f);
 	c.gate = m.inputs[M::GATE_INPUT].isConnected() ? (m.inputs[M::GATE_INPUT].getPolyVoltage(i) >= 1.f ? 1 : 0) : st.gate;
 	c.filterType = 0;
@@ -397,8 +397,8 @@ SliceControls sliceControls(M &m, const SliceSettings &st, int i) {
 // cutoff), and only when its input is patched.
 template <class M>
 void sliceFastControls(M &m, const SliceSettings &st, int i, SliceControls &c) {
-	if (m.inputs[M::SPEED_INPUT].isConnected())
-		c.speed = dsp::exp2_taylor5(clamp(st.speed + m.inputs[M::SPEED_INPUT].getPolyVoltage(i), -4.f, 4.f));
+	if (m.inputs[M::VOCT_INPUT].isConnected())
+		c.speed = dsp::exp2_taylor5(clamp(st.speed + m.inputs[M::VOCT_INPUT].getPolyVoltage(i), -4.f, 4.f));
 	if constexpr (M::HAS_FILTER) {
 		if (m.inputs[M::FREQ_INPUT].isConnected())
 			c.freq = dsp::exp2_taylor5(clamp(4.5f + 9.5f * st.freq + m.inputs[M::FREQ_INPUT].getPolyVoltage(i), 3.f, 15.f));
@@ -422,13 +422,13 @@ void sliceConfig(M &m) {
 	m.configParam(M::LEN_PARAM, 0.0f, 1.0f, 1.0f, "Length", "%", 0.f, 100.f);
 	m.configSwitch(M::LOOP_PARAM, 0.0f, 1.0f, 0.0f, "Loop (gate mode)", {"Off", "On"});
 	m.configSwitch(M::GATE_PARAM, 0.0f, 1.0f, 1.0f, "Mode", {"Gate", "Trigger"});
-	m.configParam(M::SPEED_PARAM, -4.0f, 4.0f, 0.0f, "Speed", "x", 2.f);
+	m.configParam(M::TUNE_PARAM, -4.0f, 4.0f, 0.0f, "Tune", " semitones", 0.f, 12.f);   // octaves, shown in semitones
 	m.configInput(M::TRIG_INPUT, "Trigger / gate (polyphonic)");
 	m.configInput(M::GATE_INPUT, "Mode (above 1 V: trigger, below: gate)");
 	m.configInput(M::START_INPUT, "Start (10 V = 100%)");
 	m.configInput(M::LEN_INPUT, "Length (10 V = 100%)");
 	m.configInput(M::LOOP_INPUT, "Loop (high: on)");
-	m.configInput(M::SPEED_INPUT, "Speed (1V/oct)");
+	m.configInput(M::VOCT_INPUT, "V/O: 1 V per octave, 0 V plays the sample at its own pitch (added to TUNE, 4 octaves up or down at most; polyphonic)");
 	m.configOutput(M::POLY_OUTPUT, "Audio (polyphonic)");
 	if constexpr (M::HAS_FILTER) {
 		m.configSwitch(M::FILTERTYPE_PARAM, 0.0f, 3.0f, 0.0f, "Filter", {"Off", "Low-pass", "Band-pass", "High-pass"});
@@ -448,7 +448,7 @@ template <class M>
 void sliceLoadPanel(M &m, const SliceSettings &st) {
 	m.params[M::START_PARAM].setValue(st.start);
 	m.params[M::LEN_PARAM].setValue(st.len);
-	m.params[M::SPEED_PARAM].setValue(st.speed);
+	m.params[M::TUNE_PARAM].setValue(st.speed);
 	m.params[M::LOOP_PARAM].setValue(st.loop ? 1.0f : 0.0f);
 	m.params[M::GATE_PARAM].setValue(st.gate);
 	if constexpr (M::HAS_FILTER) {
@@ -463,7 +463,7 @@ template <class M>
 void sliceSavePanel(M &m, SliceSettings &st) {
 	st.start = m.params[M::START_PARAM].getValue();
 	st.len = m.params[M::LEN_PARAM].getValue();
-	st.speed = m.params[M::SPEED_PARAM].getValue();
+	st.speed = m.params[M::TUNE_PARAM].getValue();
 	st.loop = m.params[M::LOOP_PARAM].getValue() > 0.5f;
 	st.gate = m.params[M::GATE_PARAM].getValue() > 0.5f ? 1 : 0;
 	if constexpr (M::HAS_FILTER) {
@@ -583,14 +583,14 @@ void sliceSamplerControls(ModuleWidget *mw, M *module) {
 	mw->addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::colRow(middle, theme::specificCorner(56.5f, 20, kSmallLightSize)), module, M::SAMPLE_LIGHT));
 	mw->addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(middle, theme::specificCorner(45, 35, theme::kBlueKnobSize)), module, M::CHANNEL_PARAM));
 
-	// two rows of three knobs, then KILL under SPEED and RES; the dial ticks around the channel, filter type and kill
+	// two rows of three knobs, then KILL under TUNE and RES; the dial ticks around the channel, filter type and kill
 	// knobs are on the panel, centred on these places
 	const float kKnobRowBelow = 50.f;
 	const theme::Pos knobRow = theme::specificCorner(7, 85, theme::kBlueKnobSize);   // START's old corner: the first row
 	const theme::Pos start = theme::colRow(left, knobRow), len = theme::colRow(middle, knobRow), speed = theme::colRow(right, knobRow);
 	mw->addParam(theme::param<BidooBlueKnob>(start, module, M::START_PARAM));
 	mw->addParam(theme::param<BidooBlueKnob>(len, module, M::LEN_PARAM));
-	mw->addParam(theme::param<BidooBlueKnob>(speed, module, M::SPEED_PARAM));
+	mw->addParam(theme::param<BidooBlueKnob>(speed, module, M::TUNE_PARAM));
 	mw->addParam(theme::param<BidooBlueSnapKnob>(start.down(kKnobRowBelow), module, M::FILTERTYPE_PARAM));
 	mw->addParam(theme::param<BidooBlueKnob>(len.down(kKnobRowBelow), module, M::FREQ_PARAM));
 	mw->addParam(theme::param<BidooBlueKnob>(speed.down(kKnobRowBelow), module, M::Q_PARAM));
@@ -608,7 +608,7 @@ void sliceSamplerControls(ModuleWidget *mw, M *module) {
 		const float bw = (kBoxRight - kBoxLeft - (count - 1) * gap) / count;
 		return kBoxLeft + 0.5f * bw + i * (bw + gap);
 	};
-	const int topIds[4] = {M::START_INPUT, M::LEN_INPUT, M::SPEED_INPUT, M::LOOP_INPUT};
+	const int topIds[4] = {M::START_INPUT, M::LEN_INPUT, M::VOCT_INPUT, M::LOOP_INPUT};
 	const int midIds[4] = {M::FILTERTYPE_INPUT, M::FREQ_INPUT, M::Q_INPUT, M::GATE_INPUT};
 	for (int i = 0; i < n; i++) {
 		mw->addInput(theme::input<PJ301MPort>(theme::specific(boxCentre(i, n, kCvGap), theme::row(2)), module, topIds[i]));

@@ -110,7 +110,7 @@ struct PRISME : BidooModule {
 		configParam(TUNE_PARAM, -2.f, 2.f, 0.f, "Tune", " semitones", 0.f, 12.f);
 		configParam(SPREAD_PARAM, 0.f, 1.f, 0.f, "Stereo spread", "%", 0.f, 100.f)->description =
 			"Odd harmonics to the left, even ones to the right; the fundamental stays in the middle";
-		configInput(VOCT_INPUT, "V/Oct (polyphonic, C4 at 0 V)");
+		configInput(VOCT_INPUT, "V/O (polyphonic, C4 at 0 V)");
 		configInput(GATE_INPUT, "Gate (polyphonic; unplugged: the voices are held)");
 		configInput(VEL_INPUT, "Velocity, 0..10 V: the level, and MORPH if the menu says (polyphonic; unplugged: full level)");
 		configInput(MORPH_INPUT, "Morph CV (10 V spans the knob's range)");

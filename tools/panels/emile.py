@@ -19,7 +19,7 @@ KNOB_ROW = 1                        # the knobs on row 1 (296), 1.2 px under the
 BUTTON_NAMES = ('RED', 'GREEN', 'BLUE', 'ALPHA')
 NAME_ABOVE = 10 + 3                  # a name's baseline above its button's centre: 3 px over its 20 px button
 KNOB_NAMES = ('TUNE', 'POS', 'CURVE', 'GAIN')
-JACK_NAMES = ('VO', 'POS', 'CRV', 'OUT')
+JACK_NAMES = ('V/O', 'POS', 'CRV', 'OUT')
 
 def box_width():
     return (BOX_RIGHT - BOX_LEFT - (N - 1) * k.BOX_GAP) / N

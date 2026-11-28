@@ -363,7 +363,7 @@ struct LIMONADE : BidooModule {
 		configParam(FREQ_PARAM, -54.f, 54.f, 0.f, "Frequency", " Hz", dsp::FREQ_SEMITONE, dsp::FREQ_C4);
 		configParam(FINE_PARAM, -1.f, 1.f, 0.f, "Fine frequency");
 		configParam(FM_PARAM, 0.f, 1.f, 0.f, "Frequency modulation", "%", 0.f, 100.f);
-		configInput(PITCH_INPUT, "1V/oct pitch");
+		configInput(PITCH_INPUT, "V/O (1 V per octave, added to FREQ)");
 		configInput(FM_INPUT, "Frequency modulation");
 		configInput(SYNC_INPUT, "Sync");
 		configInput(SYNCMODE_INPUT, "Sync mode (above 0 V: hard)");

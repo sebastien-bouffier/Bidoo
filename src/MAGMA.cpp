@@ -12,7 +12,7 @@ struct MAGMA : BidooModule {
 		START_PARAM,
 		LEN_PARAM,
 		LOOP_PARAM,
-		SPEED_PARAM,
+		TUNE_PARAM,
 		GATE_PARAM,
 		Q_PARAM,
 		FREQ_PARAM,
@@ -28,7 +28,7 @@ struct MAGMA : BidooModule {
 		START_INPUT,
 		LEN_INPUT,
 		LOOP_INPUT,
-		SPEED_INPUT,
+		VOCT_INPUT,
 		Q_INPUT,
 		FREQ_INPUT,
 		FILTERTYPE_INPUT,
@@ -163,10 +163,11 @@ struct MAGMAWidget : BidooWidget {
 	struct MAGMAItem : MenuItem {
   	MAGMA *module;
   	void onAction(const event::Action &e) override {
-  		std::string last = module->bank.path(0);
-			std::string dir = last.empty() ? asset::user("") : rack::system::getDirectory(last);
+  		// the last folder a sample came from, kept between openings and sessions (plugin.hpp)
+  		std::string dir = sampleDialogDir(module->bank.path(0));
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
+				rememberSampleFolder(path);
 				module->bank.load(0, path);
 				free(path);
 			}
@@ -176,8 +177,10 @@ struct MAGMAWidget : BidooWidget {
 	void onPathDrop(const PathDropEvent& e) override {
 		Widget::onPathDrop(e);
 		MAGMA *module = dynamic_cast<MAGMA*>(this->module);
-		if (module && !e.paths.empty())
+		if (module && !e.paths.empty()) {
+			rememberSampleFolder(e.paths[0]);
 			module->bank.load(0, e.paths[0]);
+		}
 	}
 
   void appendContextMenu(ui::Menu *menu) override {

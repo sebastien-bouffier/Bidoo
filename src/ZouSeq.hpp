@@ -783,7 +783,7 @@ struct ZouSeq : BidooModule {
 		configInput(FILL_INPUT, "Fill (high: fill on)");
 		configInput(RUN_INPUT, "Run toggle trigger");
 		configInput(GATE_INPUT, "Record gate");
-		configInput(VO_INPUT, "Record V/Oct");
+		configInput(VO_INPUT, "Record V/O");
 		for (int t = 0; t < NUM_TRACKS; t++) {
 			const std::string n = "Track " + std::to_string(t + 1);
 			configInput(TRACKRESET_INPUTS + t, n + " reset");

@@ -74,7 +74,7 @@ struct DIKTAT : BidooModule {
 		configSwitch(SCALE_PARAM, 0.0f, quantizer::numScales-1, 1.0f, "Scale (No: not quantized)", scales);
 
 
-		configInput(NOTE_INPUT, "1V/oct pitch");
+		configInput(NOTE_INPUT, "V/O (the note to harmonize)");
 		configInput(ROOT_NOTE_INPUT, "Root note (0-10 V = +0-11 semitones)");
 		configInput(SCALE_INPUT, "Scale (0-10 V = through the list)");
 

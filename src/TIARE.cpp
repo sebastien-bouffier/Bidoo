@@ -384,7 +384,7 @@ struct TIARE : BidooModule {
 		configParam(PWM_PARAM, 0.f, 1.f, 0.f, "Pulse width modulation", "%", 0.f, 100.f);
 		configParam(DIST_X_PARAM, DIST_MIN, DIST_MAX, 0.5f, "Phase distortion X", "%", 0.f, 100.f);
 		configParam(DIST_Y_PARAM, DIST_MIN, DIST_MAX, 0.5f, "Phase distortion Y", "%", 0.f, 100.f);
-		configInput(PITCH_INPUT, "1V/oct pitch");
+		configInput(PITCH_INPUT, "V/O");
 		configInput(FM_INPUT, "Frequency modulation");
 		configInput(SYNC_INPUT, "Sync");
 		configInput(PW_INPUT, "Pulse width modulation (scaled by PWM, 10 V: the whole range)");

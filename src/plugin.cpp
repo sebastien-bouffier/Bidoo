@@ -320,3 +320,52 @@ void BidooWidget::step() {
 		showTheme(defaultPanelTheme);
 	ModuleWidget::step();
 }
+
+// The last sample folder: read once from <user>/Bidoo/folders.json, written when it changes (UI thread only).
+static bool sampleFolderRead = false;
+static std::string sampleFolder;
+
+static std::string foldersFile() { return asset::user("Bidoo/folders.json"); }
+
+std::string sampleDialogDir(const std::string &current) {
+	if (!sampleFolderRead) {
+		sampleFolderRead = true;
+		if (json_t *j = json_load_file(foldersFile().c_str(), 0, NULL)) {
+			json_t *s = json_object_get(j, "samples");
+			if (json_is_string(s))
+				sampleFolder = json_string_value(s);
+			json_decref(j);
+		}
+	}
+	if (!sampleFolder.empty() && system::isDirectory(sampleFolder))
+		return sampleFolder;
+	if (!current.empty()) {
+		std::string d = system::getDirectory(current);
+		if (system::isDirectory(d))
+			return d;
+	}
+	return asset::user("");
+}
+
+void rememberSampleFolder(const std::string &path) {
+	if (path.empty())
+		return;
+	std::string d = system::isDirectory(path) ? path : system::getDirectory(path);
+	if (d.empty() || !system::isDirectory(d))
+		return;
+	sampleDialogDir();   // the file read first
+	if (d == sampleFolder)
+		return;
+	sampleFolder = d;
+	// the file's other keys kept
+	json_t *j = json_load_file(foldersFile().c_str(), 0, NULL);
+	if (!json_is_object(j)) {
+		if (j)
+			json_decref(j);
+		j = json_object();
+	}
+	json_object_set_new(j, "samples", json_string(d.c_str()));
+	system::createDirectories(asset::user("Bidoo"));
+	json_dump_file(j, foldersFile().c_str(), JSON_INDENT(2));
+	json_decref(j);
+}

@@ -19,7 +19,7 @@ LINE = 0.26458                     # the old lines' width (1 px), in units
 # The jacks: the inputs on the second row and the outputs on the bottom row (they were 21 and 7 px higher), one box each
 # centred on its column, the theme's 4 px between boxes in an envelope (9 between the two)
 BOX_W = 31.0
-NAMES = ((('VO', 'IN', 'TRIG'), ('OUT', 'GATE', 'EOC')), (('VO', 'IN', 'TRIG'), ('OUT', 'NORM', 'EOC')))
+NAMES = ((('V/O', 'IN', 'TRIG'), ('OUT', 'GATE', 'EOC')), (('V/O', 'IN', 'TRIG'), ('OUT', 'NORM', 'EOC')))
 SWITCHES = ('EXP', 'CYC', 'EXP')
 
 def picture():

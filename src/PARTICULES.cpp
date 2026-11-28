@@ -756,8 +756,10 @@ struct PARTICULESWidget : BidooWidget {
 
 	void onPathDrop(const PathDropEvent &e) override {
 		PARTICULES *m = dynamic_cast<PARTICULES *>(module);
-		if (m && !e.paths.empty())
+		if (m && !e.paths.empty()) {
+			rememberSampleFolder(e.paths[0]);
 			m->loadFile(e.paths[0]);
+		}
 	}
 
 	void appendContextMenu(Menu *menu) override {
@@ -768,8 +770,10 @@ struct PARTICULESWidget : BidooWidget {
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Buffer"));
 		menu->addChild(createMenuItem("Load a sample (or drop a file on the module)", "", [=]() {
-			char *path = osdialog_file(OSDIALOG_OPEN, nullptr, nullptr, nullptr);
+			// the last folder a sample came from, kept between openings and sessions (plugin.hpp)
+			char *path = osdialog_file(OSDIALOG_OPEN, sampleDialogDir().c_str(), nullptr, nullptr);
 			if (path) {
+				rememberSampleFolder(path);
 				m->loadFile(path);
 				std::free(path);
 			}

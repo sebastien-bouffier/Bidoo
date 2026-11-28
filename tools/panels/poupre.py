@@ -14,14 +14,14 @@ BOX_SIDE, BOX_W = 6.0, 26.0
 JACK_X = BOX_SIDE + BOX_W / 2
 CONTROL_X = PW - JACK_X
 ROW_PITCH = 47.0                       # the old rows, kept (src/POUPRE.cpp kRowPitch): TRIG and OUT on the bottom row
-JACK_Y = [k.row(0) - ROW_PITCH * (5 - i) for i in range(6)]   # GATE LOOP STRT LEN SPD TRIG; were 0.15 px higher
+JACK_Y = [k.row(0) - ROW_PITCH * (5 - i) for i in range(6)]   # GATE LOOP STRT LEN V/O TRIG; were 0.15 px higher
 CKSS_HALF = 20.64111 / 2
 KNOB_HALF = 29.5275591 / 2
 # the controls keep their old rows, 4 px above their jacks, the line to their box at their centre as before
 GATE_Y = 92.5 + CKSS_HALF              # CKSS, old corner 92.5; LOOP one row below
-START_Y = 182 + KNOB_HALF              # BidooBlueKnob, old corner 182; LEN and SPEED below
+START_Y = 182 + KNOB_HALF              # BidooBlueKnob, old corner 182; LEN and TUNE below
 CONTROL_Y = [GATE_Y, GATE_Y + ROW_PITCH, START_Y, START_Y + ROW_PITCH, START_Y + 2 * ROW_PITCH]
-CAPTIONS = ('GATE', 'LOOP', 'STRT', 'LEN', 'SPD', 'TRIG')
+CAPTIONS = ('GATE', 'LOOP', 'STRT', 'LEN', 'V/O', 'TRIG')
 # the preset buttons' numbers, at 6.5 as maGma's (7.5 would touch the buttons), their capitals centred on each light;
 # 1.4 px left of the buttons (old corner x 66, src/POUPRE.cpp kPresetPairs)
 PRESET_X = 60.5

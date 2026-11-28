@@ -14,7 +14,7 @@ N = 4                                  # the CV rows' jack columns, the same in 
 KNOB_X = (k.jack_col(0, N, PW), PW / 2, k.jack_col(N - 1, N, PW))
 KNOB_HALF = 29.5275591 / 2             # BidooBlueKnob: the knobs keep their old rows, from their old corners
 CHANNEL_Y = 35 + KNOB_HALF             # the channel knob, old corner 35
-ROW_Y = (85 + KNOB_HALF, 135 + KNOB_HALF, 185 + KNOB_HALF)   # START LEN SPEED, FLT.TYP. FREQ RES, KILL
+ROW_Y = (85 + KNOB_HALF, 135 + KNOB_HALF, 185 + KNOB_HALF)   # START LEN TUNE, FLT.TYP. FREQ RES, KILL
 SWITCH_Y = 190 + 20.64111 / 2          # the CKSS switches, old corner 190
 SWITCH_HALF = 20.64111 / 2
 # the old dials' centres (fitted to their ticks): each set of ticks moves onto its knob, with its marks
@@ -41,7 +41,7 @@ def jack_boxes(n, gap, r, colours):
         out.append(k.box(box_centre(i, n, gap) - w / 2, k.box_top(r), w, k.box_bottom(r) - k.box_top(r), colours[i]))
     return out
 
-CV_NAMES = (('STRT', 'LEN', 'SPD', 'LOOP'), ('FLTTP', 'FREQ', 'RES', 'GATE'))   # rows 2 and 1
+CV_NAMES = (('STRT', 'LEN', 'V/O', 'LOOP'), ('FLTTP', 'FREQ', 'RES', 'GATE'))   # rows 2 and 1
 
 def parts():
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'oai_parts.svg'), encoding='utf-8') as f:
@@ -74,7 +74,7 @@ def build(name='oAï', source=None, extra=()):
     # on the switches' lower baseline (0.08 px higher)
     out.append(k.text('OFF', 82.7 + dx, SWITCH_Y + SWITCH_HALF + 4 + k.CAP_HEIGHT * k.BOX_LABEL_SIZE, DIAL_SIZE, k.INK))
     # the knobs' labels
-    for lab, i in (('START', 0), ('LEN', 1), ('SPEED', 2)):
+    for lab, i in (('START', 0), ('LEN', 1), ('TUNE', 2)):
         out.append(k.knob_label(lab, KNOB_X[i], ROW_Y[0]))
     for lab, i in (('FLT.TYP.', 0), ('FREQ', 1), ('RES', 2)):
         out.append(k.knob_label(lab, KNOB_X[i], ROW_Y[1]))

@@ -53,8 +53,9 @@ def build():
     # the sync mode switch: its two positions above and below it, as lIMbO's
     out.append(k.text('H', SWITCH[0], SWITCH[1] - CKSS_HALF - 4, k.BOX_LABEL_SIZE, k.INK))
     out.append(k.text('S', SWITCH[0], SWITCH[1] + CKSS_HALF + 4 + k.CAP_HEIGHT * k.BOX_LABEL_SIZE, k.BOX_LABEL_SIZE, k.INK))
-    # the boxes: SYNC under FINE, IN under UNI, OUT under SCAN
-    for lab, x, y, colour in (('SYNC', COL[2], CV_Y, k.INPUT), ('IN', COL[0], IO_Y, k.INPUT), ('OUT', COL[4], IO_Y, k.OUTPUT)):
+    # the boxes: V/O under FREQ (the pitch input, its jack joined to the FREQ knob), SYNC under FINE, IN under UNI,
+    # OUT under SCAN
+    for lab, x, y, colour in (('V/O', COL[1], CV_Y, k.INPUT), ('SYNC', COL[2], CV_Y, k.INPUT), ('IN', COL[0], IO_Y, k.INPUT), ('OUT', COL[4], IO_Y, k.OUTPUT)):
         out.append(k.box(x - BOX_W / 2, y - k.BOX_ABOVE, BOX_W, k.BOX_ABOVE + k.BOX_BELOW, colour))
         out.append(k.jack_label(lab, x, y))
     out.append(k.logo(W))

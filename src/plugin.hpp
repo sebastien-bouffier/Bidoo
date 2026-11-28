@@ -110,3 +110,10 @@ struct BidooWidget : ModuleWidget {
 	void showTheme(int theme);
 	void step() override;
 };
+
+// The folder a sample file dialog opens in: the last folder a sample was picked or dropped from in any Bidoo sampler
+// (oAi, maGma, poUPRe, OUAIve, cANARd, eDsaroS, PARTICULES, sOUNAiRe), kept in <user>/Bidoo/folders.json so it holds
+// across Rack sessions; else the folder of `current` (the slot's own sample); else the user folder. UI thread.
+std::string sampleDialogDir(const std::string &current = "");
+// a sample file (or a folder) picked or dropped: its folder becomes the one the next dialog opens in
+void rememberSampleFolder(const std::string &path);

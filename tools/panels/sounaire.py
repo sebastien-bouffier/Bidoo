@@ -75,7 +75,7 @@ def build():
     top = UPPER_ROW - k.BOX_ABOVE
     tall = k.BOTTOM_BOTTOM - top
     out.append(k.box(k.MARGIN, top, 324, tall, k.INPUT))
-    for i, l in enumerate(['V/OCT', 'GATE', 'VEL', 'BEND', 'START', 'SPEED', 'CUTOFF', 'RES', 'PITCH', 'PLAY']):
+    for i, l in enumerate(['V/O', 'GATE', 'VEL', 'BEND', 'START', 'SPEED', 'CUTOFF', 'RES', 'PITCH', 'PLAY']):
         out.append(k.jack_label(l, JX0 + COL * i, UPPER_ROW, 7))
     for i, l in ((0, 'TRIG'), (1, 'SLICE'), (2, 'RESET'), (3, 'CLOCK'), (4, 'END'), (5, 'LP IN'), (6, 'LP OUT'), (7, 'REC IN')):
         out.append(k.jack_label(l, JX0 + COL * i, k.BOTTOM_ROW, 7, jack_above=UPPER_ROW))
