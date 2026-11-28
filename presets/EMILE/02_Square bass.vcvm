@@ -1,0 +1,48 @@
+{
+  "plugin": "Bidoo",
+  "model": "EMILE",
+  "version": "2.7.11",
+  "params": [
+    {
+      "value": 0.0325,
+      "id": 0
+    },
+    {
+      "value": 1.0,
+      "id": 1
+    },
+    {
+      "value": -1.0,
+      "id": 2
+    },
+    {
+      "value": 0.0,
+      "id": 3
+    },
+    {
+      "value": 0.0,
+      "id": 4
+    },
+    {
+      "value": 0.0,
+      "id": 5
+    },
+    {
+      "value": 0.0,
+      "id": 6
+    },
+    {
+      "value": 0.0,
+      "id": 7
+    }
+  ],
+  "data": {
+    "lastPath": "plugin:res/emile/square.png",
+    "r": true,
+    "g": true,
+    "b": true,
+    "a": false,
+    "mode": 1,
+    "drawn": false
+  }
+}

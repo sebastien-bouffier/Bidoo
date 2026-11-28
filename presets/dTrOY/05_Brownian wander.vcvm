@@ -1,0 +1,1359 @@
+{
+  "plugin": "Bidoo",
+  "model": "dTrOY",
+  "version": "2.7.11",
+  "params": [
+    {
+      "value": 2.0,
+      "id": 0
+    },
+    {
+      "value": 0.0,
+      "id": 1
+    },
+    {
+      "value": 0.0,
+      "id": 2
+    },
+    {
+      "value": 8.0,
+      "id": 3
+    },
+    {
+      "value": 0.2,
+      "id": 4
+    },
+    {
+      "value": 0.5,
+      "id": 5
+    },
+    {
+      "value": 0.0,
+      "id": 6
+    },
+    {
+      "value": 24.0,
+      "id": 7
+    },
+    {
+      "value": 0.0,
+      "id": 8
+    },
+    {
+      "value": 0.0,
+      "id": 9
+    },
+    {
+      "value": 1.0,
+      "id": 10
+    },
+    {
+      "value": 1.0,
+      "id": 11
+    },
+    {
+      "value": 0.0,
+      "id": 12
+    },
+    {
+      "value": 0.0,
+      "id": 13
+    },
+    {
+      "value": 0.0,
+      "id": 14
+    },
+    {
+      "value": 0.0,
+      "id": 15
+    },
+    {
+      "value": 0.0,
+      "id": 16
+    },
+    {
+      "value": 0.0,
+      "id": 17
+    },
+    {
+      "value": 0.0,
+      "id": 18
+    },
+    {
+      "value": 1.0,
+      "id": 19
+    },
+    {
+      "value": 1.0,
+      "id": 20
+    },
+    {
+      "value": 1.0,
+      "id": 21
+    },
+    {
+      "value": 1.0,
+      "id": 22
+    },
+    {
+      "value": 1.0,
+      "id": 23
+    },
+    {
+      "value": 1.0,
+      "id": 24
+    },
+    {
+      "value": 1.0,
+      "id": 25
+    },
+    {
+      "value": 1.0,
+      "id": 26
+    },
+    {
+      "value": 1.0,
+      "id": 27
+    },
+    {
+      "value": 1.0,
+      "id": 28
+    },
+    {
+      "value": 1.0,
+      "id": 29
+    },
+    {
+      "value": 1.0,
+      "id": 30
+    },
+    {
+      "value": 0.0,
+      "id": 31
+    },
+    {
+      "value": 1.0,
+      "id": 32
+    },
+    {
+      "value": 1.0,
+      "id": 33
+    },
+    {
+      "value": 1.0,
+      "id": 34
+    },
+    {
+      "value": 0.0,
+      "id": 35
+    },
+    {
+      "value": 0.166667,
+      "id": 36
+    },
+    {
+      "value": 0.333333,
+      "id": 37
+    },
+    {
+      "value": 0.583333,
+      "id": 38
+    },
+    {
+      "value": 0.75,
+      "id": 39
+    },
+    {
+      "value": 1.0,
+      "id": 40
+    },
+    {
+      "value": 1.166667,
+      "id": 41
+    },
+    {
+      "value": 1.333333,
+      "id": 42
+    },
+    {
+      "value": 0.0,
+      "id": 43
+    },
+    {
+      "value": 0.0,
+      "id": 44
+    },
+    {
+      "value": 0.0,
+      "id": 45
+    },
+    {
+      "value": 0.0,
+      "id": 46
+    },
+    {
+      "value": 0.0,
+      "id": 47
+    },
+    {
+      "value": 0.0,
+      "id": 48
+    },
+    {
+      "value": 0.0,
+      "id": 49
+    },
+    {
+      "value": 0.0,
+      "id": 50
+    },
+    {
+      "value": 0.0,
+      "id": 51
+    },
+    {
+      "value": 0.0,
+      "id": 52
+    },
+    {
+      "value": 0.0,
+      "id": 53
+    },
+    {
+      "value": 0.0,
+      "id": 54
+    },
+    {
+      "value": 0.0,
+      "id": 55
+    },
+    {
+      "value": 0.0,
+      "id": 56
+    },
+    {
+      "value": 0.0,
+      "id": 57
+    },
+    {
+      "value": 0.0,
+      "id": 58
+    },
+    {
+      "value": 0.0,
+      "id": 59
+    },
+    {
+      "value": 0.0,
+      "id": 60
+    },
+    {
+      "value": 0.0,
+      "id": 61
+    },
+    {
+      "value": 0.0,
+      "id": 62
+    },
+    {
+      "value": 0.0,
+      "id": 63
+    }
+  ],
+  "data": {
+    "running": true,
+    "stepOutputsMode": false,
+    "selectedPattern": 0,
+    "playedPattern": 0,
+    "patterns": [
+      {
+        "playMode": 4,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 24,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 1,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.166667,
+            "pulses": 1,
+            "type": 1,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.333333,
+            "pulses": 1,
+            "type": 1,
+            "slide": true,
+            "skip": false
+          },
+          {
+            "pitch": 0.583333,
+            "pulses": 1,
+            "type": 1,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.75,
+            "pulses": 1,
+            "type": 0,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 1.0,
+            "pulses": 1,
+            "type": 1,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 1.166667,
+            "pulses": 1,
+            "type": 1,
+            "slide": true,
+            "skip": false
+          },
+          {
+            "pitch": 1.333333,
+            "pulses": 1,
+            "type": 1,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      },
+      {
+        "playMode": 0,
+        "countMode": 0,
+        "numSteps": 8,
+        "rootNote": 0,
+        "scale": 0,
+        "gateTime": 0.5,
+        "slideTime": 0.2,
+        "sensitivity": 1.0,
+        "stages": [
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          },
+          {
+            "pitch": 0.0,
+            "pulses": 1,
+            "type": 2,
+            "slide": false,
+            "skip": false
+          }
+        ]
+      }
+    ]
+  }
+}

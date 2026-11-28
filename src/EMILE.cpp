@@ -205,7 +205,7 @@ struct EMILE : BidooModule {
 		configButton(A_PARAM, "Alpha");
 		configInput(POS_INPUT, "Position (bipolar: +-5 V sweeps the image around the knob)");
 		configInput(CURVE_INPUT, "Frequency curve (10 V = +0.09)");
-		configInput(TUNE_INPUT, "Tune (1V/oct)");
+		configInput(TUNE_INPUT, "V/O (1 V per octave, added to TUNE; C4 at 0 V in harmonics mode)");
 		configInput(R_INPUT, "Red toggle");
 		configInput(G_INPUT, "Green toggle");
 		configInput(B_INPUT, "Blue toggle");
@@ -310,6 +310,13 @@ struct EMILE : BidooModule {
 		const int i = std::min((int)x, HT - 1);
 		const float frac = (float)(x - i);
 		return t[i] + (t[i + 1] - t[i]) * frac;
+	}
+
+	// A path as saved: "plugin:res/emile/x.png" is an image shipped with the plugin (the factory presets use it, so a
+	// preset or a patch made from one finds it on any computer); anything else is a file path.
+	static bool shippedImage(const std::string &path) { return path.rfind("plugin:", 0) == 0; }
+	static std::string resolvePath(const std::string &path) {
+		return shippedImage(path) ? asset::plugin(pluginInstance, path.substr(7)) : path;
 	}
 
 	// UI thread: load a PNG. A file asked for ends the drawing: it plays as before, and the canvas starts again from it.
@@ -595,7 +602,7 @@ struct EMILE : BidooModule {
 			// 25 megapixels at most: 8 bytes a pixel once decoded
 			std::vector<unsigned char> png;
 			unsigned w = 0, h = 0;
-			bool ok = lodepng::load_file(png, path) == 0 && !png.empty();
+			bool ok = lodepng::load_file(png, resolvePath(path)) == 0 && !png.empty();
 			if (ok) {
 				lodepng::State st;
 				ok = lodepng_inspect(&w, &h, &st, png.data(), png.size()) == 0 && (uint64_t)w * h <= 25000000ull;
@@ -1233,8 +1240,9 @@ struct EMILEWidget : BidooWidget {
   struct EMILEItem : MenuItem {
   	EMILE *module;
   	void onAction(const event::Action &e) override {
+  		// the folder of the last image (an image shipped with the plugin: the user folder)
   		std::string last = module->getPath();
-  		std::string dir = last.empty() ?  asset::user("") : rack::system::getDirectory(last);
+  		std::string dir = last.empty() || EMILE::shippedImage(last) ? asset::user("") : rack::system::getDirectory(last);
   		char *path = osdialog_file(OSDIALOG_OPEN, dir.c_str(), NULL, NULL);
   		if (path) {
   			module->loadImage(path);
@@ -1252,7 +1260,7 @@ struct EMILEWidget : BidooWidget {
 		menu->addChild(construct<EMILEItem>(&MenuItem::text, "Load image (png)", &EMILEItem::module, module));
 		menu->addChild(createMenuItem("Save drawing as PNG...", "", [=]() {
 			std::string last = module->getPath();
-			std::string dir = last.empty() ? asset::user("") : rack::system::getDirectory(last);
+			std::string dir = last.empty() || EMILE::shippedImage(last) ? asset::user("") : rack::system::getDirectory(last);
 			char *path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), "drawing.png", NULL);
 			if (path) {
 				std::string p = path;

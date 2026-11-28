@@ -1,0 +1,50 @@
+{
+  "plugin": "Bidoo",
+  "model": "ForK",
+  "version": "2.7.11",
+  "params": [
+    {
+      "value": -24.0,
+      "id": 0
+    },
+    {
+      "value": 0.0,
+      "id": 1
+    },
+    {
+      "value": 190.0,
+      "id": 2
+    },
+    {
+      "value": 800.0,
+      "id": 3
+    },
+    {
+      "value": 2000.0,
+      "id": 4
+    },
+    {
+      "value": 3400.0,
+      "id": 5
+    },
+    {
+      "value": 0.7,
+      "id": 6
+    },
+    {
+      "value": 0.35,
+      "id": 7
+    },
+    {
+      "value": 0.1,
+      "id": 8
+    },
+    {
+      "value": 0.1,
+      "id": 9
+    }
+  ],
+  "data": {
+    "preset": 4
+  }
+}

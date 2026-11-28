@@ -9,10 +9,13 @@ sys.path.insert(0, os.path.join(ROOT, "tools", "presets"))
 import preset_kit
 
 CONSTANTS = {"NUM_INTERVALS": 10, "PrismReverb::NumAlgos": 8, "filtre::kNumTypes": 71, "particules::kNumIntervals": 7, "quantizer::numNotes": 13,
-	"quantizer::numScales": 46}
+	"quantizer::numScales": 46,
+	"F_MIN": 190, "F_MAX": 4700, "A_MAX": 2,  # ForK: per-formant arrays F_MIN[k]..., the widest of the four
+	"NUM_SPEEDS": 14, "TrigAttibutes::NUM_CONDITIONS": 10, "toKnob": "", "TRAITS::MAX_TRIM": 95 / 3}  # ZouSeq.hpp; trim: enCORE's +-95/3, wider than zOu MAi's +-1
 
 def number(expr, defines):
 	expr = expr.strip()
+	expr = re.sub(r"\b(F_MIN|F_MAX|A_MAX)\[k\]", r"\1", expr)  # ForK's per-formant arrays: their widest range
 	for k, v in list(CONSTANTS.items()) + list(defines.items()):
 		expr = re.sub(r"\b" + re.escape(k) + r"\b", str(v), expr)
 	expr = re.sub(r"(\d\.?\d*)f\b", r"\1", expr)
@@ -33,16 +36,19 @@ def sources():
 	out = {}
 	for path in glob.glob(os.path.join(ROOT, "src", "*.cpp")):
 		text = open(path, encoding="utf-8-sig").read()
-		for m in re.finditer(r'createModel<\s*\w+\s*,\s*\w+\s*>\(\s*"([^"]+)"', text):
+		for m in re.finditer(r'createModel<\s*\w+\s*,\s*\w+(?:<\w+>)?\s*>\(\s*"([^"]+)"', text):
 			out[m.group(1)] = os.path.basename(path)
 	return out
 
 def ranges(src, names):
 	text = open(os.path.join(ROOT, "src", src), encoding="utf-8-sig").read()
+	# a shared engine header's config (MetroSeq.hpp: m.configParam(M::CLOCK_PARAM, ...)) first, the module's own after it
+	hdrs = [os.path.join(ROOT, "src", h) for h in re.findall(r'#include\s+"(\w+Seq\.hpp)"', text)]
+	text = "".join(open(h, encoding="utf-8-sig").read() for h in hdrs if os.path.exists(h)) + text
 	defs = defines(text)
 	r = {}
 	# configParam(NAME_PARAM, ...) or, in a loop, configParam(NAME_PARAM + i, ...): the range of the whole array
-	for m in re.finditer(r"config(Param|Switch|Button)(?:<\w+>)?\((\w+_PARAM)(\s*\+\s*\w+)?\s*,([^;]*)", text):
+	for m in re.finditer(r"config(Param|Switch|Button)(?:<\w+>)?\((?:\w+::)?(\w+_PARAM)(\s*\+\s*\w+)?\s*,([^;]*)", text):
 		kind, name, inLoop, rest = m.groups()
 		if kind == "Button":
 			lo, hi = 0.0, 1.0

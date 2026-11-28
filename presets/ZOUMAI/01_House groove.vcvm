@@ -1,0 +1,582 @@
+{
+  "plugin": "Bidoo",
+  "model": "ZOUMAI",
+  "version": "2.7.11",
+  "params": [
+    {
+      "value": 0.0,
+      "id": 0
+    },
+    {
+      "value": 0.0,
+      "id": 1
+    },
+    {
+      "value": 0.0,
+      "id": 2
+    },
+    {
+      "value": 0.0,
+      "id": 3
+    },
+    {
+      "value": 0.0,
+      "id": 4
+    },
+    {
+      "value": 0.0,
+      "id": 5
+    },
+    {
+      "value": 0.0,
+      "id": 6
+    },
+    {
+      "value": 0.0,
+      "id": 7
+    },
+    {
+      "value": 0.0,
+      "id": 8
+    },
+    {
+      "value": 0.0,
+      "id": 9
+    },
+    {
+      "value": 0.0,
+      "id": 10
+    },
+    {
+      "value": 0.0,
+      "id": 11
+    },
+    {
+      "value": 0.0,
+      "id": 12
+    },
+    {
+      "value": 0.0,
+      "id": 13
+    },
+    {
+      "value": 0.0,
+      "id": 14
+    },
+    {
+      "value": 0.0,
+      "id": 15
+    },
+    {
+      "value": 1.0,
+      "id": 16
+    },
+    {
+      "value": 1.0,
+      "id": 17
+    },
+    {
+      "value": 1.0,
+      "id": 18
+    },
+    {
+      "value": 1.0,
+      "id": 19
+    },
+    {
+      "value": 1.0,
+      "id": 20
+    },
+    {
+      "value": 1.0,
+      "id": 21
+    },
+    {
+      "value": 1.0,
+      "id": 22
+    },
+    {
+      "value": 1.0,
+      "id": 23
+    },
+    {
+      "value": 1.0,
+      "id": 24
+    },
+    {
+      "value": 0.0,
+      "id": 25
+    },
+    {
+      "value": 0.0,
+      "id": 26
+    },
+    {
+      "value": 0.0,
+      "id": 27
+    },
+    {
+      "value": 0.0,
+      "id": 28
+    },
+    {
+      "value": 0.0,
+      "id": 29
+    },
+    {
+      "value": 0.0,
+      "id": 30
+    },
+    {
+      "value": 0.0,
+      "id": 31
+    },
+    {
+      "value": 0.0,
+      "id": 32
+    },
+    {
+      "value": 0.0,
+      "id": 33
+    },
+    {
+      "value": 0.0,
+      "id": 34
+    },
+    {
+      "value": 0.0,
+      "id": 35
+    },
+    {
+      "value": 0.0,
+      "id": 36
+    },
+    {
+      "value": 0.0,
+      "id": 37
+    },
+    {
+      "value": 0.0,
+      "id": 38
+    },
+    {
+      "value": 0.0,
+      "id": 39
+    },
+    {
+      "value": 0.0,
+      "id": 40
+    },
+    {
+      "value": 1.0,
+      "id": 41
+    },
+    {
+      "value": 0.0,
+      "id": 42
+    },
+    {
+      "value": 0.0,
+      "id": 43
+    },
+    {
+      "value": 0.0,
+      "id": 44
+    },
+    {
+      "value": 0.0,
+      "id": 45
+    },
+    {
+      "value": 0.0,
+      "id": 46
+    },
+    {
+      "value": 0.0,
+      "id": 47
+    },
+    {
+      "value": 0.0,
+      "id": 48
+    },
+    {
+      "value": 0.0,
+      "id": 49
+    },
+    {
+      "value": 0.0,
+      "id": 50
+    },
+    {
+      "value": 0.0,
+      "id": 51
+    },
+    {
+      "value": 0.0,
+      "id": 52
+    },
+    {
+      "value": 0.0,
+      "id": 53
+    },
+    {
+      "value": 0.0,
+      "id": 54
+    },
+    {
+      "value": 0.0,
+      "id": 55
+    },
+    {
+      "value": 0.0,
+      "id": 56
+    },
+    {
+      "value": 0.0,
+      "id": 57
+    },
+    {
+      "value": 16.0,
+      "id": 58
+    },
+    {
+      "value": 0.0,
+      "id": 59
+    },
+    {
+      "value": 4.0,
+      "id": 60
+    },
+    {
+      "value": 0.0,
+      "id": 61
+    },
+    {
+      "value": 0.0,
+      "id": 62
+    },
+    {
+      "value": 0.0,
+      "id": 63
+    },
+    {
+      "value": 0.3103448275862069,
+      "id": 64
+    },
+    {
+      "value": 1.0,
+      "id": 65
+    },
+    {
+      "value": 0.41379310344827586,
+      "id": 66
+    },
+    {
+      "value": 10.0,
+      "id": 67
+    },
+    {
+      "value": 0.0,
+      "id": 68
+    },
+    {
+      "value": 0.0,
+      "id": 69
+    },
+    {
+      "value": 100.0,
+      "id": 70
+    },
+    {
+      "value": 1.0,
+      "id": 71
+    },
+    {
+      "value": 0.0,
+      "id": 72
+    },
+    {
+      "value": 1.0,
+      "id": 73
+    },
+    {
+      "value": 0.0,
+      "id": 74
+    },
+    {
+      "value": 0.0,
+      "id": 75
+    },
+    {
+      "value": 0.0,
+      "id": 76
+    },
+    {
+      "value": 0.0,
+      "id": 77
+    },
+    {
+      "value": 10.0,
+      "id": 78
+    },
+    {
+      "value": 0.0,
+      "id": 79
+    },
+    {
+      "value": 0.0,
+      "id": 80
+    },
+    {
+      "value": 0.5,
+      "id": 81
+    },
+    {
+      "value": 0.0,
+      "id": 82
+    },
+    {
+      "value": 0.0,
+      "id": 83
+    },
+    {
+      "value": 50.0,
+      "id": 84
+    }
+  ],
+  "data": {
+    "currentPattern": 0,
+    "currentTrack": 0,
+    "currentTrig": 0,
+    "trigPage": 0,
+    "ticksPerStep": 1008000,
+    "label0": "Kick",
+    "label1": "Clap",
+    "label2": "Closed hat",
+    "label3": "Open hat",
+    "label4": "Rim",
+    "label5": "Bass",
+    "label6": "Track 7",
+    "label7": "Track 8",
+    "pattern0": {
+      "track0": {
+        "slideMode": false,
+        "trig0": {
+          "isActive": true,
+          "length": 0.25,
+          "CV1": 10.0
+        },
+        "trig4": {
+          "isActive": true,
+          "length": 0.25,
+          "CV1": 10.0
+        },
+        "trig8": {
+          "isActive": true,
+          "length": 0.25,
+          "CV1": 10.0
+        },
+        "trig12": {
+          "isActive": true,
+          "length": 0.25,
+          "CV1": 10.0
+        }
+      },
+      "track1": {
+        "slideMode": false,
+        "trig4": {
+          "isActive": true,
+          "length": 0.25,
+          "CV1": 9.0
+        },
+        "trig12": {
+          "isActive": true,
+          "length": 0.25,
+          "proba": 3,
+          "CV1": 9.0
+        },
+        "trig13": {
+          "isActive": true,
+          "length": 0.5,
+          "pulseCount": 2,
+          "proba": 2,
+          "CV1": 5.0
+        },
+        "trig14": {
+          "isActive": true,
+          "length": 1.0,
+          "pulseCount": 4,
+          "pulseDistance": 0.0,
+          "proba": 2,
+          "CV1": 4.0,
+          "CV1End": 10.0
+        },
+        "trig15": {
+          "isActive": true,
+          "length": 1.0,
+          "pulseCount": 4,
+          "pulseDistance": 0.0,
+          "proba": 2,
+          "CV1": 6.0,
+          "CV1End": 10.0
+        }
+      },
+      "track2": {
+        "slideMode": false,
+        "swing": 56.0,
+        "trig0": {
+          "isActive": true,
+          "length": 0.125,
+          "CV1": 7.0
+        },
+        "trig1": {
+          "isActive": true,
+          "length": 0.125,
+          "count": 65,
+          "CV1": 3.5
+        },
+        "trig3": {
+          "isActive": true,
+          "length": 0.125,
+          "count": 65,
+          "CV1": 3.5
+        },
+        "trig4": {
+          "isActive": true,
+          "length": 0.125,
+          "CV1": 7.0
+        },
+        "trig5": {
+          "isActive": true,
+          "length": 0.125,
+          "count": 65,
+          "CV1": 3.5
+        },
+        "trig7": {
+          "isActive": true,
+          "length": 0.125,
+          "count": 65,
+          "CV1": 3.5
+        },
+        "trig8": {
+          "isActive": true,
+          "length": 0.125,
+          "CV1": 7.0
+        },
+        "trig9": {
+          "isActive": true,
+          "length": 0.125,
+          "count": 65,
+          "CV1": 3.5
+        },
+        "trig11": {
+          "isActive": true,
+          "length": 0.125,
+          "count": 65,
+          "CV1": 3.5
+        },
+        "trig12": {
+          "isActive": true,
+          "length": 0.125,
+          "CV1": 7.0
+        },
+        "trig13": {
+          "isActive": true,
+          "length": 0.125,
+          "count": 65,
+          "CV1": 3.5
+        },
+        "trig15": {
+          "isActive": true,
+          "length": 0.125,
+          "count": 65,
+          "CV1": 3.5
+        }
+      },
+      "track3": {
+        "slideMode": false,
+        "swing": 56.0,
+        "trig2": {
+          "isActive": true,
+          "length": 0.5,
+          "CV1": 8.0
+        },
+        "trig6": {
+          "isActive": true,
+          "length": 0.5,
+          "CV1": 8.0
+        },
+        "trig10": {
+          "isActive": true,
+          "length": 0.5,
+          "CV1": 8.0
+        },
+        "trig14": {
+          "isActive": true,
+          "length": 0.5,
+          "CV1": 8.0
+        }
+      },
+      "track4": {
+        "slideMode": false,
+        "trig3": {
+          "isActive": true,
+          "length": 0.125,
+          "count": 40,
+          "CV1": 5.0
+        },
+        "trig10": {
+          "isActive": true,
+          "length": 0.125,
+          "CV1": 7.0
+        },
+        "trig15": {
+          "isActive": true,
+          "length": 0.125,
+          "proba": 1,
+          "count": 1,
+          "countReset": 2,
+          "CV1": 8.0
+        }
+      },
+      "track5": {
+        "rootNote": 9,
+        "scale": 6,
+        "slideMode": false,
+        "trig2": {
+          "isActive": true,
+          "length": 0.5,
+          "octave": -3,
+          "semitones": 9,
+          "CV1": 6.0
+        },
+        "trig6": {
+          "isActive": true,
+          "length": 0.5,
+          "octave": -3,
+          "semitones": 9,
+          "CV1": 6.0
+        },
+        "trig10": {
+          "isActive": true,
+          "length": 0.5,
+          "octave": -3,
+          "semitones": 9,
+          "CV1": 6.0
+        },
+        "trig14": {
+          "isActive": true,
+          "length": 0.5,
+          "octave": -2,
+          "CV1": 6.0
+        }
+      },
+      "track6": {
+        "slideMode": false
+      },
+      "track7": {
+        "slideMode": false
+      }
+    }
+  }
+}

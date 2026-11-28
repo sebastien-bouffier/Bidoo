@@ -1,0 +1,16 @@
+{
+  "plugin": "Bidoo",
+  "model": "lATe",
+  "version": "2.7.11",
+  "params": [
+    {
+      "value": 2.0,
+      "id": 0
+    },
+    {
+      "value": 0.4,
+      "id": 1
+    }
+  ],
+  "data": {}
+}

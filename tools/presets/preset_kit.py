@@ -13,9 +13,16 @@ def param_names(src, constants=None):
 	# the enum ParamIds of src/<src>, in order, one name per id: an array (NAME = OTHER + n, or NUM_PARAMS = LAST + n)
 	# gives "NAME+1", "NAME+2"... to the ids after its first. `constants`: values of names used in the enum (BANDS)
 	text = open(os.path.join(ROOT, "src", src), encoding="utf-8-sig").read()
+	consts = dict(constants or {})
+	if "enum ParamIds" not in text:
+		# the enum in a shared engine header (ZOUMAI.cpp, ENCORE.cpp: ZouSeq.hpp), with its int constants (NUM_TRACKS)
+		for h in re.findall(r'#include\s+"(\w+Seq\.hpp)"', text):
+			hdr = open(os.path.join(ROOT, "src", h), encoding="utf-8-sig").read()
+			for m in re.finditer(r"constexpr\s+int\s+(\w+)\s*=\s*(\d+)\s*;", hdr):
+				consts.setdefault(m.group(1), int(m.group(2)))
+			text += hdr
 	body = re.search(r"enum ParamIds\s*\{(.*?)\}", text, re.S).group(1)
 	body = re.sub(r"//.*", "", body)
-	consts = dict(constants or {})
 	value = {}
 	starts = []   # (id, name) of each enum item
 	nxt = 0
