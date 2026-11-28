@@ -1,5 +1,6 @@
-// PRiSME's engine without Rack: pitch and level, the spectrum it plays, band-limiting, envelopes per harmonic, release
-// to silence, no clicks at note-on, NaN in the CVs, rate changes, and the CPU of 16 voices.
+// PRiSME's engine without Rack: pitch and level, the spectrum it plays, band-limiting, envelopes per harmonic (attack,
+// decay, loop), release to silence, no clicks at note-on, the chain of four spectra, velocity to MORPH, the drawn
+// formant and its envelope, NaN in the CVs, rate changes, and the CPU of 16 voices.
 //   g++ -std=c++17 -O3 -march=nehalem -funsafe-math-optimizations -I src -I G:/Rack-SDK/include -I G:/Rack-SDK/dep/include
 //       tools/tests/prisme_engine_test.cpp -o prisme_test && ./prisme_test
 #include "PrismeEngine.hpp"
@@ -28,6 +29,7 @@ struct Rig {
 		io.sustain = 1.f;
 		io.decay = 1.f;
 		io.release = 0.3f;
+		io.spectra = 2;   // A and B, unless a test says otherwise
 	}
 	void only(int k) {   // A: harmonic k alone at full level
 		for (int i = 0; i < kBars; i++)
@@ -159,14 +161,14 @@ int main() {
 	}
 	{
 		// envelopes per harmonic: DAMP 1, SUSTAIN 0, DECAY 2 s: harmonic 8 decays 8 times faster than the fundamental.
-		// T page: harmonic 2 at 8 times DECAY
+		// decay page: harmonic 2 at 8 times DECAY
 		Rig r;
 		r.io.gate = r.gate;
 		r.io.gateChannels = 1;
 		r.io.sustain = 0.f;
 		r.io.decay = 2.f;
 		r.io.damp = 1.f;
-		r.bars.v[2][1] = 1.f;
+		r.bars.v[PAGE_DECAY][1] = 1.f;
 		r.gate[0] = 10.f;
 		r.run((int)(0.5f * sr));
 		const Engine::Voice &v = r.e.voices[0];
@@ -177,11 +179,11 @@ int main() {
 		CHECK(db(e8) < -100, "harmonic 8 at %g dB", db(e8));
 	}
 	{
-		// SWEEP: a note starts on A and reaches MORPH's position in SWEEP's time
+		// SWEEP: a note starts at MORPH's position (A) and reaches the last spectrum (B) in SWEEP's time
 		Rig r;
 		r.io.gate = r.gate;
 		r.io.gateChannels = 1;
-		r.io.morph = 1.f;
+		r.io.morph = 0.f;
 		r.io.sweep = 0.5f;
 		r.gate[0] = 10.f;
 		r.voct[0] = -1.f;
@@ -191,17 +193,153 @@ int main() {
 		r.run(27360);
 		x = r.run(9600);
 		CHECK(db(level(x, 2 * f0, sr) / level(x, f0, sr)) < -80, "the end is not B's square");
+		// MORPH at B: the next note starts on B already
+		r.io.morph = 1.f;
+		r.gate[0] = 0.f;
+		r.run(48000);
+		r.gate[0] = 10.f;
+		x = r.run(1440);
+		CHECK(db(level(x, 2 * f0, sr) / level(x, f0, sr)) < -40, "with MORPH at B the note does not start on B (h2 %g dB)",
+			db(level(x, 2 * f0, sr) / level(x, f0, sr)));
 	}
 	{
-		// a formant at 2 kHz, full depth, on the saw at C3: harmonics near 2 kHz up, far ones down
+		// the default formant (a bump at 1 kHz) moved to 2 kHz, full depth, on the saw at C3: harmonics near 2 kHz up,
+		// far ones down
 		Rig r;
 		r.voct[0] = -1.f;
-		r.io.formantHz = 2093.f;   // harmonic 16 of C3
+		r.io.formantShift = std::log2(2093.f / 1000.f);   // harmonic 16 of C3
 		r.io.depth = 1.f;
 		std::vector<float> x = r.run(48000);
 		std::vector<float> tail(x.begin() + 24000, x.end());
 		const double f0 = Engine::kC4 / 2;
 		CHECK(level(tail, 16 * f0, sr) > 4 * level(tail, f0, sr), "the formant does not lift harmonic 16 over the fundamental");
+	}
+	{
+		// four spectra in a chain: MORPH 1/3 is B exactly (a square), 2/3 is C (a triangle: harmonic 3 at -19 dB), 1 is D
+		Rig r;
+		r.io.spectra = 4;
+		r.voct[0] = -1.f;
+		const double f0 = Engine::kC4 / 2;
+		r.io.morph = 1.f / 3.f;
+		std::vector<float> x = r.run(48000);
+		std::vector<float> tail(x.begin() + 24000, x.end());
+		CHECK(db(level(tail, 2 * f0, sr) / level(tail, f0, sr)) < -80, "MORPH 1/3 is not B");
+		CHECK(std::fabs(db(level(tail, 3 * f0, sr) / level(tail, f0, sr)) + 9.54) < 0.3, "B's h3 %g dB",
+			db(level(tail, 3 * f0, sr) / level(tail, f0, sr)));
+		r.io.morph = 2.f / 3.f;
+		x = r.run(48000);
+		tail.assign(x.begin() + 24000, x.end());
+		CHECK(std::fabs(db(level(tail, 3 * f0, sr) / level(tail, f0, sr)) + 19.08) < 0.3, "C's h3 %g dB",
+			db(level(tail, 3 * f0, sr) / level(tail, f0, sr)));
+		// D, the organ: harmonic 8 at -14 dB
+		r.io.morph = 1.f;
+		x = r.run(48000);
+		tail.assign(x.begin() + 24000, x.end());
+		CHECK(std::fabs(db(level(tail, 8 * f0, sr) / level(tail, f0, sr)) + 14.0) < 0.3, "D's h8 %g dB",
+			db(level(tail, 8 * f0, sr) / level(tail, f0, sr)));
+	}
+	{
+		// velocity moves MORPH: two voices, 0 V and 10 V, with all the way: the soft one plays A, the loud one B;
+		// velocity off the level, both at the same level
+		Rig r;
+		float vel[2] = {0.f, 10.f};
+		r.io.voctChannels = 2;
+		r.voct[0] = r.voct[1] = -1.f;
+		r.io.vel = vel;
+		r.io.velChannels = 2;
+		r.io.velMorph = 1.f;
+		r.io.velLevel = 0.f;
+		std::vector<float> a, b;
+		for (int i = 0; i < 48000; i++) {
+			r.e.process(r.io);
+			if (i >= 24000) {
+				a.push_back(r.io.poly[0]);
+				b.push_back(r.io.poly[1]);
+			}
+		}
+		const double f0 = Engine::kC4 / 2;
+		CHECK(db(level(a, 2 * f0, sr) / level(a, f0, sr)) > -7, "the soft note is not A");
+		CHECK(db(level(b, 2 * f0, sr) / level(b, f0, sr)) < -80, "the loud note is not B");
+		CHECK(std::fabs(db(level(a, f0, sr) / level(b, f0, sr))) < 3, "velocity still sets the level");
+		// velocity unplugged: no morph, full level
+		r.io.velChannels = 0;
+		a.clear();
+		for (int i = 0; i < 48000; i++) {
+			r.e.process(r.io);
+			if (i >= 24000)
+				a.push_back(r.io.poly[1]);
+		}
+		CHECK(db(level(a, 2 * f0, sr) / level(a, f0, sr)) > -7, "unplugged velocity moved MORPH");
+	}
+	{
+		// the attack page: ATTACK 100 ms, harmonic 2's bar at the top (x8): at 100 ms the fundamental is at the top,
+		// harmonic 2 at 1/8 of the way
+		Rig r;
+		r.io.gate = r.gate;
+		r.io.gateChannels = 1;
+		r.io.attack = 0.1f;
+		r.bars.v[PAGE_ATTACK][1] = 1.f;
+		r.gate[0] = 10.f;
+		r.run((int)(0.1f * sr) + 64);
+		const Engine::Voice &v = r.e.voices[0];
+		CHECK(v.env[0][0] > 0.999f, "the fundamental's attack is not over (%g)", v.env[0][0]);
+		CHECK(std::fabs(v.env[0][1] - 0.125f) < 0.02f, "harmonic 2 at %g, not 1/8", v.env[0][1]);
+		r.run((int)(0.8f * sr));
+		CHECK(v.env[0][1] > 0.99f || v.rising[0][1] < 0.5f, "harmonic 2's attack did not end in 8 x ATTACK");
+	}
+	{
+		// loop: SUSTAIN 0.3, DECAY 0.2 s, ATTACK 20 ms: each harmonic keeps rising and falling while the gate is held;
+		// without loop it stays at SUSTAIN
+		for (int loop = 0; loop < 2; loop++) {
+			Rig r;
+			r.io.gate = r.gate;
+			r.io.gateChannels = 1;
+			r.io.attack = 0.02f;
+			r.io.decay = 0.2f;
+			r.io.sustain = 0.3f;
+			r.io.damp = 0.f;
+			r.io.loop = loop == 1;
+			r.gate[0] = 10.f;
+			r.run(48000);
+			float lo = 1.f, hi = 0.f;
+			for (int i = 0; i < 48000 / kControl; i++) {
+				r.run(kControl);
+				lo = std::min(lo, r.e.voices[0].env[0][0]);
+				hi = std::max(hi, r.e.voices[0].env[0][0]);
+			}
+			if (loop)
+				CHECK(hi > 0.99f && lo < 0.32f, "loop: the fundamental moves between %g and %g", lo, hi);
+			else
+				CHECK(hi - lo < 0.01f && std::fabs(lo - 0.3f) < 0.01f, "no loop: %g to %g, not held at SUSTAIN", lo, hi);
+		}
+	}
+	{
+		// the drawn formant: the vowel A (peaks at 800 and 1200 Hz) on a flat spectrum at C3: harmonic 6 (785 Hz) over
+		// harmonic 12 (1570 Hz, between the peaks) over harmonic 1 (131 Hz, far below); shifted an octave up, harmonic
+		// 12 (now near the first peak's 1600 Hz) over harmonic 6
+		Rig r;
+		for (int i = 0; i < kBars; i++)
+			r.bars.v[PAGE_A][i] = 1.f;
+		writeShape(r.bars.v[PAGE_FORMANT], SHAPE_SAW, PAGE_FORMANT, 0);   // the first vowel, A
+		r.voct[0] = -1.f;
+		r.io.depth = 1.f;
+		const double f0 = Engine::kC4 / 2;
+		std::vector<float> x = r.run(48000);
+		std::vector<float> tail(x.begin() + 24000, x.end());
+		CHECK(level(tail, 6 * f0, sr) > 2 * level(tail, 12 * f0, sr) && level(tail, 12 * f0, sr) > 2 * level(tail, f0, sr),
+			"vowel A: h6 %g, h12 %g, h1 %g", level(tail, 6 * f0, sr), level(tail, 12 * f0, sr), level(tail, f0, sr));
+		r.io.formantShift = 1.f;
+		x = r.run(48000);
+		tail.assign(x.begin() + 24000, x.end());
+		CHECK(level(tail, 12 * f0, sr) > 2 * level(tail, 6 * f0, sr), "shifted: h12 %g, h6 %g", level(tail, 12 * f0, sr),
+			level(tail, 6 * f0, sr));
+		// the envelope moves it: 1 octave at full envelope, the same as the shift
+		r.io.formantShift = 0.f;
+		r.io.formantEnv = 1.f;
+		x = r.run(48000);
+		tail.assign(x.begin() + 24000, x.end());
+		CHECK(level(tail, 12 * f0, sr) > 2 * level(tail, 6 * f0, sr), "formant envelope: h12 %g, h6 %g", level(tail, 12 * f0, sr),
+			level(tail, 6 * f0, sr));
 	}
 	{
 		// NaN in V/O and a CV, then a rate change: the output stays finite

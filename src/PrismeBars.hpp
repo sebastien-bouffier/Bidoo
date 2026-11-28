@@ -1,7 +1,8 @@
 #pragma once
-// PRiSME's drawn pages: two spectra (A, B) and the decay times (T), 64 bars each, 0..1. Plain C++ (no Rack), so a
-// standalone test can check the drawing path. The tools follow EMILE's (src/EmileCanvas.hpp): a soft brush whose
-// width is set by the wheel, a straight line, the eraser on the right button, shapes, undo through Rack's history.
+// PRiSME's drawn pages, 64 bars each, 0..1: four spectra (A to D, morphed in a chain), the attack and decay times of
+// each harmonic, and a formant filter drawn over frequency. Plain C++ (no Rack), so a standalone test can check the
+// drawing path. The tools follow EMILE's (src/EmileCanvas.hpp): a soft brush whose width is set by the wheel, a
+// straight line, the eraser on the right button, shapes, undo through Rack's history.
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -10,18 +11,31 @@
 namespace prisme {
 
 static constexpr int kBars = 64;
-static constexpr int kBarPages = 3;
+enum BarPage { PAGE_A, PAGE_B, PAGE_C, PAGE_D, PAGE_ATTACK, PAGE_DECAY, PAGE_FORMANT, NUM_BAR_PAGES };
+static constexpr int kBarPages = NUM_BAR_PAGES;
+static constexpr int kSpectra = 4;
+
+inline bool isSpectrum(int page) { return page < kSpectra; }
+inline bool isTimePage(int page) { return page == PAGE_ATTACK || page == PAGE_DECAY; }
+
+// The formant page: band i is centred at kFormantLow x 2^(i x kFormantOctaves / 63), from 50 Hz to 12.8 kHz; a bar is
+// a gain in dB, (bar - kFormantUnity) x kFormantDbSpan: 0 dB at 0.75, +12 dB at the top, -36 dB at the bottom
+static constexpr float kFormantLow = 50.f;
+static constexpr float kFormantOctaves = 8.f;
+static constexpr float kFormantUnity = 0.75f;
+static constexpr float kFormantDbSpan = 48.f;
 
 struct Bars {
 	float v[kBarPages][kBars];
 
-	// what a page holds when nothing is drawn: A a sawtooth, B a square, T every harmonic at DECAY's time
+	// what a page holds when nothing is drawn: A a sawtooth, B a square, C a triangle, D an organ's stops; the times
+	// at x1; the formant one bump at 1 kHz
 	void setDefaults();
 	bool operator==(const Bars &o) const { return std::memcmp(v, o.v, sizeof(v)) == 0; }
 	bool operator!=(const Bars &o) const { return !(*this == o); }
 };
 
-// A level in dB as a bar (the engine's 60 dB range): 0 dB is 1, -60 dB is 0
+// A level in dB as a spectrum bar (the engine's 60 dB range): 0 dB is 1, -60 dB is 0
 inline float dbToBar(float db) {
 	return std::min(std::max(1.f + db / 60.f, 0.f), 1.f);
 }
@@ -31,11 +45,53 @@ inline float powerBar(int k, float p) {
 	return dbToBar(-20.f * p * std::log10((float)k));
 }
 
+// A formant gain in dB as a formant bar
+inline float formantDbToBar(float db) {
+	return std::min(std::max(kFormantUnity + db / kFormantDbSpan, 0.f), 1.f);
+}
+
+// The centre of formant band i, in Hz
+inline float formantBandHz(float i) {
+	return kFormantLow * std::exp2(i * kFormantOctaves / (kBars - 1));
+}
+
 enum Shape { SHAPE_SAW, SHAPE_SQUARE, SHAPE_TRIANGLE, SHAPE_ORGAN, SHAPE_RANDOM, NUM_SHAPES };
 
-// A shape written over a page. On T, the same pictures as times: a sawtooth's falling bars give high harmonics that
-// die sooner, the random one a shimmer. seed: for the random one
-inline void writeShape(float *page, int shape, bool timePage, uint32_t seed) {
+// Shape names: on a spectrum or a time page the waveforms, on the formant page five vowels
+inline const char *shapeName(int shape, int page) {
+	static const char *wave[NUM_SHAPES] = {"Sawtooth", "Square", "Triangle", "Organ", "Random"};
+	static const char *vowel[NUM_SHAPES] = {"Vowel A", "Vowel E", "Vowel I", "Vowel O", "Vowel OU"};
+	return page == PAGE_FORMANT ? vowel[shape] : wave[shape];
+}
+
+// Formant peaks of five vowels (Hz, dB): textbook averages of an adult voice
+inline void vowelPeaks(int vowel, float hz[3], float db[3]) {
+	static const float f[NUM_SHAPES][3] = {{800, 1200, 2500}, {400, 2100, 2800}, {300, 2300, 3000}, {450, 800, 2600}, {325, 700, 2500}};
+	static const float g[NUM_SHAPES][3] = {{12, 9, 3}, {12, 6, 4}, {12, 5, 5}, {12, 9, 0}, {12, 6, -2}};
+	for (int i = 0; i < 3; i++) {
+		hz[i] = f[vowel][i];
+		db[i] = g[vowel][i];
+	}
+}
+
+// A shape written over a page. On a time page the same pictures as times: a sawtooth's falling bars give high harmonics
+// that are quicker, the random one a shimmer. On the formant page a vowel. seed: for the random one
+inline void writeShape(float *page, int shape, int pageId, uint32_t seed) {
+	if (pageId == PAGE_FORMANT) {
+		float hz[3], db[3];
+		vowelPeaks(std::min(std::max(shape, 0), NUM_SHAPES - 1), hz, db);
+		for (int i = 0; i < kBars; i++) {
+			const float o = std::log2(formantBandHz((float)i));
+			float gain = -24.f;   // between the peaks
+			for (int p = 0; p < 3; p++) {
+				const float d = (o - std::log2(hz[p])) / 0.22f;
+				gain = std::max(gain, -24.f + (db[p] + 24.f) * std::exp(-0.5f * d * d));
+			}
+			page[i] = formantDbToBar(gain);
+		}
+		return;
+	}
+	const bool timePage = isTimePage(pageId);
 	for (int i = 0; i < kBars; i++) {
 		const int k = i + 1;
 		float b = 0.f;
@@ -60,21 +116,34 @@ inline void writeShape(float *page, int shape, bool timePage, uint32_t seed) {
 			}
 		}
 		if (timePage && shape != SHAPE_RANDOM)
-			b = 0.25f + 0.5f * b;   // as times: from 1/4 to 4 times DECAY, not to silence
+			b = 0.25f + 0.5f * b;   // as times: from 1/4 to 4 times the knob, not to nothing
 		page[i] = b;
 	}
 }
 
-inline void Bars::setDefaults() {
-	writeShape(v[0], SHAPE_SAW, false, 0);
-	writeShape(v[1], SHAPE_SQUARE, false, 0);
-	for (int i = 0; i < kBars; i++)
-		v[2][i] = 0.5f;
+// The formant page's default: one bump at 1 kHz, +9.5 dB, down to -36 dB two octaves away (the bump PRiSME had first)
+inline void writeDefaultFormant(float *page) {
+	for (int i = 0; i < kBars; i++) {
+		const float d = std::log2(formantBandHz((float)i) / 1000.f) / 0.6f;
+		const float bump = std::exp(-0.5f * d * d);
+		page[i] = formantDbToBar(-36.f + 45.5f * bump);
+	}
 }
 
-// A page's neutral value: what the eraser leaves (silence on A and B, DECAY's own time on T)
+inline void Bars::setDefaults() {
+	writeShape(v[PAGE_A], SHAPE_SAW, PAGE_A, 0);
+	writeShape(v[PAGE_B], SHAPE_SQUARE, PAGE_B, 0);
+	writeShape(v[PAGE_C], SHAPE_TRIANGLE, PAGE_C, 0);
+	writeShape(v[PAGE_D], SHAPE_ORGAN, PAGE_D, 0);
+	for (int i = 0; i < kBars; i++)
+		v[PAGE_ATTACK][i] = v[PAGE_DECAY][i] = 0.5f;
+	writeDefaultFormant(v[PAGE_FORMANT]);
+}
+
+// A page's neutral value: what the eraser leaves (silence on a spectrum, the knob's own time on a time page, 0 dB on
+// the formant page)
 inline float eraseValue(int page) {
-	return page == 2 ? 0.5f : 0.f;
+	return isTimePage(page) ? 0.5f : (page == PAGE_FORMANT ? kFormantUnity : 0.f);
 }
 
 // The brush between two points of the screen, in bars (x: bar index, fractional; y: value 0..1): every bar it crosses

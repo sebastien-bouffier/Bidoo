@@ -1,7 +1,8 @@
 # Factory presets for PRiSME (src/PRISME.cpp): python tools/presets/prisme.py writes presets/PRISME/
-# Bars are 0..1 in dB (1 = 0 dB, 0 = off, 60 dB of range: src/PrismeEngine.hpp barToAmp); the T page multiplies DECAY
-# and RELEASE by 8^(2 t - 1) (0.5 = x1). Knob laws: ATTACK 1 ms * 10000^v, DECAY and RELEASE 5 ms * 4000^v (time to
-# -60 dB), SWEEP 5 ms * 4000^v (0 = off), FORMANT 100 Hz * 80^v.
+# Seven pages of 64 bars (src/PrismeBars.hpp): spectra A, B, C, D in dB (1 = 0 dB, 0 = off, 60 dB of range); the attack
+# and decay pages multiply ATTACK, and DECAY and RELEASE, by 8^(2 t - 1) (0.5 = x1); the formant page is a gain over
+# 50 Hz..12.8 kHz, (bar - 0.75) x 48 dB. Knob laws: ATTACK 1 ms * 10000^v, DECAY and RELEASE 5 ms * 4000^v (time to
+# -60 dB), SWEEP 5 ms * 4000^v (0 = off), FORMANT a shift of 3 v octaves.
 import math, os, random, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from preset_kit import write
@@ -32,11 +33,43 @@ def knob(seconds, base_s, ratio):
 def attack(s): return knob(s, 0.001, 10000.0)
 def decay(s): return knob(s, 0.005, 4000.0)
 def sweep(s): return knob(s, 0.005, 4000.0)
-def formant(hz): return round(math.log(hz / 100.0) / math.log(80.0), 4)
+def formant(hz, centre=1000.0):
+	# FORMANT's knob for moving a curve centred at `centre` to hz
+	return round(math.log2(hz / centre) / 3.0, 4)
+
+def band_hz(i):
+	return 50.0 * 2 ** (i * 8.0 / (N - 1))
+
+def formant_bar(db):
+	return min(max(0.75 + db / 48.0, 0.0), 1.0)
+
+def default_formant():
+	# one bump at 1 kHz, as src/PrismeBars.hpp writeDefaultFormant
+	out = []
+	for i in range(N):
+		d = math.log2(band_hz(i) / 1000.0) / 0.6
+		out.append(formant_bar(-36.0 + 45.5 * math.exp(-0.5 * d * d)))
+	return out
+
+VOWELS = {"A": ((800, 1200, 2500), (12, 9, 3)), "E": ((400, 2100, 2800), (12, 6, 4)), "I": ((300, 2300, 3000), (12, 5, 5)),
+          "O": ((450, 800, 2600), (12, 9, 0)), "OU": ((325, 700, 2500), (12, 6, -2))}
+
+def vowel(name):
+	# as src/PrismeBars.hpp writeShape on the formant page
+	hz, db = VOWELS[name]
+	out = []
+	for i in range(N):
+		o = math.log2(band_hz(i))
+		g = -24.0
+		for f, d in zip(hz, db):
+			x = (o - math.log2(f)) / 0.22
+			g = max(g, -24.0 + (d + 24.0) * math.exp(-0.5 * x * x))
+		out.append(formant_bar(g))
+	return out
 
 DEFAULTS = {
 	"MORPH_PARAM": 0.0, "SWEEP_PARAM": 0.0, "BRIGHT_PARAM": 0.0, "ODDEVEN_PARAM": 0.0, "STRETCH_PARAM": 0.0,
-	"FORMANT_PARAM": 0.5, "ATTACK_PARAM": 0.15, "DECAY_PARAM": 0.6, "SUSTAIN_PARAM": 0.7, "RELEASE_PARAM": 0.45,
+	"FORMANT_PARAM": 0.0, "ATTACK_PARAM": 0.15, "DECAY_PARAM": 0.6, "SUSTAIN_PARAM": 0.7, "RELEASE_PARAM": 0.45,
 	"DAMP_PARAM": 0.3, "DEPTH_PARAM": 0.0, "TUNE_PARAM": 0.0, "SPREAD_PARAM": 0.0,
 }
 
@@ -45,8 +78,12 @@ def p(**kw):
 	d.update({k + "_PARAM": v for k, v in kw.items()})
 	return d
 
-def data(a, b, t, spread_phases=False):
-	return {"bars": [r4(a), r4(b), r4(t)], "page": 0, "tool": 0, "brushWidth": 1.0, "spreadPhases": spread_phases}
+def data(a, b, t, spread_phases=False, c=None, d=None, at=None, f=None, spectra=2, loop=False, vel_level=1.0,
+		vel_morph=0.0, formant_env=0.0):
+	# A and B (C and D copies of B unless given), the decay times t, the attack times, the formant curve
+	pages = [a, b, c or b, d or b, at or flat_times(), t, f or default_formant()]
+	return {"bars": [r4(x) for x in pages], "page": 0, "tool": 0, "brushWidth": 1.0, "spreadPhases": spread_phases,
+		"spectra": spectra, "loop": loop, "velLevel": vel_level, "velMorph": vel_morph, "formantEnv": formant_env}
 
 # Harp pluck: the sawtooth with no sustain, high harmonics dying first (DAMP 0.8), a short attack and a ring of 1.5 s;
 # B a duller saw (-12 dB per octave) for MORPH to darken it.
@@ -74,13 +111,13 @@ def bells():
 	t = [0.3 + 0.5 * rnd.random() for _ in range(N)]
 	return data(a, square(), t, True)
 
-# Vowel pad: a saw glided over two seconds into a brighter spectrum while a formant at 700 Hz (an open "a") shapes
-# it; slow attack, full sustain, long release, harmonics spread across the stereo field.
+# Vowel pad: each note starts on a saw (MORPH at A) and travels in two seconds to a brighter spectrum (B) while the vowel A drawn on the formant page
+# shapes it; slow attack, full sustain, long release, harmonics spread across the stereo field.
 def pad():
 	b = [db_bar(-3.0 * math.log2(k)) for k in range(1, N + 1)]
-	return data(saw(), b, flat_times(0.6))
+	return data(saw(), b, flat_times(0.6), f=vowel("A"))
 
-# Hollow sweep: each note starts as a sawtooth and turns hollow (B the square) in 400 ms, then decays to a held
+# Hollow sweep: each note starts as a sawtooth (MORPH at A) and turns hollow (B the square) in 400 ms, then decays to a held
 # level; ODD/EVEN a little to the odd side, a bit of brightness.
 def hollow():
 	return data(saw(), square(), [max(0.25, 0.75 - 0.008 * i) for i in range(N)])
@@ -107,16 +144,20 @@ def clarinet():
 	return data(spectrum(a), spectrum(b), flat_times())
 
 # Brass swell: a dull sawtooth (-12 dB per octave) opening into a bright one in 250 ms on every note, as a horn's
-# lip buzz builds up; the high harmonics take longer to come in than to fade (T falls slowly with the harmonic).
+# lip buzz builds up; on the attack page the high harmonics come in later (up to 4 times ATTACK), and playing harder
+# opens it further (velocity moves MORPH half the way).
 def brass():
-	return data([power(k, 2) for k in range(1, N + 1)], [power(k, 0.75) for k in range(1, N + 1)], flat_times())
+	at = [min(0.5 + 0.12 * math.log2(k), 0.95) for k in range(1, N + 1)]
+	return data([power(k, 2) for k in range(1, N + 1)], [power(k, 0.75) for k in range(1, N + 1)], flat_times(), at=at,
+		vel_morph=0.5)
 
 # Electric piano: a tine and its bar. The fundamental and the 2nd hold for seconds, a cluster around the 7th and the
-# 14th gives the bell of the attack and dies in a fraction of that (T low there); DAMP rounds the rest.
+# 14th gives the bell of the attack and dies in a fraction of that (low decay bars there); DAMP rounds the rest.
+# Played harder, it moves towards B, with a stronger bell (velocity moves MORPH all the way).
 def epiano():
 	a = spectrum({1: 0, 2: -10, 3: -20, 4: -22, 5: -26, 6: -20, 7: -10, 8: -16, 13: -24, 14: -18, 15: -26})
 	t = times({1: 0.75, 2: 0.65, 3: 0.5, 6: 0.25, 7: 0.15, 8: 0.15, 13: 0.05, 14: 0.05, 15: 0.05})
-	return data(a, spectrum({1: 0, 2: -6, 3: -14, 4: -14, 7: -6, 14: -12}), t)
+	return data(a, spectrum({1: 0, 2: -6, 3: -14, 4: -14, 7: -6, 14: -12}), t, vel_morph=1.0)
 
 # Marimba: a wooden bar's partials near 1, 4 and 10 times the fundamental (tuned bars keep them harmonic), the upper
 # two dying far sooner; no sustain.
@@ -132,10 +173,11 @@ def tubular():
 	t = times({1: 0.9, 2: 0.7, 3: 0.6, 4: 0.55, 5: 0.5, 6: 0.42, 8: 0.35, 10: 0.3, 12: 0.25})
 	return data(a, a, t, True)
 
-# Choir "aah": a soft sawtooth (-8 dB per octave) through a formant at 800 Hz (an open vowel), a slow attack and
-# release, spread wide. B a little brighter: turn FORMANT for other vowels (400 Hz "oo", 2 kHz "ee").
+# Choir "aah": a soft sawtooth (-8 dB per octave) through the vowel A drawn on the formant page, a slow attack and
+# release, spread wide. B a little brighter; the shapes of the formant page give the other vowels.
 def choir():
-	return data([power(k, 1.35) for k in range(1, N + 1)], [power(k, 1.0) for k in range(1, N + 1)], flat_times(0.6))
+	return data([power(k, 1.35) for k in range(1, N + 1)], [power(k, 1.0) for k in range(1, N + 1)], flat_times(0.6),
+		f=vowel("A"))
 
 # Sub bass: the fundamental with three harmonics fading fast, one octave down (TUNE -12), a short decay to a firm
 # sustain and a quick release; DAMP keeps the attack's edge short.
@@ -165,30 +207,46 @@ def strings():
 	b = [power(k, 1.2) if k % 2 else power(k, 1.2) * 0.75 for k in range(1, N + 1)]
 	return data(saw(), b, flat_times(0.55))
 
+# Evolving shimmer: every note starts on a full, slightly hollow spectrum and travels in 3 s through a hollow one and a
+# bright one to a high cluster; meanwhile every harmonic loops between full level and almost nothing at its own pace
+# (random attack and decay pages spread from 1/5 to 5 times the knobs), so the tone keeps moving after the sweep. A
+# vowel E on the formant page opens an octave with the envelope; harder notes start further along (velocity a third).
+def shimmer():
+	rnd = random.Random(31)
+	a = [power(k, 0.9) * (0.55 if k % 3 == 0 else 1.0) for k in range(1, N + 1)]
+	b = [power(k, 1.0) if k % 2 else 0.0 for k in range(1, N + 1)]
+	c = [power(k, 0.5) for k in range(1, N + 1)]
+	d = spectrum({k: -rnd.uniform(0, 9) for k in range(6, 30)} | {1: -6, 2: -12})
+	at = [0.12 + 0.76 * rnd.random() for _ in range(N)]
+	t = [0.12 + 0.76 * rnd.random() for _ in range(N)]
+	return data(a, b, t, True, c=c, d=d, at=at, f=vowel("E"), spectra=4, loop=True, vel_morph=0.33, formant_env=1.0)
+
 PRESETS = [
 	("Harp pluck", p(ATTACK=attack(0.002), DECAY=decay(1.5), SUSTAIN=0.0, RELEASE=decay(0.6), DAMP=0.8, MORPH=0.2), pluck()),
 	("Drawbar organ", p(ATTACK=attack(0.003), DECAY=decay(2.0), SUSTAIN=1.0, RELEASE=decay(0.08), DAMP=0.0, MORPH=0.0), organ()),
 	("Glass bells", p(ATTACK=attack(0.001), DECAY=decay(4.0), SUSTAIN=0.0, RELEASE=decay(2.5), DAMP=0.45, STRETCH=0.55,
 		BRIGHT=0.15, SPREAD=0.4), bells()),
-	("Vowel pad", p(ATTACK=attack(0.6), DECAY=decay(3.0), SUSTAIN=0.85, RELEASE=decay(2.0), DAMP=0.2, MORPH=1.0,
-		SWEEP=sweep(2.0), FORMANT=formant(700), DEPTH=0.7, SPREAD=0.6), pad()),
-	("Hollow sweep", p(ATTACK=attack(0.004), DECAY=decay(1.2), SUSTAIN=0.5, RELEASE=decay(0.4), DAMP=0.35, MORPH=1.0,
+	("Vowel pad", p(ATTACK=attack(0.6), DECAY=decay(3.0), SUSTAIN=0.85, RELEASE=decay(2.0), DAMP=0.2, MORPH=0.0,
+		SWEEP=sweep(2.0), DEPTH=0.7, SPREAD=0.6), pad()),
+	("Hollow sweep", p(ATTACK=attack(0.004), DECAY=decay(1.2), SUSTAIN=0.5, RELEASE=decay(0.4), DAMP=0.35, MORPH=0.0,
 		SWEEP=sweep(0.4), ODDEVEN=-0.3, BRIGHT=0.2), hollow()),
 	("Clarinet", p(ATTACK=attack(0.035), DECAY=decay(2.0), SUSTAIN=1.0, RELEASE=decay(0.15), DAMP=0.1), clarinet()),
-	("Brass swell", p(ATTACK=attack(0.04), DECAY=decay(1.0), SUSTAIN=0.8, RELEASE=decay(0.25), DAMP=0.15, MORPH=1.0,
+	("Brass swell", p(ATTACK=attack(0.04), DECAY=decay(1.0), SUSTAIN=0.8, RELEASE=decay(0.25), DAMP=0.15, MORPH=0.0,
 		SWEEP=sweep(0.25), BRIGHT=0.1), brass()),
 	("Electric piano", p(ATTACK=attack(0.001), DECAY=decay(5.0), SUSTAIN=0.0, RELEASE=decay(0.5), DAMP=0.35, SPREAD=0.25), epiano()),
 	("Marimba", p(ATTACK=attack(0.001), DECAY=decay(1.4), SUSTAIN=0.0, RELEASE=decay(0.8), DAMP=0.0), marimba()),
 	("Tubular bell", p(ATTACK=attack(0.001), DECAY=decay(9.0), SUSTAIN=0.0, RELEASE=decay(5.0), DAMP=0.2, STRETCH=0.3,
 		SPREAD=0.35), tubular()),
 	("Choir aah", p(ATTACK=attack(0.45), DECAY=decay(3.0), SUSTAIN=0.9, RELEASE=decay(1.5), DAMP=0.15, MORPH=0.3,
-		FORMANT=formant(800), DEPTH=0.8, SPREAD=0.55), choir()),
+		DEPTH=0.8, SPREAD=0.55), choir()),
 	("Sub bass", p(ATTACK=attack(0.002), DECAY=decay(0.5), SUSTAIN=0.65, RELEASE=decay(0.12), DAMP=0.6, TUNE=-1.0), sub()),
 	("Flute", p(ATTACK=attack(0.09), DECAY=decay(2.0), SUSTAIN=1.0, RELEASE=decay(0.25), DAMP=0.0, BRIGHT=0.05), flute()),
 	("Gong", p(ATTACK=attack(0.006), DECAY=decay(14.0), SUSTAIN=0.0, RELEASE=decay(8.0), DAMP=0.25, STRETCH=0.85,
 		SPREAD=0.7), gong()),
 	("Strings", p(ATTACK=attack(0.3), DECAY=decay(2.0), SUSTAIN=0.95, RELEASE=decay(0.9), DAMP=0.1, FORMANT=formant(1200),
 		DEPTH=0.35, SPREAD=0.6), strings()),
+	("Evolving shimmer", p(ATTACK=attack(0.25), DECAY=decay(0.9), SUSTAIN=0.08, RELEASE=decay(2.5), DAMP=0.0, MORPH=0.0,
+		SWEEP=sweep(3.0), DEPTH=0.6, SPREAD=0.7), shimmer()),
 ]
 
 write("PRISME", "PRISME.cpp", PRESETS)
