@@ -86,6 +86,8 @@ struct PARTICULES : BidooModule {
 	int detuneQuant = 0;
 	std::string fileName;   // the file loaded (shown), empty for the live buffer; under jobMutex
 	std::atomic<bool> dirty {false};   // the buffer differs from the patch storage
+	// Rack's rate, for the worker: APP (Rack's context) is per thread and null on it
+	std::atomic<double> rackRate {48000.0};
 
 	// Worker thread: decodes a file (or the patch storage) into a Buffer and hands it to the engine through
 	// `pending`; it also frees `retired`. A newer request (or a clear) bumps loadGen: the older load is dropped.
@@ -210,7 +212,8 @@ struct PARTICULES : BidooModule {
 		configBypass(L_INPUT, L_OUTPUT);
 		configBypass(R_INPUT, R_OUTPUT);
 		updateClockName();
-		engine.prepare(APP->engine->getSampleRate());
+		rackRate = APP->engine->getSampleRate();
+		engine.prepare(rackRate);
 		worker = std::thread(&PARTICULES::workerLoop, this);
 	}
 
@@ -230,6 +233,7 @@ struct PARTICULES : BidooModule {
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent &e) override {
+		rackRate = e.sampleRate;
 		engine.prepare(e.sampleRate);
 		clock.clear();
 	}
@@ -387,7 +391,7 @@ struct PARTICULES : BidooModule {
 	// buffers, so it may read `view` without a ViewLock
 	void resampleView() {
 		const particules::Buffer *src = engine.view.load();
-		const double rate = APP->engine->getSampleRate();
+		const double rate = rackRate.load();
 		if (!src || src->rate == rate || engine.pending.load())
 			return;
 		particules::Buffer *b = new particules::Buffer;

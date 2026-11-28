@@ -261,6 +261,11 @@ struct ZouSeqExpander : BidooModule {
 				messagesToZou[i+56]=params[ROTLEN_PARAM+i].getValue();
 			}
 		}
+		else {
+			// not beside its sequencer: the rotation knobs still go into the current pattern, so a patch saved
+			// with the expander apart keeps them
+			updateValues();
+		}
 	}
 
 };
