@@ -4,6 +4,7 @@ Back
 Improvements
 - Every panel is now drawn by a script (tools/panels), the older ones migrated from their hand-drawn panels keeping their arrangement and picture: one box per jack (inputs black, outputs red), the theme's type, title and logo, buttons as round buttons lit orange where a light showed a state, screens drawn by the panel, full jacks where they fit; rATEAU keeps its red L of outputs
 - antN: LISTEN is lit while the radio plays and blinks while it waits for the network (connecting, filling the buffer, or the buffer running low); off when stopped or after a failure, which the screen names
+- EMILE plays the image as a waveform: the row under POS gives the harmonics of the note set by V/O and TUNE (C4 at 0 V), so V/O plays notes; CURVE sets how many harmonics (16 to 256). A new EMILE starts in this mode; patches made before keep the spectrum (right-click > Image read as), where V/O moves the timbre rather than a pitch
 - Factory presets for aCiDe, rICOcHEt, baR, bAFIs, ziNC, lIMbO, SPORE and TiARE, five each (right-click > Preset): from a classic squelch, a dub delay, a drum bus glue or a robot voice to a skewed LFO. They are written by scripts in tools/presets, and tools/tests/check_presets.py now checks every module's presets
 - The titles of aCiDe, cOPIA, dOSE, FiLTRe, pARtiCuLeS, rEgIStRE, REI, rICOcHEt and sOUNAiRe sit at the height and size of the other modules' (16 px, baseline 16.875): they were lower and larger
 - ziNC: the band knobs' tint follows each band's envelope (what moves the carrier, with ATTACK and DECAY) in dB, from -48 dB (blue) to -6 dB (red), so a 5 V signal colours them without pushing MOD; the tint goes straight from the knob's blue to the red of the output boxes
@@ -25,6 +26,7 @@ Fixes
 - bAFIs: a NaN or infinite input no longer silences it until reset, and a channel that comes back starts clean
 - ACnE: a patch saved with a track soloed starts with only that track open; Initialize, DIKTAT's root note from a mapped knob, HCTIP before the first rate change, SPORE's Initialize (clears the grains), rICOcHEt's clocked time after a rate change
 - Knobs and buttons of ACnE, MOiRE and πlOT no longer crash in the module browser
+- lambda: a damaged patch can no longer put huge voltages on its outputs (the six stages read from it are kept within ±12 V)
 - Dark and Black themes: DIKTAT and ratEaU keep their screens black (the yellow text was on light grey), ratEaU's CLK box turns grey like its neighbours, πlOT's control area turns dark (it stayed near white), ziNC's band frequencies are written in the panel text's colour (black on dark grey before)
 - zOù MAï + and enCORE +: rotation steps and lengths set while the expander is not beside its sequencer are kept in the patch (they came back at 1 and 16)
 

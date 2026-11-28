@@ -77,7 +77,8 @@ struct LAMBDA : BidooModule {
 		if (st)
 			for (int i = 0; i < 6; i++)
 				for (int c = 0; c < PORT_MAX_CHANNELS; c++)
-					stages[i][c] = json_number_value(json_array_get(st, i * PORT_MAX_CHANNELS + c));
+					// a damaged patch must not put any voltage on the outputs: finite, within Rack's +-12 V
+					stages[i][c] = clamp(json_number_value(json_array_get(st, i * PORT_MAX_CHANNELS + c)), -12.f, 12.f);
 	}
 };
 

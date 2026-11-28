@@ -9,11 +9,15 @@
 #include <thread>
 #include "dep/lodepng/lodepng.h"
 
-// An image played as sound: the row under the position is a spectrum (x is
-// frequency, the selected channels the level), resynthesized by inverse FFT
-// with 4 overlapping frames. Each bin keeps its phase from frame to frame, so
-// partials are steady; the bins start at random phases so a bright band is
-// a sound, not a click per frame.
+// An image played as sound, read in one of two ways (right-click > Image read as):
+// - Harmonics (a new EMILE): the row under the position is one cycle of a waveform. Its width, cut in bands, gives the
+//   amplitudes of the harmonics of the note set by V/O and TUNE (C4 at 0 V); CURVE sets how many harmonics (16 to 256).
+//   The cycle is rebuilt every HOP samples by an inverse FFT, without the harmonics above Nyquist, and played by a
+//   phase at the note's frequency, crossfaded from the previous cycle.
+// - Spectrum (patches made before): the row is a spectrum (x is frequency on CURVE's curve, the selected channels the
+//   level), resynthesized by inverse FFT with 4 overlapping frames. Each bin keeps its phase from frame to frame, so
+//   partials are steady; the bins start at random phases so a bright band is a sound, not a click per frame. V/O
+//   scales every frequency, so it moves the timbre rather than a pitch.
 
 const int FS = 4096;
 const int N = 4;
@@ -22,6 +26,9 @@ const int FS4 = FS2 / 2;
 const float IFS = 1.0f / FS;
 const int STS = FS/N;
 const float IFS2 = 1.0f/FS2;
+const int HT = 2048;            // the harmonics mode's cycle, in samples
+const int HOP = 256;            // the cycle rebuilt this often (5 ms at 48 kHz)
+const int MAX_HARMONICS = 256;
 
 
 using namespace std;
@@ -137,6 +144,19 @@ struct EMILE : BidooModule {
 	std::shared_ptr<EmileThumb> shownThumb;   // under uiMutex: null if none
 	std::atomic<unsigned> thumbGen{0};        // bumped with each new thumb, so the display knows to upload it
 
+	// How the row is read: a new EMILE plays harmonics; a patch saved without "mode" (made before) the spectrum
+	enum Mode { MODE_SPECTRUM = 0, MODE_HARMONICS = 1 };
+	std::atomic<int> mode{MODE_HARMONICS};
+	// harmonics mode: the cycle being left and the one being played, crossfaded over a hop
+	PFFFT_Setup *tableSetup;
+	float *tableIn;
+	float *tableOut;
+	float table[2][HT + 1] = {};   // +1: the first sample again, for the interpolation
+	int tableCur = 0;
+	int hIdx = HOP;
+	double hPhase = 0.0;
+	float harm[MAX_HARMONICS + 1] = {};
+
 	std::atomic<unsigned> samplePos{0};
 	float *magn;
 	float *out;
@@ -185,6 +205,10 @@ struct EMILE : BidooModule {
 		pffftSetup = pffft_new_setup(FS, PFFFT_REAL);
 		fftIn = (float*)pffft_aligned_malloc(FS*sizeof(float));
 		fftOut =  (float*)pffft_aligned_malloc(FS*sizeof(float));
+		tableSetup = pffft_new_setup(HT, PFFFT_REAL);
+		tableIn = (float*)pffft_aligned_malloc(HT*sizeof(float));
+		tableOut = (float*)pffft_aligned_malloc(HT*sizeof(float));
+		setMode(MODE_HARMONICS);
 		for (int i = 0; i < FS; i++)
 			window[i] = -0.5f * std::cos(2.0f * float(M_PI) * i * IFS) + 0.5f;
 		lightDivider.setDivision(64);
@@ -214,6 +238,63 @@ struct EMILE : BidooModule {
 		pffft_aligned_free(fftIn);
 		pffft_aligned_free(fftOut);
 		pffft_destroy_setup(pffftSetup);
+		pffft_aligned_free(tableIn);
+		pffft_aligned_free(tableOut);
+		pffft_destroy_setup(tableSetup);
+	}
+
+	// CURVE's name follows the mode (the panel says CURVE)
+	void setMode(int m) {
+		mode = m;
+		paramQuantities[CURVE_PARAM]->name = m == MODE_HARMONICS ? "Harmonics (16 to 256)" : "Frequency curve";
+		inputInfos[CURVE_INPUT]->name = m == MODE_HARMONICS ? "Harmonics (10 V = the most)" : "Frequency curve (10 V = +0.09)";
+	}
+
+	// Harmonics mode: the cycle of the row at `pos` for the note f0, into the table not being played
+	void buildCycle(unsigned pos, float f0, float sampleRate) {
+		const unsigned width = img->width;
+		const float t = clamp((curve - 0.01f) / 0.09f, 0.f, 1.f);
+		const int bands = (int)std::round(16.f * std::pow(16.f, t));                   // 16 at CURVE's left, 256 right
+		const int below = std::max(1, (int)(0.45f * sampleRate / std::max(f0, 1.f)));   // the harmonics under Nyquist
+		const int kept = std::min({bands, below, MAX_HARMONICS, HT / 2 - 1});
+		const int channels = std::max(1, r + g + b + a);
+		const unsigned char *row = img->rgba.data() + (size_t)pos * 8 * width;
+		float level = 0.f;
+		for (int k = 1; k <= bands && k <= MAX_HARMONICS; k++) {
+			// the band of columns for harmonic k (one column at least)
+			unsigned x0 = (unsigned)((k - 1) * (double)width / bands), x1 = (unsigned)(k * (double)width / bands);
+			x1 = std::min(std::max(x1, x0 + 1), width);
+			double sum = 0.0;
+			for (unsigned x = x0; x < x1; x++) {
+				const unsigned char *p = row + x * 8;
+				sum += (r ? 256 * p[0] + p[1] : 0) + (g ? 256 * p[2] + p[3] : 0) + (b ? 256 * p[4] + p[5] : 0) + (a ? 256 * p[6] + p[7] : 0);
+			}
+			harm[k] = x1 > x0 ? (float)(sum / (65535.0 * channels * (x1 - x0))) : 0.f;
+			if (k <= kept)
+				level = std::max(level, harm[k]);
+		}
+		// sines: harmonic k as an imaginary part in pffft's ordered real layout (DC and Nyquist in 0 and 1)
+		std::memset(tableIn, 0, HT * sizeof(float));
+		for (int k = 1; k <= kept; k++)
+			tableIn[2 * k + 1] = -harm[k];
+		pffft_transform_ordered(tableSetup, tableIn, tableOut, NULL, PFFFT_BACKWARD);
+		// the peak at the brightest harmonic's level: a black row is silent, a white one full scale
+		float peak = 0.f;
+		for (int i = 0; i < HT; i++)
+			peak = std::max(peak, std::fabs(tableOut[i]));
+		const float scale = peak > 0.f ? level / peak : 0.f;
+		const int next = 1 - tableCur;
+		for (int i = 0; i < HT; i++)
+			table[next][i] = tableOut[i] * scale;
+		table[next][HT] = table[next][0];
+		tableCur = next;
+	}
+
+	static float readCycle(const float *t, double phase) {
+		const double x = phase * HT;
+		const int i = std::min((int)x, HT - 1);
+		const float frac = (float)(x - i);
+		return t[i] + (t[i + 1] - t[i]) * frac;
 	}
 
 	// UI thread: load a PNG.
@@ -328,6 +409,7 @@ struct EMILE : BidooModule {
 		json_object_set_new(rootJ, "g", json_boolean(g));
 		json_object_set_new(rootJ, "b", json_boolean(b));
 		json_object_set_new(rootJ, "a", json_boolean(a));
+		json_object_set_new(rootJ, "mode", json_integer(mode));
 		return rootJ;
 	}
 
@@ -345,6 +427,9 @@ struct EMILE : BidooModule {
 		if (bJ) b = json_is_true(bJ);
 		json_t *aJ = json_object_get(rootJ, "a");
 		if (aJ) a = json_is_true(aJ);
+		// saved before the harmonics mode: the spectrum, as those patches sounded
+		json_t *modeJ = json_object_get(rootJ, "mode");
+		setMode(json_is_integer(modeJ) ? clamp((int)json_integer_value(modeJ), 0, 1) : MODE_SPECTRUM);
 	}
 
 };
@@ -377,6 +462,22 @@ void EMILE::process(const ProcessArgs &args) {
 	const unsigned width = img->width, height = img->height;
 	unsigned pos = clamp(params[POS_PARAM].getValue() + clamp(inputs[POS_INPUT].getVoltage(), 0.0f, 10.0f) * 0.1f, 0.0f, 1.0f) * (height - 1);
 	samplePos = pos;
+
+	if (mode.load(std::memory_order_relaxed) == MODE_HARMONICS) {
+		const float f0 = dsp::FREQ_C4 * dsp::exp2_taylor5(clamp(params[TUNE_PARAM].getValue() + inputs[TUNE_INPUT].getVoltage(), -10.f, 10.f));
+		if (hIdx >= HOP) {
+			buildCycle(pos, f0, args.sampleRate);
+			hIdx = 0;
+		}
+		const float fade = (float)hIdx / HOP;
+		const float now = readCycle(table[tableCur], hPhase), before = readCycle(table[1 - tableCur], hPhase);
+		const float v = before + (now - before) * fade;
+		hPhase += f0 * args.sampleTime;
+		hPhase -= std::floor(hPhase);
+		hIdx++;
+		outputs[OUT].setVoltage(emileSoftClip(params[GAIN_PARAM].getValue() * v) * 5.0f);
+		return;
+	}
 
 	if (rIdx >= STS) {
 		memset(fftIn, 0, FS*sizeof(float));
@@ -577,6 +678,10 @@ struct EMILEWidget : BidooWidget {
 			return;
     menu->addChild(new MenuSeparator());
 		menu->addChild(construct<EMILEItem>(&MenuItem::text, "Load image (png)", &EMILEItem::module, module));
+		menu->addChild(createIndexSubmenuItem("Image read as",
+			{"Spectrum: each column a fixed frequency", "Harmonics of the V/O note: a waveform"},
+			[=]() { return (size_t)module->mode.load(); },
+			[=](size_t m) { module->setMode((int)m); }));
 	}
 };
 

@@ -74,7 +74,8 @@ static void feedInputs(engine::Module *m, std::vector<Feed> &feeds, int frames, 
 	for (size_t i = 0; i < m->inputs.size(); i++) {
 		Feed &f = feeds[i];
 		engine::Input &in = m->inputs[i];
-		in.setChannels(f.channels);
+		// the cable's channels, set directly: setChannels() keeps an unpatched port at 0 (unpatched to the module)
+		in.channels = f.channels;
 		f.phase += f.rate * frames / sampleRate;
 		f.phase -= std::floor(f.phase);
 		for (int c = 0; c < f.channels; c++) {
@@ -134,6 +135,9 @@ static bool run(engine::Module *m, const char *model, int blocks, bool moveKnobs
 static engine::Module *fresh(plugin::Model *model) {
 	engine::Module *m = model->createModule();
 	APP->engine->addModule(m);
+	// every output patched, as a cable does (modules skip their work for an unpatched output); the module sets the count
+	for (engine::Output &out : m->outputs)
+		out.channels = 1;
 	return m;
 }
 
