@@ -248,28 +248,17 @@ struct TOCANTEMeasureDisplay : TransparentWidget {
 
 };
 
-template <typename BASE>
-struct TocanteLight : BASE {
-	TocanteLight() {
-		this->box.size = mm2px(Vec(6.f, 6.f));
-	}
-};
-
 struct TOCANTEWidget : BidooWidget {
 	TOCANTEWidget(TOCANTE *module) {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/TOCANTE.svg"));
 
-		// No screws, as before. The original hand-drawn panel: the screen and the measure screen; three columns, each a
-		// knob or button joined by the panel's line to its jack(s) below, under BPM / BEATS / BAR and FINE / RESET / RUN;
-		// nine outputs in their boxes. The BEATS and BAR knobs and the RESET and RUN buttons now sit on their lines and
-		// labels (the old code had them 0.9 to 1 px left); the rest keeps its old corners.
-		const theme::Size kBezelSize = {21.26028f, 21.25987f};   // LEDBezel
-		const theme::Size kLightSize = {mm2px(6.f), mm2px(6.f)};  // TocanteLight
-		const float kLightIn = 1.8f;                             // from a bezel's corner to its light's
-		const theme::Pos topLine[3] = {theme::specific(17.688f, 0), theme::specific(52.656f, 0), theme::specific(87.656f, 0)};   // the lines under BPM, BEATS, BAR
-		const theme::Pos lowLine[3] = {theme::specific(17.531f, 0), theme::specific(52.531f, 0), theme::specific(87.5f, 0)};     // under FINE, RESET, RUN
+		// No screws, as before. The panel of tools/panels/tocante.py: the screen; three columns, each a knob or button
+		// joined by the panel's line to its jack(s) below, at their old rows (specific: the panel's picture of the
+		// module); the nine outputs in their grid boxes.
+		const float w = box.size.x;
 
+		// the displays where they were, in the panel's screen (which keeps its old margin of 5 for them)
 		TOCANTEDisplay *display = new TOCANTEDisplay();
 		display->module = module;
 		display->box = theme::specificRect(11, 53, 50, 85);
@@ -280,36 +269,52 @@ struct TOCANTEWidget : BidooWidget {
 		mDisplay->box = theme::specificRect(92, 68, 25, 25);
 		addChild(mDisplay);
 
-		const theme::Pos reset = theme::colRow(lowLine[1], theme::specificCorner(0, 160, kBezelSize));
-		const theme::Pos run = theme::colRow(lowLine[2], theme::specificCorner(0, 160, kBezelSize));
-		addParam(theme::param<LEDBezel>(reset, module, TOCANTE::RESET_PARAM));
-		addChild(theme::light<TocanteLight<BlueLight>>(theme::specificCorner(reset.x - kBezelSize.w * 0.5f + kLightIn, 160 + kLightIn, kLightSize), module, TOCANTE::RESET_LIGHT));
-		addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(36.3f, 190, theme::kTinyJackSize), module, TOCANTE::RESET_INPUT));
-		addOutput(theme::output<TinyPJ301MPort>(theme::specificCorner(52.3f, 190, theme::kTinyJackSize), module, TOCANTE::OUT_RESET));
+		// The three columns, 35 px apart about the panel's centre (the old controls were 0 to 0.26 px off them), each
+		// row from its old corner. The CV jacks stay tiny: a full one would touch the knob above it and the label
+		// below, and RESET's and RUN's input and output are 16 px apart.
+		const float kColumnRight = 35.f;   // the same in tools/panels/tocante.py
+		const float kForkOut = 8.f;        // RESET's and RUN's input and output either side of their column (the old
+		                                   // forks were 0.7 px left of their lines), the same in tools/panels/tocante.py
+		const theme::Pos mid = theme::specific(w * 0.5f, 0);
+		const theme::Pos col[3] = {mid.right(-kColumnRight), mid, mid.right(kColumnRight)};
+		const float knobY = theme::specificCorner(3, 90, theme::kBlueKnobSize).y;
+		const float cvY = theme::specificCorner(10, 125, theme::kTinyJackSize).y;
+		const float lowY = theme::specificCorner(3, 155, theme::kBlueKnobSize).y;   // FINE, RESET and RUN (the
+		                                                                            // buttons were 0.87 px lower)
+		const float lowCvY = theme::specificCorner(10, 190, theme::kTinyJackSize).y;
 
-		addParam(theme::param<LEDBezel>(run, module, TOCANTE::RUN_PARAM));
-		addChild(theme::light<TocanteLight<BlueLight>>(theme::specificCorner(run.x - kBezelSize.w * 0.5f + kLightIn, 160 + kLightIn, kLightSize), module, TOCANTE::RUNNING_LIGHT));
-		addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(71.3f, 190, theme::kTinyJackSize), module, TOCANTE::RUN_INPUT));
-		addOutput(theme::output<TinyPJ301MPort>(theme::specificCorner(87.3f, 190, theme::kTinyJackSize), module, TOCANTE::OUT_RUN));
+		addParam(theme::param<BidooBlueKnob>(theme::sameCol(col[0], knobY), module, TOCANTE::BPM_PARAM));
+		addParam(theme::param<BidooBlueSnapKnob>(theme::sameCol(col[1], knobY), module, TOCANTE::BEATS_PARAM));
+		addParam(theme::param<BidooBlueSnapKnob>(theme::sameCol(col[2], knobY), module, TOCANTE::REF_PARAM));
+		addInput(theme::input<TinyPJ301MPort>(theme::sameCol(col[0], cvY), module, TOCANTE::BPM_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(theme::sameCol(col[1], cvY), module, TOCANTE::BEATS_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(theme::sameCol(col[2], cvY), module, TOCANTE::REF_INPUT));
 
-		addParam(theme::param<BidooBlueKnob>(theme::specificCorner(3, 90, theme::kBlueKnobSize), module, TOCANTE::BPM_PARAM));
-		addParam(theme::param<BidooBlueKnob>(theme::specificCorner(3, 155, theme::kBlueKnobSize), module, TOCANTE::BPMFINE_PARAM));
-		addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(topLine[1], theme::specificCorner(0, 90, theme::kBlueKnobSize)), module, TOCANTE::BEATS_PARAM));
-		addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(topLine[2], theme::specificCorner(0, 90, theme::kBlueKnobSize)), module, TOCANTE::REF_PARAM));
+		addParam(theme::param<BidooBlueKnob>(theme::sameCol(col[0], lowY), module, TOCANTE::BPMFINE_PARAM));
+		addInput(theme::input<TinyPJ301MPort>(theme::sameCol(col[0], lowCvY), module, TOCANTE::BPMFINE_INPUT));
+		// RESET and RUN: the house round button, momentary as before, lit (orange) by the light the module keeps
+		// (the reset's flash, the running state), which used to light the bezel
+		const int buttonIds[2] = {TOCANTE::RESET_PARAM, TOCANTE::RUN_PARAM};
+		const int lightIds[2] = {TOCANTE::RESET_LIGHT, TOCANTE::RUNNING_LIGHT};
+		const int inIds[2] = {TOCANTE::RESET_INPUT, TOCANTE::RUN_INPUT};
+		const int outIds[2] = {TOCANTE::OUT_RESET, TOCANTE::OUT_RUN};
+		for (int i = 0; i < 2; i++) {
+			BidooRoundButton *b = theme::param<BidooRoundButton>(theme::sameCol(col[i + 1], lowY), module, buttonIds[i]);
+			b->momentary = true;
+			const int lightId = lightIds[i];
+			b->litBy = [=]() { return module && module->lights[lightId].getBrightness() > 0.5f; };
+			addParam(b);
+			const theme::Pos fork = theme::sameCol(col[i + 1], lowCvY);
+			addInput(theme::input<TinyPJ301MPort>(fork.right(-kForkOut), module, inIds[i]));
+			addOutput(theme::output<TinyPJ301MPort>(fork.right(kForkOut), module, outIds[i]));
+		}
 
-		const float kColumnRight = 35.f;
-		const theme::Pos bpmCv = theme::specificCorner(10, 125, theme::kTinyJackSize);
-		addInput(theme::input<TinyPJ301MPort>(bpmCv, module, TOCANTE::BPM_INPUT));
-		addInput(theme::input<TinyPJ301MPort>(theme::specificCorner(10, 190, theme::kTinyJackSize), module, TOCANTE::BPMFINE_INPUT));
-		addInput(theme::input<TinyPJ301MPort>(bpmCv.right(kColumnRight), module, TOCANTE::BEATS_INPUT));
-		addInput(theme::input<TinyPJ301MPort>(bpmCv.right(2 * kColumnRight), module, TOCANTE::REF_INPUT));
-
-		const float kBoxBelow = 47.f;
-		const float outLeft[3] = {7, 40.5f, 74};   // the three columns of boxed outputs, within 0.3 px of their boxes
-		const int outIds[9] = {TOCANTE::OUT_MEASURE, TOCANTE::OUT_QUARTER, TOCANTE::OUT_EIGHTH, TOCANTE::OUT_BEAT, TOCANTE::OUT_TRIPLET,
+		// the nine outputs: one grid box each, three columns on rows 2 to 0 (the old rows were 2 and 1 px higher,
+		// the outer columns 4.2 px further out)
+		const int boxIds[9] = {TOCANTE::OUT_MEASURE, TOCANTE::OUT_QUARTER, TOCANTE::OUT_EIGHTH, TOCANTE::OUT_BEAT, TOCANTE::OUT_TRIPLET,
 			TOCANTE::OUT_SIXTEENTH, TOCANTE::OUT_THIRTYSECOND, TOCANTE::OUT_SIXTYFOURTH, TOCANTE::OUT_ONEHUNDREDTWENTYEIGHTH};
 		for (int i = 0; i < 9; i++)
-			addOutput(theme::output<PJ301MPort>(theme::specificCorner(outLeft[i / 3], 236 + kBoxBelow * (i % 3), theme::kJackSize), module, outIds[i]));
+			addOutput(theme::output<PJ301MPort>(theme::jackAt(i / 3, 3, 2 - i % 3, w), module, boxIds[i]));
 	}
 };
 

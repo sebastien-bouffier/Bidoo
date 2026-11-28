@@ -635,15 +635,18 @@ void OUAIVE::playVoice(int c, OuaiveVoice &v, const sampleread::View<2> &view, i
 
 struct OUAIVEDisplay : OpaqueWidget {
 	OUAIVE *module;
-	const float width = 125.0f;
-	const float height = 50.0f;
+	// the two waves, 10 px apart, fill the box (setArea)
+	float width = 125.0f;
+	float height = 50.0f;
 	float zoomWidth = 125.0f;
 	float zoomLeftAnchor = 0.0f;
 	int refIdx = 0;
 	float refX = 0.0f;
 
-	OUAIVEDisplay() {
-
+	void setArea(Rect r) {
+		box = r;
+		width = zoomWidth = r.size.x;
+		height = (r.size.y - 10.f) * 0.5f;
 	}
 
 	// Zoom anchors at the click point, as in cANARd.
@@ -857,52 +860,72 @@ struct OUAIVEWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel: no control sits on the grid, so each position is either specific (the old
-		// top left corner, kept to the pixel) or relative to one of those. See docs/THEME.md, "Placing controls in code".
-		OUAIVEDisplay *display = new OUAIVEDisplay();
-		display->module = module;
-		display->box = theme::specificRect(5, 70, 125, 110);
-		addChild(display);
-		// on the screen above the waveforms, over the mode line
-		OUAIVEFileBar *fileBar = new OUAIVEFileBar();
-		fileBar->module = module;
-		fileBar->box = theme::specificRect(5, 41, 125, 14);
-		addChild(fileBar);
+		// The panel of tools/panels/ouaive.py: the old arrangement. The controls keep their old places (specific: the old
+		// top left corners, or relative to them); the screen follows the theme, and the bottom jacks go on the grid.
+		const float w = box.size.x;
 
-		// Top: position reset in on the left, end of cycle out on the right
+		// Top: position reset in on the left, end of cycle out on the right, beside the title as before. Tiny and
+		// without boxes: there is no room for a box between the screws, the title and the screen
 		const theme::Pos reset = theme::specificCorner(10, 18, theme::kTinyJackSize);
 		const theme::Pos eoc = theme::specificCorner(112, 18, theme::kTinyJackSize);
 		addInput(theme::input<TinyPJ301MPort>(reset, module, OUAIVE::POS_RESET_INPUT));
 		addOutput(theme::output<TinyPJ301MPort>(eoc, module, OUAIVE::EOC_OUTPUT));
 
-		// Mode buttons, the read mode's CV jack on the right; below, one row each for slices and speed:
-		// the knob, its CV amount, its CV jack in the same column as the read mode's
-		const float kCvAmountRight = 24.f;   // from a knob to its CV trimpot
-		const float kSpeedBelow = 25.f;      // from the slices row to the speed row
-		const theme::Pos trigMode = theme::specificCorner(9, 215, theme::kCKD6Size);
-		const theme::Pos readMode = trigMode.right(44.f);
-		const theme::Pos readModeCv = theme::specificCorner(106, 222, theme::kTinyJackSize);
-		const theme::Pos slices = theme::specificCorner(58, 250, theme::kTrimpotSize);
-		const theme::Pos slicesCv = readModeCv.down(30.f);
+		// Mode buttons, the read mode's CV jack on the right; below, one row each for slices and speed: the trimpot,
+		// its CV amount, its CV jack in the read mode CV's column. The CV jacks share a box (25 above the first, 17
+		// under the last), over OUT R's column
+		const float kCvAmountRight = 24.f;   // from a trimpot to its CV amount
+		const float kSpeedBelow = 25.f;      // from the slices row to the speed row, the same in tools/panels/ouaive.py
+		const int n = 4;   // the bottom row's columns, N in tools/panels/ouaive.py
+		// the CV jacks over OUT R, in its column's box (1.9 px left of their old corner 106), at their old rows
+		const theme::Pos readModeCv = theme::colRow(theme::jackAt(n - 1, n, 0, w), theme::specificCorner(106, 222, theme::kTinyJackSize));
+		// the slices trimpot 8 px left of its old corner, so its CV amount clears the CV box by 5 px and PLAY MODE above
+		// it stays clear of TYPE's label; speed and PLAY MODE follow it (TRIM_LEFT in tools/panels/ouaive.py)
+		const float kTrimLeft = 8.f;
+		const theme::Pos slices = theme::specificCorner(58.f - kTrimLeft, 250, theme::kTrimpotSize);
 		const theme::Pos speed = slices.down(kSpeedBelow);
-		const theme::Pos speedCv = slicesCv.down(kSpeedBelow);
-		addParam(theme::param<BlueCKD6>(trigMode, module, OUAIVE::TRIG_MODE_PARAM));
-		addParam(theme::param<BlueCKD6>(readMode, module, OUAIVE::READ_MODE_PARAM));
+		// TYPE over the TRIG jack (0.375 px right of the old CKD6's centre), PLAY MODE over the trimpots:
+		// BidooRoundButtons, momentary as before, on the read mode CV's row (0.5 px lower)
+		const theme::Pos trigMode = theme::colRow(theme::jackAt(0, n, 0, w), readModeCv);
+		const theme::Pos readMode = theme::colRow(slices, readModeCv);
+		for (const auto &b : {std::make_pair(trigMode, (int)OUAIVE::TRIG_MODE_PARAM), std::make_pair(readMode, (int)OUAIVE::READ_MODE_PARAM)}) {
+			BidooRoundButton *button = theme::param<BidooRoundButton>(b.first, module, b.second);
+			button->momentary = true;
+			addParam(button);
+		}
 		addInput(theme::input<TinyPJ301MPort>(readModeCv, module, OUAIVE::READ_MODE_INPUT));
 		addParam(theme::param<BidooBlueTrimpot>(slices, module, OUAIVE::NB_SLICES_PARAM));
 		addParam(theme::param<BidooBlueTrimpot>(slices.right(kCvAmountRight), module, OUAIVE::CVSLICES_PARAM));
-		addInput(theme::input<TinyPJ301MPort>(slicesCv, module, OUAIVE::NB_SLICES_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(readModeCv, slices), module, OUAIVE::NB_SLICES_INPUT));   // on the trimpots' row (0.1 px)
 		addParam(theme::param<BidooBlueTrimpot>(speed, module, OUAIVE::SPEED_PARAM));
 		addParam(theme::param<BidooBlueTrimpot>(speed.right(kCvAmountRight), module, OUAIVE::CVSPEED_PARAM));
-		addInput(theme::input<TinyPJ301MPort>(speedCv, module, OUAIVE::SPEED_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(theme::colRow(readModeCv, speed), module, OUAIVE::SPEED_INPUT));
 
-		// Bottom: gate and position in, the stereo out on the right, R under the end of cycle out
-		const theme::Pos gate = theme::specificCorner(7, 330, theme::kJackSize);
-		const theme::Pos outL = theme::specificCorner(90, 340, theme::kTinyJackSize);
-		addInput(theme::input<PJ301MPort>(gate, module, OUAIVE::GATE_INPUT));
-		addInput(theme::input<PJ301MPort>(gate.right(33.f), module, OUAIVE::POS_INPUT));
-		addOutput(theme::output<TinyPJ301MPort>(outL, module, OUAIVE::OUTL_OUTPUT));
-		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(eoc, outL), module, OUAIVE::OUTR_OUTPUT));
+		// The screen: the theme's top and margins, down to 4 px above the CV box (SCREEN_BOTTOM in tools/panels/ouaive.py).
+		// Inside it, as before: the file bar at the top, the mode line, then the two waves
+		const float kScreenBottom = readModeCv.y - theme::kBoxAboveJack - theme::kBoxGap;
+		const theme::Area screen = theme::specificRect(theme::kSideMargin, theme::kScreenTop, w - 2.f * theme::kSideMargin, kScreenBottom - theme::kScreenTop);
+		const float kInset = 1.f;         // inside the screen's frame
+		const float kFileBarTop = 3.f;    // from the screen's top
+		const float kFileBarH = 14.f;
+		const float kModeLineH = 15.f;    // the mode line, drawn by the display above its box
+		const float kBottomRoom = 8.f;
+		OUAIVEFileBar *fileBar = new OUAIVEFileBar();
+		fileBar->module = module;
+		fileBar->box = theme::specificRect(screen.x, screen.y + kFileBarTop, screen.w, kFileBarH);
+		addChild(fileBar);
+		OUAIVEDisplay *display = new OUAIVEDisplay();
+		display->module = module;
+		const float waveTop = screen.y + kFileBarTop + kFileBarH + kModeLineH;
+		display->setArea(theme::specificRect(screen.x + kInset, waveTop, screen.w - 2.f * kInset, screen.y + screen.h - kBottomRoom - waveTop));
+		addChild(display);
+
+		// Bottom row, on the grid of four columns: gate and position in, the stereo out over the last two (full jacks:
+		// they fit in its box)
+		addInput(theme::input<PJ301MPort>(theme::jackAt(0, n, 0, w), module, OUAIVE::GATE_INPUT));
+		addInput(theme::input<PJ301MPort>(theme::jackAt(1, n, 0, w), module, OUAIVE::POS_INPUT));
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(2, n, 0, w), module, OUAIVE::OUTL_OUTPUT));
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(3, n, 0, w), module, OUAIVE::OUTR_OUTPUT));
 	}
 
   struct OUAIVEItem : MenuItem {

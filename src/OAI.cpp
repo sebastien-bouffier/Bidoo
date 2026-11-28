@@ -126,43 +126,8 @@ struct OAIWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel: the sample light and channel knob under the title, two rows of three knobs,
-		// the loop and gate switches with the kill knob, then three rows of boxed jacks. Knobs keep their old corners
-		// (within 0.25 px of their labels); the light goes on the panel's centre, the loop switch between LOOP and OFF,
-		// and every jack on its box's centre (the old code had them 0.27 to 0.65 px left).
-		const float centre = box.size.x * 0.5f;
-		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};   // SmallLight
-		const theme::Size kCKSSSize = {14.f, 20.64111f};                // CKSS
-		addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::sameRow(theme::specificCorner(56.5f, 20, kSmallLightSize), centre), module, OAI::SAMPLE_LIGHT));
-		addParam(theme::param<BidooBlueSnapKnob>(theme::specificCorner(45, 35, theme::kBlueKnobSize), module, OAI::CHANNEL_PARAM));
-
-		const float kKnobPitch = 38.f;    // across
-		const float kKnobRowBelow = 50.f;
-		const theme::Pos start = theme::specificCorner(7, 85, theme::kBlueKnobSize);
-		addParam(theme::param<BidooBlueKnob>(start, module, OAI::START_PARAM));
-		addParam(theme::param<BidooBlueKnob>(start.right(kKnobPitch), module, OAI::LEN_PARAM));
-		addParam(theme::param<BidooBlueKnob>(start.right(2.f * kKnobPitch), module, OAI::SPEED_PARAM));
-		addParam(theme::param<BidooBlueSnapKnob>(start.down(kKnobRowBelow), module, OAI::FILTERTYPE_PARAM));
-		addParam(theme::param<BidooBlueKnob>(start.offset(kKnobPitch, kKnobRowBelow), module, OAI::FREQ_PARAM));
-		addParam(theme::param<BidooBlueKnob>(start.offset(2.f * kKnobPitch, kKnobRowBelow), module, OAI::Q_PARAM));
-		addParam(theme::param<CKSS>(theme::colRow(theme::specific(22.f, 0), theme::specificCorner(14.5f, 190, kCKSSSize)), module, OAI::LOOP_PARAM));   // between LOOP and OFF
-		addParam(theme::param<CKSS>(theme::specificCorner(53, 190, kCKSSSize), module, OAI::GATE_PARAM));
-		addParam(theme::param<BidooBlueSnapKnob>(start.offset(2.f * kKnobPitch, 2.f * kKnobRowBelow), module, OAI::KILL_PARAM));
-
-		const float kRowBelow = 47.f;
-		const theme::Pos cvRow = theme::specificCorner(4, 236, theme::kJackSize);
-		const theme::Pos boxCol[4] = {theme::specific(16.156f, 0), theme::specific(45.406f, 0), theme::specific(74.594f, 0), theme::specific(103.844f, 0)};   // the boxes' centres
-		const int topIds[4] = {OAI::START_INPUT, OAI::LEN_INPUT, OAI::SPEED_INPUT, OAI::LOOP_INPUT};
-		const int midIds[4] = {OAI::FILTERTYPE_INPUT, OAI::FREQ_INPUT, OAI::Q_INPUT, OAI::GATE_INPUT};
-		for (int i = 0; i < 4; i++)
-			addInput(theme::input<PJ301MPort>(theme::colRow(boxCol[i], cvRow), module, topIds[i]));
-		for (int i = 0; i < 4; i++)
-			addInput(theme::input<PJ301MPort>(theme::colRow(boxCol[i], cvRow).down(kRowBelow), module, midIds[i]));
-
-		const theme::Pos bottomRow = cvRow.down(2.f * kRowBelow);
-		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(19.156f, 0), bottomRow), module, OAI::TRIG_INPUT));
-		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(centre, 0), bottomRow), module, OAI::KILL_INPUT));
-		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(100.844f, 0), bottomRow), module, OAI::POLY_OUTPUT));
+		// The panel of tools/panels/oai.py: the old arrangement, the controls placed with maGma's (src/SliceSampler.hpp)
+		sliceSamplerControls(this, module);
 	}
 
 	struct OAIItem : MenuItem {

@@ -103,30 +103,25 @@ struct PERCOWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel: three boxed columns of jacks, the cutoff knob over the middle one (its CV jack)
-		// and the RES and F.MOD knobs either side of it. Old corners kept (specific) except where a control was off its
-		// label or box: the FREQ knob onto its CV jack's column, RES mirrored from F.MOD, the RES and HP jacks onto
-		// their boxes' centre.
-		const float kColumnRight = 38.f;      // from the IN column to the FREQ column
-		const float kResColumnRight = 37.775f;   // from the FREQ column to the centre of the RES and HP boxes
-		const float kOutsBelow = 47.f;        // from the inputs' row to the outputs'
-		const theme::Pos in = theme::specificCorner(10, 283, theme::kJackSize);
-		const theme::Pos cutoffIn = in.right(kColumnRight);
-		const theme::Pos qIn = cutoffIn.right(kResColumnRight);
-		const theme::Pos cutoff = theme::colRow(cutoffIn, theme::specificCorner(31, 61, theme::kHugeKnobSize));
+		// The panel of tools/panels/perco.py: the old arrangement, the knobs at their old corners (specific: they are the
+		// panel's picture of the module), the jacks on the grid. RES is F.MOD mirrored about the cutoff knob.
+		const float w = box.size.x;
+		// the cutoff knob centred on the panel (its old column, the FREQ jack's, was 0.15 px left)
+		const theme::Pos cutoff = theme::sameCol(theme::specific(w * 0.5f, 0), theme::specificCorner(31, 61, theme::kHugeKnobSize).y);
 		const theme::Pos cmod = theme::specificCorner(71, 143, theme::kLargeKnobSize);
-		const theme::Pos q = cmod.right(-2.f * (cmod.x - cutoff.x));   // F.MOD mirrored about the cutoff knob
+		const theme::Pos q = cmod.right(-2.f * (cmod.x - cutoff.x));
 		addParam(theme::param<BidooHugeBlueKnob>(cutoff, module, PERCO::CUTOFF_PARAM));
 		addParam(theme::param<BidooLargeBlueKnob>(q, module, PERCO::Q_PARAM));
 		addParam(theme::param<BidooLargeBlueKnob>(cmod, module, PERCO::CMOD_PARAM));
-		///Innies
-		addInput(theme::input<PJ301MPort>(in, module, PERCO::IN));
-		addInput(theme::input<PJ301MPort>(cutoffIn, module, PERCO::CUTOFF_INPUT));
-		addInput(theme::input<PJ301MPort>(qIn, module, PERCO::Q_INPUT));
-		///Outies
-		addOutput(theme::output<PJ301MPort>(in.down(kOutsBelow), module, PERCO::OUT_LP));
-		addOutput(theme::output<PJ301MPort>(cutoffIn.down(kOutsBelow), module, PERCO::OUT_BP));
-		addOutput(theme::output<PJ301MPort>(qIn.down(kOutsBelow), module, PERCO::OUT_HP));
+
+		// the inputs on the second row and the outputs on the bottom row, one grid box each over three columns
+		// (the old jacks were 1.15 px higher, the outer ones 3.3 to 3.8 px further out)
+		const int inIds[3] = {PERCO::IN, PERCO::CUTOFF_INPUT, PERCO::Q_INPUT};
+		const int outIds[3] = {PERCO::OUT_LP, PERCO::OUT_BP, PERCO::OUT_HP};
+		for (int i = 0; i < 3; i++) {
+			addInput(theme::input<PJ301MPort>(theme::jackAt(i, 3, 1, w), module, inIds[i]));
+			addOutput(theme::output<PJ301MPort>(theme::jackAt(i, 3, 0, w), module, outIds[i]));
+		}
 	}
 };
 

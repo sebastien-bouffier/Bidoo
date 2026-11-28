@@ -401,28 +401,34 @@ struct BAFISWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel: three frequency knobs with their CV jacks over the filter-shape drawing; four
-		// columns of Q, gain, type, pre/post and volume, each with its tiny CV jack; IN and OUT. Each CV jack sits
-		// kJackGap under its control, joined to it by a short vertical line drawn on the panel (res/BAFIS.svg, cv-lines);
-		// the frequency row starts 4 px higher and the columns' rows are kRow apart to make that room in 10 HP.
-		const float kFreqRight = 35.f;   // across, for the frequency knobs and the four columns
+		// The panel of tools/panels/bafis.py: the old arrangement, the controls at their old heights (specific: they are
+		// the panel's picture of the module), IN and OUT on the grid. Three frequency knobs with their CV jacks over the
+		// filter shapes; four columns of Q, gain, type, pre/post and volume, each control with its tiny CV jack kJackGap
+		// under it, joined by a line the panel draws. Full jacks don't fit: a small knob, the gap and a PJ301M are 52 px,
+		// the rows 46.6 apart. kColRight, kRow, kJackGap and the anchors are the same in tools/panels/bafis.py.
+		const float w = box.size.x;
+		const float kColRight = 35.f;    // across, between columns and between frequency knobs
 		const float kJackGap = 5.f;      // a control's bottom to its jack's top
 		const float kRow = 46.6f;        // the columns' rows
 		const theme::Size kSmallKnobSize = {mm2px(8.f), mm2px(8.f)};   // BidooSmallBlueKnob
 		const theme::Size kCKSSSize = {14.f, 20.64111f};               // CKSS
-		const theme::Pos freq = theme::specificCorner(25, 26, theme::kBlueKnobSize);
-		const theme::Pos freqCv = theme::specificCorner(32, 61, theme::kTinyJackSize);
-		for (int i = 0; i < 3; i++)
-			addParam(theme::param<BidooBlueKnob>(freq.right(kFreqRight * i), module, BAFIS::FREQ_PARAM + i));
-		for (int i = 0; i < 3; i++)
-			addInput(theme::input<TinyPJ301MPort>(freqCv.right(kFreqRight * i), module, BAFIS::FREQ_INPUT + i));
+		// the columns: on their CV jacks' old column (the knobs were 0.31 px right of it), so the four are centred on
+		// the panel
 		const float qTop = 82.f;
-		const theme::Pos q = theme::specificCorner(11, qTop, kSmallKnobSize);
 		const theme::Pos qCv = theme::specificCorner(15, qTop + kSmallKnobSize.h + kJackGap, theme::kTinyJackSize);
+		const theme::Pos q = theme::colRow(qCv, theme::specificCorner(11, qTop, kSmallKnobSize));
 		// the switch centred on its row, as the knobs are
-		const theme::Pos prePost = theme::specificCorner(16, qTop + 3 * kRow + (kSmallKnobSize.h - kCKSSSize.h) * 0.5f, kCKSSSize);
+		const theme::Pos prePost = theme::colRow(q, theme::specificCorner(16, qTop + 3 * kRow + (kSmallKnobSize.h - kCKSSSize.h) * 0.5f, kCKSSSize));
+		// the frequency knobs and their jacks halfway between the columns (they were 0.24 and 0.5 px left of it): the
+		// middle one on the panel's centre
+		const theme::Pos freq = theme::colRow(q.right(kColRight * 0.5f), theme::specificCorner(25, 26, theme::kBlueKnobSize));
+		const theme::Pos freqCv = theme::colRow(freq, theme::specificCorner(32, 61, theme::kTinyJackSize));
+		for (int i = 0; i < 3; i++)
+			addParam(theme::param<BidooBlueKnob>(freq.right(kColRight * i), module, BAFIS::FREQ_PARAM + i));
+		for (int i = 0; i < 3; i++)
+			addInput(theme::input<TinyPJ301MPort>(freqCv.right(kColRight * i), module, BAFIS::FREQ_INPUT + i));
 		for (int i = 0; i < 4; i++) {
-			const float dx = kFreqRight * i;
+			const float dx = kColRight * i;
 			addParam(theme::param<BidooSmallBlueKnob>(q.right(dx), module, BAFIS::Q_PARAM + i));
 			addInput(theme::input<TinyPJ301MPort>(qCv.right(dx), module, BAFIS::Q_INPUT + i));
 			addParam(theme::param<BidooSmallBlueKnob>(q.offset(dx, kRow), module, BAFIS::GAIN_PARAM + i));
@@ -434,9 +440,10 @@ struct BAFISWidget : BidooWidget {
 			addParam(theme::param<BidooSmallBlueKnob>(q.offset(dx, 4 * kRow), module, BAFIS::VOLUME_PARAM + i));
 			addInput(theme::input<TinyPJ301MPort>(qCv.offset(dx, 4 * kRow), module, BAFIS::VOLUME_INPUT + i));
 		}
-		const theme::Pos ioRow = theme::specificCorner(6.8f, 330, theme::kJackSize);
-		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(19.156f, 0), ioRow), module, BAFIS::IN));     // the IN box's centre
-		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(130.844f, 0), ioRow), module, BAFIS::OUT));  // the OUT box's centre
+
+		// IN and OUT: the outer boxes of the bottom row's four columns
+		addInput(theme::input<PJ301MPort>(theme::jackAt(0, 4, 0, w), module, BAFIS::IN));
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(3, 4, 0, w), module, BAFIS::OUT));
 	}
 };
 

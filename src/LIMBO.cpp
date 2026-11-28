@@ -348,32 +348,33 @@ struct LIMBOWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel: the cutoff knob, RES and GAIN either side below it, F.MOD under RES and the mode
-		// switch beside it; three boxed CV jacks; the stereo in and out. Old corners kept (specific) except where a
-		// control was off its label or box: GAIN mirrored from RES about the cutoff knob, the CV jacks on their boxes'
-		// centres, each stereo jack under its L or R label.
+		// The panel of tools/panels/limbo.py: the old arrangement, the knobs and the switch at their old corners
+		// (specific: they are the panel's picture of the module), the jacks on the grid. GAIN is RES mirrored about the
+		// cutoff knob.
+		const float w = box.size.x;
 		const theme::Size kCKSSSize = {14.f, 20.64111f};   // CKSS
-		const theme::Pos cutoff = theme::specificCorner(32, 61, theme::kHugeKnobSize);
+		// the cutoff knob centred on the panel (its old corner put it 0.05 px right), the switch under GAIN (0.15 px)
+		const theme::Pos cutoff = theme::sameCol(theme::specific(w * 0.5f, 0), theme::specificCorner(32, 61, theme::kHugeKnobSize).y);
 		const theme::Pos q = theme::specificCorner(12, 143, theme::kLargeKnobSize);
-		const theme::Pos mug = q.right(2.f * (cutoff.x - q.x));   // RES mirrored about the cutoff knob
+		const theme::Pos mug = q.right(2.f * (cutoff.x - q.x));
 		addParam(theme::param<BidooHugeBlueKnob>(cutoff, module, LIMBO::CUTOFF_PARAM));
 		addParam(theme::param<BidooLargeBlueKnob>(q, module, LIMBO::Q_PARAM));
 		addParam(theme::param<BidooLargeBlueKnob>(mug, module, LIMBO::MUG_PARAM));
 		addParam(theme::param<BidooLargeBlueKnob>(theme::specificCorner(12, 208, theme::kLargeKnobSize), module, LIMBO::CMOD_PARAM));
-		addParam(theme::param<CKSS>(theme::specificCorner(82.5f, 217, kCKSSSize), module, LIMBO::MODE_PARAM));
+		addParam(theme::param<CKSS>(theme::colRow(mug, theme::specificCorner(82.5f, 217, kCKSSSize)), module, LIMBO::MODE_PARAM));
 
-		const float kBoxPitch = 40.844f;   // from one CV box's centre to the next
-		const theme::Pos cutoffCv = theme::colRow(theme::specific(19.156f, 0), theme::specificCorner(7, 283, theme::kJackSize));   // the FREQ box's centre
-		addInput(theme::input<PJ301MPort>(cutoffCv, module, LIMBO::CUTOFF_INPUT));
-		addInput(theme::input<PJ301MPort>(cutoffCv.right(kBoxPitch), module, LIMBO::Q_INPUT));
-		addInput(theme::input<PJ301MPort>(cutoffCv.right(2.f * kBoxPitch), module, LIMBO::MUG_INPUT));
+		// the CV jacks: three boxes on the second row
+		const int cvIds[3] = {LIMBO::CUTOFF_INPUT, LIMBO::Q_INPUT, LIMBO::MUG_INPUT};
+		for (int i = 0; i < 3; i++)
+			addInput(theme::input<PJ301MPort>(theme::jackAt(i, 3, 1, w), module, cvIds[i]));
 
-		// Each stereo jack under its L or R label (the panel spaces the IN labels 23.5 px apart and the OUT ones 21.5)
-		const theme::Pos stereoRow = theme::specificCorner(8, 340, theme::kTinyJackSize);
-		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(14.594f, 0), stereoRow), module, LIMBO::IN_L));
-		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(38.125f, 0), stereoRow), module, LIMBO::IN_R));
-		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(82.281f, 0), stereoRow), module, LIMBO::OUT_L));
-		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(103.812f, 0), stereoRow), module, LIMBO::OUT_R));
+		// the stereo in and out: tiny jacks on the four columns of the bottom row (two full jacks don't fit in a box
+		// of 8 HP's two columns), 5.5 px lower than its jacks so their L and R fit under the box's name
+		const float kStereoY = 347.5f;   // the old corner 340, the same in tools/panels/limbo.py
+		addInput(theme::input<TinyPJ301MPort>(theme::sameCol(theme::at(0, 4, 0, w), kStereoY), module, LIMBO::IN_L));
+		addInput(theme::input<TinyPJ301MPort>(theme::sameCol(theme::at(1, 4, 0, w), kStereoY), module, LIMBO::IN_R));
+		addOutput(theme::output<TinyPJ301MPort>(theme::sameCol(theme::at(2, 4, 0, w), kStereoY), module, LIMBO::OUT_L));
+		addOutput(theme::output<TinyPJ301MPort>(theme::sameCol(theme::at(3, 4, 0, w), kStereoY), module, LIMBO::OUT_R));
 	}
 };
 

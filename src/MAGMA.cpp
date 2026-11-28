@@ -142,49 +142,16 @@ struct MAGMAWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel, oAi's with four preset buttons: the sample light and channel knob under the
-		// title, two rows of three knobs, the loop and gate switches with the kill knob, three rows of boxed jacks.
-		// Knobs keep their old corners (within 0.25 px of their labels); the light goes on the panel's centre, the loop
-		// switch between LOOP and OFF, every jack on its box's centre (the old code had them 0.27 to 0.65 px left), and
-		// each preset button and light on its number's middle (they were 0.61 px above).
-		const float centre = box.size.x * 0.5f;
+		// The panel of tools/panels/magma.py: oAi's with four preset buttons. The controls they share are placed in
+		// src/SliceSampler.hpp
+		sliceSamplerControls(this, module);
+
+		// Preset buttons right of the channel knob, 10 px apart, each light centred on its number (8, 16, 32, 64); the
+		// button keeps its old corner relative to its light. Specific: MiniLEDButton with its light, as before, since
+		// four BidooRoundButtons (20 px) don't fit 10 px apart beside the knob. The numbers are in tools/panels/magma.py
 		const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};     // SmallLight
 		const theme::Size kMiniButtonSize = {mm2px(1.8f), mm2px(1.8f)};   // MiniLEDButton
-		const theme::Size kCKSSSize = {14.f, 20.64111f};                  // CKSS
-		addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::sameRow(theme::specificCorner(56.5f, 20, kSmallLightSize), centre), module, MAGMA::SAMPLE_LIGHT));
-		addParam(theme::param<BidooBlueSnapKnob>(theme::specificCorner(45, 35, theme::kBlueKnobSize), module, MAGMA::CHANNEL_PARAM));
-
-		const float kKnobPitch = 38.f;    // across
-		const float kKnobRowBelow = 50.f;
-		const theme::Pos start = theme::specificCorner(7, 85, theme::kBlueKnobSize);
-		addParam(theme::param<BidooBlueKnob>(start, module, MAGMA::START_PARAM));
-		addParam(theme::param<BidooBlueKnob>(start.right(kKnobPitch), module, MAGMA::LEN_PARAM));
-		addParam(theme::param<BidooBlueKnob>(start.right(2.f * kKnobPitch), module, MAGMA::SPEED_PARAM));
-		addParam(theme::param<BidooBlueSnapKnob>(start.down(kKnobRowBelow), module, MAGMA::FILTERTYPE_PARAM));
-		addParam(theme::param<BidooBlueKnob>(start.offset(kKnobPitch, kKnobRowBelow), module, MAGMA::FREQ_PARAM));
-		addParam(theme::param<BidooBlueKnob>(start.offset(2.f * kKnobPitch, kKnobRowBelow), module, MAGMA::Q_PARAM));
-		addParam(theme::param<CKSS>(theme::colRow(theme::specific(22.f, 0), theme::specificCorner(14.5f, 190, kCKSSSize)), module, MAGMA::LOOP_PARAM));   // between LOOP and OFF
-		addParam(theme::param<CKSS>(theme::specificCorner(53, 190, kCKSSSize), module, MAGMA::GATE_PARAM));
-		addParam(theme::param<BidooBlueSnapKnob>(start.offset(2.f * kKnobPitch, 2.f * kKnobRowBelow), module, MAGMA::KILL_PARAM));
-
-		const float kRowBelow = 47.f;
-		const theme::Pos cvRow = theme::specificCorner(4, 236, theme::kJackSize);
-		const theme::Pos boxCol[4] = {theme::specific(16.156f, 0), theme::specific(45.406f, 0), theme::specific(74.594f, 0), theme::specific(103.844f, 0)};   // the boxes' centres
-		const int topIds[4] = {MAGMA::START_INPUT, MAGMA::LEN_INPUT, MAGMA::SPEED_INPUT, MAGMA::LOOP_INPUT};
-		const int midIds[4] = {MAGMA::FILTERTYPE_INPUT, MAGMA::FREQ_INPUT, MAGMA::Q_INPUT, MAGMA::GATE_INPUT};
-		for (int i = 0; i < 4; i++)
-			addInput(theme::input<PJ301MPort>(theme::colRow(boxCol[i], cvRow), module, topIds[i]));
-		for (int i = 0; i < 4; i++)
-			addInput(theme::input<PJ301MPort>(theme::colRow(boxCol[i], cvRow).down(kRowBelow), module, midIds[i]));
-
-		const theme::Pos bottomRow = cvRow.down(2.f * kRowBelow);
-		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(19.156f, 0), bottomRow), module, MAGMA::TRIG_INPUT));
-		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(centre, 0), bottomRow), module, MAGMA::KILL_INPUT));
-		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(100.844f, 0), bottomRow), module, MAGMA::POLY_OUTPUT));
-
-		// Preset buttons, 10 px apart, each light centred on its number (8, 16, 32, 64); the button keeps its old
-		// corner relative to its light
-		const float kPresetBelow = 10.f;
+		const float kPresetBelow = 10.f;   // PRESET_BELOW in tools/panels/magma.py
 		const theme::Pos firstLight = theme::colRow(theme::specificCorner(109, 20, kSmallLightSize), theme::specific(0, 23.562f));   // on the 8
 		const float lightTop = firstLight.y - kSmallLightSize.h * 0.5f;
 		for (int i = 0; i < 4; i++)

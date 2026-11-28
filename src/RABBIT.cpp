@@ -151,27 +151,40 @@ struct RABBITWidget : BidooWidget {
 		setModule(module);
 		prepareThemes(asset::plugin(pluginInstance, "res/RABBIT.svg"));
 
-		// No screws, as before. The original hand-drawn panel: eight rows of an OFF jack and button, a REV button and
-		// jack; the stereo in and out. The buttons keep their old corners; each row's jacks sit on their buttons' row
-		// (the old code had them 0.87 px below it), and each stereo jack under its L or R label.
-		const float kBitBelow = 32.f;
-		const theme::Size kBezelSize = {21.26028f, 21.25987f};   // LEDLightBezel
-		const theme::Pos offButton = theme::specificCorner(27, 50, kBezelSize);
-		const theme::Pos revButton = theme::specificCorner(57, 50, kBezelSize);
-		const theme::Pos offCvCol = theme::specificCorner(8, 54, theme::kTinyJackSize);
-		const theme::Pos revCvCol = theme::specificCorner(83, 54, theme::kTinyJackSize);
+		// No screws, as before. The panel of tools/panels/rabbit.py: eight rows of an OFF jack and button, a REV button
+		// and jack, at the old rows (specific: the panel's picture of the module); the stereo in and out on the grid.
+		const float w = box.size.x;
+		// The columns, symmetric about the panel's centre (the old ones were 0.13 px right for the buttons, 0.5 px for
+		// the jacks). The CV jacks stay tiny: a full jack would come within a pixel of its button and 3 px of the edge.
+		const float kButtonOut = 15.f;   // each column of buttons from the centre, the same in tools/panels/rabbit.py
+		const float kJackOut = 37.5f;    // each column of CV jacks from the centre, the same in tools/panels/rabbit.py
+		const float kBitBelow = 32.f;    // from one bit's row to the next
+		const theme::Size kBezelSize = {21.26028f, 21.25987f};   // the old LEDLightBezel: the first row's place
+		const theme::Pos centre = theme::sameCol(theme::specific(w * 0.5f, 0), theme::specificCorner(27, 50, kBezelSize).y);
+		// The buttons are the house round button, momentary as before, lit (orange) by the bit's state the module
+		// keeps in its light, which used to light the bezel.
+		auto button = [&](theme::Pos p, int paramId, int lightId) {
+			BidooRoundButton *b = theme::param<BidooRoundButton>(p, module, paramId);
+			b->momentary = true;
+			b->litBy = [=]() { return module && module->lights[lightId].getBrightness() > 0.5f; };
+			addParam(b);
+		};
 		for (int i = 0; i < 8; i++) {
-			const theme::Pos off = offButton.down(kBitBelow * i);
-			addParam(theme::place(createLightParam<LEDLightBezel<RedLight>>(Vec(), module, RABBIT::BITOFF_PARAM + i, RABBIT::BITOFF_LIGHTS + i), off));
-			addInput(theme::input<TinyPJ301MPort>(theme::colRow(offCvCol, theme::specific(0, off.y)), module, RABBIT::BITOFF_INPUT + i));
-			addInput(theme::input<TinyPJ301MPort>(theme::colRow(revCvCol, theme::specific(0, off.y)), module, RABBIT::BITREV_INPUT + i));
-			addParam(theme::place(createLightParam<LEDLightBezel<BlueLight>>(Vec(), module, RABBIT::BITREV_PARAM + i, RABBIT::BITREV_LIGHTS + i), revButton.down(kBitBelow * i)));
+			const theme::Pos row = centre.down(kBitBelow * i);
+			addInput(theme::input<TinyPJ301MPort>(row.right(-kJackOut), module, RABBIT::BITOFF_INPUT + i));
+			button(row.right(-kButtonOut), RABBIT::BITOFF_PARAM + i, RABBIT::BITOFF_LIGHTS + i);
+			button(row.right(kButtonOut), RABBIT::BITREV_PARAM + i, RABBIT::BITREV_LIGHTS + i);
+			addInput(theme::input<TinyPJ301MPort>(row.right(kJackOut), module, RABBIT::BITREV_INPUT + i));
 		}
-		const theme::Pos stereoRow = theme::specificCorner(8, 340, theme::kTinyJackSize);
-		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(13.906f, 0), stereoRow), module, RABBIT::L_INPUT));
-		addInput(theme::input<TinyPJ301MPort>(theme::colRow(theme::specific(37.438f, 0), stereoRow), module, RABBIT::R_INPUT));
-		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(67.281f, 0), stereoRow), module, RABBIT::L_OUTPUT));
-		addOutput(theme::output<TinyPJ301MPort>(theme::colRow(theme::specific(88.812f, 0), stereoRow), module, RABBIT::R_OUTPUT));
+
+		// the stereo in and out: tiny jacks on the four columns of the bottom row (full jacks don't fit two to a box
+		// on 7 HP's 21 px columns), 5.5 px lower than its jacks so their L and R fit under the box's name, as lIMbO's.
+		// The old jacks were 4.2 to 6.7 px off these columns, under the old L and R
+		const float kStereoY = 347.5f;   // the old corner 340, the same in tools/panels/rabbit.py
+		addInput(theme::input<TinyPJ301MPort>(theme::sameCol(theme::at(0, 4, 0, w), kStereoY), module, RABBIT::L_INPUT));
+		addInput(theme::input<TinyPJ301MPort>(theme::sameCol(theme::at(1, 4, 0, w), kStereoY), module, RABBIT::R_INPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::sameCol(theme::at(2, 4, 0, w), kStereoY), module, RABBIT::L_OUTPUT));
+		addOutput(theme::output<TinyPJ301MPort>(theme::sameCol(theme::at(3, 4, 0, w), kStereoY), module, RABBIT::R_OUTPUT));
 	}
 };
 

@@ -1,5 +1,7 @@
 #pragma once
 #include <rack.hpp>
+#include "plugin.hpp"
+#include "BidooComponents.hpp"
 #include <atomic>
 #include <condition_variable>
 #include <deque>
@@ -562,4 +564,57 @@ inline void slicePresetLight(Light &l, float dt) {
 	float b = l.getBrightness();
 	if (b > 0.f)
 		l.setBrightness(b < 1e-3f ? 0.f : b * std::exp(-4.f * dt));
+}
+
+// oAï's and maGma's controls, on the panel of tools/panels/oai.py (maGma's, magma.py, is the same with four preset
+// buttons, placed in src/MAGMA.cpp). The old arrangement: the knobs and switches keep their old rows (specific, from
+// their old corners), the outer knob columns go over the outer CV jacks (0.26 and 0.74 px from the old knobs), the
+// middle one on the panel's centre (0.24 px); the jacks in one box each, as on the old panel, their rows between 6 px
+// from the panel's sides (four boxes holding full jacks need more than the theme's 10 px margins leave).
+template <class M>
+void sliceSamplerControls(ModuleWidget *mw, M *module) {
+	const float w = mw->box.size.x;
+	const int n = 4;   // the CV rows' columns, N in tools/panels/oai.py
+	const theme::Size kSmallLightSize = {mm2px(2.f), mm2px(2.f)};   // SmallLight
+	const theme::Size kCKSSSize = {14.f, 20.64111f};                // CKSS
+	const theme::Pos left = theme::jackAt(0, n, 2, w), middle = theme::specific(w * 0.5f, 0), right = theme::jackAt(n - 1, n, 2, w);
+
+	// under the title: the sample light and the channel knob, on the panel's centre
+	mw->addChild(theme::light<SmallLight<RedGreenBlueLight>>(theme::colRow(middle, theme::specificCorner(56.5f, 20, kSmallLightSize)), module, M::SAMPLE_LIGHT));
+	mw->addParam(theme::param<BidooBlueSnapKnob>(theme::colRow(middle, theme::specificCorner(45, 35, theme::kBlueKnobSize)), module, M::CHANNEL_PARAM));
+
+	// two rows of three knobs, then KILL under SPEED and RES; the dial ticks around the channel, filter type and kill
+	// knobs are on the panel, centred on these places
+	const float kKnobRowBelow = 50.f;
+	const theme::Pos knobRow = theme::specificCorner(7, 85, theme::kBlueKnobSize);   // START's old corner: the first row
+	const theme::Pos start = theme::colRow(left, knobRow), len = theme::colRow(middle, knobRow), speed = theme::colRow(right, knobRow);
+	mw->addParam(theme::param<BidooBlueKnob>(start, module, M::START_PARAM));
+	mw->addParam(theme::param<BidooBlueKnob>(len, module, M::LEN_PARAM));
+	mw->addParam(theme::param<BidooBlueKnob>(speed, module, M::SPEED_PARAM));
+	mw->addParam(theme::param<BidooBlueSnapKnob>(start.down(kKnobRowBelow), module, M::FILTERTYPE_PARAM));
+	mw->addParam(theme::param<BidooBlueKnob>(len.down(kKnobRowBelow), module, M::FREQ_PARAM));
+	mw->addParam(theme::param<BidooBlueKnob>(speed.down(kKnobRowBelow), module, M::Q_PARAM));
+	mw->addParam(theme::param<BidooBlueSnapKnob>(speed.down(2.f * kKnobRowBelow), module, M::KILL_PARAM));
+
+	// the loop and gate switches, under START and LEN, at their old row
+	const theme::Pos switchRow = theme::specificCorner(53, 190, kCKSSSize);
+	mw->addParam(theme::param<CKSS>(theme::colRow(start, switchRow), module, M::LOOP_PARAM));
+	mw->addParam(theme::param<CKSS>(theme::colRow(len, switchRow), module, M::GATE_PARAM));
+
+	// the jacks: a box each, the rows between kBoxLeft and kBoxRight (BOX_LEFT, BOX_RIGHT and CV_GAP in
+	// tools/panels/oai.py); four on rows 2 and 1, 2 px apart, then trigger, kill and the poly out on row 0, 4 px apart
+	const float kBoxLeft = 6.f, kBoxRight = w - 6.f, kCvGap = 2.f;
+	auto boxCentre = [&](int i, int count, float gap) {
+		const float bw = (kBoxRight - kBoxLeft - (count - 1) * gap) / count;
+		return kBoxLeft + 0.5f * bw + i * (bw + gap);
+	};
+	const int topIds[4] = {M::START_INPUT, M::LEN_INPUT, M::SPEED_INPUT, M::LOOP_INPUT};
+	const int midIds[4] = {M::FILTERTYPE_INPUT, M::FREQ_INPUT, M::Q_INPUT, M::GATE_INPUT};
+	for (int i = 0; i < n; i++) {
+		mw->addInput(theme::input<PJ301MPort>(theme::specific(boxCentre(i, n, kCvGap), theme::row(2)), module, topIds[i]));
+		mw->addInput(theme::input<PJ301MPort>(theme::specific(boxCentre(i, n, kCvGap), theme::row(1)), module, midIds[i]));
+	}
+	mw->addInput(theme::input<PJ301MPort>(theme::specific(boxCentre(0, 3, theme::kBoxGap), theme::row(0)), module, M::TRIG_INPUT));
+	mw->addInput(theme::input<PJ301MPort>(theme::specific(boxCentre(1, 3, theme::kBoxGap), theme::row(0)), module, M::KILL_INPUT));
+	mw->addOutput(theme::output<PJ301MPort>(theme::specific(boxCentre(2, 3, theme::kBoxGap), theme::row(0)), module, M::POLY_OUTPUT));
 }

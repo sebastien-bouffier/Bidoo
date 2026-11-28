@@ -320,13 +320,15 @@ struct ZINCWidget : BidooWidget {
 
 		theme::addScrews(this);
 
-		// The original hand-drawn panel: a 4 x 4 grid of band knobs (no labels), six trimpots under their labels, the
-		// MOD, CAR and GAIN knobs, three boxed jacks. Old corners kept, except the CAR and GAIN knobs, now under their
-		// labels (the old code had them 0.4 and 0.7 px right), and the jacks on their boxes' centres (up to 0.65 px off).
+		// The panel of tools/panels/zinc.py: the old arrangement, the knobs at their old places (specific: they are the
+		// panel's picture of the module), the jacks on the grid. A 4 x 4 grid of band knobs (their frequencies printed
+		// by the display, no labels), six trimpots under their labels, the MOD, CAR and GAIN knobs, three boxed jacks.
+		// The anchors and steps are the same in tools/panels/zinc.py.
+		const float w = box.size.x;
 		ZINCDisplay *display = new ZINCDisplay();
 		display->module = module;
 		display->panel = this;
-		display->box = theme::specificRect(14, 14, 110, 70);
+		display->box = theme::specificRect(14, 14, 110, 70);   // where it prints the bands' frequencies, as before
 		addChild(display);
 
 		const theme::Size kBandKnobSize = {28.f, 28.f};   // BidooziNCColoredKnob sets its own box
@@ -337,21 +339,25 @@ struct ZINCWidget : BidooWidget {
 			addParam(theme::param<BidooziNCColoredKnob>(firstBand.offset(kBandRight[i % (BANDS / 4)], kBandBelow * (i / 4)), module, ZINC::BG_PARAM + i));
 		}
 
+		// the trimpots at their old height, the six centred on the panel (they were 0.1 px right of it)
 		const float kTrimpotRight = 32.f;
-		const theme::Pos attack = theme::specificCorner(8, 230, theme::kTrimpotSize);
+		const theme::Pos attack = theme::sameRow(theme::specificCorner(8, 230, theme::kTrimpotSize), w * 0.5f - 2.5f * kTrimpotRight);
 		const int trimpotIds[6] = {ZINC::ATTACK_PARAM, ZINC::DECAY_PARAM, ZINC::Q1_PARAM, ZINC::Q2_PARAM, ZINC::Q3_PARAM, ZINC::Q4_PARAM};
 		for (int i = 0; i < 6; i++)
 			addParam(theme::param<BidooBlueTrimpot>(attack.right(kTrimpotRight * i), module, trimpotIds[i]));
 
-		const theme::Pos gainRow = theme::specificCorner(41, 268, theme::kBlueKnobSize);
-		addParam(theme::param<BidooBlueKnob>(gainRow, module, ZINC::GMOD_PARAM));
-		addParam(theme::param<BidooBlueKnob>(theme::colRow(theme::specific(97.375f, 0), gainRow), module, ZINC::GCARR_PARAM));   // under CAR
-		addParam(theme::param<BidooBlueKnob>(theme::colRow(theme::specific(139.094f, 0), gainRow), module, ZINC::G_PARAM));      // under GAIN
+		// MOD, CAR and GAIN at their old height: CAR on the panel's centre, the others either side (all within 0.13 px
+		// of where they were)
+		const float kGainRight = 41.667f;
+		const theme::Pos car = theme::sameRow(theme::specificCorner(41, 268, theme::kBlueKnobSize), w * 0.5f);
+		addParam(theme::param<BidooBlueKnob>(car.right(-kGainRight), module, ZINC::GMOD_PARAM));
+		addParam(theme::param<BidooBlueKnob>(car, module, ZINC::GCARR_PARAM));
+		addParam(theme::param<BidooBlueKnob>(car.right(kGainRight), module, ZINC::G_PARAM));
 
-		const theme::Pos jackRow = theme::specificCorner(7, 330, theme::kJackSize);
-		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(19.156f, 0), jackRow), module, ZINC::IN_MOD));     // the boxes' centres
-		addInput(theme::input<PJ301MPort>(theme::colRow(theme::specific(97.5f, 0), jackRow), module, ZINC::IN_CARR));
-		addOutput(theme::output<PJ301MPort>(theme::colRow(theme::specific(175.844f, 0), jackRow), module, ZINC::OUT));
+		// the jacks: the bottom row's first, middle and last of five columns
+		addInput(theme::input<PJ301MPort>(theme::jackAt(0, 5, 0, w), module, ZINC::IN_MOD));
+		addInput(theme::input<PJ301MPort>(theme::jackAt(2, 5, 0, w), module, ZINC::IN_CARR));
+		addOutput(theme::output<PJ301MPort>(theme::jackAt(4, 5, 0, w), module, ZINC::OUT));
 	}
 
 };
